@@ -1224,7 +1224,8 @@ bool activate_next_thread(psprecomp::AllegrexContext &ctx, const char *reason) {
         };
         std::cerr << "[sched] " << name_of(thread_table.current_uid) << " -> " << name_of(continuation.uid)
                   << " (" << thread_table.current_uid << "->" << continuation.uid << ", "
-                  << (reason != nullptr ? reason : "") << ") pc=" << psprecomp::hex32(continuation.context.pc) << "\n";
+                  << (reason != nullptr ? reason : "") << ") pc=" << psprecomp::hex32(continuation.context.pc)
+                  << " prio=" << thread_priority(continuation.uid) << " t=" << virtual_time_us << "\n";
     }
     thread_table.current_uid = continuation.uid;
     if (auto thread = thread_table.threads.find(continuation.uid); thread != thread_table.threads.end()) {
@@ -3521,16 +3522,19 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 rt.memory().store8(sample + 11u, 128u);
                 rt.memory().zero(sample + 12u, 4u);
             }
-            // GT: the pad is sampled once per vblank (~16,667 us); a second read by the same thread
-            // inside one sample period blocks until the next sample (PPSSPP: "ctrl buffer waited").
-            // Without this a GT thread polls in a tight loop and starves every other thread.
-            constexpr std::uint64_t kSamplePeriodUs = 16'667u;
+            // GT: the pad is sampled once per vblank; a second read by the same thread inside one
+            // sample period blocks until the next sample (PPSSPP: "ctrl buffer waited"). Without this
+            // a GT thread polls in a tight loop and starves every other thread. The period must be the
+            // kernel's vblank period (59.94 Hz), not 1/60 s, or samples arrive before the vblank.
+            constexpr std::uint64_t kSamplePeriodUs = kVblankPeriodUs;
             static std::unordered_map<std::int32_t, std::uint64_t> last_period;
             const std::uint64_t period = virtual_time_us / kSamplePeriodUs;
             auto [seen, fresh] = last_period.try_emplace(thread_table.current_uid, period);
             if (!fresh && seen->second >= period) {
                 seen->second = period + 1u;
-                const auto wait_us = static_cast<std::uint32_t>((period + 1u) * kSamplePeriodUs - virtual_time_us);
+                // +1 us: the sample is delivered right after the vblank, so threads waiting on the
+                // vblank itself resume first (PPSSPP: "entered vblank" before "ctrl buffers updated").
+                const auto wait_us = static_cast<std::uint32_t>((period + 1u) * kSamplePeriodUs - virtual_time_us + 1u);
                 (void)delay_current_thread(rt, ctx, wait_us, count);
                 return;
             }

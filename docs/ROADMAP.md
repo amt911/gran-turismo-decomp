@@ -50,9 +50,11 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [x] Corre 30 s sin colgarse; ~82.000 llamadas al sistema; **235 coinciden en orden con PPSSPP**.
 - [ ] Puerta: 2.000 llamadas coincidentes y 30 s sin fallos. Pendiente: puntero nulo en `0x08ADB53C`,
       divergencia en `sceGeListEnQueue` (llamada 235).
-- [ ] **Siguiente paso:** modelar el vblank como evento (60 Hz de tiempo virtual, cola de espera que
-      despierta por prioridad) en vez de retrasos: es la causa de la divergencia de la llamada 235
-      (log `GT_SCHED_LOG=1` frente a los "Context switch" de PPSSPP; ver FACTS).
+- [x] Orden de despertar en el vblank: las muestras del mando llegan *después* del vblank (periodo real
+      de 59,94 Hz). Los cambios de hilo coinciden con PPSSPP hasta el nº 22 (antes 19).
+- [ ] Siguiente diferencia de planificación: tras la sub-interrupción de vblank que registra GT, PPSSPP
+      reanuda el hilo interrumpido ("left interrupt") y nosotros cambiamos de hilo. Aparcado: el harness
+      (Fase 3) no necesita igualdad con PPSSPP, compara dentro de nuestra propia ejecución.
 
 - [ ] Perfil GT en PSPRecomp sobre el ELF descifrado; el C++ generado va a `recomp/` (ignorado).
 - [ ] Capa de host: reutilizar los 151 HLE existentes (GE, display, ctrl, hilos, SAS, MPEG…) e
