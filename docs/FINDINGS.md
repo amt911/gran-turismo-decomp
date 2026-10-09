@@ -35,6 +35,22 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Title screen crashes reading address 4 — no font glyphs, not a localisation problem
+
+**Symptom.** ~10 s after the GT logo (with or without skipping the movie): `Guest memory access
+outside PSP RAM/EDRAM at 0x00000004`, `dispatch=0x0898A6B4` (an `MLocalizedText` widget method).
+**Cause.** The `dispatch`/`guest_pc` in the error are stale (direct calls bypass dispatch); the real
+fault is in text layout: `FUN_0024ae1c` asks `FUN_0024c288(font, char)` for a glyph, gets NULL and
+reads `*(short *)(glyph + 4)`. GT builds its glyph atlas at boot with `sceLibFont`, and the 2a stubs
+returned no glyph metrics, so no glyphs existed. Red herrings on the way: `MLocalizedText` asserts
+(`FUN_00257b7c` is an empty release-build assert), `rtext.rt2` loading (fine), memory exhaustion (no
+`sceKernelAllocMemoryBlock` failed).
+**Fix / workaround.** Real `sceLibFont` from the user's PGF fonts (`host/pgf.cpp`, `host/font_hle.cpp`).
+**Why it isn't obvious.** The crash report names the wrong function; the NULL comes from a lookup
+three calls down.
+
+Found: 2026-10-10 · runtime
+
 ### Intro movie: FFmpeg can't open GT's movies from GT.VOL — the bytes there are scrambled
 
 **Symptom.** `sceMpegAvcDecode` fails forever after the GT logo; `GT_MPEG_LOG=1` shows no source.
