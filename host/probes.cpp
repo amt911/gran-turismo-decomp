@@ -25,6 +25,19 @@ struct Probe {
 std::map<std::uint32_t, Probe> g_probes;
 unsigned g_next_order = 1u;
 
+// ` "text"` when `address` holds a short printable C string (paths, names), else nothing.
+std::string guest_text(psprecomp::Runtime &rt, std::uint32_t address) {
+    std::string text;
+    for (std::uint32_t i = 0; i < 96u; ++i) {
+        if (!rt.memory().contains(address + i, 1u)) return {};
+        const auto c = static_cast<char>(rt.memory().load8(address + i));
+        if (c == '\0') break;
+        if (c < 0x20 || c > 0x7E) return {};
+        text.push_back(c);
+    }
+    return text.size() >= 2u ? " \"" + text + "\"" : std::string{};
+}
+
 void probe_trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const auto it = g_probes.find(ctx.pc);
     if (it == g_probes.end()) {
@@ -35,7 +48,8 @@ void probe_trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (probe.hits++ == 0u) {
         probe.first_order = g_next_order++;
         std::cerr << "[probe] first entry #" << probe.first_order << " " << psprecomp::hex32(ctx.pc)
-                  << " ra=" << psprecomp::hex32(ctx.gpr[31]) << " a0=" << psprecomp::hex32(ctx.gpr[4]) << "\n";
+                  << " ra=" << psprecomp::hex32(ctx.gpr[31]) << " a0=" << psprecomp::hex32(ctx.gpr[4])
+                  << " a1=" << psprecomp::hex32(ctx.gpr[5]) << guest_text(rt, ctx.gpr[5]) << "\n";
     }
     probe.original(rt, ctx);
 }

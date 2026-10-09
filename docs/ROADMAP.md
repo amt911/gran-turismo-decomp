@@ -66,7 +66,12 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [x] Vídeo de intro: `scePsmf` propio (`host/psmf*.cpp`, con tests) y decodificación H.264 desde el
       ring buffer (los vídeos de GT.VOL están cifrados en disco). Se ve entero.
 - [x] Mando simulado headless: `GT_PAD`. START salta el vídeo → pantalla del logo GT.
-- [ ] Música del menú: `sceAtrac` (`SetDataAndGetID`, `GetNextSample`…). Aquí se para hoy.
+- [x] `sceAtrac` completo para GT (`SetDataAndGetID`, `SetData`, `GetAtracID`, `GetNextSample`,
+      `GetMaxSample`, `IsSecondBufferNeeded`). La música de GT.VOL está cifrada como los vídeos: hoy
+      se "decodifica" silencio llevando toda la contabilidad (muestras, frames, bucles, streaming).
+- [ ] Pantalla de título: ~10 s después del logo GT, lectura de `NULL+4` en el texto localizado de un
+      widget (`MLocalizedText` sin componente, `+0x1e0`; vaddr `0x1865F8` → `0x24B5C0`). En el
+      original nunca es nulo. Aquí se para hoy (con o sin START).
 - [ ] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo.
 - [ ] `sceDisplaySetMode` espera un vblank en PPSSPP (divergencia nº 236 de la traza).
 

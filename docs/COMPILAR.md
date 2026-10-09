@@ -105,7 +105,9 @@ UP DOWN LEFT RIGHT L R`. Por ejemplo, para saltar el vídeo de introducción:
 GT_PAD="3300:START" GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 90
 ```
 
-`GT_MPEG_LOG=1` explica de dónde sale cada vídeo y si se decodifica.
+`GT_MPEG_LOG=1` explica de dónde sale cada vídeo y si se decodifica; `GT_IO_LOG=1` lista cada
+`seek`/`read` de ficheros (para compararlo con el log de PPSSPP). `GT_PROBE=0x…` también muestra el
+segundo argumento y, si es texto, la cadena (rutas de fichero, nombres).
 
 ## 6. Comparar con el juego original en PPSSPP
 
