@@ -42,6 +42,11 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
 
 - The differential cases pass **and** they cover the function's branches that real play reaches —
   a function tested only on its early-return path is not done. Record which branches the cases hit.
+- **A function that writes memory needs at least one compared case that changed memory**
+  (`cases that changed memory` in the `[decomp]` report). A memset of already-zero memory proves
+  nothing about the writes: a sabotaged memset passed such cases (FINDINGS).
+- **The gate is shown failing once per function**: sabotage the return value or a write, run
+  `--decomp diff`, see `mismatched` > 0 and exit code 2, restore.
 - The boot check is green with the function swapped in.
 - The code compiles cleanly with the host compiler at the project's warning level — no new warnings.
 

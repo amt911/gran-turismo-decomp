@@ -52,8 +52,15 @@ find_package(Threads REQUIRED)
 # Kernel/IO/media HLE: host/gt_kernel.cpp, our copy of lcs-recomp's lcs_profile.cpp (MIT, notice kept)
 # extended for GT. SAS, media decoding and GE list walking compile from the pinned checkout (MIT, not
 # vendored). Rendering, audio output, window, menu and language hooks are headless stubs of ours.
+# Decompiled functions (src/) register themselves with GT_DECOMP; compiled straight into gt_native so the
+# static registrars are never dropped by the linker.
+file(GLOB_RECURSE GT_DECOMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
+
 add_executable(gt_native
     host/main.cpp
+    host/diff_harness.cpp
+    host/diff_compare.cpp
+    ${GT_DECOMP_SOURCES}
     host/headless_backends.cpp
     host/gt_kernel.cpp
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"

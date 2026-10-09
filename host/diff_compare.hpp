@@ -22,8 +22,13 @@ struct EndState {
     std::uint32_t ignore_end{0u};
 };
 
-// nullopt when equal. Compared: return values (v0, v1, f0), callee-saved registers (s0-s7, sp, fp,
-// ra) and every RAM byte. Caller-saved temporaries are not part of a function's contract.
-[[nodiscard]] std::optional<std::string> first_difference(const EndState &original, const EndState &decompiled);
+// Which return registers are part of a function's contract. GCC uses v1 and f0 as scratch, so they
+// only count when the function really returns through them.
+enum class ReturnKind { Void, Word, DoubleWord, Float };
+
+// nullopt when equal. Compared: the return registers `kind` names, callee-saved registers (s0-s7,
+// sp, fp, ra) and every RAM byte outside the ignored range. Caller-saved temporaries never count.
+[[nodiscard]] std::optional<std::string> first_difference(const EndState &original, const EndState &decompiled,
+                                                          ReturnKind kind = ReturnKind::Word);
 
 } // namespace gt

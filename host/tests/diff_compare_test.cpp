@@ -61,7 +61,19 @@ int main() {
     {
         auto a = base_state(), b = base_state();
         b.f0_bits = 0x3F800000u;
-        check(mentions(gt::first_difference(a, b), "f0"), "f0 difference is reported");
+        check(mentions(gt::first_difference(a, b, gt::ReturnKind::Float), "f0"), "f0 counts for float returns");
+        check(!gt::first_difference(a, b, gt::ReturnKind::Word).has_value(), "f0 is scratch for word returns");
+    }
+    {
+        auto a = base_state(), b = base_state();
+        b.gpr[3] = 0x77u;  // v1 used as a temporary, as GCC does
+        check(!gt::first_difference(a, b, gt::ReturnKind::Word).has_value(), "v1 is scratch for word returns");
+        check(mentions(gt::first_difference(a, b, gt::ReturnKind::DoubleWord), "v1"), "v1 counts for 64-bit returns");
+    }
+    {
+        auto a = base_state(), b = base_state();
+        b.gpr[2] = 0x1u;
+        check(!gt::first_difference(a, b, gt::ReturnKind::Void).has_value(), "v0 is scratch for void functions");
     }
     {
         auto a = base_state(), b = base_state();

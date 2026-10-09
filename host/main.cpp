@@ -4,6 +4,7 @@
 // register the generated code and the kernel HLE, and run from the module entry. No graphics, audio
 // or input; see docs/superpowers/specs/2026-10-09-phase2a-recomp-boot-design.md.
 
+#include "diff_harness.hpp"
 #include "lcs_profile.hpp"
 #include "psprecomp/common.hpp"
 #include "psprecomp/elf32.hpp"
@@ -19,6 +20,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 
 namespace psprecomp {
@@ -36,6 +38,8 @@ struct Options {
     double max_seconds = 0.0;
     std::filesystem::path trace;  // import-call trace for tools/trace_compare.py; empty = off
     std::uint64_t trace_limit = 200'000u;  // lines written; later calls are only counted
+    gt::DecompMode decomp = gt::DecompMode::Off;  // --decomp off|on|diff (docs/agents/decomp-workflow.md)
+    unsigned decomp_cases = 16u;                   // diff cases per decompiled function
 };
 
 // Import trace: one line per import call, "<index> 0x<stub address>", in call order. The stub
@@ -47,6 +51,8 @@ std::uint64_t g_trace_limit = 0u;
 std::map<std::pair<std::string, std::uint32_t>, std::uint32_t, std::less<>> g_stub_by_import;
 
 void trace_import(std::string_view library, std::uint32_t nid) {
+    gt::note_import();
+    if (g_trace == nullptr) return;
     const auto it = g_stub_by_import.find(std::pair<std::string, std::uint32_t>(std::string(library), nid));
     const std::uint32_t stub = it != g_stub_by_import.end() ? it->second : 0u;
     if (g_trace_index < g_trace_limit)
@@ -65,6 +71,10 @@ Options parse_options(int argc, char **argv) {
         else if (arg == "--max-seconds" && has_value) options.max_seconds = std::strtod(argv[++i], nullptr);
         else if (arg == "--trace" && has_value) options.trace = argv[++i];
         else if (arg == "--trace-limit" && has_value) options.trace_limit = std::strtoull(argv[++i], nullptr, 0);
+        else if (arg == "--decomp" && has_value) {
+            if (!gt::parse_decomp_mode(argv[++i], options.decomp)) std::cerr << "gt_native: --decomp expects off|on|diff\n";
+        }
+        else if (arg == "--decomp-cases" && has_value) options.decomp_cases = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 0));
         else std::cerr << "gt_native: ignoring argument \"" << arg << "\"\n";
     }
     return options;
@@ -102,14 +112,20 @@ int main(int argc, char **argv) {
         if (!module) throw psprecomp::Error("PSP module info not found after relocation");
         runtime.cpu().set_gpr(28, module->gp);
 
+        std::unordered_set<std::uint32_t> import_stubs;
+        for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
+            g_stub_by_import[{import.library, import.nid}] = import.stub_address;
+            import_stubs.insert(import.stub_address);
+        }
+        gt::set_import_stubs(std::move(import_stubs));
         if (!options.trace.empty()) {
-            for (const auto &import : elf.scan_imports(runtime.memory(), *module))
-                g_stub_by_import[{import.library, import.nid}] = import.stub_address;
             g_trace = std::fopen(options.trace.c_str(), "w");
             if (g_trace == nullptr) throw psprecomp::Error("cannot open trace file " + options.trace.string());
             g_trace_limit = options.trace_limit;
-            psprecomp::set_runtime_import_observer(&trace_import);
         }
+        // One observer for both: the trace (when enabled) and the harness's import counter.
+        psprecomp::set_runtime_import_observer(&trace_import);
+        gt::install_decompiled(runtime, options.decomp, options.decomp_cases);
         runtime.cpu().set_gpr(31, 0u);
         runtime.cpu().set_gpr(4, 0u);
         runtime.cpu().set_gpr(5, 0u);
@@ -119,14 +135,15 @@ int main(int argc, char **argv) {
         runtime.run(entry, options.max_dispatches);
         lcs::ge_worker_shutdown();
         if (runtime.stopped()) std::cout << "Runtime stopped: " << runtime.stop_reason() << "\n";
+        psprecomp::set_runtime_import_observer(nullptr);
         if (g_trace != nullptr) {
-            psprecomp::set_runtime_import_observer(nullptr);
             std::fclose(g_trace);
             std::cout << "Traced " << g_trace_index << " import calls to " << options.trace.string() << "\n";
         }
     } catch (const std::exception &ex) {
         std::cerr << "gt_native error: " << ex.what() << "\n";
-        return 1;
+        const int decomp_status = gt::decomp_report();  // a mismatch (2) wins over the crash (1)
+        return decomp_status != 0 ? decomp_status : 1;
     }
-    return 0;
+    return gt::decomp_report();
 }
