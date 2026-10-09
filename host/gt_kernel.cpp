@@ -2183,6 +2183,15 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
     runtime.register_hle("sceHprm", 0x7E69EDA4u, succeed);          // sceHprmIsHeadphoneExist -> 0 (no)
     runtime.register_hle("sceSasCore", 0xE175EF66u, succeed);       // __sceSasGetOutputmode -> 0 (stereo)
     runtime.register_hle("sceAtrac3plus", 0x132F1ECAu, succeed);    // sceAtracReinit
+    runtime.register_hle("sceMp3", 0x35750070u, succeed);           // sceMp3InitResource (PPSSPP: 0)
+    runtime.register_hle("sceWlanDrv", 0x0C622081u,  // sceWlanGetEtherAddr(u8 mac[6]) -> 0
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            // Fixed, locally administered MAC; no network is emulated.
+            constexpr std::uint8_t kMac[6]{0x02u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u};
+            if (rt.memory().contains(ctx.gpr[4], 6u))
+                for (std::uint32_t i = 0; i < 6u; ++i) rt.memory().store8(ctx.gpr[4] + i, kMac[i]);
+            set_success(ctx);
+        });
     // Data-cache maintenance by range: guest memory has no cache here, so these are no-ops (PPSSPP: 0).
     runtime.register_hle("UtilsForUser", 0xBFA98062u, succeed);     // sceKernelDcacheInvalidateRange
     runtime.register_hle("UtilsForUser", 0x3EE30821u, succeed);     // sceKernelDcacheWritebackRange
@@ -2824,7 +2833,10 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             const std::string name = ctx.gpr[4] != 0u ? rt.memory().read_c_string(ctx.gpr[4], 128u) : "semaphore";
             const auto initial = static_cast<std::int32_t>(ctx.gpr[6]);
             const auto maximum = static_cast<std::int32_t>(ctx.gpr[7]);
-            if (initial < 0 || maximum <= 0 || initial > maximum) {
+            // GT: the SGX sound init creates "sgx-psp-freq-free-sema" with initial 0 and maximum 0;
+            // PPSSPP returns a UID for it. Rejecting maximum 0 made the whole SGX init (and every init
+            // step chained after it) fail, later crashing on a NULL global (docs/FINDINGS.md).
+            if (initial < 0 || maximum < 0 || initial > maximum) {
                 ctx.set_gpr(2, 0x800201B0u);
                 return;
             }

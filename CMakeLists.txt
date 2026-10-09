@@ -60,6 +60,7 @@ add_executable(gt_native
     host/main.cpp
     host/diff_harness.cpp
     host/diff_compare.cpp
+    host/probes.cpp
     ${GT_DECOMP_SOURCES}
     host/headless_backends.cpp
     host/gt_kernel.cpp

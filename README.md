@@ -15,12 +15,10 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 > - **Gráficos: todavía nada.** `gt_native` es *headless* (sin ventana ni GPU) a propósito; la primera
 >   imagen llega en la Fase 2b. No se ha visto ningún frame.
 > - **Lo que sí funciona:** GT entero recompilado a C++ nativo (156 unidades, compila en ~3 min dentro de
->   6 GB de RAM), carga el EBOOT, ejecuta el código del juego y hace **~82.000 llamadas al sistema** en
->   su arranque. Las **primeras 235 coinciden en orden** con las del juego original en PPSSPP (objetivo
->   de la fase: 2.000).
-> - **Dónde se para:** un puntero nulo en el código del juego (`0x08ADB53C`), probablemente porque
->   alguna función del sistema aún simplificada devuelve algo distinto a la PSP real; y el orden diverge
->   en la llamada 235 (`sceGeListEnQueue`, el primer envío de una lista de dibujo a la GPU).
+>   6 GB de RAM), carga el EBOOT y **ejecuta 30 s seguidos sin fallos (~1,09 millones de llamadas al
+>   sistema)**. Las primeras 235 coinciden en orden con PPSSPP (objetivo de la fase 2a: 2.000).
+> - **Decompilación empezada (Fase 3):** harness diferencial en `gt_native --decomp diff`; primera
+>   función decompilada y probada: `memset` (16/16 casos iguales frente al original).
 > - **Probarlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md). Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Qué hay y qué no
