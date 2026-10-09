@@ -31,8 +31,8 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 ## Empezar
 
 1. Pon tu ISO en `game_files/` (está en `.gitignore`).
-2. Pasos de la Fase 0, verificados a mano: [`AGENTS.md` § Commands](AGENTS.md#commands). Los scripts
-   `tools/setup.sh` y `tools/extract.sh` llegan en la Fase 1.
+2. Sigue [`docs/COMPILAR.md`](docs/COMPILAR.md): herramientas, extracción, recompilación, compilación de
+   `gt_native`, ejecución y comparación con PPSSPP, paso a paso.
 
 ## Para agentes (Claude Code / Codex)
 
