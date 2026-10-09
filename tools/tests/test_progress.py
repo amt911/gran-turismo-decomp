@@ -1,0 +1,52 @@
+from pathlib import Path
+
+import pytest
+
+from tools.progress import LOAD_BASE, decompiled_functions, load_functions, report
+
+FUNCTIONS_TSV = "28\t132\nac\t96\n331f60\t120\n332018\t344\n400000\t1000\n"
+
+
+def write_src(root: Path, relative: str, text: str) -> None:
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def test_load_functions_reads_hex_entries_and_decimal_sizes(tmp_path: Path):
+    tsv = tmp_path / "functions.tsv"
+    tsv.write_text(FUNCTIONS_TSV)
+    assert load_functions(tsv) == {0x28: 132, 0xAC: 96, 0x331F60: 120, 0x332018: 344, 0x400000: 1000}
+
+
+def test_decompiled_functions_finds_registrations_and_classifies_by_directory(tmp_path: Path):
+    write_src(tmp_path, "libc/memset.cpp", "GT_DECOMP(0x08B36018u, gt::libc::memset, gt::ReturnKind::Word);\n")
+    write_src(tmp_path, "libc/strlen.cpp", "GT_DECOMP(0x08B35F60u, gt::libc::strlen, gt::ReturnKind::Word);\n")
+    write_src(tmp_path, "game/race.cpp", "GT_DECOMP(0x08804028u, gt::race::tick, gt::ReturnKind::None);\n")
+    found = decompiled_functions(tmp_path)
+    assert found == {0x332018: "sdk", 0x331F60: "sdk", 0x28: "game"}
+
+
+def test_report_counts_functions_and_bytes_per_kind(tmp_path: Path):
+    functions = {0x28: 132, 0xAC: 96, 0x331F60: 120, 0x332018: 344, 0x400000: 1000}
+    lines = report(functions, {0x332018: "sdk", 0x331F60: "sdk", 0x28: "game"})
+    text = "\n".join(lines)
+    assert "functions: 3 / 5 decompiled" in text
+    assert "bytes: 596 / 1692" in text
+    assert "game: 1 functions, 132 bytes" in text
+    assert "sdk: 2 functions, 464 bytes" in text
+
+
+def test_report_flags_a_registration_that_is_not_a_function_entry():
+    lines = report({0x28: 132}, {0x30: "game"})
+    assert any("not a known function entry" in line and "0x08804030" in line for line in lines)
+
+
+def test_load_base_matches_the_runtime_base():
+    assert LOAD_BASE == 0x08804000
+
+
+def test_decompiled_functions_rejects_an_address_below_the_load_base(tmp_path: Path):
+    write_src(tmp_path, "libc/bad.cpp", "GT_DECOMP(0x00001000u, gt::libc::bad, gt::ReturnKind::Word);\n")
+    with pytest.raises(ValueError):
+        decompiled_functions(tmp_path)

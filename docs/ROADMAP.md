@@ -100,7 +100,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       detectados (código de salida 2).
 - [x] Caída de arranque arreglada (semáforo con máximo 0): **30 s completos sin fallos, ~1,09 M llamadas
       al sistema**.
-- [ ] Informe de progreso: funciones decompiladas y en verde / total, juego vs SDK.
+- [x] Informe de progreso: `tools/progress.py` (con tests) sobre la lista de funciones de Ghidra
+      (23.208 funciones, 4,17 MB). Hoy: 8 decompiladas (7 SDK, 1 juego), 0,045 % de los bytes.
 - [ ] Investigar las llamadas directas entre unidades que se saltan las sustituciones (FINDINGS).
 
 ## Fase 4 — Decompilación función a función
@@ -108,6 +109,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Primeras hojas de libc (2026-10-10): `memcmp`, `strlen`, `strcmp`, `strchrnul` (+ `memset`), en
       `src/libc/`. Harness: 16/16 casos iguales cada una (strchrnul 4/4: GT la llama poco); sabotaje
       del valor devuelto detectado en las cuatro (exit 2; memcmp 15/16 casos con resultado ≠ 0).
+- [x] `memcpy` (`0x375A88`, copia por bloques de 16 B reproducida), `memmove` (`0x375BAC`; el
+      harness destapó que hacia atrás devuelve `dest + n`), `add_ref` del motor (`0x257A08`, primer
+      código de juego). 32/32 casos (memmove 18/18), sabotajes detectados.
+- [ ] Funciones que llaman a otras (malloc/calloc/realloc en `0x331840-0x331EB8`): falta poder
+      llamar a código del juego desde código decompilado sin romper el planificador.
 - [ ] Más libc/libm/libstdc++ estática alrededor de `0x331800-0x334000` y en otros bloques.
 - [ ] Subsistemas del juego, por orden de lo que desbloquea nombres (bindings de Adhoc, menús, sonido
       SGX, física).
