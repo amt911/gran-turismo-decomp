@@ -19,6 +19,12 @@ bool parse_decomp_mode(std::string_view text, DecompMode &mode);
 // effects can't be replayed twice), and the case is reported as not comparable.
 void set_import_stubs(std::unordered_set<std::uint32_t> stubs);
 
+// Import stubs an isolated original may still call: their HLE keeps no state outside guest RAM
+// (which the harness snapshots and restores) and doesn't switch threads when uncontended — LwMutex
+// lock/unlock, interrupt suspend/resume, data-cache maintenance. A thread switch still makes the
+// case not comparable.
+void set_replay_safe_imports(std::unordered_set<std::uint32_t> stubs);
+
 // Called for every import call (from the runtime import observer).
 void note_import() noexcept;
 

@@ -113,12 +113,20 @@ int main(int argc, char **argv) {
         if (!module) throw psprecomp::Error("PSP module info not found after relocation");
         runtime.cpu().set_gpr(28, module->gp);
 
-        std::unordered_set<std::uint32_t> import_stubs;
+        // NIDs whose HLE only touches guest RAM (see gt::set_replay_safe_imports).
+        static const std::unordered_set<std::uint32_t> kReplaySafeNids{
+            0xBEA46419u, 0x1FC64E09u, 0x15B6446Bu, 0xDC692EE3u,  // Lock/LockCB/Unlock/TryLock LwMutex
+            0x092968F4u, 0x5F10D406u,                            // CpuSuspendIntr / CpuResumeIntr
+            0x79D1C3FAu, 0xB435DEC5u, 0x3EE30821u, 0x34B9FA9Eu, 0xBFA98062u,  // Dcache maintenance
+        };
+        std::unordered_set<std::uint32_t> import_stubs, replay_safe;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
             g_stub_by_import[{import.library, import.nid}] = import.stub_address;
             import_stubs.insert(import.stub_address);
+            if (kReplaySafeNids.contains(import.nid)) replay_safe.insert(import.stub_address);
         }
         gt::set_import_stubs(std::move(import_stubs));
+        gt::set_replay_safe_imports(std::move(replay_safe));
         if (!options.trace.empty()) {
             g_trace = std::fopen(options.trace.c_str(), "w");
             if (g_trace == nullptr) throw psprecomp::Error("cannot open trace file " + options.trace.string());
