@@ -35,6 +35,19 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### The differential gate passed a sabotaged memset
+
+**Symptom.** `memset` writing one byte too few: `compared 16, equal 16, mismatched 0`.
+**Cause.** Every compared call filled memory that was already zero (boot-time memsets of freshly
+allocated, zeroed blocks), so the missing write was invisible. The harness itself works: a sabotaged
+return value gives 16/16 mismatches and exit code 2.
+**Fix / workaround.** The report now counts `cases that changed memory`; compared cases are spread
+over the run (first 4 calls, then 1 in 64). Rule in decomp-workflow.md: a memory-writing function
+needs at least one such case before it counts as proven.
+**Why it isn't obvious.** "16 equal" reads like strong evidence.
+
+Found: 2026-10-10 · decomp
+
 ### PPSSPP's HLE log is not a complete call trace
 
 **Symptom.** trace_compare reported divergences that were not real: calls missing on PPSSPP's side,

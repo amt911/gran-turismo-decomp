@@ -1,0 +1,25 @@
+--- a/include/psprecomp/runtime.hpp
++++ b/include/psprecomp/runtime.hpp
+@@ -86,6 +86,9 @@
+     const NidRegistry &nids() const noexcept;
+ 
+     void register_function(std::uint32_t address, RecompiledFunction function, std::string name);
++    // The function currently registered at `address` (nullptr if none). Lets a host keep the
++    // original recompiled entry before replacing it, e.g. to run both in a differential test.
++    [[nodiscard]] RecompiledFunction function_at(std::uint32_t address) const noexcept;
+     void register_hle(std::string library, std::uint32_t nid, HleFunction function);
+     [[nodiscard]] bool has_function(std::uint32_t address) const;
+     [[nodiscard]] std::size_t function_count() const noexcept;
+--- a/src/runtime.cpp
++++ b/src/runtime.cpp
+@@ -451,6 +451,10 @@
+     }
+ }
+ 
++Runtime::RecompiledFunction Runtime::function_at(std::uint32_t address) const noexcept {
++    return lookup_function(address);
++}
++
+ Runtime::RecompiledFunction Runtime::lookup_function(std::uint32_t address) const noexcept {
+     const std::uint32_t c = memory_.canonical(address);
+     const std::uint32_t delta = c - direct_base_;

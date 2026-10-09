@@ -102,11 +102,27 @@ Y cada vez que pruebes:
 Te dice cuántas llamadas al sistema coinciden en orden con las del juego original
 (`matched N calls (gate: 2000)`) y, si hay, la primera diferencia. La Fase 2a se da por buena con 2.000.
 
-## 7. Tests de las herramientas
+## 7. Tests
 
 ```bash
-.venv/bin/pytest --cov --cov-fail-under=80
+.venv/bin/pytest --cov --cov-fail-under=80   # herramientas Python
+ctest --test-dir build                        # tests C++ del host (comparación del harness)
 ```
+
+## 8. Probar las funciones decompiladas (harness diferencial)
+
+Las funciones ya decompiladas viven en `src/` y se registran solas. Para comprobar que hacen
+exactamente lo mismo que el código original del juego:
+
+```bash
+build/gt_native --max-seconds 30 --decomp diff
+```
+
+Al final imprime una línea `[decomp]` por función: casos comparados, iguales, discrepancias y
+cuántos casos cambiaron memoria. Si alguna función difiere, el programa sale con código **2** y
+muestra la primera diferencia (registro o byte de RAM, con los argumentos de la llamada).
+`--decomp on` usa las versiones decompiladas en lugar de las originales; `off` (por defecto) no las
+toca.
 
 ## Atajo: todo de una vez
 
