@@ -1,0 +1,3 @@
+# Expected SHA1 of the base dump (UCES-01245 v2.00) and of the decrypted EBOOT. See docs/FACTS.md.
+c84473375e3cd000d8f14c5905e6514389fd6a40  iso
+8746583fa8298f6447132988a01b236a8c5994b0  eboot.elf

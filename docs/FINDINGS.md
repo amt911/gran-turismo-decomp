@@ -35,6 +35,19 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### A test still fails after reverting a deliberate break
+
+**Symptom.** Broke a test constant with `sed`, saw it fail, reverted it with `sed` — and the test kept
+failing with the *old* value in the assertion message.
+**Cause.** pytest caches assertion-rewritten bytecode in `__pycache__` keyed by source mtime and size;
+a revert within the same second that keeps the size identical reuses the stale `.pyc`.
+**Fix / workaround.** After a break-and-revert, `find tools -name __pycache__ -exec rm -rf {} +`
+before rerunning (or touch the file a second later).
+**Why it isn't obvious.** The file on disk is correct; `-p no:cacheprovider` does not help (that is a
+different cache).
+
+Found: 2026-10-09 · tests
+
 ### PSPRecomp seems to implement none of GT's imports (it implements 151)
 
 **Symptom.** Searching PSPRecomp's sources for GT's 329 NIDs as 8-hex-digit literals found 0.
