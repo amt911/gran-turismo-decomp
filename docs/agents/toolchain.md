@@ -25,8 +25,8 @@
 | --- | --- | --- | --- |
 | pspdecrypt | `c156627db7634d395c380c0a9589130f603307fc` | decrypt `EBOOT.BIN` | <https://github.com/John-K/pspdecrypt> — `make` (clang, zlib, OpenSSL `libcrypto`). **Verified here** |
 | 7-Zip | system `7z` | extract the ISO | `isoinfo -x` writes empty files for this ISO (FINDINGS) |
-| PSPRecomp | `f6e7d415c7f447b934cc3865a31eb725f353d659` | static recompiler Allegrex → C++, guest memory, NID registry, HLE registration | <https://github.com/jessicanataliagta/PSPRecomp> (MIT). CMake ≥ 3.20, C++20. Framework ~5.9k lines; the Sony-import implementations live in its **VCS profile** (`profiles/vcs/host`, DX12 backend). **151 of GT's 329 imports have an HLE there** (FACTS) |
-| lcs-recomp | git (pin on first use) | second profile on PSPRecomp: **Linux, Vulkan, SDL2, FFmpeg** | <https://github.com/elmasas/lcs-recomp> (MIT) — reference for a Linux host layer |
+| lcs-recomp (framework) | `ab91e87fe38f3efc5e4443069e7ce6b5a43e615b` | static recompiler Allegrex → C++ (lcs-recomp's copy of PSPRecomp), guest memory, NID registry, HLE registration, kernel HLE base for our host | <https://github.com/elmasas/lcs-recomp> (MIT). Chosen over upstream PSPRecomp because its generic `psp_recomp --auto` works on GT (upstream hangs — FINDINGS). `tools/setup.sh` checks it out, applies `tools/patches/lcs-recomp/*.patch`, builds `psp_analyze`/`psp_recomp`/`psprecomp_tests` only. **Verified here** |
+| PSPRecomp (upstream) | not used | origin of the framework; VCS profile HLE coverage numbers in FACTS | <https://github.com/jessicanataliagta/PSPRecomp> (MIT) |
 | rabbitizer | 1.16.2 | Allegrex decoding for tools | <https://github.com/Decompollaborate/rabbitizer>; category `R4000ALLEGREX`. **Verified here** (VFPU decoded) |
 | m2c | git `main` (pin a commit on first install) | asm → C reading aid | <https://github.com/matt-kempster/m2c>; `-t mipsel-gcc-c`; no VFPU |
 | Ghidra | 12.1.3 repo-local (`tools/ghidra/`, SHA256-checked); `/opt/ghidra` 12.1.2 unused | the RE engine for the EBOOT | needs Java ≥ 21: `JAVA_HOME_OVERRIDE` → `java-27-openjdk` in its `launch.properties` (system default stays 17). **Verified here** |

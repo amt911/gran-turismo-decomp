@@ -10,8 +10,10 @@ GHIDRA_DIR="$REPO/tools/ghidra"
 
 PSPDECRYPT_URL=https://github.com/John-K/pspdecrypt.git
 PSPDECRYPT_REV=c156627db7634d395c380c0a9589130f603307fc
-PSPRECOMP_URL=https://github.com/jessicanataliagta/PSPRecomp.git
-PSPRECOMP_REV=f6e7d415c7f447b934cc3865a31eb725f353d659
+# Recompiler framework: lcs-recomp's copy of PSPRecomp (Linux-tested, carries codegen fixes GT needs).
+LCSRECOMP_URL=https://github.com/elmasas/lcs-recomp.git
+LCSRECOMP_REV=ab91e87fe38f3efc5e4443069e7ce6b5a43e615b
+PATCHES="$REPO/tools/patches/lcs-recomp"
 GHIDRA_URL=https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip
 GHIDRA_SHA256=93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54
 GHIDRA_HOME="$GHIDRA_DIR/ghidra_12.1.3_PUBLIC"
@@ -95,8 +97,25 @@ if [ ! -x "$BIN/pspdecrypt" ] || [ "$(cat "$BIN/.pspdecrypt.rev" 2>/dev/null)" !
   echo "$PSPDECRYPT_REV" > "$BIN/.pspdecrypt.rev"
 fi
 
-step "PSPRecomp @ ${PSPRECOMP_REV:0:7} (source only; built in Phase 2)"
-checkout "$PSPRECOMP_URL" "$PSPRECOMP_REV" "$SRC/PSPRecomp"
+step "lcs-recomp framework @ ${LCSRECOMP_REV:0:7} + our patches"
+need cmake; need ninja
+fw="$SRC/lcs-recomp"
+checkout "$LCSRECOMP_URL" "$LCSRECOMP_REV" "$fw"
+for patch in "$PATCHES"/*.patch; do
+  [ -e "$patch" ] || continue
+  if git -C "$fw" apply --reverse --check "$patch" 2>/dev/null; then
+    echo "    already applied $(basename "$patch")"
+  elif git -C "$fw" apply --check "$patch" 2>/dev/null; then
+    git -C "$fw" apply "$patch"; echo "    applied $(basename "$patch")"
+  else
+    echo "patch does not apply: $patch (stale tree? rm -rf $fw and rerun)" >&2; exit 1
+  fi
+done
+log="$fw/tools-build.log"
+if ! capped sh -c "cmake -S '$fw' -B '$fw/out/tools' -G Ninja -DPSPRECOMP_PROFILE= -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ && cmake --build '$fw/out/tools' -j6 --target psp_analyze psp_recomp psprecomp_tests && '$fw/out/tools/psprecomp_tests'" >"$log" 2>&1; then
+  tail -n 20 "$log" >&2; echo "lcs-recomp tools build/tests failed (full log: $log)" >&2; exit 1
+fi
+echo "    psp_recomp: $fw/out/tools/psp_recomp"
 
 if [ "$with_ghidra" = 1 ]; then
   step "Ghidra 12.1.3 + ghidra-allegrex v21.4 (repo-local)"
