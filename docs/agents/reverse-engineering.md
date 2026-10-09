@@ -36,9 +36,10 @@ matters (names, types) to the repo's text files; the `.gpr`/`.rep` is never the 
 
 ## Addresses — two spaces, one offset
 
-- **ELF vaddr (base 0)** — what splat, the linker and the matching build use; FACTS uses it; the build
-  reproduces the file's unrelocated bytes, so it links at 0. *(Decision proposed for the Phase 3 spec.)*
-- **Runtime address** — what PPSSPP, cheat databases and Ghidra-with-base-`0x08804000` show:
+- **ELF vaddr (base 0)** — what FACTS, `func_XXXXXXXX` names and `config/symbol_addrs.txt` use; it
+  is stable whatever base a loader picks.
+- **Runtime / guest address** — what PPSSPP, cheat databases, PSPRecomp's guest memory (to verify)
+  and Ghidra-with-base-`0x08804000` show:
   `runtime = vaddr + load_base`. `load_base` is **expected** to be `0x08804000` (first user module) —
   **verify it in PPSSPP** once and record it in FACTS before converting any external address.
 - Always say which space an address is in when you write it down.
@@ -53,12 +54,12 @@ A name is a claim. Acceptable evidence, strongest first:
    `MMenuGameObjectManager.cpp`, `sgx*.c` are in the binary).
 3. **Adhoc bindings** — the native side registers functions the scripts call; OpenAdhoc's script
    source gives their names. *(Hypothesis to confirm on the first binding table found.)*
-4. **Matched neighbours** — a callee whose role is fixed by its matched callers.
+4. **Decompiled neighbours** — a callee whose role is fixed by its already-decompiled callers.
 5. **Runtime observation** in PPSSPP (what changes when it runs).
 
 Format in `config/symbol_addrs.txt` *(planned)*: one symbol per line with a trailing comment holding the
 evidence, e.g. `sceKernelDelayThread = 0x004768A0; // NID 0xCEADEB47 (psplibdoc)` (illustrative line,
-address not real). Unknowns keep splat's `func_XXXXXXXX` / `D_XXXXXXXX`.
+address not real). Unknowns keep `func_XXXXXXXX` / `D_XXXXXXXX` (ELF vaddr).
 
 ## External sources — useful, not authoritative
 

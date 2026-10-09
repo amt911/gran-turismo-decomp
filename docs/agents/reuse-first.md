@@ -8,9 +8,9 @@
 
 In a decomp the default failure mode is the **second declaration of the same thing**: two structs for
 one game object with different field names, a function named twice under two addresses' worth of
-guesses, a `u32` typedef in three headers. Nothing breaks at first — the match doesn't care about
-names — and then two units disagree about a struct's layout and one of them stops matching for a
-reason nobody can see.
+guesses, a `u32` typedef in three headers. Nothing breaks at first — the harness doesn't care about
+names — and then two units disagree about a struct's layout and one of them writes the wrong field
+for a reason nobody can see.
 
 - **Search before declaring. Every time.** Before adding a struct, typedef, enum, macro, extern or
   symbol name, look for it by name *and* by address/size: `grep -rn` over `include/` and `src/`,
@@ -20,7 +20,7 @@ reason nobody can see.
   a unit-local struct moves there the moment a second unit needs it — not a copy in the second `.c`.
 - **One name per address.** `config/symbol_addrs.txt` is the single source for symbol names; headers
   and `src/` follow it. Renaming means changing it there and everywhere in the same commit.
-- **Extend, don't fork, the tools.** A new splat segment type, a second ELF parser, a parallel NID
+- **Extend, don't fork, the tools.** A second ELF parser, a second capture format, a parallel NID
   resolver: check `tools/` first and add the parameter to what exists.
 - **Rule of three for macros and helpers in `include/`.** Two occurrences can wait; at the third,
   extract in the same change and delete the copies.
@@ -30,5 +30,5 @@ reason nobody can see.
 - **A deliberate duplicate is one sentence in the commit** — say why the shared one didn't fit.
 
 Dependencies count as existing code: before hand-rolling an ELF parser or a MIPS decoder in `tools/`,
-check what splat, spimdisasm, rabbitizer or `pyelftools` already give. New dependencies follow
+check what PSPRecomp, rabbitizer, spimdisasm or `pyelftools` already give. New dependencies follow
 *Working rules* in `AGENTS.md` (install, pin, say so).

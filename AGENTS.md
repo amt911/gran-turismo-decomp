@@ -1,8 +1,10 @@
 # gran-turismo-decomp — Agent Guide
 
 A decompilation of **Gran Turismo (PSP, 2009)**, European release **UCES-01245 v2.00**: turning the
-game executable (`EBOOT.BIN`, module `PDIAPP`) back into C/C++ that **recompiles to the same bytes**.
-Personal research project by Andrés; no game data is ever stored in the repo.
+game executable (`EBOOT.BIN`, module `PDIAPP`) back into **readable C/C++ that compiles and runs on
+other platforms** (PC first). The goal is a decomp — source a person can read and change — not a
+byte-identical rebuild; correctness is proven **differentially** against the original code (see
+*Strategy*). Personal research project by Andrés; no game data is ever stored in the repo.
 
 **This file is `AGENTS.md`, read by every agent.** Codex reads it directly; Claude Code reads
 `CLAUDE.md`, which only imports it. Edit rules here (or in their `docs/agents/` document), never in
@@ -11,7 +13,8 @@ Personal research project by Andrés; no game data is ever stored in the repo.
 ## Start here
 
 - **Where the project stands:** [`docs/ROADMAP.md`](docs/ROADMAP.md) — phases, what is done, what blocks.
-  Phase 0 (preparation) is done; nothing has been split or decompiled yet.
+  Phase 0 (preparation) is done, including the compiler search (exact Sony GCC builds not public →
+  strategy B, decided by the user 2026-10-09). Nothing has been recompiled or decompiled yet.
 - **Read [`docs/FACTS.md`](docs/FACTS.md) first** — verified facts about the dump and the binary
   (hashes, sections, compilers in `.comment`, `-G0`, imports). Append when you verify something new.
 - **Read [`docs/FINDINGS.md`](docs/FINDINGS.md) before debugging or touching the build** — non-obvious
@@ -19,7 +22,7 @@ Personal research project by Andrés; no game data is ever stored in the repo.
   from the code or the binary, add a short entry.
 - **Before any binary analysis, read [reverse engineering](docs/agents/reverse-engineering.md)** — REA
   MCP + Ghidra (ghidra-allegrex), PPSSPP, and how a name earns its place.
-- **Before decompiling a function, read [the matching workflow](docs/agents/matching-workflow.md).**
+- **Before decompiling a function, read [the decomp workflow](docs/agents/decomp-workflow.md).**
 
 ## ⚡ graphify — scoped, every session
 
@@ -49,9 +52,9 @@ questions).
 
 Flow: `brainstorming → spec (you approve) → writing-plans → plan (you approve) →
 subagent-driven-development → finishing-a-development-branch`. **Nothing is implemented without an
-approved spec.** In this repo a "feature" is a phase or a tooling piece (splat config, build system,
-a tool script); **decompiling functions inside an approved phase does not need a new spec per
-function** — the matching gate is its spec.
+approved spec.** In this repo a "feature" is a phase or a tooling piece (the GT recomp profile, the
+differential harness, a host-layer library, a tool script); **decompiling functions inside an
+approved phase does not need a new spec per function** — the differential gate is its spec.
 
 User instructions always take precedence over skills; skills override default behavior. **Skills
 refine *how* the work is done; they never override the rules in this file. When a skill and this
@@ -73,9 +76,9 @@ refine *how* the work is done; they never override the rules in this file. When 
   push to `main`** or any protected/default branch directly, and **never** `git push --force` /
   `--force-with-lease`. Deliver everything as pushed branches + PRs for the user to merge. Reverts to
   defaults on **"normal mode"**.
-  **Pace in this mode:** intermediate tasks run only the diff of the units they touched
-  (`objdiff-cli diff` / the unit's object compare) plus the tool tests they touched; commits pile up
-  locally and the branch is pushed **once, at the end**, after one full build + checksum pass.
+  **Pace in this mode:** intermediate tasks run only the differential tests of the functions they
+  touched plus the tool tests they touched; commits pile up locally and the branch is pushed **once,
+  at the end**, after one full build + full differential pass + boot check.
 
 Confirm the switch briefly when it happens.
 
@@ -86,29 +89,29 @@ Confirm the switch briefly when it happens.
 **The lines below bind even if you never open the document; open it before working on that topic.**
 A rule is edited in its document, not here and there at once — except for its one-line summary here.
 
-- **Matching workflow** → [docs/agents/matching-workflow.md](docs/agents/matching-workflow.md), before
-  decompiling. A function is *matched* only when objdiff says 100 % for it; `NON_MATCHING` code stays
-  behind its `#ifdef` with the asm fallback; never edit generated asm to force a match.
+- **Decomp workflow** → [docs/agents/decomp-workflow.md](docs/agents/decomp-workflow.md), before
+  decompiling. A function is *done* only when its differential test passes against the recompiled
+  original and the game still boots to the reference state; recompiler output is never "decompiled".
 - **Toolchain** → [docs/agents/toolchain.md](docs/agents/toolchain.md), before installing or calling a
   tool. Every tool pinned (version or commit) and fetched by `tools/setup.sh`, never vendored; compilers
   never committed.
 - **Reverse engineering** → [docs/agents/reverse-engineering.md](docs/agents/reverse-engineering.md).
   REA/Ghidra output is pseudocode and inference, never "the source"; a symbol name needs evidence
   written next to it.
-- **Testing** → [docs/agents/testing.md](docs/agents/testing.md). The checksum gate is the test of the
-  decomp; `tools/` Python is TDD with pytest, coverage ≥ 80 %.
+- **Testing** → [docs/agents/testing.md](docs/agents/testing.md). The differential gate is the test of
+  the decomp; `tools/` Python is TDD with pytest, coverage ≥ 80 %.
 - **Runtime verification** → [docs/agents/runtime-verification.md](docs/agents/runtime-verification.md).
-  When the build stops being byte-identical (shiftable / non-matching / modded), it must still boot in
-  PPSSPP to the same state; a check that has never failed is not proven.
+  Every build change must still boot to the reference states, compared against PPSSPP running the
+  original; a check that has never failed is not proven.
 - **Debugging** → [docs/agents/debugging.md](docs/agents/debugging.md), before chasing a bug or a
   stubborn mismatch. Measure before you ablate; more than three reproductions → a shortcut script
   before the fourth; a review finding is not a reproduction.
 - **Agentic PR verification (mandatory)** → [docs/agents/pr-verification.md](docs/agents/pr-verification.md).
-  Every PR gets a verdict comment from a pass that rebuilds from a clean tree and checks the gate; it
-  never merges.
+  Every PR gets a verdict comment from a pass that rebuilds from a clean tree, runs the differential
+  gate and the boot check; it never merges.
 - **Agent orchestration** → [docs/agents/agent-orchestration.md](docs/agents/agent-orchestration.md).
   Review in parallel with the next implementation; shared `docs/FACTS.md`; one agent per worktree
-  (the build dir and the Ghidra project are exclusive).
+  (the build dir, the REA session, the Ghidra project and each emulator/game instance are exclusive).
 - **Reuse first** → [docs/agents/reuse-first.md](docs/agents/reuse-first.md). Search `include/`,
   `config/symbol_addrs.txt` and FACTS before declaring a type, a struct or a name.
 - **Codex and Claude Code** → [docs/agents/agent-compatibility.md](docs/agents/agent-compatibility.md).
@@ -121,9 +124,9 @@ A rule is edited in its document, not here and there at once — except for its 
 ## 🧠 Heavy jobs run inside a memory cgroup (MANDATORY)
 
 **No exceptions:** any long or parallel job started here — Ghidra `analyzeHeadless` / REA analysis of
-the 7 MB ELF, a full `ninja` build, splat over the whole binary, `decomp-permuter`, objdiff over every
-unit, the pytest suite with workers, anything that spawns workers — runs under a kernel-enforced memory
-ceiling:
+the 7 MB ELF, PSPRecomp code generation over the whole EBOOT, compiling the generated C++ (hundreds of
+thousands of lines), the full differential suite, splat, `decomp-permuter`, the pytest suite with
+workers, anything that spawns workers — runs under a kernel-enforced memory ceiling:
 
 ```bash
 systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- <command>
@@ -136,7 +139,7 @@ actually in force rather than assuming:
 `systemctl --user show <scope> -p MemoryMax -p MemoryHigh -p MemoryCurrent`.
 
 **Cap the tool too — but never *instead* of the cgroup.** Pass the tool's own concurrency limit
-(`ninja -j`, `permuter -j`, `pytest -n`, Ghidra `MAXMEM`) so the job isn't throttled to a crawl by
+(`ninja -j`, `cmake --build -j`, `permuter -j`, `pytest -n`, Ghidra `MAXMEM`) so the job isn't throttled to a crawl by
 the ceiling. A tool's default concurrency is not a budget, and an estimate of per-worker RSS is not a
 ceiling. Only the cgroup is.
 
@@ -165,8 +168,12 @@ numbers you'd trust by mistake.
 - **Nothing copyrighted enters git**: no ISO/CSO, no `EBOOT.BIN`, no decrypted ELF/PRX, no
   `GT.VOL` contents, no extracted assets, no RAM dumps, no screenshots of game data in docs. The user
   supplies their own dump in `game_files/`; everything derived from it lives in gitignored dirs
-  (`extracted/`, `asm/`, `assets/`, `build/`, `expected/`). `.gitignore` already covers them — run
-  `git status --ignored` before a commit that touches new paths.
+  (`extracted/`, `recomp/`, `asm/`, `assets/`, `build/`, `expected/`). `.gitignore` already covers them
+  — run `git status --ignored` before a commit that touches new paths.
+- **Recompiler output is game-derived, not ours**: the C++ PSPRecomp generates from the EBOOT is a
+  mechanical translation of copyrighted code. It is generated at build time from the user's dump into
+  `recomp/` and **never committed**. Only hand-written code (decompiled functions, host layer, tools,
+  config) enters git.
 - **No proprietary toolchain binaries in git** (Sony SDK GCC, SN `pspsnc`, `mwccpsp`). They live in
   `tools/compilers/` (gitignored) with their provenance written in
   [toolchain](docs/agents/toolchain.md); a compiler with unknown provenance is not used.
@@ -174,6 +181,9 @@ numbers you'd trust by mistake.
   `c84473375e3cd000d8f14c5905e6514389fd6a40`, decrypted EBOOT SHA1
   `8746583fa8298f6447132988a01b236a8c5994b0`. Tooling refuses other inputs; a different dump is a
   different target and needs its own config.
+- **Third-party code keeps its licence and provenance**: PSPRecomp and lcs-recomp are MIT; code taken
+  from them (host layer, HLE) keeps the copyright notice and is listed in `docs/agents/toolchain.md`.
+  Their own bundled third-party code (FFmpeg, SMAA…) is pulled as a dependency, not copied.
 - **Publishing** (pushing a public repo, posting decomp.me scratches) is the user's call, every time.
 
 ## Target — what we know (detail and evidence in [FACTS](docs/FACTS.md))
@@ -199,22 +209,31 @@ is not a decompilation target until the game code is.
 
 ## Strategy & phases (status lives in [ROADMAP](docs/ROADMAP.md))
 
-1. **Reproducible extraction** — `tools/` verifies the ISO hash, extracts, decrypts, verifies the ELF
-   hash, and dumps the raw segments the split works on.
-2. **Compiler identification — blocking for matching.** Which of the three `.comment` compilers built
-   the game code, and with which flags, decided by test-compiling leaf functions, not by guessing. Plan
-   and candidates in [toolchain](docs/agents/toolchain.md#compiler--the-blocking-question).
-3. **Split + byte-identical rebuild from asm** — splat (`platform: psp`) over the raw segments, link,
-   and reach a **checksum-green build at 0 % C**. This build is the gate every later change keeps green.
-4. **Function-by-function decompilation** — library units identified first (NIDs, SDK, libstdc++),
-   then game code by subsystem, following the [matching workflow](docs/agents/matching-workflow.md).
-5. **Optional, later** — a shiftable build, and a PC-port track. PSPRecomp
-   (<https://github.com/jessicanataliagta/PSPRecomp>, static recompiler used by the GTA LCS/VCS ports)
-   is a *recompiler*, not a decomp: it may become a separate track, it never replaces the gate.
+**Decided by the user on 2026-10-09 — strategy B: recompiled baseline, then decompile on top of it.**
+The exact Sony compilers are not public (search and tests in
+[toolchain](docs/agents/toolchain.md#compiler--searched-not-found)), and the goal is source that
+compiles on other platforms, so byte-matching is not the gate. Instead:
 
-**If Phase 2 cannot obtain a matching compiler**, the project does not quietly switch to "it looks
-equivalent": the user decides between a functional (non-matching, runtime-verified) decomp and pausing
-— a batched decision with costs, per [Agent orchestration](docs/agents/agent-orchestration.md).
+1. **Reproducible extraction** — `tools/` verifies the ISO hash, extracts, decrypts, verifies the ELF
+   hash.
+2. **Recompiled baseline** — a GT profile for [PSPRecomp](https://github.com/jessicanataliagta/PSPRecomp)
+   (static Allegrex → C++ recompiler behind the GTA LCS/VCS PC ports) turns the whole EBOOT into C++
+   that runs natively, over a host layer that implements the Sony imports (151 of GT's 329 already exist
+   in PSPRecomp's VCS profile — FACTS). The game runs on PC before a single function is decompiled.
+3. **Differential harness** — any function can be swapped between its recompiled original and its
+   decompiled version; both run on the same captured inputs and must leave the same outputs and memory
+   side effects. This harness is the gate that replaces the checksum.
+4. **Function-by-function decompilation** — replace recompiled functions with readable C/C++, leaves
+   and libraries first, then game code by subsystem, following the
+   [decomp workflow](docs/agents/decomp-workflow.md). Progress = share of functions (and bytes) that
+   are decompiled and pass the gate.
+5. **Later / optional** — dropping the recompiled remainder (100 % decompiled source), other platforms,
+   and a **matching track** if the exact compilers ever surface: `psp-gcc-1.7.1` already reproduces some
+   functions byte for byte, so matching stays possible per function as extra evidence, never as the gate.
+
+**The goal is the decomp.** The recompiler is scaffolding: the measure of progress is decompiled,
+gate-passing source, never "it runs". A phase whose design is still open (the interop between
+decompiled code and guest memory, the capture format of the harness) gets its own spec before code.
 
 ## Repository layout (planned — create a directory in the phase that needs it)
 
@@ -222,15 +241,21 @@ equivalent": the user decides between a functional (non-matching, runtime-verifi
 /
 ├── AGENTS.md / CLAUDE.md / README.md
 ├── .mcp.json             # REA MCP registration with GHIDRA_INSTALL_DIR (Claude Code)
-├── config/               # splat yaml, symbol_addrs.txt, checksums (*.sha1), objdiff config input
-├── include/              # common.h, PSP SDK decls, structs, INCLUDE_ASM macros
+├── config/               # symbol_addrs.txt, checksums (*.sha1), recomp profile config (function list, overrides)
+├── include/              # game structs and types, PSP SDK decls, guest-memory access helpers
 ├── src/                  # decompiled C/C++, one file per original translation unit when known
+├── host/                 # host layer: Sony imports (HLE), GE renderer, audio, input — ours or MIT-derived
+├── tests/differential/   # harness + captured cases per decompiled function (no game bytes inside)
 ├── tools/                # setup.sh, extraction & helper scripts (Python), tests in tools/tests/
 ├── docs/                 # ROADMAP, FACTS, FINDINGS, agents/
 ├── game_files/           # (ignored) the user's ISO
-├── extracted/            # (ignored) ISO contents, EBOOT.elf, raw segments
-└── asm/ assets/ build/ expected/   # (ignored) generated by split/build
+├── extracted/            # (ignored) ISO contents, EBOOT.elf
+├── recomp/               # (ignored) C++ generated by PSPRecomp from the user's EBOOT
+└── build/                # (ignored)
 ```
+
+The split between `src/`, `host/` and `recomp/` is the Phase 2/3 spec's to settle; the rule that
+`recomp/` is generated and ignored is not.
 
 ## Commands
 
@@ -246,32 +271,35 @@ sha1sum extracted/EBOOT.elf                                   # must print 87465
 
 # (planned) tools/setup.sh      fetch + build pinned tools into tools/bin, create .venv
 # (planned) tools/extract.sh    the four lines above, hash-checked, idempotent
-# (planned) ninja               build; `ninja check` = checksum gate; `ninja progress`
-# (planned) objdiff-cli report  per-function match report
+# (planned) recomp step         PSPRecomp over extracted/EBOOT.elf → recomp/ (GT profile)
+# (planned) cmake --build       game binary = recomp/ + src/ + host/
+# (planned) differential suite  run every decompiled function against its recompiled original
+# (planned) progress report     decompiled + passing functions / total, game vs SDK
 ```
 
-## Matching — the rules that bind every branch
+## Decompilation — the rules that bind every branch
 
-The detail (the loop, m2c, permuter, C++ specifics) is in
-[the matching workflow](docs/agents/matching-workflow.md).
+The detail (the loop, the harness, m2c, C++ specifics, the optional matching check) is in
+[the decomp workflow](docs/agents/decomp-workflow.md).
 
-- **The checksum gate is the test suite of this repo.** From Phase 3 on, every commit on every branch
-  builds byte-identical output (`ninja check`, planned). A red gate is a broken build, whatever the C
-  looks like.
-- **Never claim a function matched without showing the objdiff result** (100 %, no relocation
-  diffs). "It compiles" and "the logic is equivalent" are not matches.
-- **Non-matching code is kept, fenced and honest**: `#ifdef NON_MATCHING` around the C, `INCLUDE_ASM`
-  in the `#else`, a one-line comment saying what still differs. It never replaces the asm in the
-  default build.
-- **Never edit generated asm, the expected objects or the checksums to get green.** Never commit
-  `asm/`. Fix the C, the flags, or the split config — on purpose, with the reason in the commit.
-- **No guessed names.** Unknown symbols keep splat's `func_XXXXXXXX` / `D_XXXXXXXX`. A name needs
-  evidence (a string, an import NID, an Adhoc binding, an assert/file name, a matched caller) and the
-  evidence is written next to it in `config/symbol_addrs.txt` or the header — see
+- **The differential gate is the test suite of this repo.** From Phase 3 on, every decompiled
+  function has captured cases and passes them against its recompiled original, on every commit. A red
+  gate is a broken build, whatever the C looks like.
+- **Never claim a function done without showing the harness result** (cases run, all equal) **and the
+  boot check**. "It compiles" and "the logic looks equivalent" are not done.
+- **Recompiler output is not decompiled code.** Copying generated C++ into `src/` and tidying it is
+  forbidden: it is game-derived, unreadable by construction, and proves nothing. Decompiled code is
+  written from the asm/pseudocode by hand (m2c/Ghidra drafts as reading aids).
+- **Never weaken the gate to get green** — no deleting or editing captured cases, no widening the
+  comparison, no excluding side effects. Fix the C; if a case is wrong, say why in the commit.
+- **No guessed names.** Unknown symbols keep `func_XXXXXXXX` / `D_XXXXXXXX` (ELF vaddr). A name needs
+  evidence (a string, an import NID, an Adhoc binding, an assert/file name, a decompiled caller) and
+  the evidence is written next to it in `config/symbol_addrs.txt` or the header — see
   [reverse engineering](docs/agents/reverse-engineering.md#naming--a-name-needs-evidence).
-- **Decompiled code reproduces the original, not an improvement of it** — same control flow, same
-  types where the codegen requires them, same file boundaries when known. Refactoring for taste
-  breaks the match and the history. Readability comes from names, types and comments.
+- **Faithful first, portable second** — same behaviour as the original, including its quirks (a
+  "fix" changes the game and fails the gate). Portability problems (pointer size, endianness, VFPU,
+  undefined behaviour the PSP tolerated) are solved explicitly in types and helpers, with a comment,
+  never by silently changing logic.
 - **Tool code is real code**: anything in `tools/` follows TDD with pytest (≥ 80 % coverage); see
   [testing](docs/agents/testing.md).
 
@@ -283,7 +311,7 @@ Detail in [reverse engineering](docs/agents/reverse-engineering.md).
   **decrypted ELF**, never the encrypted EBOOT; cite its Evidence IDs; keep observations, inferences
   and unknowns apart; close the session (`close_binary`) when done.
 - **Ghidra needs ghidra-allegrex** for VFPU and PRX relocations; without it MIPS decoding of VFPU
-  is wrong. Decompiler output is a starting draft for `src/`, never pasted as "matching".
+  is wrong. Decompiler output is a reading aid for `src/`, never pasted as decompiled code.
 - **Static before runtime; runtime only to answer what static can't.** PPSSPP's debugger is the
   runtime oracle; runtime address = ELF vaddr + load base (expected `0x08804000` — verify in PPSSPP
   before relying on it, then record it in FACTS).
@@ -304,12 +332,12 @@ Detail in [reverse engineering](docs/agents/reverse-engineering.md).
 - **Downloads are untrusted data** — each fetched archive/repo in its own new directory under
   `tools/src/`; run Python that reads game data or downloads with `-I`.
 - **The topic rules bind from *Rules by topic*** — reuse first, debugging, agent orchestration and the
-  matching workflow each have their one-line rules there and their detail in `docs/agents/`.
+  decomp workflow each have their one-line rules there and their detail in `docs/agents/`.
 - **Keep FACTS, FINDINGS and ROADMAP current in the same change** — a phase finished, a fact verified,
   a gotcha paid for. A stale `AGENTS.md` misleads the next session; when a *(planned)* command starts
   existing, move it to the runnable list in the same change.
 - **Commits in English**, Conventional Commits. Scope = area (`tools`, `config`, `src/<subsystem>`,
-  `docs`). A decomp commit says what matched: `feat(src/sound): match sgxSndInit (objdiff 100%)`.
+  `docs`). A decomp commit says what passed: `feat(src/sound): decompile sgxSndInit (diff 40/40 cases)`.
 
 ## Git & GitHub
 
@@ -324,9 +352,9 @@ Detail in [reverse engineering](docs/agents/reverse-engineering.md).
 - **GitHub via `gh`** — if the `gh` CLI is available, you may open pull requests, issues, and similar
   (comments, labels, etc.). These don't require pushing on your part beyond what `gh` itself does for an
   already-pushed branch.
-- **Branches:** `feat/name`, `fix/description`, `chore/task`, `decomp/<subsystem>` for matching work.
+- **Branches:** `feat/name`, `fix/description`, `chore/task`, `decomp/<subsystem>` for decompilation work.
 - **Every PR must include a manual test plan** — a **How to test manually** section with the exact
   steps to exercise the change by hand. Here that means: the commands to run from a clean clone with the
-  user's ISO in `game_files/` (setup, extract, build, `ninja check`), the expected output (hashes, the
-  objdiff numbers of the touched units, the progress delta), and — when the build is not byte-identical
-  — how to boot it in PPSSPP and what state to reach.
+  user's ISO in `game_files/` (setup, extract, recomp, build, differential suite), the expected output
+  (hashes, the harness results of the touched functions, the progress delta), and how to boot the
+  build and which reference state to reach.

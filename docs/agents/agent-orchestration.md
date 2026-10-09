@@ -19,11 +19,11 @@ from, out of the same measured 15 h session.
   [normal mode](../../AGENTS.md#mode-switch): the cap is one **implementation** agent. A review agent reads and
   reports — it writes nothing, so it cannot race the implementer.
   **Here:** one implementation agent in normal mode, plus its reviewer. The **exclusive resources** —
-  at most one agent touching each — are: the **build directory** of a worktree (two `ninja` runs in one
+  at most one agent touching each — are: the **build directory** of a worktree (two builds in one
   tree corrupt each other's objects; one agent = one git worktree), the **REA MCP session** (its
   "active target" is global to the server, so a second `open_binary` silently switches the first
   agent's target), the **Ghidra project lock** (`ghidra/`), and each **PPSSPP instance / debugger
-  port**. Decompiling *different units in different worktrees* parallelizes freely once the user
+  port**, and each running **game instance** of the recompiled build. Decompiling *different units in different worktrees* parallelizes freely once the user
   lifts the cap ("modo desatendido" or explicit instruction).
 - **Keep one shared facts file.** Every fresh agent rediscovers the same things: the real selector,
   which fake already exists, what that helper actually accepts. Keep `docs/FACTS.md` in the
@@ -58,7 +58,7 @@ Three measurements, taken once at the start of a project, turn the rules above i
 enforceable. None of them takes more than an afternoon.
 
 **Status (2026-10-09):** 2 is done (the exclusive resources are named above). 1 and 3 wait for the
-Phase 3 build — there is no lap to time and no suite to break yet.
+Phase 2–3 build and harness — there is no lap to time and no suite to break yet.
 
 1. **The lap** — time `build → deploy → reach the state → observe` once, on a real bug if there is
    one, and write the seconds into the table in

@@ -1,35 +1,38 @@
-# Testing — the checksum gate, and tests for the tools
+# Testing — the differential gate, and tests for the tools
 
 > Part of `AGENTS.md`, kept in its own file so `AGENTS.md` fits the 32 KiB Codex reads by
 > default. Its rules bind all the same: `AGENTS.md` lists the hard ones in *Rules by topic* and
 > says when to read this file. Edit the rule here, not a copy of it.
 
-## Two kinds of correctness
+## Three kinds of correctness
 
 | What | Oracle | When it runs |
 | --- | --- | --- |
-| The decompiled game | **byte identity** with the original segments (`ninja check`, *planned*) and objdiff per function | every commit from Phase 3 on |
+| A decompiled function | **differential**: same captured inputs → same return, memory writes and calls as the recompiled original (*planned*) | every commit from Phase 3 on, for the functions it touches; all of them before push |
+| The game as a whole | **boot check**: reaches the reference states, compared with the original in PPSSPP ([runtime verification](runtime-verification.md)) | every build change |
 | The tooling in `tools/` | **pytest**, TDD, coverage ≥ 80 % | every change to `tools/` |
 
-The decomp has no unit tests and needs none: a function either rebuilds to the same bytes or it
-doesn't. Don't write tests that re-assert what the checksum already proves.
+The recompiled original is the reference because it is a mechanical translation of the real code;
+when the recompiled build and PPSSPP disagree, that is a recompiler/host bug — fix or report it
+upstream before trusting either for that function.
 
 ## Hard rules
 
-- **Never claim done without showing output** — the `ninja check` line, the objdiff numbers, the
-  pytest summary. "It compiles" is not "it matches"; "tests pass" without output is not evidence.
-- **The checksum files are inputs, not outputs.** They are written once from the verified dump and
-  changed only when the target changes — never to make a build green.
-- **A tool bug gets a failing test first**, then the fix (`systematic-debugging`).
-- **Never delete, skip or `xfail` a test to get green.** Fix the code or the test on purpose.
+- **Never claim done without showing output** — the harness summary (cases run / equal), the boot
+  check result, the pytest summary. "It compiles" is not "it behaves the same".
+- **Captured cases are inputs, not outputs.** They are recorded from the recompiled original and
+  changed only on purpose (a capture bug, a new state to cover), with the reason in the commit —
+  never re-recorded from the decompiled version.
+- **A tool or harness bug gets a failing test first**, then the fix (`systematic-debugging`).
+- **Never delete, skip or `xfail` a test or a case to get green.** Fix the code or the test on purpose.
 - **No copyrighted bytes in fixtures.** Tool tests use synthetic inputs: hand-built ELF/PRX headers,
-  tiny fake `~PSP` headers, made-up sections. A test that needs the real dump is marked
-  `@pytest.mark.needs_dump` and skips (with a reason) when `extracted/` is absent — it never ships data.
+  tiny fake `~PSP` headers, made-up sections. Tests that need the real dump are marked
+  `@pytest.mark.needs_dump` and skip (with a reason) when `extracted/` is absent.
 
-## TDD for `tools/`
+## TDD for `tools/` and the harness
 
-For new logic in `tools/` (header parsers, the extraction pipeline, NID resolution, progress reports,
-config generators):
+For new logic in `tools/` and in the harness (header parsers, the extraction pipeline, NID resolution,
+capture/compare, progress reports):
 
 1. **Red** — a failing test that describes the behaviour, with expected values written by hand.
 2. **Green** — the minimum to pass.

@@ -1,4 +1,4 @@
-# Toolchain — what we use, pinned, and the compiler question
+# Toolchain — what we use, pinned, and the compiler search
 
 > Part of `AGENTS.md`, kept in its own file so `AGENTS.md` fits the 32 KiB Codex reads by
 > default. Its rules bind all the same: `AGENTS.md` lists the hard ones in *Rules by topic* and
@@ -19,23 +19,36 @@
 
 ## The table (checked 2026-10-09)
 
+### Core — strategy B
+
 | Tool | Pin | Role | Source / note |
 | --- | --- | --- | --- |
-| pspdecrypt | `c156627db7634d395c380c0a9589130f603307fc` | decrypt `EBOOT.BIN` | <https://github.com/John-K/pspdecrypt> — `make` (clang, zlib, OpenSSL `libcrypto`). **Verified here.** |
+| pspdecrypt | `c156627db7634d395c380c0a9589130f603307fc` | decrypt `EBOOT.BIN` | <https://github.com/John-K/pspdecrypt> — `make` (clang, zlib, OpenSSL `libcrypto`). **Verified here** |
 | 7-Zip | system `7z` | extract the ISO | `isoinfo -x` writes empty files for this ISO (FINDINGS) |
-| splat | `splat64[mips]` 0.50.0 | split asm/data, generate linker script | <https://github.com/ethteck/splat>; `platform: psp` since 0.24.0. **Does not take relocatable ELFs** — split raw segments |
-| rabbitizer | 1.16.2 | Allegrex decoding (used by splat/spimdisasm) | <https://github.com/Decompollaborate/rabbitizer>; category `R4000ALLEGREX`. **Verified here** (VFPU decoded) |
-| spimdisasm | 1.42.4 | disassembler behind splat | <https://github.com/Decompollaborate/spimdisasm> |
-| objdiff | v3.8.2 | per-function diff + progress report | <https://github.com/encounter/objdiff>; README lists PSP. VFPU rendering *unverified* |
-| m2c | git `main` (pin a commit on first install) | asm → C draft | <https://github.com/matt-kempster/m2c>; `-t mipsel-gcc-c`; no VFPU |
-| decomp-permuter | git (pin on install) | brute-force near-matches | <https://github.com/simonlindholm/decomp-permuter>; *flags for PSP unverified* |
-| Allegrex binutils | pspdev release `v20261001` | assembler/linker with VFPU (`psp-as`, `psp-ld`) | <https://github.com/pspdev/pspdev/releases> (`pspdev-ubuntu-latest-x86_64.tar.gz`). Only binutils are relevant: pspdev's GCC is modern and will not match |
+| PSPRecomp | `f6e7d415c7f447b934cc3865a31eb725f353d659` | static recompiler Allegrex → C++, guest memory, NID registry, HLE registration | <https://github.com/jessicanataliagta/PSPRecomp> (MIT). CMake ≥ 3.20, C++20. Framework ~5.9k lines; the Sony-import implementations live in its **VCS profile** (`profiles/vcs/host`, DX12 backend). **151 of GT's 329 imports have an HLE there** (FACTS) |
+| lcs-recomp | git (pin on first use) | second profile on PSPRecomp: **Linux, Vulkan, SDL2, FFmpeg** | <https://github.com/elmasas/lcs-recomp> (MIT) — reference for a Linux host layer |
+| rabbitizer | 1.16.2 | Allegrex decoding for tools | <https://github.com/Decompollaborate/rabbitizer>; category `R4000ALLEGREX`. **Verified here** (VFPU decoded) |
+| m2c | git `main` (pin a commit on first install) | asm → C reading aid | <https://github.com/matt-kempster/m2c>; `-t mipsel-gcc-c`; no VFPU |
 | Ghidra | 12.1.x (12.1.2 installed at `/opt/ghidra`) | interactive RE + REA's native engine | REA requires 12.1.x |
 | ghidra-allegrex | v21.4 (for Ghidra **12.1.3**) | Allegrex/VFPU, PRX relocations, PSP calling convention | <https://github.com/kotcrab/ghidra-allegrex> |
 | REA | `rea-agents@latest` (6.2.0 at setup) | MCP reverse-engineering front-end | see [reverse engineering](reverse-engineering.md) |
-| PPSSPP | v1.20.4 (not installed) | runtime oracle + debugger | <https://github.com/hrydgard/ppsspp>; `PPSSPPHeadless --debugger=<port>` |
+| PPSSPP | v1.20.4 (not installed) | the original's behaviour: boot-check reference + debugger | <https://github.com/hrydgard/ppsspp>; `PPSSPPHeadless --debugger=<port>` |
 | psplibdoc | git (pin on install) | NID → Sony function names | <https://github.com/pspdev/psplibdoc> |
-| GTPSPVolTools | git (pin on install) | `GT.VOL` unpack (runtime/asset questions only) | <https://github.com/Nenkai/GTPSPVolTools> |
+| GTPSPVolTools | git (pin on install) | `GT.VOL` unpack (asset/runtime questions only) | <https://github.com/Nenkai/GTPSPVolTools> |
+
+Other PSPRecomp lineages exist (`sp00nznet/psprecomp`, C output, 12 stars, forks `Sifayne/…`,
+`zmbkilla/…`); not evaluated. The `jessicanataliagta` one is chosen because two working PC ports
+(VCS, LCS) are built on it.
+
+### Optional — matching track
+
+| Tool | Pin | Role | Source / note |
+| --- | --- | --- | --- |
+| psp-gcc 1.7.1 | decomp.me `psp-gcc-1.7.1.tar.gz` | Sony SDK GCC **3.3.3+allegrex-2.2.2-psp-1.7.1** (i386 Linux) | <https://github.com/decompme/compilers/releases> — its `as`/`ld` are empty files |
+| psp-gcc 1.3.1 | decomp.me `psp-gcc-1.3.1.tar.gz` | Sony SDK GCC 3.3.3+allegrex-2.2.1-psp-1.3.1, **with working `psp-as`** (binutils 2.14 allegrex-vfpu) | same |
+| objdiff | v3.8.2 | per-function diff | <https://github.com/encounter/objdiff>; README lists PSP |
+| splat | `splat64[mips]` 0.50.0 | asm/data split | <https://github.com/ethteck/splat>; `platform: psp`; no relocatable ELFs |
+| decomp-permuter | git (pin on install) | near-match search | <https://github.com/simonlindholm/decomp-permuter> |
 
 ### Ghidra + ghidra-allegrex
 
@@ -49,34 +62,32 @@ Two ways out, in order of preference:
 2. Build ghidra-allegrex from source against `/opt/ghidra` 12.1.2 (Gradle + `GHIDRA_INSTALL_DIR`).
 
 Either way: image base **`0x08804000`** for games (ghidra-allegrex README), which makes Ghidra addresses
-equal runtime addresses; splat/linking works at **base 0** — see
-[reverse engineering](reverse-engineering.md#addresses--two-spaces-one-offset).
+equal runtime addresses — see [reverse engineering](reverse-engineering.md#addresses--two-spaces-one-offset).
 
-## Compiler — the blocking question
+## Compiler — searched, not found
 
 `.comment` lists three compilers (exact strings in [FACTS](../FACTS.md)), all Sony-SDK builds of GCC
-with Allegrex patches: **3.3.6 psp-1.14.0**, **3.3.6 psp-1.15.3.internal**, **4.0.4 psp-2.8.2**. Sony's
-own `LIBSUPPREACC.PRX` from the same disc was built with the 4.0.4 one. Which compiler built **the game
-code** is unknown — the merged `.comment` cannot say.
+with Allegrex patches: **3.3.6 psp-1.14.0**, **3.3.6 psp-1.15.3.internal**, **4.0.4 psp-2.8.2**.
 
-What is and isn't available (2026-10-09):
+Searched on 2026-10-09:
 
-- **decomp.me** PSP platform offers `psp-gcc-1.3.1` (provenance unknown), `pspsnc_1.2.7503.0` (SN
-  Systems) and `mwccpsp_3.0.1_*` (Metrowerks, 11 builds). **No Sony GCC 3.3.6/4.0.4 build** is listed.
-  Its assembler is `mips-ps2-decompals-as -march=gs464`, so VFPU functions likely won't assemble there.
-- **pspdev**'s GCC is a modern upstream GCC: wrong compiler for matching, fine for binutils.
-- Other PSP decomps (sotn-decomp `pspeu`, mhp2g, ygo-tf-5, ts2psp) used **mwccpsp**; none used Sony GCC.
-  There is no precedent to copy.
+- **decomp.me** (`decompme/compilers`) hosts two Sony SDK GCCs, both **older**: `psp-gcc-1.3.1` = GCC
+  3.3.3 allegrex-2.2.1, `psp-gcc-1.7.1` = GCC 3.3.3 allegrex-2.2.2 (versions read from the binaries
+  with `strings`). Plus `pspsnc_1.2.7503.0` and eleven `mwccpsp_3.0.1_*` builds.
+- **GitHub code/repo search and web search** for `allegrex-2.2.2-psp-1.14`, `-1.15`,
+  `allegrex-2.2.3-psp-2.8`, `3.3.6+allegrex`, `4.0.4+allegrex`: nothing.
+- **pspdev** builds a modern upstream GCC: no use for matching.
 
-Plan for Phase 2 (each step is cheap and tells us something):
+Tested on 2026-10-09 (method and numbers in FACTS):
 
-1. **Fingerprint without a compiler.** Allegrex-only instructions (`ext`, `ins`, `min`, `max`, `seb`,
-   `seh`, `wsbh`, `clz`), prologue/epilogue shape, delay-slot filling, `long32`/EABI argument registers
-   — compare the library ranges (where FDEs exist, from `0x356960`) against the game ranges.
-2. **Test-compile leaf functions** on decomp.me with every PSP compiler it offers, to rule them in or
-   out. A 100 % on several unrelated functions is evidence; one is luck.
-3. **Look for the real thing** — whether Sony's Allegrex GCC patches were published as GPL source (GCC
-   is GPL; *unverified*). A compiler rebuilt from published source has clean provenance.
-4. **Decide** with the user (see `AGENTS.md` § Strategy) if none of the above reproduces the codegen.
+- The runtime libraries shipped with 1.3.1/1.7.1 do **not** appear in GT's EBOOT byte for byte
+  (libgcc 6 of ~126 functions, libstdc++ 3 of ~335) → GT was linked against a newer SDK runtime.
+- Hand-written C for two small game functions, compiled with 1.7.1 `-G0`: one **matches byte for
+  byte** with `-O2` (and `-Os`); the other differs in a way C can't fix (`x * 148` compiled to `mult`
+  where the game has shifts/adds, plus different delay-slot filling) → **the game's compiler is close
+  to 1.7.1 but not the same**.
 
-Write each result in FACTS (what was tried, on which function, what came out) so nobody re-runs it.
+**Outcome:** per the user's rule ("search first; if not found, strategy B"), strategy B. The matching
+track stays open as optional evidence (see [decomp workflow](decomp-workflow.md#optional-a-matching-check)).
+If a 3.3.6 psp-1.14/1.15 or 4.0.4 psp-2.8.2 build ever surfaces with clean provenance, record it here
+and re-test.

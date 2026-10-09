@@ -22,11 +22,11 @@ the first cleanup. Where this project hasn't measured its own, the number is mar
   pipeline completes every phase with non-empty output, the output exists** — stop asking "why
   doesn't it appear" and start asking "where does it appear". They are different questions and the
   second one is cheap.
-  **Here the pipeline is** `split (splat) → compile (one unit) → assemble/link → compare (objdiff /
-  checksum) → (only off-gate) boot in PPSSPP`. For a stubborn mismatch, probe the stages instead of
-  guessing: diff the unit's `.o` against the expected one *before* linking, dump the relocations of
-  both, check the section the symbol landed in. A mismatch that appears only after linking is a
-  layout/split problem, not a C problem.
+  **Here the pipeline is** `recomp (PSPRecomp) → build → capture cases → run differential → boot
+  check vs PPSSPP`. For a stubborn difference, probe the stages instead of guessing: which output
+  differs first (return value, which memory write, which call), on which case, and whether the
+  recompiled original agrees with PPSSPP on that case. A difference the harness shows but the boot
+  check doesn't (or the reverse) points at the capture or the host layer, not at the C.
 - **Budget the lap, then attack the dominant term.** Time the four phases once and write the real
   numbers into the table below; one of them dominates and the other three are noise. In the measured
   case "reach the state" was 60 s × 30 reproductions — half an hour of pure waiting — and it died to
@@ -37,13 +37,13 @@ the first cleanup. Where this project hasn't measured its own, the number is mar
 
   | Lap phase | Command here | Measured |
   | --- | --- | --- |
-  | split (only when the yaml changed) | `splat split config/<target>.yaml` *(planned)* | <!-- pendiente de medir --> |
-  | build one unit | `ninja build/src/<unit>.o` *(planned)* | <!-- pendiente de medir --> |
-  | compare | `objdiff-cli diff -u <unit> <function>` *(planned)* | <!-- pendiente de medir --> |
-  | runtime (off-gate builds only) | PPSSPP boot to the state under test | <!-- pendiente de medir --> |
+  | recomp (only when the profile changed) | PSPRecomp over the EBOOT *(planned)* | <!-- pendiente de medir --> |
+  | build | incremental `cmake --build` of the touched file *(planned)* | <!-- pendiente de medir --> |
+  | differential | harness on one function's cases *(planned)* | <!-- pendiente de medir --> |
+  | boot check | game to the reference state *(planned)* | <!-- pendiente de medir --> |
 
-  The usual shortcut here is not a deep link but a **narrower compare**: one unit, one function,
-  no full link — and decomp.me for a fast compiler round-trip once the compiler is known.
+  The usual shortcut here is not a deep link but a **narrower run**: one function's cases in the
+  harness instead of the whole game, and a saved game state instead of booting from the title.
 
 ### A finding is not a reproduction
 
@@ -63,7 +63,7 @@ the first cleanup. Where this project hasn't measured its own, the number is mar
   the test instead of into the bug. **Measured: over 1 h on two reds that were structurally
   impossible.** Establish that the failure is observable at that layer first; if it isn't, move the
   assertion to the layer where it is — that is what
-  [Runtime verification](runtime-verification.md#runtime-verification--what-the-checksum-cant-prove)
+  [Runtime verification](runtime-verification.md#runtime-verification--what-the-harness-cant-prove)
   is for.
 
 ### Tests that cannot fail
@@ -76,12 +76,12 @@ construction**, because none of them show up as a failure, a warning, or a cover
 | Inert by | Looks like | Applies here |
 | --- | --- | --- |
 | assertions disabled at runtime | the assert keyword compiled out or off by default | `python -O` strips plain `assert` in `tools/` code (pytest only rewrites asserts in test files): tools validate input with `raise`, never `assert` |
-| self-writing snapshots | first run records whatever happened and calls it expected | **`expected/` objects or `*.sha1` regenerated from the build under test** — everything "matches". Expected comes only from the original dump / the asm-only build of it |
+| self-writing snapshots | first run records whatever happened and calls it expected | **differential cases re-recorded from the decompiled version**, or boot-check references captured from the build under test — everything "passes". Cases come only from the recompiled original; references only from the original in PPSSPP |
 | permissive mocks | the double returns the expected value by default, unasked | `unittest.mock.MagicMock` answers any attribute with a truthy mock: use `create_autospec` / `spec=` |
 | expectation computed like the code | same expression on both sides of the equals | a parser test that builds its expected offsets with the parser's own `struct` format: write the bytes and values by hand |
 
 **Every assertion is watched failing once**, and expected values are written out by hand. This is
-the same rule [Runtime verification](runtime-verification.md#runtime-verification--what-the-checksum-cant-prove)
+the same rule [Runtime verification](runtime-verification.md#runtime-verification--what-the-harness-cant-prove)
 states for on-device checks — it applies to in-process tests with no exception.
 
 ### The environment is a claim until it is measured

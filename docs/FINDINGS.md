@@ -35,6 +35,50 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### PSPRecomp seems to implement none of GT's imports (it implements 151)
+
+**Symptom.** Searching PSPRecomp's sources for GT's 329 NIDs as 8-hex-digit literals found 0.
+**Cause.** NIDs are written with an unsigned suffix (`0x42778A9Fu`), so a regex ending in `\b` after
+the digits never matches.
+**Fix / workaround.** Match `0[xX]([0-9A-Fa-f]{8})(?![0-9A-Fa-f])`, or better, parse the
+`register_hle("<lib>", 0x…u, …)` calls (lib + NID pairs).
+**Why it isn't obvious.** Zero coverage is a plausible answer for a project built for another game.
+
+Found: 2026-10-09 · re
+
+### "After `jr $ra`" is not where a function ends
+
+**Symptom.** A function cut at its first `jr $ra` + delay slot had branches pointing past its end;
+the "next function" was a two-instruction `return 0` tail.
+**Cause.** GCC places early-return tails after the main epilogue (e.g. `func_00013DD0`'s `return 0` at
+`0x13e1c`).
+**Fix / workaround.** Extend a function to cover every branch target that falls after its first
+`jr $ra`; use relocations and call targets (`jal`) for real starts.
+**Why it isn't obvious.** For most small leaves the heuristic happens to be right.
+
+Found: 2026-10-09 · re
+
+### decomp.me's `psp-gcc-1.7.1` has no assembler or linker
+
+**Symptom.** `psp/bin/as`, `ld`, `ar`, `g++` in the 1.7.1 tarball are 0-byte files; only `gcc`/`cc1`
+work, so `gcc -c` fails.
+**Cause.** decomp.me assembles with its own assembler; the tarball only ships what it needs.
+**Fix / workaround.** `gcc -S`, then assemble with `psp-as` from the **1.3.1** tarball
+(`GNU assembler 2.14+allegrex-vfpu-2.2.1-psp-1.3.1`): `psp-as -EL -G0 x.s -o x.o`.
+**Why it isn't obvious.** The files exist and are executable.
+
+Found: 2026-10-09 · build
+
+### decomp.me compiler ids don't say which GCC they are
+
+**Symptom.** `psp-gcc-1.3.1` / `psp-gcc-1.7.1` look like tool versions, not compiler versions.
+**Cause.** They are Sony SDK `psp-gcc` release numbers; the GCC inside is 3.3.3 in both.
+**Fix / workaround.** `strings <cc1> | grep allegrex`, or compile with `-S` and read `.ident`.
+**Why it isn't obvious.** GT's `.comment` uses the same `psp-X.Y.Z` scheme (1.14.0, 1.15.3, 2.8.2), which
+invites comparing release numbers instead of GCC versions.
+
+Found: 2026-10-09 · build
+
 ### REA has no native engine although Ghidra is installed
 
 **Symptom.** `binary_session` lists the Ghidra provider as `not_configured`: "Set GHIDRA_INSTALL_DIR to an
@@ -75,8 +119,8 @@ Found: 2026-10-09 · split
 **Symptom.** `GCC 4.0.4 psp-2.8.2`, `GCC 3.3.6 psp-1.15.3.internal`, `GCC 3.3.6 psp-1.14.0`, once each.
 **Cause.** The linker merges `.comment` (SHF_MERGE|SHF_STRINGS) and deduplicates identical strings, so
 the per-object attribution is gone.
-**Fix / workaround.** Attribute by codegen fingerprinting and by test-compiling leaf functions — the
-plan is in [toolchain](agents/toolchain.md#compiler--the-blocking-question).
+**Fix / workaround.** Attribute by test-compiling small game functions against candidate compilers —
+done on 2026-10-09, see [toolchain](agents/toolchain.md#compiler--searched-not-found).
 **Why it isn't obvious.** One string per compiler reads like "one object each".
 
 Found: 2026-10-09 · build

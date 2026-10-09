@@ -1,34 +1,34 @@
-# Runtime verification — what the checksum can't prove
+# Runtime verification — what the harness can't prove
 
 > Part of `AGENTS.md`, kept in its own file so `AGENTS.md` fits the 32 KiB Codex reads by
 > default. Its rules bind all the same: `AGENTS.md` lists the hard ones in *Rules by topic* and
 > says when to read this file. Edit the rule here, not a copy of it.
 
-While the build is byte-identical, booting it proves nothing the checksum hasn't — skip it. Runtime
-verification becomes **mandatory** the moment a build is allowed to differ from the original:
-
-- a **shiftable** build (code moved, sizes changed),
-- a **NON_MATCHING** build (`-DNON_MATCHING`) used to test equivalence,
-- any **mod / port** track built on the decomp.
+The differential harness proves one function at a time on the inputs it captured. It cannot see
+timing, threads interleaving, the host layer, or an input nobody captured. The **boot check** covers
+that: the whole game, built from this tree, reaches defined states and looks the same as the original.
 
 ## The check
 
-1. Rebuild the executable in the variant under test, and **re-wrap** it in a form PPSSPP loads
-   (a decrypted/plain PRX or ELF in place of `EBOOT.BIN` in an extracted tree — exact procedure
-   *unverified*, to be written when Phase 5 starts).
-2. Boot in PPSSPP (headless with `--timeout`, or GUI with the remote debugger) from the user's dump —
-   files under `game_files/` / `extracted/`, never copied into the repo.
-3. Reach a **defined state** (title screen; a menu; a race start) and compare with the original:
-   screenshot compare (`--screenshot-save` / `--compare` in headless), or memory/register state at a
-   breakpoint via the websocket debugger.
-4. Record the command, the state and the result in the PR.
+1. Build the game in the variant under test (recompiled baseline + whatever is decompiled).
+2. Run it, and run the **original** in PPSSPP from the user's dump (`game_files/` / `extracted/`,
+   never copied into the repo).
+3. Reach each **reference state** — title screen, a menu, a race start, a few seconds of a race with
+   recorded input — and compare: screenshots, and key memory/register values at a breakpoint.
+4. Record the command, the states and the result in the PR.
+
+The reference states, their input recordings and how to reach them are defined in the Phase 2 spec
+and listed here once they exist. Until then this is the contract.
 
 ## Rules
 
-- **A check that has never failed is not proven.** Break the build on purpose once (e.g. patch one
-  constant) and watch the check go red before trusting it.
+- **A check that has never failed is not proven.** Break the build on purpose once (e.g. change one
+  constant in a decompiled function) and watch the check go red before trusting it.
 - **Expected values are captured from the original game, by hand, once** — not recomputed from the
   build under test.
-- **The emulator is a claim about hardware.** A PPSSPP pass is strong evidence, not proof of real-PSP
-  behaviour; say which one you ran.
-- **One agent per PPSSPP instance / debugger port** — it is an exclusive resource.
+- **Emulator and recompiler are both claims about hardware.** PPSSPP is the reference for "what the
+  original does" because it runs the real binary; a PPSSPP pass is strong evidence, not proof of
+  real-PSP behaviour. Say which one you ran.
+- **Determinism first** — fixed seeds, recorded input, no wall-clock dependence in the compared
+  window; a flaky state is fixed in the harness, not retried until green.
+- **One agent per game instance / emulator / debugger port** — each is an exclusive resource.

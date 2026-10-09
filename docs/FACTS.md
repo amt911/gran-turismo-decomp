@@ -81,6 +81,39 @@ the line says otherwise.
   `sceUtility` 17, `IoFileMgrForUser` 15, `sceNetAdhoc` 14, `sceAtrac3plus` 14, `sceGe_user` 7.
   *(verified: parsed `.lib.stub`, 2026-10-09)*
 
+## Compilers (search + tests, strategy decision input)
+
+- decomp.me `psp-gcc-1.3.1` = `GCC 3.3.3+allegrex-2.2.1-psp-1.3.1`; `psp-gcc-1.7.1` =
+  `GCC 3.3.3+allegrex-2.2.2-psp-1.7.1`; both i386 Linux ELF, need `/usr/lib32/ld-linux.so.2` (present).
+  *(verified: `strings`, `.ident` of a `-S` compile, 2026-10-09)*
+- Library code in GT matching those compilers' libs verbatim (longest relocation-free run ≥ 12 words):
+  libgcc 6/126, libc 1/514, libm 0/192, libstdc++ 3/333, libsupc++ 3/131 (1.7.1; 1.3.1 alike). Hits lie
+  in `0x35e7a0–0x374388` → SDK library region. *(verified: byte search script, 2026-10-09)*
+- `func_0012207C` (11 words, counter clamp) **matches byte for byte** with psp-gcc 1.7.1 `-O2 -G0` and
+  `-Os -G0`; not with `-O1`. *(verified: compile → psp-as 1.3.1 → word compare, 2026-10-09)*
+- `func_00013DD0` (21 words, ring-buffer index) does **not** match with 1.7.1 or 1.3.1 at
+  `-O1/-O2/-Os/-O3`: the game computes `i * 148` with `sll`/`addu`, both compilers emit `mult`; delay
+  slots filled differently. *(verified: same harness, 2026-10-09)*
+- Game code uses `bnel`/branch-likely, `movz`, `move` as `addu rd, rs, $zero`; `ll`/`sc` refcount loops
+  exist at `0x257930`, `0x257a28`. *(verified: rabbitizer disassembly, 2026-10-09)*
+
+## PSPRecomp (strategy B base)
+
+- Commit `f6e7d415c7f447b934cc3865a31eb725f353d659` (2026-08-13), MIT. Framework `src/` + `include/`:
+  5,855 lines. VCS profile host layer `profiles/vcs/host`: 30,810 lines (DX12 GPU backend). 226
+  `register_hle(lib, nid, …)` entries. *(verified: clone + `wc` + parse, 2026-10-09)*
+- **GT's imports with an HLE in PSPRecomp (framework + VCS host): 151/329.** Complete: `sceCtrl` 3/3,
+  `sceGe_user` 7/7, `sceDisplay` 4/4, `InterruptManager` 3/3, `sceSuspendForUser` 1/1. Partial:
+  `ThreadManForUser` 32/43, `sceMpeg` 22/26, `sceSasCore` 21/27, `sceAudio` 11/12, `IoFileMgrForUser`
+  9/15, `sceAtrac3plus` 7/14, `sceUmdUser` 6/9, `SysMemUserForUser` 5/11, `UtilsForUser` 5/8,
+  `sceUtility` 4/17, `sceRtc` 4/5, `ModuleMgrForUser` 3/9, `scePower` 2/4, `LoadExecForUser` 1/2,
+  `sceWlanDrv` 1/2. None: `sceLibFont` 11, `scePsmf` 13, `sceMp3` 12, `scesupPreAcc` 8,
+  `Kernel_Library` 6, `StdioForUser` 3, `sceUsb` 4, `scePspNpDrm_user` 2, `sceImpose` 1, `sceHprm` 1,
+  and all networking: `sceNet` 2, `sceNetInet` 2, `sceNetApctl` 6, `sceNetAdhoc` 14, `sceNetAdhocctl`
+  11, `sceNetAdhocMatching` 11. *(verified: GT `.lib.stub` NIDs × `register_hle` literals, 2026-10-09)*
+- lcs-recomp (the LCS port on PSPRecomp) builds on Linux with Vulkan, SDL2, FFmpeg. *(verified: its
+  README, 2026-10-09)*
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a
