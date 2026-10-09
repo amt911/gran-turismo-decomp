@@ -72,10 +72,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       nuestra propia ejecución (foto de CPU + RAM, original aislada, decompilada, comparación, y el juego
       sigue con el resultado original).
 - [x] Gate demostrado fallando (sabotaje de `v0`: 16/16 discrepancias, código de salida 2).
-- [x] Primera función: `memset` (`src/libc/memset.cpp`). Valor de retorno probado; escrituras aún no
-      (ningún caso cambió memoria antes de que la ejecución se pare).
+- [x] Primera función **probada**: `memset` (`src/libc/memset.cpp`): 16/16 casos iguales, 11 cambian
+      memoria; reproduce su rareza de cola (escribe un byte de más). Sabotajes de `v0` y de escritura
+      detectados (código de salida 2).
+- [x] Caída de arranque arreglada (semáforo con máximo 0): **30 s completos sin fallos, ~1,09 M llamadas
+      al sistema**.
 - [ ] Informe de progreso: funciones decompiladas y en verde / total, juego vs SDK.
-- [ ] Más casos informativos: llevar la ejecución más lejos (puntero nulo en `0x08ADB53C`).
+- [ ] Investigar las llamadas directas entre unidades que se saltan las sustituciones (FINDINGS).
 
 ## Fase 4 — Decompilación función a función
 

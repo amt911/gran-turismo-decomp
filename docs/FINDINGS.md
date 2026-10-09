@@ -35,6 +35,41 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Boot crash on a NULL global: a zero-max semaphore was rejected
+
+**Symptom.** `gt_native` died after ~82k import calls loading `0+8` at guest pc `0x08ADB53C`.
+**Cause.** The global read there (bss `0x08D40648`) has one writer, an init step chained with `&&`
+after GT's SGX sound init (`FUN_002e6d38`). That init creates `sgx-psp-freq-free-sema` with initial 0
+and **maximum 0**; the LCS-derived kernel rejected `maximum <= 0`, PPSSPP returns a UID. The SGX init
+failed, the chain stopped, the global stayed NULL.
+**Fix / workaround.** Accept `maximum == 0` (reject only negative). Found by `GT_PROBE` entry probes +
+Ghidra references (`tools/ghidra_scripts/RefsTo.java`) + comparing the SGX init calls with PPSSPP's.
+**Why it isn't obvious.** The crash is far from the cause, in a different subsystem.
+
+Found: 2026-10-10 · runtime
+
+### GT's memset writes one byte past the buffer (and that is the behaviour to keep)
+
+**Symptom.** The harness flagged `memset(dst, 0, 9)`: the original also wrote `dst + 9`.
+**Cause.** For `count >= 9` the SDK memset stores its tail with `swl value, 0(dst + count)` instead of
+`dst + count - 1`; little-endian `swl` covers up to and including `dst + count`.
+**Fix / workaround.** `src/libc/memset.cpp` reproduces it (faithful first). Not a harness bug.
+**Why it isn't obvious.** It looks like a textbook memset.
+
+Found: 2026-10-10 · decomp
+
+### Entry probes / overrides can be bypassed by direct cross-unit calls
+
+**Symptom.** A `GT_PROBE` on the crashing function counted 0 entries although the crash happened
+inside it.
+**Cause.** Not fully investigated: generated code calling into another unit can use a direct chained
+call that does not go through the dispatcher, so a `register_function` override is not consulted.
+**Fix / workaround.** Probes and `--decomp diff` may see fewer calls than really happen (fine for
+diff); `--decomp on` may not use the decompiled version on every call — check before relying on it.
+**Why it isn't obvious.** The runtime documents that overrides disable chaining into their unit.
+
+Found: 2026-10-10 · runtime
+
 ### The differential gate passed a sabotaged memset
 
 **Symptom.** `memset` writing one byte too few: `compared 16, equal 16, mismatched 0`.

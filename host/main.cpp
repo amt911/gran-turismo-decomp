@@ -6,6 +6,7 @@
 
 #include "diff_harness.hpp"
 #include "lcs_profile.hpp"
+#include "probes.hpp"
 #include "psprecomp/common.hpp"
 #include "psprecomp/elf32.hpp"
 #include "psprecomp/runtime.hpp"
@@ -125,6 +126,7 @@ int main(int argc, char **argv) {
         }
         // One observer for both: the trace (when enabled) and the harness's import counter.
         psprecomp::set_runtime_import_observer(&trace_import);
+        gt::install_probes(runtime);  // GT_PROBE=addr,... (debugging aid)
         gt::install_decompiled(runtime, options.decomp, options.decomp_cases);
         runtime.cpu().set_gpr(31, 0u);
         runtime.cpu().set_gpr(4, 0u);
@@ -142,8 +144,10 @@ int main(int argc, char **argv) {
         }
     } catch (const std::exception &ex) {
         std::cerr << "gt_native error: " << ex.what() << "\n";
+        gt::probe_report();
         const int decomp_status = gt::decomp_report();  // a mismatch (2) wins over the crash (1)
         return decomp_status != 0 ? decomp_status : 1;
     }
+    gt::probe_report();
     return gt::decomp_report();
 }
