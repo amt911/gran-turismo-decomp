@@ -33,6 +33,22 @@ applies to whatever REA *can* open, and to the EBOOT the day it can:
 - **One open binary per session, `close_binary` when done.** The Ghidra JVM REA starts is outside any
   `systemd-run` scope you create — see `AGENTS.md` § memory cgroup.
 
+## Names from the Adhoc bridge
+
+`config/symbol_addrs.txt` starts from GT's own Adhoc native registrations (each script-callable
+function is registered with its name). Regenerate after improving the extractor:
+
+```bash
+systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
+  env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=4G tools/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless \
+  ghidra gt -process EBOOT.elf -noanalysis -readOnly -scriptPath tools/ghidra_scripts \
+  -postScript AdhocNatives.java $PWD/recomp/analysis/adhoc_natives.tsv 0x382fb0 0x383108
+.venv/bin/python -m tools.adhoc_symbols recomp/analysis/adhoc_natives.tsv > config/symbol_addrs.txt
+```
+
+Hand-made names go in the same file with their evidence; a generated name that turns out wrong is
+fixed in the generator or overridden there, never in a second list.
+
 ## Ghidra directly — the current engine for the EBOOT
 
 Repo-local Ghidra 12.1.3 + ghidra-allegrex v21.4 (`tools/setup.sh --with-ghidra`). Headless import +

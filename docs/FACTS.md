@@ -203,8 +203,15 @@ the line says otherwise.
   `0x08809980`); `pdistd` by `FUN_000017f8` (`0x17f8`, runtime `0x088057f8`). Both sit at the very start
   of `.text`, where the static initializers listed in `.ctors` (334 entries) live — likely the native
   module/class registrations Adhoc scripts see. *(verified: Ghidra RefsTo.java)*
-- Next step: walk `.ctors`, record which name each initializer registers, use OpenAdhoc's script
-  names as naming evidence, then decompile the registration helpers and the small natives first.
+- **Native registration** (verified 2026-10-10): an initializer creates its module (e.g.
+  `FUN_00265b3c(.., "MLocale")`) and registers each script-callable function with
+  `FUN_00382fb0(module, "getLanguage", fn)` (42 callers); class methods use `FUN_00383108(class,
+  "name", fn)` (96 callers, → `FUN_0038305c`); `FUN_00382e98(module, "name", value)` (67 callers)
+  registers constants. Extracted with `tools/ghidra_scripts/AdhocNatives.java` (P-code constants):
+  **1,329 registrations, 1,313 distinct functions** (e.g. `MOrganizer` 161, `MSpecDB` 86,
+  `MRaceOperator` 58). They seed `config/symbol_addrs.txt` (`tools/adhoc_symbols.py`).
+  *(verified: Ghidra decompilation of FUN_00239394 / FUN_00382fb0 / FUN_00383108)*
+- Next step: decompile the small natives first (names known), cross-check names with OpenAdhoc.
 
 ## Environment (this machine)
 
