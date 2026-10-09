@@ -85,6 +85,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [ ] Primeras hojas de librería y utilidades (validan el harness).
 - [ ] Subsistemas del juego, por orden de lo que desbloquea nombres (bindings de Adhoc, menús, sonido
       SGX, física).
+- [ ] **Puente Adhoc (siguiente):** recorrer los 334 inicializadores de `.ctors`, anotar qué módulo
+      `pdistd::*` registra cada uno (mapa de partida en FACTS), nombrar con evidencia y decompilar los
+      registros y los nativos pequeños con el harness.
 
 ## Fase 5 — Más adelante
 

@@ -189,6 +189,19 @@ the line says otherwise.
   LCS-derived kernel those waits are timed delays, so PDI:00000004/5 resume in a different order and
   the first `sceGeListEnQueue` is not reached at call 235. *(verified: both logs, 2026-10-09)*
 
+## Adhoc bridge — starting map (verified 2026-10-10)
+
+- Strings: `HADHOC` (vaddr `0x493bf0`, also `0x493c9c`, `0x493d2c`, `0x49418c`), `HModule` (dozens,
+  from `0x493bf8`), `pdistd` (`0x493d34`), `pdistd::MMusic` (`0x49419c`). `onAdHocMatching*` strings
+  (`0x49543c`…) belong to Sony's network ad-hoc matching, not to the Adhoc script VM.
+  *(verified: strings -t x on the ELF)*
+- `pdistd::MMusic` is passed as an argument (a1) by `FUN_00005980` (vaddr `0x5980`, runtime
+  `0x08809980`); `pdistd` by `FUN_000017f8` (`0x17f8`, runtime `0x088057f8`). Both sit at the very start
+  of `.text`, where the static initializers listed in `.ctors` (334 entries) live — likely the native
+  module/class registrations Adhoc scripts see. *(verified: Ghidra RefsTo.java)*
+- Next step: walk `.ctors`, record which name each initializer registers, use OpenAdhoc's script
+  names as naming evidence, then decompile the registration helpers and the small natives first.
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a
