@@ -1,0 +1,26 @@
+diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
+index 278562e..5dac23c 100644
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -434,10 +434,19 @@ std::string emit_regular(const psprecomp::DecodedInstruction &d, std::uint32_t p
+         break;
+     }
+     case psprecomp::OpcodeKind::Mtv:
+-        out << "    ctx.set_vfpu_scalar_bits(" << (d.word & 0xFFu) << "u, " << reg(d.rt) << ");\n";
++        // imm8 0..127 = VFPU scalar, 128..143 = the 16 control registers; anything above names
++        // no register (seen in GT, likely data decoded as code) -- trap instead of emitting an
++        // out-of-range accessor, mirroring the CFC1/CTC1 handling.
++        if ((d.word & 0xFFu) >= 144u)
++            out << "    rt.unsupported(" << psprecomp::hex32(pc) << "u, " << psprecomp::hex32(d.word) << "u, \"mtv to nonexistent VFPU register\"); return;\n";
++        else
++            out << "    ctx.set_vfpu_scalar_bits(" << (d.word & 0xFFu) << "u, " << reg(d.rt) << ");\n";
+         break;
+     case psprecomp::OpcodeKind::Mfv:
+-        out << "    ctx.set_gpr(" << d.rt << ", ctx.vfpu_scalar_bits(" << (d.word & 0xFFu) << "u));\n";
++        if ((d.word & 0xFFu) >= 144u)
++            out << "    rt.unsupported(" << psprecomp::hex32(pc) << "u, " << psprecomp::hex32(d.word) << "u, \"mfv from nonexistent VFPU register\"); return;\n";
++        else
++            out << "    ctx.set_gpr(" << d.rt << ", ctx.vfpu_scalar_bits(" << (d.word & 0xFFu) << "u));\n";
+         break;
+     case psprecomp::OpcodeKind::VmidT: {
+         const std::uint32_t size_code = ((d.word >> 7u) & 1u) | (((d.word >> 15u) & 1u) << 1u);

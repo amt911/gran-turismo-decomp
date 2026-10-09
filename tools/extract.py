@@ -20,6 +20,7 @@ EXPECTED_ELF_SIZE = 7_057_972
 EXPECTED_TAG = 0xD9160BF0
 EBOOT_IN_ISO = Path("PSP_GAME/SYSDIR/EBOOT.BIN")
 EXCLUDED_FROM_ISO = "PSP_GAME/USRDIR/GT.VOL"
+GT_VOL_IN_ISO = Path(EXCLUDED_FROM_ISO)
 REQUIRED_SUMS = ("iso", "eboot.elf")
 
 Runner = Callable[[Sequence[str]], None]
@@ -63,20 +64,25 @@ def check_eboot_header(eboot: Path) -> None:
 
 
 def extract(iso: Path, out_dir: Path, checksums: dict[str, str], tool_dir: Path,
-            runner: Runner = run) -> Path:
+            runner: Runner = run, full: bool = False) -> Path:
+    """Verify, extract and decrypt. full=True also extracts GT.VOL (needed to run the game)."""
     for key in REQUIRED_SUMS:
         if key not in checksums:
             raise ExtractError(f"config/checksums.sha1 has no entry for {key!r}")
     elf = out_dir / "EBOOT.elf"
-    if elf.is_file() and sha1_of(elf) == checksums["eboot.elf"]:
+    iso_dir = out_dir / "iso"
+    elf_ok = elf.is_file() and sha1_of(elf) == checksums["eboot.elf"]
+    if elf_ok and (not full or (iso_dir / GT_VOL_IN_ISO).is_file()):
         return elf
     verify(iso, checksums["iso"], "iso")
     pspdecrypt = tool_dir / "pspdecrypt"
-    if not pspdecrypt.is_file():
+    if not elf_ok and not pspdecrypt.is_file():
         raise ExtractError(f"{pspdecrypt} not found: run tools/setup.sh first")
-    iso_dir = out_dir / "iso"
     iso_dir.mkdir(parents=True, exist_ok=True)
-    runner(["7z", "x", "-y", f"-o{iso_dir}", str(iso), f"-x!{EXCLUDED_FROM_ISO}"])
+    exclusion = [] if full else [f"-x!{EXCLUDED_FROM_ISO}"]
+    runner(["7z", "x", "-y", f"-o{iso_dir}", str(iso), *exclusion])
+    if elf_ok:
+        return elf
     eboot = iso_dir / EBOOT_IN_ISO
     if not eboot.is_file():
         raise ExtractError(f"7z did not produce {eboot}")
@@ -92,11 +98,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--iso", type=Path, help="ISO path (default: the single .iso in game_files/)")
     parser.add_argument("--out", type=Path, default=REPO / "extracted", help="output dir (default: extracted/)")
+    parser.add_argument("--full", action="store_true", help="also extract GT.VOL (~1 GB), needed to run the game")
     args = parser.parse_args(argv)
     try:
         sums = load_checksums(REPO / "config/checksums.sha1")
         iso = find_iso(REPO / "game_files", args.iso)
-        elf = extract(iso, args.out, sums, REPO / "tools/bin")
+        elf = extract(iso, args.out, sums, REPO / "tools/bin", full=args.full)
     except (ExtractError, ChecksumError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

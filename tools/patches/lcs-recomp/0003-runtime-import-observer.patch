@@ -1,0 +1,52 @@
+diff --git a/include/psprecomp/runtime.hpp b/include/psprecomp/runtime.hpp
+index 5403d93..449a012 100644
+--- a/include/psprecomp/runtime.hpp
++++ b/include/psprecomp/runtime.hpp
+@@ -65,6 +65,11 @@ void set_runtime_thread_identity(std::int32_t uid, const std::string &name) noex
+ [[nodiscard]] std::uint64_t runtime_thread_switch_generation() noexcept;
+ [[nodiscard]] bool runtime_thread_switch_generation_matches(std::uint64_t generation) noexcept;
+ 
++// Observes every import call before its HLE runs (library, NID), in call order. Used by hosts to
++// record an import trace; nullptr disables it. Not thread-safe to change while running.
++using RuntimeImportObserver = void (*)(std::string_view library, std::uint32_t nid);
++void set_runtime_import_observer(RuntimeImportObserver observer) noexcept;
++
+ class Runtime {
+ public:
+     using RecompiledFunction = void (*)(Runtime &, AllegrexContext &);
+diff --git a/src/runtime.cpp b/src/runtime.cpp
+index 6976df0..a840d75 100644
+--- a/src/runtime.cpp
++++ b/src/runtime.cpp
+@@ -23,6 +23,7 @@ std::uint64_t g_runtime_thread_switch_generation_fast = 0u;
+ namespace {
+ using RuntimePostImportHook = void (*)(Runtime &, AllegrexContext &);
+ RuntimePostImportHook g_post_import_hook = nullptr;
++RuntimeImportObserver g_import_observer = nullptr;
+ std::int32_t g_runtime_thread_uid = -1;
+ std::array<char, 64> g_runtime_thread_name{};
+ std::uint32_t g_runtime_dispatch_pc = 0u;
+@@ -111,6 +112,7 @@ void set_runtime_post_chained_call_hook(RuntimePostChainedCallHook hook) noexcep
+ }
+ 
+ void set_runtime_post_import_hook(RuntimePostImportHook hook) noexcept { g_post_import_hook = hook; }
++void set_runtime_import_observer(RuntimeImportObserver observer) noexcept { g_import_observer = observer; }
+ void set_runtime_thread_identity(std::int32_t uid, const std::string &name) noexcept {
+     if (uid != g_runtime_thread_uid) ++g_runtime_thread_switch_generation_fast;
+     g_runtime_thread_uid = uid;
+@@ -1213,6 +1215,7 @@ void Runtime::invoke_native_fast_path(std::uint32_t address, AllegrexContext &ct
+ 
+ void Runtime::invoke_import_cached(std::uint32_t slot, std::string_view library,
+                                    std::uint32_t nid, AllegrexContext &ctx) {
++    if (g_import_observer != nullptr) g_import_observer(library, nid);
+     if (hle_histogram_enabled_) ++hle_histogram_[hle_key(library, nid)];
+ 
+     const HleFunction *bound = slot < import_bindings_.size() ? import_bindings_[slot] : nullptr;
+@@ -1240,6 +1243,7 @@ void Runtime::invoke_import(std::string_view library, std::uint32_t nid, Allegre
+     // a kernel-wait livelock: real translated work barely calls into the HLE,
+     // while a thread spinning on an operation the host never completes shows up
+     // as a huge count on one or two wait imports.
++    if (g_import_observer != nullptr) g_import_observer(library, nid);
+     if (hle_histogram_enabled_) ++hle_histogram_[hle_key(library, nid)];
+     const auto library_it = hle_.find(library);
+     const auto function_it = library_it != hle_.end()

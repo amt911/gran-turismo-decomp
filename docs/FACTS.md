@@ -148,6 +148,47 @@ the line says otherwise.
 - The headless log with `-l` is ~900k lines for 15 s; write it to disk, never to a terminal, and
   `/tmp` here is a 16 GB **tmpfs (RAM)** — put big logs elsewhere or delete them. *(verified: `df -h /tmp`)*
 
+## Recompiler on GT (Phase 2 exploration, verified 2026-10-09)
+
+- PSPRecomp `f6e7d41` framework builds on Linux with clang + Ninja in ~8 s; `psprecomp_tests` pass.
+  *(verified: cmake/ctest)*
+- `psp_analyze extracted/EBOOT.elf report.json 0x08804000` (0.7 s): PRX recognised, module `PDIAPP`, gp
+  `0x08CE9390`, entry `0x0880410C`, **243,383 relocations, 0 unsupported/invalid** (R_MIPS_32 40,852,
+  R_MIPS_26 115,535, HI16 40,516, LO16 46,480), 41,212 function seeds, 882,937 code labels, 11,330
+  indirect call sites, 30,834 "unsupported instruction occurrences". *(verified: ran it)*
+- Upstream `psp_recomp --auto` never finishes on GT: endless emission (RSS → 5.7 GB in 10 min, nothing
+  written). gdb backtrace: `emit_function_source` → `ostringstream` growth. *(verified: gdb)*
+- **lcs-recomp `ab91e87`** carries the fixes (import-call `break`, `valid_units`, linear text rewrites):
+  `psp_recomp --auto … 0x08804000` → 39 units, 257,198 registered blocks, 329 import wrappers, 117 MB
+  of C++ in ~30 s, under the 6 GB cap. Its framework tests pass when built alone (`--target
+  psprecomp_tests`); its default build also compiles the LCS profile and fails without
+  `vulkan/vulkan.h`. *(verified: ran it)*
+- GT's generated units still fail to compile: `static_assert(ScalarRegister < 144u)` with `188`, and
+  `local_pc` undeclared in `jr` lowering. *(verified: clang -fsyntax-only on generated_unit_0038)*
+- Installed: `vulkan-icd-loader`, `sdl2-compat`, `ffmpeg`, `glslang`, `shaderc`; **missing
+  `vulkan-headers`**. *(verified: pacman -Q)*
+
+## gt_native boot (Phase 2a, verified 2026-10-09)
+
+- 30 s headless run: ~82,800 import calls; trace_compare matches **235** calls in order with PPSSPP,
+  then `sceGeListEnQueue` (PPSSPP) vs `sceKernelDelayThread` (ours); later a null+8 load at guest pc
+  `0x08ADB53C` (unit 0090). *(verified: gt_native --max-seconds 30 --trace, trace_compare)*
+- PPSSPP timings GT depends on: `sceUtilityLoadModule` suspends the caller ~25,000 us (4/4 loads);
+  `scePowerSetClockFrequency` ~150,000 us; a repeated `sceCtrlReadBufferPositive` waits for the next
+  pad sample ("ctrl buffer waited"). *(verified: context-switch deltas in ppsspp.log)*
+- GT executes `mfv $zero, 255` (VFPU sync idiom) and `vi2uc.q`; `ll`/`sc`, `madd`, `addi`, `mfic`/
+  `mtic` all appear on the boot path. A memset uses a computed jump into an unrolled store run
+  (`lui/addiu/subu/jr $at`, func at vaddr `0x332018`). *(verified: run stops + rabbitizer/Ghidra)*
+- Of 1,427 untranslated VFPU sites in generated code, 885 decode as INVALID (data analysed as code);
+  real gaps left: `lv/sv{l,r}.q` (39), `vcrs.t` (1), and 480 `vsbn.s` of unclear reality.
+  *(verified: rabbitizer over rt.unsupported markers)*
+
+- `GT_SCHED_LOG=1 build/gt_native ...` prints one `[sched] A -> B (uid->uid, reason) pc=` line per
+  thread switch. Compared with PPSSPP: there, vblank waiters wake on a vblank event ("entered
+  vblank", "vblank start waited") and `sceDisplaySetMode` switches threads ("display mode"); in our
+  LCS-derived kernel those waits are timed delays, so PDI:00000004/5 resume in a different order and
+  the first `sceGeListEnQueue` is not reached at call 235. *(verified: both logs, 2026-10-09)*
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a

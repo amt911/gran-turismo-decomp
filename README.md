@@ -9,8 +9,19 @@ para que el juego corra en PC desde el principio, y después cada función tradu
 código decompilado a mano, comprobando que se comporta exactamente igual que la original. No se busca
 un binario idéntico byte a byte (los compiladores exactos de Sony no son públicos).
 
-> **Estado:** Fase 0 (preparación) terminada. Aún no hay nada recompilado ni decompilado. Ver
-> [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Estado (2026-10-09, noche) — para leer mañana.** Fases 0 y 1 terminadas. Fase 2a en curso, en la
+> rama `feat/phase2a-recomp-boot`:
+>
+> - **Gráficos: todavía nada.** `gt_native` es *headless* (sin ventana ni GPU) a propósito; la primera
+>   imagen llega en la Fase 2b. No se ha visto ningún frame.
+> - **Lo que sí funciona:** GT entero recompilado a C++ nativo (156 unidades, compila en ~3 min dentro de
+>   6 GB de RAM), carga el EBOOT, ejecuta el código del juego y hace **~82.000 llamadas al sistema** en
+>   su arranque. Las **primeras 235 coinciden en orden** con las del juego original en PPSSPP (objetivo
+>   de la fase: 2.000).
+> - **Dónde se para:** un puntero nulo en el código del juego (`0x08ADB53C`), probablemente porque
+>   alguna función del sistema aún simplificada devuelve algo distinto a la PSP real; y el orden diverge
+>   en la llamada 235 (`sceGeListEnQueue`, el primer envío de una lista de dibujo a la GPU).
+> - **Probarlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md). Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Qué hay y qué no
 
@@ -31,8 +42,8 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 ## Empezar
 
 1. Pon tu ISO en `game_files/` (está en `.gitignore`).
-2. Pasos de la Fase 0, verificados a mano: [`AGENTS.md` § Commands](AGENTS.md#commands). Los scripts
-   `tools/setup.sh` y `tools/extract.sh` llegan en la Fase 1.
+2. Sigue [`docs/COMPILAR.md`](docs/COMPILAR.md): herramientas, extracción, recompilación, compilación de
+   `gt_native`, ejecución y comparación con PPSSPP, paso a paso.
 
 ## Para agentes (Claude Code / Codex)
 

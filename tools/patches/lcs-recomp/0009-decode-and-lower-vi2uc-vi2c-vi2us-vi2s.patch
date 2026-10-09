@@ -1,0 +1,62 @@
+--- a/include/psprecomp/decoder.hpp
++++ b/include/psprecomp/decoder.hpp
+@@ -27,6 +27,7 @@
+     Addi,        // add immediate with overflow trap
+     Mfic, Mtic,  // Allegrex interrupt-enable register read/write
+     Pref,        // cache prefetch hint
++    Vi2x,        // VFPU vi2uc/vi2c/vi2us/vi2s: pack integers into bytes/halfwords
+     Unsupported,
+ };
+ 
+--- a/src/decoder.cpp
++++ b/src/decoder.cpp
+@@ -322,6 +322,10 @@
+             d.kind = OpcodeKind::Vx2i;
+             static constexpr const char *names[4]{"vuc2i", "vc2i", "vus2i", "vs2i"};
+             d.mnemonic = names[operation - 24u];
++        } else if (group == 1u && operation >= 28u && operation <= 31u) {
++            d.kind = OpcodeKind::Vi2x;
++            static constexpr const char *names[4]{"vi2uc", "vi2c", "vi2us", "vi2s"};
++            d.mnemonic = names[operation - 28u];
+         } else if (group >= 16u && group <= 19u) {
+             d.kind = OpcodeKind::Vf2i;
+             static constexpr const char *names[4]{"vf2in", "vf2iz", "vf2iu", "vf2id"};
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -454,6 +454,36 @@
+             << "      ctx.write_vfpu_vector_with_destination_prefix(vfpu_d, " << destination << "u, " << length << "u); }\n";
+         break;
+     }
++    case psprecomp::OpcodeKind::Vi2x: {
++        // Pack integer lanes: vi2uc/vi2c -> 4 bytes in one word, vi2us/vi2s -> 2 halfwords per word.
++        // Unsigned forms clamp negative lanes to 0 and keep the top bits below the sign bit.
++        const std::uint32_t size_code = ((d.word >> 7u) & 1u) | (((d.word >> 15u) & 1u) << 1u);
++        const std::uint32_t length = size_code + 1u;
++        const std::uint32_t destination = d.word & 0x7Fu;
++        const std::uint32_t source = (d.word >> 8u) & 0x7Fu;
++        const std::uint32_t operation = (d.word >> 16u) & 3u;  // 0 uc, 1 c, 2 us, 3 s
++        const bool to_bytes = operation < 2u;
++        const std::uint32_t out_length = to_bytes ? 1u : (length + 1u) / 2u;
++        out << "    { float vfpu_s[4]{}, vfpu_d[4]{}; std::uint32_t vfpu_w[4]{};\n"
++            << "      ctx.read_vfpu_vector(vfpu_s, " << source << "u, " << length << "u);\n"
++            << "      ctx.apply_vfpu_source_prefix(vfpu_s, " << length << "u, 0u);\n"
++            << "      for (std::uint32_t vfpu_i = 0; vfpu_i < " << length << "u; ++vfpu_i) {\n"
++            << "        const auto vfpu_x = static_cast<std::int32_t>(std::bit_cast<std::uint32_t>(vfpu_s[vfpu_i]));\n";
++        switch (operation) {
++        case 0u: out << "        const std::uint32_t vfpu_v = vfpu_x < 0 ? 0u : (static_cast<std::uint32_t>(vfpu_x) >> 23u) & 0xFFu;\n"; break;
++        case 1u: out << "        const std::uint32_t vfpu_v = (static_cast<std::uint32_t>(vfpu_x) >> 24u) & 0xFFu;\n"; break;
++        case 2u: out << "        const std::uint32_t vfpu_v = vfpu_x < 0 ? 0u : (static_cast<std::uint32_t>(vfpu_x) >> 15u) & 0xFFFFu;\n"; break;
++        default: out << "        const std::uint32_t vfpu_v = (static_cast<std::uint32_t>(vfpu_x) >> 16u) & 0xFFFFu;\n"; break;
++        }
++        if (to_bytes)
++            out << "        vfpu_w[0] |= vfpu_v << (8u * vfpu_i);\n";
++        else
++            out << "        vfpu_w[vfpu_i / 2u] |= vfpu_v << (16u * (vfpu_i % 2u));\n";
++        out << "      }\n"
++            << "      for (std::uint32_t vfpu_i = 0; vfpu_i < " << out_length << "u; ++vfpu_i) vfpu_d[vfpu_i] = std::bit_cast<float>(vfpu_w[vfpu_i]);\n"
++            << "      ctx.write_vfpu_vector_with_destination_prefix(vfpu_d, " << destination << "u, " << out_length << "u); }\n";
++        break;
++    }
+     case psprecomp::OpcodeKind::Vx2i: {
+         const std::uint32_t size_code = ((d.word >> 7u) & 1u) | (((d.word >> 15u) & 1u) << 1u);
+         const std::uint32_t source_length = size_code + 1u;

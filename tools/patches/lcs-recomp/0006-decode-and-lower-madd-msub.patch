@@ -1,0 +1,48 @@
+--- a/include/psprecomp/decoder.hpp
++++ b/include/psprecomp/decoder.hpp
+@@ -23,6 +23,7 @@
+     Vflush,
+     Vfpu,
+     Ll, Sc,  // load-linked / store-conditional (atomic sequences)
++    Madd, Maddu, Msub, Msubu,  // Allegrex HI:LO multiply-accumulate
+     Unsupported,
+ };
+ 
+--- a/src/decoder.cpp
++++ b/src/decoder.cpp
+@@ -76,6 +76,10 @@
+         case 0x17: d.kind = OpcodeKind::Clo; d.mnemonic = "clo"; break;
+         case 0x18: d.kind = OpcodeKind::Mult; d.mnemonic = "mult"; break;
+         case 0x19: d.kind = OpcodeKind::Multu; d.mnemonic = "multu"; break;
++        case 0x1C: d.kind = OpcodeKind::Madd; d.mnemonic = "madd"; break;
++        case 0x1D: d.kind = OpcodeKind::Maddu; d.mnemonic = "maddu"; break;
++        case 0x2E: d.kind = OpcodeKind::Msub; d.mnemonic = "msub"; break;
++        case 0x2F: d.kind = OpcodeKind::Msubu; d.mnemonic = "msubu"; break;
+         case 0x1A: d.kind = OpcodeKind::Div; d.mnemonic = "div"; break;
+         case 0x1B: d.kind = OpcodeKind::Divu; d.mnemonic = "divu"; break;
+         case 0x20: d.kind = OpcodeKind::Add; d.mnemonic = "add"; break;
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -198,6 +198,22 @@
+     case psprecomp::OpcodeKind::Mflo: out << "    ctx.set_gpr(" << d.rd << ", ctx.lo);\n"; break;
+     case psprecomp::OpcodeKind::Mthi: out << "    ctx.hi = " << reg(d.rs) << ";\n"; break;
+     case psprecomp::OpcodeKind::Mtlo: out << "    ctx.lo = " << reg(d.rs) << ";\n"; break;
++    // Allegrex multiply-accumulate: HI:LO +/-= rs * rt (signed for madd/msub, unsigned for the u forms).
++    case psprecomp::OpcodeKind::Madd:
++    case psprecomp::OpcodeKind::Maddu:
++    case psprecomp::OpcodeKind::Msub:
++    case psprecomp::OpcodeKind::Msubu: {
++        const bool is_unsigned = d.kind == psprecomp::OpcodeKind::Maddu || d.kind == psprecomp::OpcodeKind::Msubu;
++        const bool is_sub = d.kind == psprecomp::OpcodeKind::Msub || d.kind == psprecomp::OpcodeKind::Msubu;
++        out << "    { const std::uint64_t acc = (static_cast<std::uint64_t>(ctx.hi) << 32u) | ctx.lo; ";
++        if (is_unsigned)
++            out << "const std::uint64_t product = static_cast<std::uint64_t>(" << reg(d.rs) << ") * static_cast<std::uint64_t>(" << reg(d.rt) << "); ";
++        else
++            out << "const std::uint64_t product = static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int32_t>(" << reg(d.rs) << ")) * static_cast<std::int64_t>(static_cast<std::int32_t>(" << reg(d.rt) << "))); ";
++        out << "const std::uint64_t result = acc " << (is_sub ? "-" : "+") << " product; "
++            << "ctx.lo = static_cast<std::uint32_t>(result); ctx.hi = static_cast<std::uint32_t>(result >> 32u); }\n";
++        break;
++    }
+     case psprecomp::OpcodeKind::Mult:
+         out << "    { const std::int64_t product = static_cast<std::int64_t>(static_cast<std::int32_t>(" << reg(d.rs) << ")) * "
+             << "static_cast<std::int64_t>(static_cast<std::int32_t>(" << reg(d.rt) << ")); "

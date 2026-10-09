@@ -1,0 +1,13 @@
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -504,6 +504,10 @@
+             out << "    ctx.set_vfpu_scalar_bits(" << (d.word & 0xFFu) << "u, " << reg(d.rt) << ");\n";
+         break;
+     case psprecomp::OpcodeKind::Mfv:
++        // `mfv $zero, <imm8 >= 144>` executes in GT (e.g. imm8 255) as a VFPU sync idiom: the value
++        // goes to $zero and is discarded, so it is a no-op. Any other out-of-range read still traps.
++        if ((d.word & 0xFFu) >= 144u && d.rt == 0u)
++            break;
+         if ((d.word & 0xFFu) >= 144u)
+             out << "    rt.unsupported(" << psprecomp::hex32(pc) << "u, " << psprecomp::hex32(d.word) << "u, \"mfv from nonexistent VFPU register\"); return;\n";
+         else
