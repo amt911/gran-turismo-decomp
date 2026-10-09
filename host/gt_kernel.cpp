@@ -1879,6 +1879,273 @@ void ge_worker_shutdown() {
     ge_worker_stop();
 }
 
+// ---------------------------------------------------------------------------------------------
+// Gran Turismo additions (ours). Imports GT calls during boot that lcs-recomp's LCS profile never
+// needed. Return values follow what PPSSPP 1.20.4 returns for the same calls on the original game
+// (recomp/analysis/ppsspp.log; numbers in docs/FACTS.md). Not ported from PPSSPP's source.
+// ---------------------------------------------------------------------------------------------
+namespace {
+
+// sceKernelAllocMemoryBlock & co: first-fit reuse of freed ranges, otherwise bump the shared
+// partition cursor (GT allocates/frees hundreds of blocks in seconds; the bump-only partition
+// allocator would leak them all).
+struct MemoryBlock { std::uint32_t address; std::uint32_t size; };
+std::unordered_map<std::int32_t, MemoryBlock> g_memory_blocks;
+std::vector<MemoryBlock> g_free_memory_ranges;
+
+std::uint32_t alloc_memory_range(psprecomp::Runtime &rt, std::uint32_t size) {
+    const std::uint32_t aligned = (size + 0xFFu) & ~0xFFu;
+    for (auto it = g_free_memory_ranges.begin(); it != g_free_memory_ranges.end(); ++it) {
+        if (it->size < aligned) continue;
+        const std::uint32_t address = it->address;
+        if (it->size == aligned) g_free_memory_ranges.erase(it);
+        else { it->address += aligned; it->size -= aligned; }
+        rt.memory().zero(address, aligned);
+        return address;
+    }
+    const std::uint32_t address = (partition_table.next_address + 0xFFu) & ~0xFFu;
+    if (aligned == 0u || !rt.memory().contains(address, aligned)) return 0u;
+    partition_table.next_address = address + aligned;
+    rt.memory().zero(address, aligned);
+    return address;
+}
+
+// Kernel mutexes (sceKernelCreateMutex & co), same wait/wake pattern as the semaphores above.
+struct MutexWaiter { std::int32_t uid; psprecomp::AllegrexContext context; std::int32_t count; };
+struct MutexRecord {
+    std::string name;
+    std::uint32_t attributes{};
+    std::int32_t owner{-1};
+    std::int32_t count{};
+    std::deque<MutexWaiter> waiters;
+};
+std::unordered_map<std::int32_t, MutexRecord> g_mutexes;
+std::int32_t g_next_mutex_uid = 0x284;  // first uid PPSSPP hands out here; any positive value works
+
+// Lightweight mutexes live in a guest work area: +0 count, +4 owner thread, +8 attributes,
+// +12 waiting threads, +16 uid. Lock/unlock are user-mode on hardware; contention suspends here.
+struct LwMutexWaiter { std::int32_t uid; psprecomp::AllegrexContext context; std::int32_t count; };
+std::unordered_map<std::uint32_t, std::deque<LwMutexWaiter>> g_lwmutex_waiters;  // by work area
+std::int32_t g_next_lwmutex_uid = 0x300;
+constexpr std::uint32_t kMutexRecursive = 0x200u;
+constexpr std::uint32_t kErrorMutexLocked = 0x800201C4u;  // unverified: never hit in the 30 s reference
+
+std::uint32_t g_output2_samples = 0u;
+std::int32_t g_next_fake_uid = 0x400;  // modules, alarms, fonts
+
+void install_gt_additions(psprecomp::Runtime &runtime) {
+    // --- SysMemUserForUser ---
+    runtime.register_hle("SysMemUserForUser", 0x91DE343Cu,  // sceKernelSetCompiledSdkVersion500_505
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { set_success(ctx); });
+    runtime.register_hle("SysMemUserForUser", 0xFE707FDFu,  // sceKernelAllocMemoryBlock(name, type, size, opt)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            const std::uint32_t address = alloc_memory_range(rt, ctx.gpr[6]);
+            if (address == 0u) { ctx.set_gpr(2, 0x80020190u); return; }
+            const std::int32_t uid = partition_table.next_uid++;
+            g_memory_blocks.emplace(uid, MemoryBlock{address, (ctx.gpr[6] + 0xFFu) & ~0xFFu});
+            ctx.set_gpr(2, static_cast<std::uint32_t>(uid));
+        });
+    runtime.register_hle("SysMemUserForUser", 0xDB83A952u,  // sceKernelGetMemoryBlockAddr(uid, *addr)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            const auto it = g_memory_blocks.find(static_cast<std::int32_t>(ctx.gpr[4]));
+            if (it == g_memory_blocks.end()) { ctx.set_gpr(2, 0x800200CBu); return; }
+            if (ctx.gpr[5] != 0u) rt.memory().store32(ctx.gpr[5], it->second.address);
+            set_success(ctx);
+        });
+    runtime.register_hle("SysMemUserForUser", 0x50F61D8Au,  // sceKernelFreeMemoryBlock(uid)
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            const auto it = g_memory_blocks.find(static_cast<std::int32_t>(ctx.gpr[4]));
+            if (it == g_memory_blocks.end()) { ctx.set_gpr(2, 0x800200CBu); return; }
+            g_free_memory_ranges.push_back(it->second);
+            g_memory_blocks.erase(it);
+            set_success(ctx);
+        });
+
+    // --- ModuleMgrForUser ---
+    auto own_module_id = [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 0x112u); };
+    runtime.register_hle("ModuleMgrForUser", 0xF0A26395u, own_module_id);  // sceKernelGetModuleId
+    runtime.register_hle("ModuleMgrForUser", 0xD8B73127u, own_module_id);  // sceKernelGetModuleIdByAddress
+    runtime.register_hle("ModuleMgrForUser", 0x977DE386u,  // sceKernelLoadModule: libraries are HLE
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, static_cast<std::uint32_t>(g_next_fake_uid++)); });
+
+    // --- ThreadManForUser ---
+    runtime.register_hle("ThreadManForUser", 0x94AA61EEu,  // sceKernelGetThreadCurrentPriority
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, thread_priority(thread_table.current_uid)); });
+    runtime.register_hle("ThreadManForUser", 0xB7D098C6u,  // sceKernelCreateMutex(name, attr, count, opt)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            MutexRecord mutex;
+            mutex.name = ctx.gpr[4] != 0u ? rt.memory().read_c_string(ctx.gpr[4], 32u) : "mutex";
+            mutex.attributes = ctx.gpr[5];
+            mutex.count = static_cast<std::int32_t>(ctx.gpr[6]);
+            mutex.owner = mutex.count > 0 ? thread_table.current_uid : -1;
+            const std::int32_t uid = g_next_mutex_uid++;
+            g_mutexes.emplace(uid, std::move(mutex));
+            ctx.set_gpr(2, static_cast<std::uint32_t>(uid));
+        });
+    runtime.register_hle("ThreadManForUser", 0xF8170FBEu,  // sceKernelDeleteMutex
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            ctx.set_gpr(2, g_mutexes.erase(static_cast<std::int32_t>(ctx.gpr[4])) == 1u ? 0u : 0x800201C3u);
+        });
+    runtime.register_hle("ThreadManForUser", 0xB011B11Fu,  // sceKernelLockMutex(uid, count, timeout)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            const auto it = g_mutexes.find(static_cast<std::int32_t>(ctx.gpr[4]));
+            const auto count = static_cast<std::int32_t>(ctx.gpr[5]);
+            if (it == g_mutexes.end() || count <= 0) { ctx.set_gpr(2, 0x800201C3u); return; }
+            MutexRecord &mutex = it->second;
+            if (mutex.count == 0) { mutex.owner = thread_table.current_uid; mutex.count = count; set_success(ctx); return; }
+            if (mutex.owner == thread_table.current_uid && (mutex.attributes & kMutexRecursive) != 0u) {
+                mutex.count += count; set_success(ctx); return;
+            }
+            const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
+            mutex.waiters.push_back(MutexWaiter{thread_table.current_uid, suspended, count});
+            (void)suspend_current_thread(rt, ctx, suspended, "mutex " + mutex.name);
+        });
+    runtime.register_hle("ThreadManForUser", 0x6B30100Fu,  // sceKernelUnlockMutex(uid, count)
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            const auto it = g_mutexes.find(static_cast<std::int32_t>(ctx.gpr[4]));
+            const auto count = static_cast<std::int32_t>(ctx.gpr[5]);
+            if (it == g_mutexes.end() || count <= 0) { ctx.set_gpr(2, 0x800201C3u); return; }
+            MutexRecord &mutex = it->second;
+            if (mutex.owner != thread_table.current_uid || mutex.count < count) { ctx.set_gpr(2, 0x800201C7u); return; }
+            mutex.count -= count;
+            if (mutex.count == 0) {
+                mutex.owner = -1;
+                if (!mutex.waiters.empty()) {
+                    MutexWaiter next = std::move(mutex.waiters.front());
+                    mutex.waiters.pop_front();
+                    mutex.owner = next.uid;
+                    mutex.count = next.count;
+                    next.context.set_gpr(2, 0u);
+                    enqueue_continuation(next.uid, next.context);
+                }
+            }
+            set_success(ctx);
+            (void)preempt_if_higher_priority(ctx, "mutex-unlock");
+        });
+    runtime.register_hle("ThreadManForUser", 0x19CFF145u,  // sceKernelCreateLwMutex(work, name, attr, count, opt)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            const std::uint32_t work = ctx.gpr[4];
+            if (!rt.memory().contains(work, 32u)) { ctx.set_gpr(2, 0x800200D3u); return; }
+            const auto count = static_cast<std::int32_t>(ctx.gpr[7]);
+            rt.memory().zero(work, 32u);
+            rt.memory().store32(work + 0u, static_cast<std::uint32_t>(count));
+            rt.memory().store32(work + 4u, count > 0 ? static_cast<std::uint32_t>(thread_table.current_uid) : 0u);
+            rt.memory().store32(work + 8u, ctx.gpr[6]);
+            rt.memory().store32(work + 16u, static_cast<std::uint32_t>(g_next_lwmutex_uid++));
+            set_success(ctx);
+        });
+    runtime.register_hle("ThreadManForUser", 0x60107536u,  // sceKernelDeleteLwMutex(work)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (rt.memory().contains(ctx.gpr[4], 32u)) rt.memory().store32(ctx.gpr[4] + 16u, 0u);
+            g_lwmutex_waiters.erase(ctx.gpr[4]);
+            set_success(ctx);
+        });
+    runtime.register_hle("ThreadManForUser", 0x6652B8CAu,  // sceKernelSetAlarm: accepted, not fired yet
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, static_cast<std::uint32_t>(g_next_fake_uid++)); });
+
+    // --- Kernel_Library: lightweight mutexes and interrupt masking (user-mode on hardware) ---
+    auto lwmutex_try = [](psprecomp::Runtime &rt, std::uint32_t work, std::int32_t count) -> bool {
+        const auto held = static_cast<std::int32_t>(rt.memory().load32(work + 0u));
+        const auto owner = static_cast<std::int32_t>(rt.memory().load32(work + 4u));
+        if (held == 0) {
+            rt.memory().store32(work + 0u, static_cast<std::uint32_t>(count));
+            rt.memory().store32(work + 4u, static_cast<std::uint32_t>(thread_table.current_uid));
+            return true;
+        }
+        if (owner == thread_table.current_uid && (rt.memory().load32(work + 8u) & kMutexRecursive) != 0u) {
+            rt.memory().store32(work + 0u, static_cast<std::uint32_t>(held + count));
+            return true;
+        }
+        return false;
+    };
+    runtime.register_hle("Kernel_Library", 0xDC692EE3u,  // sceKernelTryLockLwMutex(work, count)
+        [lwmutex_try](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            ctx.set_gpr(2, lwmutex_try(rt, ctx.gpr[4], static_cast<std::int32_t>(ctx.gpr[5])) ? 0u : kErrorMutexLocked);
+        });
+    auto lwmutex_lock = [lwmutex_try](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+        const std::uint32_t work = ctx.gpr[4];
+        const auto count = static_cast<std::int32_t>(ctx.gpr[5]);
+        if (lwmutex_try(rt, work, count)) { set_success(ctx); return; }
+        const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
+        g_lwmutex_waiters[work].push_back(LwMutexWaiter{thread_table.current_uid, suspended, count});
+        rt.memory().store32(work + 12u, rt.memory().load32(work + 12u) + 1u);
+        (void)suspend_current_thread(rt, ctx, suspended, "lwmutex");
+    };
+    runtime.register_hle("Kernel_Library", 0xBEA46419u, lwmutex_lock);  // sceKernelLockLwMutex
+    runtime.register_hle("Kernel_Library", 0x1FC64E09u, lwmutex_lock);  // sceKernelLockLwMutexCB
+    runtime.register_hle("Kernel_Library", 0x15B6446Bu,  // sceKernelUnlockLwMutex(work, count)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            const std::uint32_t work = ctx.gpr[4];
+            const auto count = static_cast<std::int32_t>(ctx.gpr[5]);
+            const auto held = static_cast<std::int32_t>(rt.memory().load32(work + 0u));
+            if (held < count) { ctx.set_gpr(2, 0x800201C7u); return; }
+            rt.memory().store32(work + 0u, static_cast<std::uint32_t>(held - count));
+            if (held - count == 0) {
+                rt.memory().store32(work + 4u, 0u);
+                auto waiters = g_lwmutex_waiters.find(work);
+                if (waiters != g_lwmutex_waiters.end() && !waiters->second.empty()) {
+                    LwMutexWaiter next = std::move(waiters->second.front());
+                    waiters->second.pop_front();
+                    rt.memory().store32(work + 0u, static_cast<std::uint32_t>(next.count));
+                    rt.memory().store32(work + 4u, static_cast<std::uint32_t>(next.uid));
+                    rt.memory().store32(work + 12u, rt.memory().load32(work + 12u) - 1u);
+                    next.context.set_gpr(2, 0u);
+                    enqueue_continuation(next.uid, next.context);
+                }
+            }
+            set_success(ctx);
+            (void)preempt_if_higher_priority(ctx, "lwmutex-unlock");
+        });
+    runtime.register_hle("Kernel_Library", 0x092968F4u,  // sceKernelCpuSuspendIntr: returns the old mask
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 1u); });
+    runtime.register_hle("Kernel_Library", 0x5F10D406u,  // sceKernelCpuResumeIntr(mask)
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &) {});
+
+    // --- sceGe_user / sceAudio / power / misc ---
+    runtime.register_hle("sceGe_user", 0x03444EB4u,  // sceGeListSync: lists complete synchronously here
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ge_worker_wait_idle(); set_success(ctx); });
+    runtime.register_hle("sceAudio", 0x01562BA3u,  // sceAudioOutput2Reserve(samples)
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { g_output2_samples = ctx.gpr[4]; set_success(ctx); });
+    runtime.register_hle("sceAudio", 0x2D53F36Eu,  // sceAudioOutput2OutputBlocking(vol, buf): blocks one buffer
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            const std::uint32_t samples = g_output2_samples != 0u ? g_output2_samples : 0x200u;
+            (void)delay_current_thread(rt, ctx, samples * 1'000'000u / 44'100u, samples);
+        });
+    runtime.register_hle("scePower", 0xFDB5BFE9u,  // scePowerGetCpuClockFrequencyInt
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 333u); });
+    auto succeed = [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { set_success(ctx); };
+    runtime.register_hle("sceUtility", 0x2A2B3DE0u, succeed);       // sceUtilityLoadModule
+    runtime.register_hle("sceUtility", 0xE49BFE92u, succeed);       // sceUtilityUnloadModule
+    runtime.register_hle("sceNet", 0x39AF39A6u, succeed);           // sceNetInit
+    runtime.register_hle("sceUmdUser", 0x87533940u, succeed);       // sceUmdReplaceProhibit
+    runtime.register_hle("sceImpose", 0x36AA6E91u, succeed);        // sceImposeSetLanguageMode
+    runtime.register_hle("sceHprm", 0x7E69EDA4u, succeed);          // sceHprmIsHeadphoneExist -> 0 (no)
+    runtime.register_hle("sceSasCore", 0xE175EF66u, succeed);       // __sceSasGetOutputmode -> 0 (stereo)
+    runtime.register_hle("sceAtrac3plus", 0x132F1ECAu, succeed);    // sceAtracReinit
+    runtime.register_hle("sceUmdUser", 0x340B7686u,  // sceUmdGetDiscInfo(info): type 0x10 = game UMD
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (rt.memory().contains(ctx.gpr[4], 8u)) rt.memory().store32(ctx.gpr[4] + 4u, 0x10u);
+            set_success(ctx);
+        });
+
+    // --- sceLibFont: no glyphs in headless 2a; handles and neutral results so boot proceeds ---
+    auto font_handle = [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+        ctx.set_gpr(2, 0x09F90000u + static_cast<std::uint32_t>(g_next_fake_uid++) * 0x40u);
+    };
+    runtime.register_hle("sceLibFont", 0x67F17ED7u, font_handle);  // sceFontNewLib
+    runtime.register_hle("sceLibFont", 0xA834319Du, font_handle);  // sceFontOpen
+    runtime.register_hle("sceLibFont", 0x099EF33Cu,  // sceFontFindOptimumFont -> index 1 (as PPSSPP)
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 1u); });
+    runtime.register_hle("sceLibFont", 0x0DA7535Eu, succeed);  // sceFontGetFontInfo
+    runtime.register_hle("sceLibFont", 0xDCC80C2Fu, succeed);  // sceFontGetCharInfo
+    runtime.register_hle("sceLibFont", 0xCA1E6945u, succeed);  // sceFontGetCharGlyphImage_Clip
+    runtime.register_hle("sceLibFont", 0x02D7F94Bu, succeed);  // sceFontFlush
+    runtime.register_hle("sceLibFont", 0x3AEA8CB6u, succeed);  // sceFontClose
+    runtime.register_hle("sceLibFont", 0xEE232411u, succeed);  // sceFontSetAltCharacterCode
+}
+
+} // namespace
+
 void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start) {
     thread_table = ThreadTable{};
     lcs_menu_init(runtime);
@@ -3280,6 +3547,8 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
     };
     runtime.register_hle("sceDisplay", 0x36CDFADEu, wait_vblank);
     runtime.register_hle("sceDisplay", 0x984C27E7u, wait_vblank);
+    runtime.register_hle("sceDisplay", 0x46F186C3u, wait_vblank);  // sceDisplayWaitVblankStartCB (GT)
+    install_gt_additions(runtime);  // GT imports the LCS profile lacks (see block above install_profile)
 
     runtime.register_hle("sceGe_user", 0x1F6752ADu,
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 0x00200000u); });
