@@ -34,10 +34,12 @@
 ### Task 1: Python scaffolding + `checksums` module
 
 **Files:**
+
 - Create: `tools/requirements.txt`, `pytest.ini`, `.coveragerc`, `tools/__init__.py`, `tools/tests/__init__.py`, `config/checksums.sha1`, `tools/checksums.py`
 - Test: `tools/tests/test_checksums.py`
 
 **Interfaces:**
+
 - Produces: `class ChecksumError(Exception)`; `load_checksums(path: Path) -> dict[str, str]` (name → lowercase sha1); `sha1_of(path: Path) -> str`; `verify(path: Path, expected: str, label: str) -> None` (raises `ChecksumError`).
 
 - [ ] **Step 1: Scaffolding files**
@@ -197,10 +199,12 @@ git commit -m "feat(tools): checksum file parsing and verification"
 ### Task 2: `psp_header` module
 
 **Files:**
+
 - Create: `tools/psp_header.py`
 - Test: `tools/tests/test_psp_header.py`
 
 **Interfaces:**
+
 - Produces: `HEADER_SIZE = 0x150`; `@dataclass(frozen=True) class PspHeader(module_name: str, elf_size: int, psp_size: int, tag: int)`; `class PspHeaderError(Exception)`; `parse_psp_header(data: bytes) -> PspHeader`.
 - Layout (verified on our EBOOT, FACTS): magic `~PSP` at 0, module name NUL-terminated at `0x0A` (28 bytes), `elf_size` u32 LE at `0x28`, `psp_size` u32 LE at `0x2C`, tag u32 LE at `0xD0`.
 
@@ -303,10 +307,12 @@ git commit -m "feat(tools): parse ~PSP executable header"
 ### Task 3: `extract` pipeline
 
 **Files:**
+
 - Create: `tools/extract.py`
 - Test: `tools/tests/test_extract.py`, `tools/tests/test_extract_real.py`
 
 **Interfaces:**
+
 - Consumes: Task 1 (`load_checksums`, `sha1_of`, `verify`, `ChecksumError`), Task 2 (`parse_psp_header`, `HEADER_SIZE`, `PspHeaderError`).
 - Produces: `class ExtractError(Exception)`; `Runner = Callable[[Sequence[str]], None]`; `find_iso(game_files: Path, explicit: Path | None) -> Path`; `check_eboot_header(eboot: Path) -> None`; `extract(iso: Path, out_dir: Path, checksums: dict[str, str], tool_dir: Path, runner: Runner = run) -> Path` (returns the ELF path); `main(argv: Sequence[str] | None = None) -> int`. CLI: `.venv/bin/python -m tools.extract [--iso PATH] [--out DIR]`.
 
@@ -626,9 +632,11 @@ git commit -m "feat(tools): hash-checked ISO extraction and EBOOT decryption"
 ### Task 4: `tools/setup.sh`
 
 **Files:**
+
 - Create: `tools/setup.sh` (mode 755)
 
 **Interfaces:**
+
 - Produces: `.venv/` (Task 1 requirements), `tools/bin/pspdecrypt`, `tools/src/pspdecrypt`, `tools/src/PSPRecomp` (unbuilt), and with `--with-ghidra`: `tools/ghidra/ghidra_12.1.3_PUBLIC` with ghidra-allegrex in `Ghidra/Extensions/` and `JAVA_HOME_OVERRIDE` set to a JDK ≥ 21. Prints the `GHIDRA_INSTALL_DIR` and `JAVA_HOME` to use.
 
 - [ ] **Step 1: Write the script**
@@ -757,9 +765,11 @@ git commit -m "feat(tools): pinned, idempotent tool setup (pspdecrypt, PSPRecomp
 ### Task 5: Real extraction, REA acceptance, docs
 
 **Files:**
+
 - Modify: `.mcp.json`, `AGENTS.md` (*Commands*), `docs/FACTS.md`, `docs/ROADMAP.md`, `docs/FINDINGS.md` (only if something cost time)
 
 **Interfaces:**
+
 - Consumes: Tasks 1–4.
 
 - [ ] **Step 1: Real pipeline**
@@ -774,6 +784,7 @@ Set `.mcp.json` `rea.env` to `GHIDRA_INSTALL_DIR: "${GHIDRA_INSTALL_DIR:-<absolu
 - [ ] **Step 3: REA acceptance (after restart)**
 
 Using the `reverse-engineer-anything` skill and REA tools (loaded in one `ToolSearch` batch):
+
 1. `binary_session` → read the saved JSON with `jq '.result.analysis_provider_candidates[] | {p:.provider.id, a:.availability.status}'`; Ghidra must be `available`. If it is still `not_configured`, the user-scope registration is winning: tell the user the exact `claude mcp remove/add -s user -e …` command from `CLAUDE.md`, and stop here until they run it.
 2. `open_binary` with the absolute path of `extracted/EBOOT.elf`.
 3. `binary_overview` → segment sizes agree with FACTS (segment 0 size `0x4d8488`).
@@ -800,6 +811,7 @@ git commit -m "docs: phase 1 tooling verified end to end, REA opens the EBOOT"
 ### Task 6: PPSSPP load base (needs the user)
 
 **Files:**
+
 - Modify: `docs/FACTS.md`, `docs/agents/reverse-engineering.md` (*Addresses*), `docs/ROADMAP.md`
 
 - [ ] **Step 1: User installs PPSSPP**
