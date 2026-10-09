@@ -35,6 +35,20 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### PSPRecomp's generic `psp_recomp --auto` hangs eating memory on GT
+
+**Symptom.** No output files after 10 min, RSS climbing to the 6 GB cap; smaller unit spans don't help.
+**Cause.** `tools/codegen_main.cpp`: on a `jal` whose target is an import stub, the emitter writes
+`return;` and then `continue`s the per-instruction `while` **without advancing `pc`** — the same
+instruction is emitted forever. Only the generic path has it; the VCS profile uses its own codegen.
+**Fix / workaround.** Use lcs-recomp's framework (`break` there, plus `valid_units`). Diagnose such hangs
+with `gdb -batch -ex run -ex bt` started under the cgroup (attaching with `gdb -p` is blocked here:
+`ptrace_scope = 1`).
+**Why it isn't obvious.** The analyzer on the same input finishes in 0.7 s; the hypothesis "big units +
+libstdc++ `std::regex`" looked plausible and was wrong.
+
+Found: 2026-10-09 · re
+
 ### Ghidra headless prints hundreds of "Error creating LSDA" lines
 
 **Symptom.** Importing `EBOOT.elf` logs ~389 `ERROR Error creating LSDA @ 00000000 Unable to read bytes
