@@ -119,9 +119,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [ ] Más libc/libm/libstdc++ estática alrededor de `0x331800-0x334000` y en otros bloques.
 - [ ] Subsistemas del juego, por orden de lo que desbloquea nombres (bindings de Adhoc, menús, sonido
       SGX, física).
-- [ ] **Puente Adhoc (siguiente):** recorrer los 334 inicializadores de `.ctors`, anotar qué módulo
-      `pdistd::*` registra cada uno (mapa de partida en FACTS), nombrar con evidencia y decompilar los
-      registros y los nativos pequeños con el harness.
+- [x] **Puente Adhoc — nombres:** los registradores de nativos (`0x382FB0` funciones de módulo,
+      `0x383108` métodos de clase) dan **1.313 funciones con su nombre real** de script
+      (`MLocale::getLanguage`, `MSpecDB::…`) → `config/symbol_addrs.txt` (generado y versionado).
+- [ ] Decompilar los nativos pequeños ya nombrados, con el harness (necesita que el juego los llame).
 
 ## Fase 5 — Más adelante
 
