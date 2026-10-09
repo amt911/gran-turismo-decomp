@@ -539,6 +539,13 @@ bool open_video_decoder(MpegContextState &state) {
     return true;
 }
 
+// GT_IO_LOG=1: every absolute seek and every read, in the order the game makes them (to compare
+// with PPSSPP's sceIoLseek / sceIoRead log lines).
+bool io_log_enabled() {
+    static const bool enabled = std::getenv("GT_IO_LOG") != nullptr;
+    return enabled;
+}
+
 // GT_MPEG_LOG=1: where each movie is decoded from, and why decoding stops.
 bool mpeg_log_enabled() {
     static const bool enabled = std::getenv("GT_MPEG_LOG") != nullptr;
@@ -716,9 +723,14 @@ void close_atrac_decoder(AtracContextState &state) {
     state.decoder_eof = false;
 }
 
+// GT: its music sits scrambled inside GT.VOL, so there is no file for AudioStreamDecoder. Such a
+// context decodes silence: every count (samples, frames left, loops, stream refills) still advances
+// as if real audio were produced. Headless runs have no audio output anyway.
+bool atrac_is_silent(const AtracContextState &state) { return state.source_path.empty(); }
+
 bool open_atrac_decoder(AtracContextState &state) {
+    if (atrac_is_silent(state)) return true;
     if (state.decoder.is_open()) return true;
-    if (state.source_path.empty()) return false;
     std::uint64_t seek = state.sample_position;
     if (state.header.total_samples != 0u && seek > state.header.total_samples)
         seek = state.header.total_samples;
@@ -730,6 +742,10 @@ bool open_atrac_decoder(AtracContextState &state) {
 }
 
 std::size_t read_atrac_pcm(AtracContextState &state, std::span<std::uint8_t> output) {
+    if (atrac_is_silent(state)) {
+        std::fill(output.begin(), output.end(), std::uint8_t{0});
+        return output.size();
+    }
     if (!open_atrac_decoder(state)) return 0u;
     const std::size_t total = state.decoder.read(output);
     if (total < output.size()) state.decoder_eof = true;
@@ -3392,6 +3408,8 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             const auto read_position = static_cast<std::int64_t>(it->second.tellg());
             it->second.read(reinterpret_cast<char *>(guest_destination), static_cast<std::streamsize>(size));
             const auto read = static_cast<std::uint32_t>(it->second.gcount());
+            if (io_log_enabled())
+                std::cerr << "[io] read " << fd << " " << size << " -> " << read << "\n";
             if (read >= 4u && std::memcmp(guest_destination, "PSMF", 4u) == 0 && read_position >= 0) {
                 if (const auto path = file_table.native_paths.find(fd); path != file_table.native_paths.end())
                     psmf_read_origins[dst] = PsmfReadOrigin{path->second, static_cast<std::uint64_t>(read_position)};
@@ -3429,6 +3447,8 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 (static_cast<std::uint64_t>(ctx.gpr[7]) << 32u);
             const auto offset = static_cast<std::int64_t>(raw_offset);
             const auto whence = static_cast<std::int32_t>(ctx.gpr[8]);
+            if (io_log_enabled() && whence == 0)
+                std::cerr << "[io] seek " << fd << " " << std::hex << offset << std::dec << "\n";
             if (const auto virtual_handle = file_table.virtual_disc_handles.find(fd);
                 virtual_handle != file_table.virtual_disc_handles.end() && whence >= 0 && whence <= 2) {
                 VirtualDiscHandle &handle = virtual_handle->second;
@@ -3938,7 +3958,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 case 6u: value = 0u; break;  // TIMEZONE: UTC
                 case 7u: value = 0u; break;  // DAYLIGHTSAVINGS: std
                 case 8u: value = 1u; break;  // LANGUAGE: English
-                case 9u: value = 0u; break;  // BUTTON_SWAP: circle-confirm
+                case 9u: value = 1u; break;  // BUTTON_SWAP: cross-confirm (GT/PPSSPP: 1)
                 default:
                     ctx.set_gpr(2, 0x80110103u);
                     return;
@@ -4182,31 +4202,24 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         if (id >= atrac_contexts.size() || !atrac_contexts[id].allocated) return nullptr;
         return &atrac_contexts[id];
     };
-    const auto atrac_fail = [](psprecomp::AllegrexContext &ctx, std::uint32_t code, const char *) {
-        ctx.set_gpr(2, code);
-    };
 
-    runtime.register_hle("sceAtrac3plus", 0x0FAE370Eu,
-        [atrac_fail](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-            const std::uint32_t buffer = ctx.gpr[4];
-            const std::uint32_t read_size = ctx.gpr[5];
-            const std::uint32_t buffer_size = ctx.gpr[6];
-            if (read_size > buffer_size) { atrac_fail(ctx, kAtracErrorIncorrectReadSize, "set-halfway size"); return; }
-            if (read_size < 12u || !rt.memory().contains(buffer, read_size)) {
-                atrac_fail(ctx, kAtracErrorUnknownFormat, "set-halfway buffer"); return;
-            }
+    // Loads an AT3/AT3+ header into atrac_contexts[id] (allocating a free id when id < 0). Returns the
+    // id, or an sceAtrac error code. Shared by SetHalfwayBufferAndGetID, SetDataAndGetID, SetData.
+    const auto atrac_load = [](psprecomp::Runtime &rt, std::int32_t id, std::uint32_t buffer,
+                               std::uint32_t read_size, std::uint32_t buffer_size) -> std::uint32_t {
+            if (read_size > buffer_size) return kAtracErrorIncorrectReadSize;
+            if (read_size < 12u || !rt.memory().contains(buffer, read_size)) return kAtracErrorUnknownFormat;
             std::vector<std::uint8_t> header_bytes(read_size);
             rt.memory().copy_out(buffer, header_bytes);
             ParsedAtracHeader parsed{};
-            if (!parse_atrac_header(header_bytes, parsed)) {
-                atrac_fail(ctx, kAtracErrorUnknownFormat, "set-halfway header"); return;
+            if (!parse_atrac_header(header_bytes, parsed)) return kAtracErrorUnknownFormat;
+            if (id < 0) {
+                for (std::size_t i = 0u; i < atrac_contexts.size(); ++i) {
+                    if (!atrac_contexts[i].allocated) { id = static_cast<std::int32_t>(i); break; }
+                }
+                if (id < 0) return kAtracErrorNoId;
             }
-            std::size_t id = atrac_contexts.size();
-            for (std::size_t i = 0u; i < atrac_contexts.size(); ++i) {
-                if (!atrac_contexts[i].allocated) { id = i; break; }
-            }
-            if (id == atrac_contexts.size()) { atrac_fail(ctx, kAtracErrorNoId, "set-halfway no free id"); return; }
-            auto &state = atrac_contexts[id];
+            auto &state = atrac_contexts[static_cast<std::size_t>(id)];
             close_atrac_decoder(state);
             state = AtracContextState{};
             state.allocated = true;
@@ -4219,7 +4232,49 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             state.next_file_offset = std::min(read_size, parsed.file_size);
             state.write_offset = buffer_size == 0u ? 0u : read_size % buffer_size;
             state.source_path = identify_atrac_source(rt.translate_path("disc0:/"), header_bytes, parsed);
-            ctx.set_gpr(2, static_cast<std::uint32_t>(id));
+            return static_cast<std::uint32_t>(id);
+        };
+    runtime.register_hle("sceAtrac3plus", 0x0FAE370Eu,  // sceAtracSetHalfwayBufferAndGetID(buf, read, size)
+        [atrac_load](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            ctx.set_gpr(2, atrac_load(rt, -1, ctx.gpr[4], ctx.gpr[5], ctx.gpr[6]));
+        });
+    runtime.register_hle("sceAtrac3plus", 0x7A20E7AFu,  // sceAtracSetDataAndGetID(buf, size)
+        [atrac_load](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            ctx.set_gpr(2, atrac_load(rt, -1, ctx.gpr[4], ctx.gpr[5], ctx.gpr[5]));
+        });
+    runtime.register_hle("sceAtrac3plus", 0x0E2A73ABu,  // sceAtracSetData(id, buf, size)
+        [atrac_load, get_atrac](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (!get_atrac(ctx.gpr[4])) { ctx.set_gpr(2, kAtracErrorBadId); return; }
+            const std::uint32_t result =
+                atrac_load(rt, static_cast<std::int32_t>(ctx.gpr[4]), ctx.gpr[5], ctx.gpr[6], ctx.gpr[6]);
+            ctx.set_gpr(2, result == ctx.gpr[4] ? 0u : result);
+        });
+    runtime.register_hle("sceAtrac3plus", 0x780F88D1u,  // sceAtracGetAtracID(codec): an empty context
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            for (std::size_t i = 0u; i < atrac_contexts.size(); ++i) {
+                if (atrac_contexts[i].allocated) continue;
+                atrac_contexts[i] = AtracContextState{};
+                atrac_contexts[i].allocated = true;
+                atrac_contexts[i].header.atrac3plus = ctx.gpr[4] == 0x1000u;
+                ctx.set_gpr(2, static_cast<std::uint32_t>(i));
+                return;
+            }
+            ctx.set_gpr(2, kAtracErrorNoId);
+        });
+    runtime.register_hle("sceAtrac3plus", 0xECA32A99u,  // sceAtracIsSecondBufferNeeded: no (PPSSPP: 0)
+        [get_atrac](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            ctx.set_gpr(2, get_atrac(ctx.gpr[4]) ? 0u : kAtracErrorBadId);
+        });
+    runtime.register_hle("sceAtrac3plus", 0x36FAABFBu,  // sceAtracGetNextSample(id, out)
+        [get_atrac](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            auto *state = get_atrac(ctx.gpr[4]);
+            if (!state) { ctx.set_gpr(2, kAtracErrorBadId); return; }
+            if (!rt.memory().contains(ctx.gpr[5], 4u)) { ctx.set_gpr(2, kAtracErrorBadAddress); return; }
+            const std::uint64_t left = state->header.total_samples > state->sample_position ?
+                state->header.total_samples - state->sample_position : 0u;
+            rt.memory().store32(ctx.gpr[5], static_cast<std::uint32_t>(
+                std::min<std::uint64_t>(left, atrac_samples_per_frame(*state))));
+            set_success(ctx);
         });
 
     runtime.register_hle("sceAtrac3plus", 0x61EB33F5u,
@@ -4292,10 +4347,6 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 static_cast<std::size_t>(max_samples) * kAtracOutputChannels * 2u;
             if (output != 0u && !rt.memory().contains(output, max_bytes)) {
                 ctx.set_gpr(2, kAtracErrorBadAddress); return;
-            }
-            if (state->source_path.empty()) {
-                state->internal_error = kAtracErrorUnknownFormat;
-                ctx.set_gpr(2, kAtracErrorApiFail); return;
             }
             auto restart_for_loop = [&]() -> bool {
                 if (state->loop_num == 0) return false;
@@ -4433,6 +4484,14 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             set_success(ctx);
         };
     runtime.register_hle("sceAtrac3plus", 0xCA3CA3D2u, buffer_info_for_resetting);
+    runtime.register_hle("sceAtrac3plus", 0xD6A5F2F7u,  // sceAtracGetMaxSample(id, out): samples per frame
+        [get_atrac](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            auto *state = get_atrac(ctx.gpr[4]);
+            if (!state) { ctx.set_gpr(2, kAtracErrorBadId); return; }
+            if (!rt.memory().contains(ctx.gpr[5], 4u)) { ctx.set_gpr(2, kAtracErrorBadAddress); return; }
+            rt.memory().store32(ctx.gpr[5], atrac_samples_per_frame(*state));
+            set_success(ctx);
+        });
     runtime.register_hle("sceAtrac3plus", 0x2DD3E298u, buffer_info_for_resetting);
 
     runtime.register_hle("sceAtrac3plus", 0x644E5607u,
