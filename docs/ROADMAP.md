@@ -63,7 +63,11 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [x] Sub-interrupciones de VBlank: todas las habilitadas, no solo la 15 de LCS (FINDINGS). El hilo de
       render avanza y el juego muestra aviso legal, «SCE presents», Polyphony, autoguardado, logo GT.
 - [x] VFPU `lvl.q/lvr.q/svl.q/svr.q` (parche 0012); `sceNpDrmSetLicenseeKey`.
-- [ ] Vídeo de intro: `scePsmf` (+ `sceMpeg`). Aquí se para hoy.
+- [x] Vídeo de intro: `scePsmf` propio (`host/psmf*.cpp`, con tests) y decodificación H.264 desde el
+      ring buffer (los vídeos de GT.VOL están cifrados en disco). Se ve entero.
+- [x] Mando simulado headless: `GT_PAD`. START salta el vídeo → pantalla del logo GT.
+- [ ] Música del menú: `sceAtrac` (`SetDataAndGetID`, `GetNextSample`…). Aquí se para hoy.
+- [ ] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo.
 - [ ] `sceDisplaySetMode` espera un vblank en PPSSPP (divergencia nº 236 de la traza).
 
 - [ ] Perfil GT en PSPRecomp sobre el ELF descifrado; el C++ generado va a `recomp/` (ignorado).
@@ -92,7 +96,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 
 ## Fase 4 — Decompilación función a función
 
-- [ ] Primeras hojas de librería y utilidades (validan el harness).
+- [x] Primeras hojas de libc (2026-10-10): `memcmp`, `strlen`, `strcmp`, `strchrnul` (+ `memset`), en
+      `src/libc/`. Harness: 16/16 casos iguales cada una (strchrnul 4/4: GT la llama poco); sabotaje
+      del valor devuelto detectado en las cuatro (exit 2; memcmp 15/16 casos con resultado ≠ 0).
+- [ ] Más libc/libm/libstdc++ estática alrededor de `0x331800-0x334000` y en otros bloques.
 - [ ] Subsistemas del juego, por orden de lo que desbloquea nombres (bindings de Adhoc, menús, sonido
       SGX, física).
 - [ ] **Puente Adhoc (siguiente):** recorrer los 334 inicializadores de `.ctors`, anotar qué módulo

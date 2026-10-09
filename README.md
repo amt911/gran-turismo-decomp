@@ -11,18 +11,17 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 
 > **Estado (2026-10-10, madrugada) — para leer mañana.**
 >
-> - **¡Gráficos! 🎉** `gt_native` ya pinta las primeras pantallas del juego con un renderer por
->   software (sin GPU): aviso legal → «Sony Computer Entertainment presents» → logo de Polyphony
->   Digital → aviso de autoguardado → logo de GT. Se guardan como imágenes con
->   `GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 120` (ver
->   [`docs/COMPILAR.md`](docs/COMPILAR.md) §5; las imágenes no se suben al repo).
-> - **Dónde se para ahora:** justo después del logo de GT, al ir a reproducir el vídeo de intro
->   (`scePsmf`, vídeo PSMF/MPEG): es lo siguiente.
-> - **Qué lo desbloqueó:** el hilo de render de GT esperaba un contador que incrementa la interrupción
->   de VBlank; nuestro kernel solo llamaba al handler que usaba LCS. Más instrucciones VFPU
->   (`lvl.q/svl.q`) y una función de NpDrm.
-> - **Decompilación (Fase 3):** harness diferencial en `gt_native --decomp diff`; primera función
->   decompilada y probada: `memset` (16/16 casos iguales frente al original).
+> - **¡Gráficos y vídeo! 🎉** `gt_native` ya pinta el arranque del juego con un renderer por software
+>   (sin GPU): aviso legal → «Sony Computer Entertainment presents» → Polyphony Digital → aviso de
+>   autoguardado → logo GT → **el vídeo de introducción completo** (decodificado desde la RAM del
+>   juego). Pulsando START (simulado) se salta el vídeo y aparece la pantalla del logo GT.
+> - **Verlo tú:** `GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 120` guarda una imagen
+>   por segundo ([`docs/COMPILAR.md`](docs/COMPILAR.md) §5; las imágenes no se suben al repo). Con
+>   `GT_PAD="3300:START"` se pulsa START en el vblank 3300.
+> - **Dónde se para ahora:** tras saltar el vídeo, al cargar la música del menú (`sceAtrac`).
+> - **Decompilación (Fase 3):** 5 funciones de la libc del juego decompiladas y probadas contra el
+>   original con el harness diferencial (`memset`, `memcmp`, `strlen`, `strcmp`, `strchrnul`), cada una
+>   con su sabotaje detectado.
 > - **Probarlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md). Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Qué hay y qué no

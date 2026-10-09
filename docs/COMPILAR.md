@@ -97,6 +97,16 @@ magick recomp/frames/frame_001500.ppm logo.png    # o ábrelos con cualquier vis
 `GT_FRAME_EVERY` vale 60 por defecto (≈ 1 imagen por segundo de juego). Las imágenes son salida del
 juego: se quedan en `recomp/` (ignorado por git), **no se suben**.
 
+Sin ventana no hay mando, pero se pueden simular pulsaciones con `GT_PAD="<vblank>:<BOTÓN>,…"`
+(cada una dura 6 vblanks; 60 vblanks ≈ 1 s). Botones: `START SELECT CROSS CIRCLE SQUARE TRIANGLE
+UP DOWN LEFT RIGHT L R`. Por ejemplo, para saltar el vídeo de introducción:
+
+```bash
+GT_PAD="3300:START" GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 90
+```
+
+`GT_MPEG_LOG=1` explica de dónde sale cada vídeo y si se decodifica.
+
 ## 6. Comparar con el juego original en PPSSPP
 
 La referencia se graba una vez (30 s, ~190 MB de log; va a disco, no a `/tmp`, que aquí está en RAM):

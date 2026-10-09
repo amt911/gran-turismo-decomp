@@ -179,6 +179,10 @@ the line says otherwise.
 - GT executes `mfv $zero, 255` (VFPU sync idiom) and `vi2uc.q`; `ll`/`sc`, `madd`, `addi`, `mfic`/
   `mtic` all appear on the boot path. A memset uses a computed jump into an unrolled store run
   (`lui/addiu/subu/jr $at`, func at vaddr `0x332018`). *(verified: run stops + rabbitizer/Ghidra)*
+- The C string/memory routines sit together at vaddr `0x331ED0..0x332220`: `0x331ED0` strchrnul-style
+  search (returns the NUL, never NULL), `0x331F60` strlen, `0x331FD8` strcmp, `0x332018` memset,
+  `0x332170` memcmp (no NUL test, so not strncmp). Runtime = vaddr + `0x08804000`.
+  *(verified: Ghidra + llvm-objdump disassembly, 2026-10-10)*
 - Of 1,427 untranslated VFPU sites in generated code, 885 decode as INVALID (data analysed as code);
   real gaps left: `lv/sv{l,r}.q` (39), `vcrs.t` (1), and 480 `vsbn.s` of unclear reality.
   *(verified: rabbitizer over rt.unsupported markers)*
