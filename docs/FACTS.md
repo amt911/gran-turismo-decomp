@@ -133,6 +133,21 @@ the line says otherwise.
   `mfv`), `adhoc_system.cpp` string at `0x4aea78`, `.text` `0x28` size `0x4767b4`. Total analysis
   154 s; JVM inside the cgroup scope, ~1 GB RSS early in the run. *(verified: analyzeHeadless + `Phase1Probe.java`)*
 
+## Runtime (PPSSPP 1.20.4, verified 2026-10-09)
+
+- **`PDIAPP` load base = `0x08804000`**: "Loadable Segment Copied to 08804000, size 004d8488",
+  `.text` at `08804028` (= vaddr `0x28` + base), "Module entry: 0880410c" (= vaddr `0x10c` + base);
+  memory block `08804000–08d77500` tagged `ELF/PDIAPP`. So **runtime = ELF vaddr + 0x08804000**.
+  *(verified: `PPSSPPHeadless "<iso>" -l --timeout=15 --graphics=software`)*
+- In 15 s headless the game boots into MPEG playback (thousands of `sceMpegAvcDecode`/`sceMpegGetAtracAu`
+  calls, 55 `scePsmf` calls), opens `disc0:/PSP_GAME/USRDIR/GT.VOL` 98 times, and logs **0 unimplemented
+  syscalls**. The 8 `scesupPreAcc` imports start unresolved and are resolved when `LIBSUPPREACC.PRX`
+  loads. *(verified: same log)*
+- `PPSSPPHeadless` and `PPSSPPSDL` are in Arch's `ppsspp` package; headless takes the ISO directly.
+  *(verified: `pacman -Ql ppsspp`, ran it)*
+- The headless log with `-l` is ~900k lines for 15 s; write it to disk, never to a terminal, and
+  `/tmp` here is a 16 GB **tmpfs (RAM)** — put big logs elsewhere or delete them. *(verified: `df -h /tmp`)*
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a

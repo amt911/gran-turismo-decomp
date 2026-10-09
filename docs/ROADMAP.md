@@ -33,7 +33,7 @@ función verificada de forma diferencial. Detalle en `AGENTS.md` § Strategy.
 - [x] Ghidra local analiza el ELF (cargador PSP, lenguaje Allegrex, 23.208 funciones, VFPU ok).
 - [x] REA: provider Ghidra disponible, **pero REA 6.2.0 no admite ELF MIPS** → no abre el EBOOT;
       se usa Ghidra directamente (FINDINGS).
-- [ ] PPSSPP instalado; **medir la base de carga real** del módulo (¿`0x08804000`?) y anotarla en FACTS.
+- [x] PPSSPP 1.20.4 instalado; base de carga medida: **`0x08804000`** (FACTS § Runtime).
 
 ## Fase 2 — Base recompilada: GT corre en PC vía PSPRecomp
 

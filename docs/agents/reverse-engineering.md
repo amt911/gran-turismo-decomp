@@ -49,8 +49,8 @@ matters (names, types) to the repo's text files; the `.gpr`/`.rep` is never the 
   is stable whatever base a loader picks.
 - **Runtime / guest address** — what PPSSPP, cheat databases, PSPRecomp's guest memory (to verify)
   and Ghidra-with-base-`0x08804000` show:
-  `runtime = vaddr + load_base`. `load_base` is **expected** to be `0x08804000` (first user module) —
-  **verify it in PPSSPP** once and record it in FACTS before converting any external address.
+  `runtime = vaddr + load_base`, with `load_base` = **`0x08804000`** — measured in PPSSPP 1.20.4 on
+  2026-10-09 (FACTS § Runtime).
 - Always say which space an address is in when you write it down.
 
 ## Naming — a name needs evidence
