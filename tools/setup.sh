@@ -55,6 +55,26 @@ fetch_verified() {
   mv "$dest.part" "$dest"
 }
 
+# capped CMD... — run a parallel job under the project's memory ceiling (AGENTS.md § memory cgroup)
+capped() {
+  if command -v systemd-run >/dev/null; then
+    systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- "$@"
+  else
+    "$@"
+  fi
+}
+
+# unpack ZIP PARENT TOP — extract ZIP's top-level dir TOP into PARENT atomically (marker on success),
+# so an interrupted unzip is redone on the next run instead of being trusted
+unpack() {
+  local zip=$1 parent=$2 top=$3 tmp="$2/.unpack-$3"
+  [ -f "$parent/$top/.unpacked" ] && return 0
+  rm -rf "$parent/$top" "$tmp"; mkdir -p "$tmp"
+  unzip -q "$zip" -d "$tmp"
+  mv "$tmp/$top" "$parent/$top"; rmdir "$tmp"
+  touch "$parent/$top/.unpacked"
+}
+
 need git
 mkdir -p "$SRC" "$BIN"
 
@@ -67,7 +87,10 @@ step "pspdecrypt @ ${PSPDECRYPT_REV:0:7}"
 need make; need clang++
 checkout "$PSPDECRYPT_URL" "$PSPDECRYPT_REV" "$SRC/pspdecrypt"
 if [ ! -x "$BIN/pspdecrypt" ] || [ "$(cat "$BIN/.pspdecrypt.rev" 2>/dev/null)" != "$PSPDECRYPT_REV" ]; then
-  make -C "$SRC/pspdecrypt" -j8 >/dev/null 2>&1
+  log="$SRC/pspdecrypt.build.log"
+  if ! capped make -C "$SRC/pspdecrypt" -j8 >"$log" 2>&1; then
+    tail -n 20 "$log" >&2; echo "pspdecrypt build failed (full log: $log)" >&2; exit 1
+  fi
   install -m 755 "$SRC/pspdecrypt/pspdecrypt" "$BIN/pspdecrypt"
   echo "$PSPDECRYPT_REV" > "$BIN/.pspdecrypt.rev"
 fi
@@ -81,9 +104,8 @@ if [ "$with_ghidra" = 1 ]; then
   mkdir -p "$GHIDRA_DIR/downloads"
   fetch_verified "$GHIDRA_URL" "$GHIDRA_SHA256" "$GHIDRA_DIR/downloads/ghidra.zip"
   fetch_verified "$ALLEGREX_URL" "$ALLEGREX_SHA256" "$GHIDRA_DIR/downloads/ghidra-allegrex.zip"
-  [ -d "$GHIDRA_HOME" ] || unzip -q "$GHIDRA_DIR/downloads/ghidra.zip" -d "$GHIDRA_DIR"
-  ext="$GHIDRA_HOME/Ghidra/Extensions"
-  [ -d "$ext/ghidra-allegrex" ] || unzip -q "$GHIDRA_DIR/downloads/ghidra-allegrex.zip" -d "$ext"
+  unpack "$GHIDRA_DIR/downloads/ghidra.zip" "$GHIDRA_DIR" "$(basename "$GHIDRA_HOME")"
+  unpack "$GHIDRA_DIR/downloads/ghidra-allegrex.zip" "$GHIDRA_HOME/Ghidra/Extensions" ghidra-allegrex
   # Ghidra 12.1 needs Java >= 21; pick the newest JDK >= 21 under /usr/lib/jvm without touching the system default.
   jdk=""
   for d in $(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | sort -V -r); do
@@ -91,7 +113,13 @@ if [ "$with_ghidra" = 1 ]; then
     if [ "$v" -ge 21 ] && [ -x "$d/bin/java" ]; then jdk=$d; break; fi
   done
   [ -n "$jdk" ] || { echo "no JDK >= 21 found under /usr/lib/jvm (install e.g. jdk21-openjdk)" >&2; exit 1; }
-  sed -i "s|^JAVA_HOME_OVERRIDE=.*|JAVA_HOME_OVERRIDE=$jdk|" "$GHIDRA_HOME/support/launch.properties"
+  props="$GHIDRA_HOME/support/launch.properties"
+  if grep -q '^JAVA_HOME_OVERRIDE=' "$props"; then
+    sed -i "s|^JAVA_HOME_OVERRIDE=.*|JAVA_HOME_OVERRIDE=$jdk|" "$props"
+  else
+    echo "JAVA_HOME_OVERRIDE=$jdk" >> "$props"
+  fi
+  grep -qx "JAVA_HOME_OVERRIDE=$jdk" "$props" || { echo "could not set JAVA_HOME_OVERRIDE in $props" >&2; exit 1; }
   echo "    GHIDRA_INSTALL_DIR=$GHIDRA_HOME"
   echo "    JAVA_HOME=$jdk"
 fi
