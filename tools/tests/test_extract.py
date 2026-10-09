@@ -138,3 +138,33 @@ def test_find_iso_refuses_zero_or_several(tmp_path: Path):
 def test_find_iso_explicit_path_must_exist(tmp_path: Path):
     with pytest.raises(ExtractError, match="not found"):
         find_iso(tmp_path, tmp_path / "missing.iso")
+
+
+def test_extract_full_does_not_exclude_gt_vol(env):
+    iso, out, tools = env
+    fake = FakeTools()
+    extract(iso, out, SUMS, tools, runner=fake, full=True)
+    assert not any(a.startswith("-x!") for a in fake.calls[0])
+
+
+def test_extract_full_completes_a_partial_extraction(env):
+    iso, out, tools = env
+    out.mkdir()
+    (out / "EBOOT.elf").write_bytes(b"")  # already verified ELF, but GT.VOL was excluded before
+    fake = FakeTools()
+    extract(iso, out, SUMS, tools, runner=fake, full=True)
+    assert fake.calls and fake.calls[0][:2] == ["7z", "x"]
+
+
+def test_extract_full_skips_when_gt_vol_and_elf_present(env):
+    iso, out, tools = env
+    out.mkdir()
+    (out / "EBOOT.elf").write_bytes(b"")
+    vol = out / "iso/PSP_GAME/USRDIR/GT.VOL"
+    vol.parent.mkdir(parents=True)
+    vol.write_bytes(b"vol")
+
+    def must_not_run(cmd):
+        raise AssertionError(f"ran {cmd}")
+
+    extract(iso, out, SUMS, tools, runner=must_not_run, full=True)
