@@ -83,6 +83,20 @@ La última línea `Runtime stopped:` dice dónde se para: una función del siste
 (`Missing HLE import`) o una instrucción que el recompilador aún no traduce (`Unsupported Allegrex
 instruction`).
 
+### Ver los gráficos (volcado de frames)
+
+`gt_native` no abre ventana: el renderer por software dibuja en la VRAM emulada y, si se lo pides,
+guarda cada N frames como imagen PPM:
+
+```bash
+GT_FRAME_DUMP=recomp/frames GT_FRAME_EVERY=60 build/gt_native --max-seconds 120
+ls recomp/frames            # frame_000060.ppm, frame_000120.ppm, …
+magick recomp/frames/frame_001500.ppm logo.png    # o ábrelos con cualquier visor (gimp, feh…)
+```
+
+`GT_FRAME_EVERY` vale 60 por defecto (≈ 1 imagen por segundo de juego). Las imágenes son salida del
+juego: se quedan en `recomp/` (ignorado por git), **no se suben**.
+
 ## 6. Comparar con el juego original en PPSSPP
 
 La referencia se graba una vez (30 s, ~190 MB de log; va a disco, no a `/tmp`, que aquí está en RAM):

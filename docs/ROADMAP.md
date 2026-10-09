@@ -56,6 +56,16 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
       reanuda el hilo interrumpido ("left interrupt") y nosotros cambiamos de hilo. Aparcado: el harness
       (Fase 3) no necesita igualdad con PPSSPP, compara dentro de nuestra propia ejecución.
 
+### Fase 2b-lite — primeras imágenes (2026-10-10)
+
+- [x] Renderer GE por software de lcs-recomp (`ge_renderer.cpp`) enlazado sin GPU; volcado de frames
+      con `GT_FRAME_DUMP` (COMPILAR §5).
+- [x] Sub-interrupciones de VBlank: todas las habilitadas, no solo la 15 de LCS (FINDINGS). El hilo de
+      render avanza y el juego muestra aviso legal, «SCE presents», Polyphony, autoguardado, logo GT.
+- [x] VFPU `lvl.q/lvr.q/svl.q/svr.q` (parche 0012); `sceNpDrmSetLicenseeKey`.
+- [ ] Vídeo de intro: `scePsmf` (+ `sceMpeg`). Aquí se para hoy.
+- [ ] `sceDisplaySetMode` espera un vblank en PPSSPP (divergencia nº 236 de la traza).
+
 - [ ] Perfil GT en PSPRecomp sobre el ELF descifrado; el C++ generado va a `recomp/` (ignorado).
 - [ ] Capa de host: reutilizar los 151 HLE existentes (GE, display, ctrl, hilos, SAS, MPEG…) e
       implementar los que falten a medida que el juego los pida (fuentes `sceLibFont`, `scePsmf`,

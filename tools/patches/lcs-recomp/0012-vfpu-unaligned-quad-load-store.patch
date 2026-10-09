@@ -1,0 +1,65 @@
+diff --git a/include/psprecomp/decoder.hpp b/include/psprecomp/decoder.hpp
+--- a/include/psprecomp/decoder.hpp
++++ b/include/psprecomp/decoder.hpp
+@@ -18,7 +18,7 @@
+     AddS, SubS, MulS, DivS, SqrtS, AbsS, MovS, NegS,
+     RoundWS, TruncWS, CeilWS, FloorWS, CvtWS, CvtSW, FpuCompare,
+     Bc1f, Bc1t, Bc1fl, Bc1tl, Bvf, Bvt, Bvfl, Bvtl,
+-    Mfv, Mtv, Vpfx, Viim, Vfim, Vh2f, Vf2h, Vf2i, Vi2f, Vx2i, VmidT, Vmmov, VfpuMatrixInit, Vidt, Vcst, Vocp, VfpuHorizontal, Vrot, Vtfm, VfpuVectorInit, VfpuVec3, Vscl, Vdot, Vhdp, Vcmp, Vminmax, VfpuCompare3, Vcmov, VfpuUnary, Vmmul, Vmscl, VcrossQuat, Lvs, Svs, Lvq, Svq,
++    Mfv, Mtv, Vpfx, Viim, Vfim, Vh2f, Vf2h, Vf2i, Vi2f, Vx2i, VmidT, Vmmov, VfpuMatrixInit, Vidt, Vcst, Vocp, VfpuHorizontal, Vrot, Vtfm, VfpuVectorInit, VfpuVec3, Vscl, Vdot, Vhdp, Vcmp, Vminmax, VfpuCompare3, Vcmov, VfpuUnary, Vmmul, Vmscl, VcrossQuat, Lvs, Svs, Lvq, Svq, LvUnalignedQ, SvUnalignedQ,
+     Syscall,
+     Vflush,
+     Vfpu,
+diff --git a/src/decoder.cpp b/src/decoder.cpp
+--- a/src/decoder.cpp
++++ b/src/decoder.cpp
+@@ -278,9 +278,12 @@
+         break;
+     }
+     case 0x35:
++        d.kind = OpcodeKind::LvUnalignedQ;
++        d.mnemonic = (word & 2u) != 0u ? "lvr.q" : "lvl.q";
++        break;
+     case 0x3D:
+-        d.kind = OpcodeKind::Vfpu;
+-        d.mnemonic = "vfpu";
++        d.kind = OpcodeKind::SvUnalignedQ;
++        d.mnemonic = (word & 2u) != 0u ? "svr.q" : "svl.q";
+         break;
+     case 0x3F:
+         d.kind = OpcodeKind::Vflush;
+diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -839,6 +839,31 @@
+             << "      rt.memory().aot_store32(vfpu_address + 12u, std::bit_cast<std::uint32_t>(vfpu_value[3])); }\n";
+         break;
+     }
++    case psprecomp::OpcodeKind::LvUnalignedQ:
++    case psprecomp::OpcodeKind::SvUnalignedQ: {
++        // lvl.q/svl.q move words 3..(3-k) to/from address, address-4, ...; lvr.q/svr.q move words
++        // 0..(3-k) to/from address, address+4, ...; k = word index of the address in its 16-byte
++        // line. The untouched lanes of the register keep their value (PPSSPP MIPSIntVFPU).
++        const std::int32_t offset = static_cast<std::int16_t>(d.word & 0xFFFCu);
++        const std::uint32_t vector_register = ((d.word >> 16u) & 0x1Fu) | ((d.word & 1u) << 5u);
++        const bool right = (d.word & 2u) != 0u;
++        const bool load = d.kind == psprecomp::OpcodeKind::LvUnalignedQ;
++        out << "    { const std::uint32_t vfpu_address = " << reg(d.rs) << " + static_cast<std::uint32_t>(" << offset << ");\n"
++            << "      const std::uint32_t vfpu_word = (vfpu_address >> 2u) & 3u;\n"
++            << "      float vfpu_value[4]{}; ctx.read_vfpu_vector(vfpu_value, " << vector_register << "u, 4u);\n";
++        if (right) {
++            out << "      for (std::uint32_t i = 0u; i < 4u - vfpu_word; ++i) ";
++            if (load) out << "vfpu_value[i] = std::bit_cast<float>(rt.memory().aot_load32(vfpu_address + 4u * i));\n";
++            else out << "rt.memory().aot_store32(vfpu_address + 4u * i, std::bit_cast<std::uint32_t>(vfpu_value[i]));\n";
++        } else {
++            out << "      for (std::uint32_t i = 0u; i <= vfpu_word; ++i) ";
++            if (load) out << "vfpu_value[3u - i] = std::bit_cast<float>(rt.memory().aot_load32(vfpu_address - 4u * i));\n";
++            else out << "rt.memory().aot_store32(vfpu_address - 4u * i, std::bit_cast<std::uint32_t>(vfpu_value[3u - i]));\n";
++        }
++        if (load) out << "      ctx.write_vfpu_vector(vfpu_value, " << vector_register << "u, 4u);\n";
++        out << "    }\n";
++        break;
++    }
+     default:
+         out << "    rt.unsupported(" << psprecomp::hex32(pc) << "u, " << psprecomp::hex32(d.word)
+             << "u, \"" << cpp_escape(d.mnemonic) << " not lowered yet\"); return;\n";

@@ -202,6 +202,7 @@ struct AsyncReturnFrame {
     std::uint32_t ring{};
     std::uint32_t delay_us{};
     bool vblank_wait{};
+    std::uint32_t sub_number{};  // SubInterrupt: the handler that is running
 };
 
 struct PendingGeCallback {
@@ -730,6 +731,22 @@ struct SubInterruptRecord {
 std::unordered_map<std::uint64_t, SubInterruptRecord> sub_interrupts;
 std::uint64_t sub_interrupt_key(std::uint32_t interrupt_number, std::uint32_t sub_number) {
     return (static_cast<std::uint64_t>(interrupt_number) << 32u) | sub_number;
+}
+
+constexpr std::uint32_t kVblankInterrupt = 30u;
+
+// GT: the enabled VBlank sub-handler with the lowest sub number >= `first` (the PSP runs every
+// enabled one, in order). LCS used only sub 15; GT's PGL counter lives in sub 0 (handler
+// 0x08B5A330 increments the frame counter its render thread waits on).
+const SubInterruptRecord *next_vblank_sub_interrupt(std::uint32_t first, std::uint32_t &sub_number) {
+    for (std::uint32_t sub = first; sub < 32u; ++sub) {
+        const auto found = sub_interrupts.find(sub_interrupt_key(kVblankInterrupt, sub));
+        if (found != sub_interrupts.end() && found->second.enabled && found->second.handler != 0u) {
+            sub_number = sub;
+            return &found->second;
+        }
+    }
+    return nullptr;
 }
 
 enum class UtilityStatus : std::uint32_t {
@@ -1444,6 +1461,17 @@ void lcs_callback_return(psprecomp::Runtime &runtime, psprecomp::AllegrexContext
         return;
     }
     if (frame.kind == AsyncReturnKind::SubInterrupt) {
+        std::uint32_t next_sub = 0u;
+        if (const SubInterruptRecord *next = next_vblank_sub_interrupt(frame.sub_number + 1u, next_sub)) {
+            AsyncReturnFrame chained = frame;
+            chained.sub_number = next_sub;
+            async_return_frames[uid].push_back(chained);
+            ctx.set_gpr(4, next_sub);
+            ctx.set_gpr(5, next->argument);
+            ctx.set_gpr(31, 0x00000004u);
+            ctx.pc = next->handler;
+            return;
+        }
         ctx = frame.resume;
         return;
     }
@@ -1501,10 +1529,9 @@ bool in_vblank_interrupt() {
 
 bool dispatch_vblank_interrupt(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx,
                                std::uint32_t delay_us) {
-    const auto interrupt = sub_interrupts.find(sub_interrupt_key(30u, 15u));
-    if (interrupt == sub_interrupts.end() || !interrupt->second.enabled ||
-        interrupt->second.handler == 0u)
-        return false;
+    std::uint32_t sub_number = 0u;
+    const SubInterruptRecord *interrupt = next_vblank_sub_interrupt(0u, sub_number);
+    if (interrupt == nullptr) return false;
     const auto current = thread_table.threads.find(thread_table.current_uid);
     if (current == thread_table.threads.end()) return false;
     auto &frames = async_return_frames[thread_table.current_uid];
@@ -1513,13 +1540,14 @@ bool dispatch_vblank_interrupt(psprecomp::Runtime &rt, psprecomp::AllegrexContex
     AsyncReturnFrame frame{};
     frame.resume = make_wait_context(ctx);
     frame.kind = AsyncReturnKind::SubInterrupt;
+    frame.sub_number = sub_number;
     frames.push_back(frame);
 
     psprecomp::AllegrexContext handler = ctx;
-    handler.set_gpr(4, 15u);
-    handler.set_gpr(5, interrupt->second.argument);
+    handler.set_gpr(4, sub_number);
+    handler.set_gpr(5, interrupt->argument);
     handler.set_gpr(31, 0x00000004u);
-    handler.pc = interrupt->second.handler;
+    handler.pc = interrupt->handler;
     current->second.state = ThreadState::Delayed;
     current->second.suspended_context = handler;
     current->second.delay_until_us = virtual_time_us + delay_us;
@@ -2184,6 +2212,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
     runtime.register_hle("sceSasCore", 0xE175EF66u, succeed);       // __sceSasGetOutputmode -> 0 (stereo)
     runtime.register_hle("sceAtrac3plus", 0x132F1ECAu, succeed);    // sceAtracReinit
     runtime.register_hle("sceMp3", 0x35750070u, succeed);           // sceMp3InitResource (PPSSPP: 0)
+    runtime.register_hle("scePspNpDrm_user", 0xA1336091u, succeed); // sceNpDrmSetLicenseeKey (PPSSPP: 0)
     runtime.register_hle("sceWlanDrv", 0x0C622081u,  // sceWlanGetEtherAddr(u8 mac[6]) -> 0
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             // Fixed, locally administered MAC; no network is emulated.
