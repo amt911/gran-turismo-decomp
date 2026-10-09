@@ -64,14 +64,18 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [ ] Estados de referencia definidos (título, menú, salida de carrera) y comparados con PPSSPP.
 - [ ] Medir la vuelta (`debugging.md`) y anotar los tiempos.
 
-## Fase 3 — Harness diferencial
+## Fase 3 — Harness diferencial (2026-10-10)
 
-Necesita spec (interoperabilidad con la memoria guest, formato de captura de casos).
+Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 
-- [ ] Poder alternar cualquier función entre su versión recompilada y la decompilada.
-- [ ] Captura de entradas/salidas de una función en partidas reales; comparación automática.
+- [x] `gt_native --decomp off|on|diff`: cada función decompilada se compara con su original dentro de
+      nuestra propia ejecución (foto de CPU + RAM, original aislada, decompilada, comparación, y el juego
+      sigue con el resultado original).
+- [x] Gate demostrado fallando (sabotaje de `v0`: 16/16 discrepancias, código de salida 2).
+- [x] Primera función: `memset` (`src/libc/memset.cpp`). Valor de retorno probado; escrituras aún no
+      (ningún caso cambió memoria antes de que la ejecución se pare).
 - [ ] Informe de progreso: funciones decompiladas y en verde / total, juego vs SDK.
-- [ ] Prueba de que el gate puede fallar (romper una función a propósito y verlo en rojo).
+- [ ] Más casos informativos: llevar la ejecución más lejos (puntero nulo en `0x08ADB53C`).
 
 ## Fase 4 — Decompilación función a función
 

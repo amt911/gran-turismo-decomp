@@ -271,6 +271,11 @@ The split between `src/`, `host/` and `recomp/` is the Phase 2/3 spec's to settl
 tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idempotent (2nd run ~0.3 s)
 .venv/bin/python -m tools.extract       # ISO hash → 7z (no GT.VOL) → pspdecrypt → ELF hash; idempotent
 .venv/bin/pytest --cov --cov-fail-under=80   # tool tests (+ the real-dump test when the ISO is present)
+# Phase 2a/3 — verified on 2026-10-10 (full guide: docs/COMPILAR.md)
+# .venv/bin/python -m tools.recomp; cmake --build build -j8   (inside the cgroup)
+# build/gt_native --max-seconds 30 --trace recomp/analysis/gt.trace [--decomp off|on|diff]
+# .venv/bin/python -m tools.trace_compare recomp/analysis/ppsspp.log recomp/analysis/gt.trace
+# ctest --test-dir build
 # Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):
 systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
   env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=4G \
