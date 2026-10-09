@@ -1187,7 +1187,6 @@ void promote_expired_delays() {
 }
 
 bool activate_next_thread(psprecomp::AllegrexContext &ctx, const char *reason) {
-    (void)reason;
     maybe_rearm_umd_stream_flag();
     promote_expired_delays();
     thread_table.continuations.erase(
@@ -1215,6 +1214,18 @@ bool activate_next_thread(psprecomp::AllegrexContext &ctx, const char *reason) {
     const auto selected = best_ready_thread();
     ThreadContinuation continuation = *selected;
     thread_table.continuations.erase(selected);
+    // GT_SCHED_LOG=1: one line per thread switch on stderr, in the shape of PPSSPP's
+    // "Context switch: A -> B (... reason)" lines, to compare scheduling order (docs/FINDINGS.md).
+    static const bool sched_log = std::getenv("GT_SCHED_LOG") != nullptr;
+    if (sched_log) {
+        const auto name_of = [](std::int32_t uid) {
+            const auto t = thread_table.threads.find(uid);
+            return t == thread_table.threads.end() ? std::string("?") : t->second.name;
+        };
+        std::cerr << "[sched] " << name_of(thread_table.current_uid) << " -> " << name_of(continuation.uid)
+                  << " (" << thread_table.current_uid << "->" << continuation.uid << ", "
+                  << (reason != nullptr ? reason : "") << ") pc=" << psprecomp::hex32(continuation.context.pc) << "\n";
+    }
     thread_table.current_uid = continuation.uid;
     if (auto thread = thread_table.threads.find(continuation.uid); thread != thread_table.threads.end()) {
         thread->second.state = ThreadState::Running;

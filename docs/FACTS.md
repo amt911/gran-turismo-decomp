@@ -183,6 +183,12 @@ the line says otherwise.
   real gaps left: `lv/sv{l,r}.q` (39), `vcrs.t` (1), and 480 `vsbn.s` of unclear reality.
   *(verified: rabbitizer over rt.unsupported markers)*
 
+- `GT_SCHED_LOG=1 build/gt_native ...` prints one `[sched] A -> B (uid->uid, reason) pc=` line per
+  thread switch. Compared with PPSSPP: there, vblank waiters wake on a vblank event ("entered
+  vblank", "vblank start waited") and `sceDisplaySetMode` switches threads ("display mode"); in our
+  LCS-derived kernel those waits are timed delays, so PDI:00000004/5 resume in a different order and
+  the first `sceGeListEnQueue` is not reached at call 235. *(verified: both logs, 2026-10-09)*
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a

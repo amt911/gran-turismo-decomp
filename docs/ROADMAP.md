@@ -50,6 +50,9 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [x] Corre 30 s sin colgarse; ~82.000 llamadas al sistema; **235 coinciden en orden con PPSSPP**.
 - [ ] Puerta: 2.000 llamadas coincidentes y 30 s sin fallos. Pendiente: puntero nulo en `0x08ADB53C`,
       divergencia en `sceGeListEnQueue` (llamada 235).
+- [ ] **Siguiente paso:** modelar el vblank como evento (60 Hz de tiempo virtual, cola de espera que
+      despierta por prioridad) en vez de retrasos: es la causa de la divergencia de la llamada 235
+      (log `GT_SCHED_LOG=1` frente a los "Context switch" de PPSSPP; ver FACTS).
 
 - [ ] Perfil GT en PSPRecomp sobre el ELF descifrado; el C++ generado va a `recomp/` (ignorado).
 - [ ] Capa de host: reutilizar los 151 HLE existentes (GE, display, ctrl, hilos, SAS, MPEG…) e
