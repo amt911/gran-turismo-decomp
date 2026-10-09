@@ -67,6 +67,7 @@ add_executable(gt_native
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"
     "${GT_LCS_HOST_DIR}/lcs_media_decoder.cpp"
     "${GT_LCS_HOST_DIR}/lcs_ge_exec.cpp"
+    "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
 target_include_directories(gt_native PRIVATE host "${GT_LCS_HOST_DIR}")
 target_link_libraries(gt_native PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG Threads::Threads)

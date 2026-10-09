@@ -35,6 +35,20 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Render thread spins forever on `sceDisplayWaitVblankStartCB`, no frame ever set
+
+**Symptom.** Only one `sceGeListEnQueue`, then thread `PDI:00000005` calls
+`sceDisplayWaitVblankStartCB` every frame and never reaches `sceDisplaySetFrameBuf`; no image.
+**Cause.** `FUN_00355a24` (runtime `0x08B59A24`) waits until a frame counter (`0x08D6CE20`) has advanced
+N frames. Only GT's VBlank sub-interrupt handler (`sceKernelRegisterSubIntrHandler(30, 0, 0x08B5A330,
+0x08D6CE00)`) increments it. The LCS-derived kernel dispatched only sub-handler 15 (the one LCS uses).
+**Fix / workaround.** Dispatch every enabled sub-handler of interrupt 30 in sub-number order, chained on
+return (`next_vblank_sub_interrupt` in `host/gt_kernel.cpp`). The game then shows its boot screens.
+**Why it isn't obvious.** Nothing fails: the thread is alive and waits politely; the trace only shows
+"too many vblank waits". Found by Ghidra refs to the `sceDisplaySetFrameBuf` stub back to the loop.
+
+Found: 2026-10-10 · runtime
+
 ### Boot crash on a NULL global: a zero-max semaphore was rejected
 
 **Symptom.** `gt_native` died after ~82k import calls loading `0+8` at guest pc `0x08ADB53C`.
