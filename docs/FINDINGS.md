@@ -35,6 +35,32 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### PPSSPP's HLE log is not a complete call trace
+
+**Symptom.** trace_compare reported divergences that were not real: calls missing on PPSSPP's side,
+names that didn't match, calls the game never makes.
+**Cause.** PPSSPP (1.20.4) (a) logs some calls only in some states (e.g. `sceKernelCheckCallback`),
+(b) prints symbolic returns (`ILLEGAL_PRIORITY=sceKernel...`), (c) names some stubs with a suffix its
+call lines omit (`Importing scePowerSetClockFrequency350` vs `scePowerSetClockFrequency(...)`), and
+(d) logs internal pseudo-calls (`__KernelReturnFromMipsCall`).
+**Fix / workaround.** `tools/trace_compare.py`: ordered match with bounded gaps (reorderings still fail),
+symbolic returns accepted, numeric suffixes normalised, only functions the game imports counted.
+**Why it isn't obvious.** The log looks like a call-by-call trace.
+
+Found: 2026-10-09 · runtime
+
+### A GT thread polls the pad 171 million times in 30 s
+
+**Symptom.** 30 s run produced a 3.3 GB trace dominated by `sceCtrlReadBufferPositive` wrapped in
+`sceKernelCpuSuspendIntr`/`ResumeIntr`.
+**Cause.** The LCS HLE returns pad samples immediately; on hardware a second read in the same vblank
+period blocks until the next sample. With a cooperative scheduler the poller starved every thread.
+**Fix / workaround.** `host/gt_kernel.cpp`: a repeated read in the same ~16,667 us period delays to the
+next sample. `--trace-limit` (default 200k lines) caps trace size.
+**Why it isn't obvious.** LCS never hits it; nothing crashes, the run just makes no progress.
+
+Found: 2026-10-09 · runtime
+
 ### Generated GT units don't compile: `local_pc` / `entry_id` undeclared, VFPU register `188`
 
 **Symptom.** clang on lcs-recomp's generated units: `use of undeclared identifier 'local_pc'` /

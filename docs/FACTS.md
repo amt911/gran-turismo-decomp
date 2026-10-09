@@ -168,6 +168,21 @@ the line says otherwise.
 - Installed: `vulkan-icd-loader`, `sdl2-compat`, `ffmpeg`, `glslang`, `shaderc`; **missing
   `vulkan-headers`**. *(verified: pacman -Q)*
 
+## gt_native boot (Phase 2a, verified 2026-10-09)
+
+- 30 s headless run: ~82,800 import calls; trace_compare matches **235** calls in order with PPSSPP,
+  then `sceGeListEnQueue` (PPSSPP) vs `sceKernelDelayThread` (ours); later a null+8 load at guest pc
+  `0x08ADB53C` (unit 0090). *(verified: gt_native --max-seconds 30 --trace, trace_compare)*
+- PPSSPP timings GT depends on: `sceUtilityLoadModule` suspends the caller ~25,000 us (4/4 loads);
+  `scePowerSetClockFrequency` ~150,000 us; a repeated `sceCtrlReadBufferPositive` waits for the next
+  pad sample ("ctrl buffer waited"). *(verified: context-switch deltas in ppsspp.log)*
+- GT executes `mfv $zero, 255` (VFPU sync idiom) and `vi2uc.q`; `ll`/`sc`, `madd`, `addi`, `mfic`/
+  `mtic` all appear on the boot path. A memset uses a computed jump into an unrolled store run
+  (`lui/addiu/subu/jr $at`, func at vaddr `0x332018`). *(verified: run stops + rabbitizer/Ghidra)*
+- Of 1,427 untranslated VFPU sites in generated code, 885 decode as INVALID (data analysed as code);
+  real gaps left: `lv/sv{l,r}.q` (39), `vcrs.t` (1), and 480 `vsbn.s` of unclear reality.
+  *(verified: rabbitizer over rt.unsupported markers)*
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a
