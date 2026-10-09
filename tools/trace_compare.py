@@ -19,7 +19,7 @@ from pathlib import Path
 
 # "I 276=sceKernelCreateThread(...)", "D 00000112=sceKernelGetModuleIdByAddress(...): 112",
 # "D sceIoOpen(...): 0000000a". Non-call lines ("D Context switch: ...") don't match.
-_PPSSPP_CALL = re.compile(r"^[A-Z]\s+(?:[0-9A-Fa-f]+=)?([A-Za-z_]\w*)\(")
+_PPSSPP_CALL = re.compile(r"^[A-Z]\s+(?:\S+=)?([A-Za-z_]\w*)\(")
 # "D Importing sceKernelUnloadModule : 08c7a8c8" (not "D Importing Module X, stubs at ...").
 _PPSSPP_IMPORT = re.compile(r"^[A-Z]\s+Importing\s+(\w+)\s*:\s*([0-9A-Fa-f]{8})\b")
 

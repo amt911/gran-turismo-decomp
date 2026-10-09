@@ -63,3 +63,12 @@ def test_compare_reports_divergence_after_filtering():
     assert result.matched == 1
     assert result.divergence == Divergence(index=1, a_call="sceIoOpen", b_call="sceIoRead",
                                            context=["sceKernelCreateThread"])
+
+
+def test_parse_ppsspp_log_accepts_symbolic_return_values(tmp_path: Path):
+    log = tmp_path / "ppsspp.log"
+    log.write_text("D 00000112=sceKernelGetModuleId()\n"
+                   "E ILLEGAL_PRIORITY=sceKernelChangeThreadPriority(0, 1): bogus priority\n"
+                   "I scePowerSetClockFrequency(333,333,166)\n")
+    assert parse_ppsspp_log(log) == ["sceKernelGetModuleId", "sceKernelChangeThreadPriority",
+                                     "scePowerSetClockFrequency"]
