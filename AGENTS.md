@@ -321,8 +321,7 @@ Detail in [reverse engineering](docs/agents/reverse-engineering.md).
 - **Ghidra needs ghidra-allegrex** for VFPU and PRX relocations; without it MIPS decoding of VFPU
   is wrong. Decompiler output is a reading aid for `src/`, never pasted as decompiled code.
 - **Static before runtime; runtime only to answer what static can't.** PPSSPP's debugger is the
-  runtime oracle; runtime address = ELF vaddr + load base (expected `0x08804000` — verify in PPSSPP
-  before relying on it, then record it in FACTS).
+  runtime oracle; runtime address = ELF vaddr + load base **`0x08804000`** (measured in PPSSPP, FACTS § Runtime).
 - **The binary is the authority over any wiki, cheat database or other LLM.** External claims enter
   FACTS only after being checked against our ELF.
 

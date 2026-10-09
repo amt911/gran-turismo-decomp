@@ -1,5 +1,6 @@
 # --- Copyrighted game data: NEVER commit (see AGENTS.md § Legal) ---
-game_files/
+game_files/*
+!game_files/.gitkeep
 *.iso
 *.ISO
 *.cso
