@@ -81,6 +81,13 @@ def first_divergence(a: Sequence[str], b: Sequence[str]) -> Divergence | None:
     return None
 
 
+def game_calls(ppsspp_calls: Sequence[str], stub_names: dict[int, str]) -> list[str]:
+    """Keep only PPSSPP log calls that are functions the game imports. PPSSPP also logs internal
+    pseudo-calls (e.g. __KernelReturnFromMipsCall) that no game code ever makes."""
+    imported = set(stub_names.values()) | {n.rstrip("0123456789") for n in stub_names.values()}
+    return [c for c in ppsspp_calls if c in imported]
+
+
 def _normalise(call: str, logged: set[str]) -> str:
     """PPSSPP names some import stubs with a suffix its call log omits
     ("Importing scePowerSetClockFrequency350" vs "scePowerSetClockFrequency(...)")."""
@@ -90,12 +97,27 @@ def _normalise(call: str, logged: set[str]) -> str:
     return stripped if stripped in logged else call
 
 
-def compare(ppsspp: Sequence[str], ours: Sequence[str]) -> Comparison:
-    logged = set(ppsspp)
+def compare(ppsspp: Sequence[str], ours: Sequence[str], extra_names: set[str] | None = None,
+            max_gap: int = 50) -> Comparison:
+    """PPSSPP's calls must appear in our trace in the same order. Some calls PPSSPP logs only in
+    some states (CheckCallback, ...), so we may have extra calls in between: up to max_gap
+    consecutive extras are skipped. A call we skipped and PPSSPP needs later is a reordering and
+    counts as a divergence, so a permutation can't hide behind the gap."""
+    logged = set(ppsspp) | (extra_names or set())
     filtered = [n for n in (_normalise(c, logged) for c in ours) if n in logged]
-    div = first_divergence(ppsspp, filtered)
-    matched = div.index if div else min(len(ppsspp), len(filtered))
-    return Comparison(matched=matched, divergence=div)
+    j = 0
+    skipped: list[str] = []
+    for i, call in enumerate(ppsspp):
+        found = next((k for k in range(j, min(len(filtered), j + max_gap + 1)) if filtered[k] == call), None)
+        if found is None:
+            if j >= len(filtered) and call not in skipped:
+                return Comparison(matched=i, divergence=None)  # our run simply stopped earlier
+            got = filtered[j] if j < len(filtered) else "<end>"
+            return Comparison(matched=i, divergence=Divergence(index=i, a_call=call, b_call=got,
+                                                               context=list(ppsspp[max(0, i - 3):i])))
+        skipped = filtered[j:found] if found > j else skipped
+        j = found + 1
+    return Comparison(matched=len(ppsspp), divergence=None)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -104,8 +126,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("gt_trace", type=Path)
     parser.add_argument("--limit", type=int, default=2000, help="calls that must match (default 2000)")
     args = parser.parse_args(argv)
-    ours = parse_gt_trace(args.gt_trace, parse_ppsspp_imports(args.ppsspp_log))
-    result = compare(parse_ppsspp_log(args.ppsspp_log), ours)
+    stubs = parse_ppsspp_imports(args.ppsspp_log)
+    ours = parse_gt_trace(args.gt_trace, stubs)
+    result = compare(game_calls(parse_ppsspp_log(args.ppsspp_log), stubs), ours)
     if result.divergence:
         d = result.divergence
         print(f"diverge at call {d.index}: ppsspp={d.a_call} gt={d.b_call} (after {', '.join(d.context)})")

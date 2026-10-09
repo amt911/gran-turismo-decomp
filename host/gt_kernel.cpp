@@ -2158,7 +2158,12 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
             (void)delay_current_thread(rt, ctx, 150'000u, 0u);
         });
     auto succeed = [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { set_success(ctx); };
-    runtime.register_hle("sceUtility", 0x2A2B3DE0u, succeed);       // sceUtilityLoadModule
+    runtime.register_hle("sceUtility", 0x2A2B3DE0u,  // sceUtilityLoadModule(id)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            // PPSSPP trace: every load suspends the caller ~25,000 us ("woke from hle delay"), so
+            // other threads (vblank waiters) run first. Returning at once reorders the boot.
+            (void)delay_current_thread(rt, ctx, 25'000u, 0u);
+        });
     runtime.register_hle("sceUtility", 0xE49BFE92u, succeed);       // sceUtilityUnloadModule
     runtime.register_hle("sceNet", 0x39AF39A6u, succeed);           // sceNetInit
     runtime.register_hle("sceUmdUser", 0x87533940u, succeed);       // sceUmdReplaceProhibit

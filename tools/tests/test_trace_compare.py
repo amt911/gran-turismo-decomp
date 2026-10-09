@@ -60,9 +60,10 @@ def test_compare_reports_divergence_after_filtering():
     ppsspp = ["sceKernelCreateThread", "sceIoOpen", "sceIoRead"]
     ours = ["sceKernelCreateThread", "sceIoRead", "sceIoOpen"]
     result = compare(ppsspp, ours)
-    assert result.matched == 1
-    assert result.divergence == Divergence(index=1, a_call="sceIoOpen", b_call="sceIoRead",
-                                           context=["sceKernelCreateThread"])
+    # sceIoOpen is found after skipping sceIoRead; sceIoRead is then needed but was skipped: reordering.
+    assert result.matched == 2
+    assert result.divergence == Divergence(index=2, a_call="sceIoRead", b_call="<end>",
+                                           context=["sceKernelCreateThread", "sceIoOpen"])
 
 
 def test_parse_ppsspp_log_accepts_symbolic_return_values(tmp_path: Path):
@@ -82,3 +83,30 @@ def test_import_names_with_numeric_suffix_map_to_the_logged_call_name(tmp_path: 
     trace.write_text("0 0x08c7af70\n")
     ours = parse_gt_trace(trace, parse_ppsspp_imports(log))
     assert compare(parse_ppsspp_log(log), ours).matched == 1
+
+
+def test_compare_tolerates_extra_calls_ppsspp_does_not_log_every_time():
+    ppsspp = ["CreateCallback", "RegisterExitCallback", "SetSamplingMode"]
+    ours = ["CreateCallback", "CheckCallback", "RegisterExitCallback", "SetSamplingMode"]
+    ppsspp_logged = ppsspp + ["CheckCallback"]  # PPSSPP logs CheckCallback elsewhere, not here
+    result = compare(ppsspp_logged[:3], ours, extra_names={"CheckCallback"})
+    assert result.divergence is None and result.matched == 3
+
+
+def test_compare_still_fails_on_reordering():
+    result = compare(["a", "b", "c"], ["a", "c", "b"])
+    assert result.matched == 2 and result.divergence is not None and result.divergence.a_call == "c"
+
+
+def test_compare_gives_up_after_too_many_extra_calls():
+    ppsspp = ["a", "b"]
+    ours = ["a"] + ["x"] * 60 + ["b"]
+    result = compare(ppsspp, ours, extra_names={"x"}, max_gap=50)
+    assert result.matched == 1 and result.divergence is not None
+
+
+def test_game_calls_keeps_only_imported_functions():
+    from tools.trace_compare import game_calls
+    imports = {0x08C7A8C0: "sceKernelRegisterExitCallback", 0x08C7AF70: "scePowerSetClockFrequency350"}
+    calls = ["sceKernelRegisterExitCallback", "__KernelReturnFromMipsCall", "scePowerSetClockFrequency"]
+    assert game_calls(calls, imports) == ["sceKernelRegisterExitCallback", "scePowerSetClockFrequency"]
