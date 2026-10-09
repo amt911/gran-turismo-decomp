@@ -10,12 +10,17 @@ Always the **decrypted ELF** (`extracted/EBOOT.elf`, SHA1 `8746583f…94b0`), ne
 `EBOOT.BIN` and never `BOOT.BIN` (zero-filled). Check the hash before trusting any analysis — a
 different file gives confident, wrong answers.
 
-## REA (MCP) — the default front-end
+## REA (MCP) — not usable on the EBOOT yet
 
-- Invoke the **`reverse-engineer-anything`** skill first; it routes the question to the right tool.
-  For this target: `open_binary` with the absolute ELF path (Ghidra provider), then focused tools —
-  `search_strings`, `search_procedures`, `procedure_pseudo_code`, `procedure_assembly`, `xrefs`,
-  `procedure_callers` / `procedure_callees`, `read_bytes`.
+**REA 6.2.0 rejects MIPS ELFs** ("unsupported ELF architecture", whitelist x86/x86_64/ARM/ARM64 —
+FINDINGS), so it cannot open `extracted/EBOOT.elf` with any provider. Until a REA release admits
+`e_machine` 8, the game binary is analysed with **Ghidra directly** (next section). What follows
+applies to whatever REA *can* open, and to the EBOOT the day it can:
+
+- Invoke the **`reverse-engineer-anything`** skill first; it routes the question to the right tool:
+  `open_binary` with the absolute path, then focused tools — `search_strings`, `search_procedures`,
+  `procedure_pseudo_code`, `procedure_assembly`, `xrefs`, `procedure_callers` / `procedure_callees`,
+  `read_bytes`.
 - **Requires the Ghidra provider** — see `CLAUDE.md` (registration with `GHIDRA_INSTALL_DIR`) and
   [toolchain](toolchain.md#ghidra--ghidra-allegrex) (ghidra-allegrex for Allegrex/VFPU/PRX). Without
   ghidra-allegrex, treat any VFPU region and any relocation-dependent pointer as unknown.
@@ -28,9 +33,13 @@ different file gives confident, wrong answers.
 - **One open binary per session, `close_binary` when done.** The Ghidra JVM REA starts is outside any
   `systemd-run` scope you create — see `AGENTS.md` § memory cgroup.
 
-## Ghidra directly
+## Ghidra directly — the current engine for the EBOOT
 
-For long interactive sessions (struct editing, data types), Ghidra with ghidra-allegrex. The Ghidra
+Repo-local Ghidra 12.1.3 + ghidra-allegrex v21.4 (`tools/setup.sh --with-ghidra`). Headless import +
+analysis + a probe script is in `AGENTS.md` § Commands (~154 s); it picks the **PSP Executable (ELF)**
+loader and the **`Allegrex:LE:32:default`** language by itself, finds 23,208 functions and decodes
+VFPU (FACTS). The GCC exception analyzer logs ~389 "Error creating LSDA" lines — noise, see FINDINGS.
+For long interactive sessions (struct editing, data types), the same Ghidra's GUI (`ghidraRun`). The Ghidra
 project (`ghidra/`, gitignored) is an **exclusive resource**: one process holds its lock. Export what
 matters (names, types) to the repo's text files; the `.gpr`/`.rep` is never the source of truth.
 

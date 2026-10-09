@@ -7,8 +7,14 @@ import above. Add below only what applies to Claude Code alone. -->
 
 ## Claude Code only
 
+- **REA does not open the PSP EBOOT** (MIPS ELFs are rejected by REA 6.2.0 before any provider runs —
+  `docs/FINDINGS.md`). The registration below is kept for other artifacts and for when REA adds MIPS;
+  the game binary is analysed with the repo-local Ghidra (`AGENTS.md` § Commands).
+
 - **REA MCP for this repo comes from `.mcp.json`** — same `rea-agents@latest` server as the user-scope
-  one, plus `GHIDRA_INSTALL_DIR` (defaults to `/opt/ghidra`) so the Ghidra provider is available.
+  one, plus `GHIDRA_INSTALL_DIR` (default: the repo-local `tools/ghidra/ghidra_12.1.3_PUBLIC`) and `JAVA_HOME`
+  (default: `java-27-openjdk`; Ghidra 12.1 needs ≥ 21) so the Ghidra provider is available —
+  `rea doctor --provider ghidra` with those values reports it healthy (2026-10-09).
   The first session asks to approve the project server; after approving, restart so the tools
   reconnect. Check with `binary_session` (no arguments): the Ghidra candidate must not say
   `not_configured`. Its output is ~200 KB — read it with `jq`, never inline.

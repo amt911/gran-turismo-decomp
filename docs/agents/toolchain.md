@@ -29,9 +29,9 @@
 | lcs-recomp | git (pin on first use) | second profile on PSPRecomp: **Linux, Vulkan, SDL2, FFmpeg** | <https://github.com/elmasas/lcs-recomp> (MIT) — reference for a Linux host layer |
 | rabbitizer | 1.16.2 | Allegrex decoding for tools | <https://github.com/Decompollaborate/rabbitizer>; category `R4000ALLEGREX`. **Verified here** (VFPU decoded) |
 | m2c | git `main` (pin a commit on first install) | asm → C reading aid | <https://github.com/matt-kempster/m2c>; `-t mipsel-gcc-c`; no VFPU |
-| Ghidra | 12.1.x (12.1.2 installed at `/opt/ghidra`) | interactive RE + REA's native engine | REA requires 12.1.x |
+| Ghidra | 12.1.3 repo-local (`tools/ghidra/`, SHA256-checked); `/opt/ghidra` 12.1.2 unused | the RE engine for the EBOOT | needs Java ≥ 21: `JAVA_HOME_OVERRIDE` → `java-27-openjdk` in its `launch.properties` (system default stays 17). **Verified here** |
 | ghidra-allegrex | v21.4 (for Ghidra **12.1.3**) | Allegrex/VFPU, PRX relocations, PSP calling convention | <https://github.com/kotcrab/ghidra-allegrex> |
-| REA | `rea-agents@latest` (6.2.0 at setup) | MCP reverse-engineering front-end | see [reverse engineering](reverse-engineering.md) |
+| REA | `rea-agents@latest` (6.2.0 at setup) | MCP reverse-engineering front-end | **cannot open MIPS ELFs** (x86/x86_64/ARM/ARM64 only) — not usable on the EBOOT; see [reverse engineering](reverse-engineering.md) |
 | PPSSPP | v1.20.4 (not installed) | the original's behaviour: boot-check reference + debugger | <https://github.com/hrydgard/ppsspp>; `PPSSPPHeadless --debugger=<port>` |
 | psplibdoc | git (pin on install) | NID → Sony function names | <https://github.com/pspdev/psplibdoc> |
 | GTPSPVolTools | git (pin on install) | `GT.VOL` unpack (asset/runtime questions only) | <https://github.com/Nenkai/GTPSPVolTools> |

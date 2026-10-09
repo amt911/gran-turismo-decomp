@@ -35,6 +35,35 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Ghidra headless prints hundreds of "Error creating LSDA" lines
+
+**Symptom.** Importing `EBOOT.elf` logs ~389 `ERROR Error creating LSDA @ 00000000 Unable to read bytes
+at ram:1427bdff` with stack traces from `GccExceptionAnalyzer`; the import still reports success.
+**Cause.** Not investigated in depth: the GCC exception analyzer follows LSDA pointers from `.eh_frame`
+FDEs that resolve outside memory (likely an encoding/relocation the analyzer mis-reads on this PRX).
+**Fix / workaround.** Ignore for now; it does not stop analysis (23,208 functions found). If exception
+tables ever matter, disable "GCC Exception Handlers" in analysis options and parse `.gcc_except_table`
+separately.
+**Why it isn't obvious.** ERROR + stack traces look fatal and drown the useful output; grep for
+`PROBE`/`REPORT` lines.
+
+Found: 2026-10-09 · re
+
+### REA refuses the PSP ELF: "unsupported ELF architecture"
+
+**Symptom.** `rea analyze extracted/EBOOT.elf --provider ghidra` (and `open_binary` over MCP) fails in
+~7 ms with `target_unavailable` / "unsupported ELF architecture", although `rea doctor --provider
+ghidra` reports Ghidra 12.1.3 available. Patching `e_type` from `0xFFA0` to `EXEC` changes nothing.
+**Cause.** REA 6.2.0 admits ELF only for `e_machine` 3/62/40/183 (x86, x86_64, ARM, ARM64) —
+`dist/domain/binaryTarget.js`, `elfArchitecture()`. MIPS (8) is rejected before any provider runs.
+**Fix / workaround.** Use the same engine directly: Ghidra 12.1.3 + ghidra-allegrex via
+`analyzeHeadless` or the GUI (see reverse-engineering.md). REA stays useful for non-native artifacts
+only. Re-check on each REA release (`grep -n -A12 "elfArchitecture = " …/binaryTarget.js`).
+**Why it isn't obvious.** The error mentions architecture, not machine type; doctor says healthy; the
+provider (Ghidra) supports MIPS fine.
+
+Found: 2026-10-09 · re
+
 ### A test still fails after reverting a deliberate break
 
 **Symptom.** Broke a test constant with `sed`, saw it fail, reverted it with `sed` — and the test kept

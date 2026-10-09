@@ -25,13 +25,14 @@ función verificada de forma diferencial. Detalle en `AGENTS.md` § Strategy.
 
 ## Fase 1 — Extracción reproducible y entorno ⏳
 
-- [ ] `tools/setup.sh`: venv fijado (rabbitizer, pyelftools, m2c); pspdecrypt en el commit fijado;
-      PSPRecomp en el commit fijado.
-- [ ] `tools/extract.sh`: SHA1 de la ISO → `7z` (sin `GT.VOL`) → pspdecrypt → SHA1 del ELF.
-      Idempotente; falla con mensaje claro si el hash no cuadra.
-- [ ] `config/checksums.sha1` con los hashes de FACTS.
-- [ ] Ghidra 12.1.3 local en `tools/ghidra/` + ghidra-allegrex v21.4; REA con el provider Ghidra
-      disponible y el ELF abriendo.
+- [x] `tools/setup.sh`: venv fijado (rabbitizer, pyelftools, pytest); pspdecrypt y PSPRecomp en sus
+      commits fijados; Ghidra 12.1.3 + ghidra-allegrex v21.4 locales con `--with-ghidra`.
+- [x] `tools/extract.py` (no `.sh`: tiene lógica con tests): SHA1 de la ISO → `7z` (sin `GT.VOL`) →
+      cabecera `~PSP` → pspdecrypt → SHA1 del ELF. Idempotente; errores claros.
+- [x] `config/checksums.sha1` con los hashes de FACTS.
+- [x] Ghidra local analiza el ELF (cargador PSP, lenguaje Allegrex, 23.208 funciones, VFPU ok).
+- [x] REA: provider Ghidra disponible, **pero REA 6.2.0 no admite ELF MIPS** → no abre el EBOOT;
+      se usa Ghidra directamente (FINDINGS).
 - [ ] PPSSPP instalado; **medir la base de carga real** del módulo (¿`0x08804000`?) y anotarla en FACTS.
 
 ## Fase 2 — Base recompilada: GT corre en PC vía PSPRecomp
