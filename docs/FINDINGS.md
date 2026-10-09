@@ -55,8 +55,10 @@ Found: 2026-10-09 · runtime
 `sceKernelCpuSuspendIntr`/`ResumeIntr`.
 **Cause.** The LCS HLE returns pad samples immediately; on hardware a second read in the same vblank
 period blocks until the next sample. With a cooperative scheduler the poller starved every thread.
-**Fix / workaround.** `host/gt_kernel.cpp`: a repeated read in the same ~16,667 us period delays to the
-next sample. `--trace-limit` (default 200k lines) caps trace size.
+**Fix / workaround.** `host/gt_kernel.cpp`: a repeated read in the same sample period delays to the
+next sample (+1 us, so vblank waiters resume first). The period must be the kernel's `kVblankPeriodUs`
+(16,683 us, 59.94 Hz): with 1/60 s (16,667 us) samples arrived *before* each vblank and the pad thread
+overtook the vblank waiters. `--trace-limit` (default 200k lines) caps trace size.
 **Why it isn't obvious.** LCS never hits it; nothing crashes, the run just makes no progress.
 
 Found: 2026-10-09 · runtime
