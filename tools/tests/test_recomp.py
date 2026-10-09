@@ -33,7 +33,15 @@ def test_runs_when_nothing_generated_yet(env):
     elf, out, tool = env
     fake = FakeRecomp()
     assert regenerate(elf, out, tool, BASE, runner=fake) is True
-    assert fake.calls == [[str(tool), str(elf), "--auto", str(out), "0x08804000"]]
+    assert fake.calls == [[str(tool), str(elf), "--auto", str(out), "0x08804000", "0x8000"]]
+
+
+def test_reruns_when_unit_span_changes(env):
+    elf, out, tool = env
+    regenerate(elf, out, tool, BASE, runner=FakeRecomp())
+    fake = FakeRecomp()
+    assert regenerate(elf, out, tool, BASE, unit_span=0x4000, runner=fake) is True
+    assert fake.calls[0][-1] == "0x4000"
 
 
 def test_skips_when_inputs_unchanged(env):
