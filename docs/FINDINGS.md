@@ -35,6 +35,22 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Generated GT units don't compile: `local_pc` / `entry_id` undeclared, VFPU register `188`
+
+**Symptom.** clang on lcs-recomp's generated units: `use of undeclared identifier 'local_pc'` /
+`'entry_id'`, and `static_assert(ScalarRegister < 144u)` failing with `188` and `255`.
+**Cause.** (1) Units whose entries span more than 8,192 slots get the *sparse* dispatcher, which
+declared neither variable and switched on the stale `ctx.pc`, while `jr` lowering writes both — LCS's
+units all fit the dense path, GT's don't. (2) `mtv`/`mfv` take their register from imm8; GT has 3
+instructions naming 188/255, which are no VFPU register (0–127 data, 128–143 control).
+**Fix / workaround.** `tools/patches/lcs-recomp/0001` (sparse path declares both and dispatches on
+`local_pc`), `0002` (out-of-range `mtv`/`mfv` emit `rt.unsupported`, like CFC1/CTC1). All 40 units
+then pass `-fsyntax-only`.
+**Why it isn't obvious.** The same framework builds LCS fine; the failures depend on how GT's code is
+laid out.
+
+Found: 2026-10-09 · build
+
 ### PSPRecomp's generic `psp_recomp --auto` hangs eating memory on GT
 
 **Symptom.** No output files after 10 min, RSS climbing to the 6 GB cap; smaller unit spans don't help.

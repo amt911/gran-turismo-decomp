@@ -1,0 +1,21 @@
+diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
+index 278562e..8c5d8dd 100644
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -972,8 +972,15 @@ std::string emit_function_source(const GeneratedFunctionInput &function,
+              << "    (void)direct_entry_id;\n"
+              << "    std::uint32_t jump_target = 0u;\n"
+              << "    std::uint32_t local_transfers = 0u;\n"
++             // Sparse units also take local `jr` transfers (local_pc = target;
++             // goto LOCAL_DISPATCH), so they need local_pc and must dispatch on
++             // it, exactly like the dense path; ctx.pc is stale after a local jump.
++             << "    std::uint32_t local_pc = ctx.pc;\n"
++             // `jr` lowering resets the dense entry id before re-dispatching; the
++             // sparse switch keys on local_pc, so the id is written but never read.
++             << "    [[maybe_unused]] std::uint32_t entry_id = 0u;\n"
+              << "LOCAL_DISPATCH:\n"
+-             << "    switch (ctx.pc) {\n";
++             << "    switch (local_pc) {\n";
+         for (const auto label : function.entry_labels) {
+             body << "    case " << psprecomp::hex32(label) << "u: goto L_"
+                  << psprecomp::hex32(label).substr(2) << ";\n";
