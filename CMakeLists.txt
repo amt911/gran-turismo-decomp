@@ -61,6 +61,7 @@ add_executable(gt_native
     host/diff_harness.cpp
     host/diff_compare.cpp
     host/probes.cpp
+    host/guest_call.cpp
     host/psmf.cpp
     host/psmf_hle.cpp
     host/ps_demux.cpp
@@ -92,3 +93,7 @@ add_test(NAME ps_demux COMMAND ps_demux_tests)
 add_executable(pgf_tests host/tests/pgf_test.cpp host/pgf.cpp)
 target_include_directories(pgf_tests PRIVATE host)
 add_test(NAME pgf COMMAND pgf_tests)
+add_executable(guest_call_tests host/tests/guest_call_test.cpp host/guest_call.cpp)
+target_include_directories(guest_call_tests PRIVATE host)
+target_link_libraries(guest_call_tests PRIVATE psprecomp_core)
+add_test(NAME guest_call COMMAND guest_call_tests)

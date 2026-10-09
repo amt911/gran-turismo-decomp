@@ -112,8 +112,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] `memcpy` (`0x375A88`, copia por bloques de 16 B reproducida), `memmove` (`0x375BAC`; el
       harness destapó que hacia atrás devuelve `dest + n`), `add_ref` del motor (`0x257A08`, primer
       código de juego). 32/32 casos (memmove 18/18), sabotajes detectados.
-- [ ] Funciones que llaman a otras (malloc/calloc/realloc en `0x331840-0x331EB8`): falta poder
-      llamar a código del juego desde código decompilado sin romper el planificador.
+- [x] Llamar a código del juego desde código decompilado: `gt::call_guest` (con tests; para si el
+      llamado cambia de hilo) + imports re-ejecutables en el harness (LwMutex, intr, dcache).
+      Primeras funciones no hoja: `malloc` (7/7, 5 no comparables por crecimiento del heap) y
+      `_malloc_r` (2/2). `calloc`/`realloc` no se llaman en lo alcanzado: siguen recompiladas.
 - [ ] Más libc/libm/libstdc++ estática alrededor de `0x331800-0x334000` y en otros bloques.
 - [ ] Subsistemas del juego, por orden de lo que desbloquea nombres (bindings de Adhoc, menús, sonido
       SGX, física).

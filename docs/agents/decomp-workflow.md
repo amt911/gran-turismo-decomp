@@ -50,6 +50,23 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
 - The boot check is green with the function swapped in.
 - The code compiles cleanly with the host compiler at the project's warning level — no new warnings.
 
+## Calling other guest functions from decompiled code
+
+`gt::call_guest(rt, ctx, address, {args…})` (`host/guest_call.hpp`) runs a recompiled — or already
+decompiled — guest function as a nested call and returns its `v0`. Rules:
+
+- **The callee must not block in the kernel** (switch PSP threads). A native C++ frame can't be
+  suspended the way recompiled code unwinds to the dispatcher, so a switch stops the runtime with a
+  message naming the call. Uncontended LwMutex locks are fine; anything that waits is not.
+- Arguments go in `a0-a3, t0-t3`; the callee's frame goes below the caller's `sp`. The caller keeps
+  its own state in C++ and gets only `v0` back.
+- The harness still compares such functions: an isolated original may call the **replay-safe
+  imports** (`gt::set_replay_safe_imports`: LwMutex lock/unlock, interrupt suspend/resume, data-cache
+  maintenance) because their state lives in guest RAM, which the harness snapshots and restores.
+  Any other import, or a thread switch, makes the case "not comparable".
+- A function the reached game states never call can't be compared, so it stays recompiled (e.g.
+  `calloc`/`realloc`, `src/libc/malloc.cpp`).
+
 ## Interop with guest memory — open, decided in the Phase 3 spec
 
 Decompiled code runs next to recompiled code that keeps every game object in **guest memory** (32-bit

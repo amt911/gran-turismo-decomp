@@ -21,9 +21,10 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   (`/usr/share/ppsspp/assets/flash0/font`, o `GT_FONT_DIR=…`).
 > - **Pendiente visible:** los textos del menú salen en blanco/vacíos; sin sonido (la música va
 >   "en silencio"); sin ventana (solo imágenes).
-> - **Decompilación (Fase 3-4):** 8 funciones decompiladas y probadas contra el original con el
->   harness diferencial (`memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`, `strchrnul` y
->   el contador de referencias del motor). Informe: `.venv/bin/python -m tools.progress`.
+> - **Decompilación (Fase 3-4):** 10 funciones decompiladas y probadas contra el original con el
+>   harness diferencial (`memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`, `strchrnul`,
+>   `malloc`, `_malloc_r` y el contador de referencias del motor); ya pueden llamar a otras funciones
+>   del juego. Informe: `.venv/bin/python -m tools.progress`.
 > - **Probarlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md). Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Qué hay y qué no

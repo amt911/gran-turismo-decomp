@@ -49,6 +49,7 @@ DecompMode g_mode = DecompMode::Off;
 unsigned g_cases = 16u;
 std::unordered_map<std::uint32_t, Entry> g_entries;
 std::unordered_set<std::uint32_t> g_import_stubs;
+std::unordered_set<std::uint32_t> g_replay_safe_imports;
 std::uint64_t g_imports = 0u;
 
 std::vector<std::uint8_t> snapshot_ram(const psprecomp::Runtime &rt) {
@@ -77,15 +78,18 @@ EndState end_state(const psprecomp::AllegrexContext &ctx, std::vector<std::uint8
 bool run_original_isolated(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, const Entry &entry) {
     ctx.gpr[31] = kSentinelReturn;
     ctx.pc = entry.info.address;
+    const std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
     for (std::uint64_t step = 0; ctx.pc != kSentinelReturn; ++step) {
-        if (step >= kMaxSteps || g_import_stubs.contains(ctx.pc) || rt.stopped()) return false;
+        const bool replay_safe = g_replay_safe_imports.contains(ctx.pc);
+        if (step >= kMaxSteps || (g_import_stubs.contains(ctx.pc) && !replay_safe) || rt.stopped()) return false;
         const auto decompiled = g_entries.find(ctx.pc);  // nested calls run originals, not the harness
         const auto fn = decompiled != g_entries.end() ? decompiled->second.original : rt.function_at(ctx.pc);
         if (fn == nullptr) return false;
         const std::uint64_t imports_before = g_imports;
         fn(rt, ctx);
         ctx.gpr[0] = 0u;
-        if (g_imports != imports_before) return false;
+        if (g_imports != imports_before && !replay_safe) return false;
+        if (!psprecomp::runtime_thread_switch_generation_matches(generation)) return false;
     }
     return true;
 }
@@ -168,6 +172,7 @@ bool parse_decomp_mode(std::string_view text, DecompMode &mode) {
 }
 
 void set_import_stubs(std::unordered_set<std::uint32_t> stubs) { g_import_stubs = std::move(stubs); }
+void set_replay_safe_imports(std::unordered_set<std::uint32_t> stubs) { g_replay_safe_imports = std::move(stubs); }
 
 void note_import() noexcept { ++g_imports; }
 
