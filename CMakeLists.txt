@@ -62,3 +62,9 @@ add_executable(gt_native
 )
 target_include_directories(gt_native PRIVATE host "${GT_LCS_HOST_DIR}")
 target_link_libraries(gt_native PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG Threads::Threads)
+
+# Host unit tests (plain executables run by CTest): `ctest --test-dir build`.
+enable_testing()
+add_executable(host_tests host/tests/diff_compare_test.cpp host/diff_compare.cpp)
+target_include_directories(host_tests PRIVATE host)
+add_test(NAME diff_compare COMMAND host_tests)
