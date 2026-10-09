@@ -267,6 +267,14 @@ void install_hle(psprecomp::Runtime &runtime) {
         const std::uint32_t buffer = memory.load32(image + 20u);
         const pgf::Font &font = *load_font(open->second.index);
         const auto glyph = find_glyph(font, open->second.library, ctx.gpr[5]);
+        // GT_FONT_LOG=1: the first glyph image requests (format, position, buffer, clip).
+        static const bool log = std::getenv("GT_FONT_LOG") != nullptr;
+        static int logged = 0;
+        if (log && logged++ < 40)
+            std::cerr << "[font] glyph " << ctx.gpr[5] << " font " << open->second.index << " format " << format
+                      << " pos " << x0 << "," << y0 << " buffer " << buffer_width << "x" << buffer_height << " bpl "
+                      << bytes_per_line << " @" << std::hex << buffer << std::dec << " clip " << clip_x << ","
+                      << clip_y << " " << clip_w << "x" << clip_h << (glyph ? "" : " NO GLYPH") << "\n";
         if (!glyph || !memory.contains(buffer, bytes_per_line * static_cast<std::uint32_t>(buffer_height))) {
             ctx.set_gpr(2, 0u);
             return;

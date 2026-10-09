@@ -151,7 +151,19 @@ Al final imprime una línea `[decomp]` por función: casos comparados, iguales, 
 cuántos casos cambiaron memoria. Si alguna función difiere, el programa sale con código **2** y
 muestra la primera diferencia (registro o byte de RAM, con los argumentos de la llamada).
 `--decomp on` usa las versiones decompiladas en lugar de las originales; `off` (por defecto) no las
-toca.
+toca. Para que lleguen casos de más partes del juego, deja que llegue al menú:
+`GT_PAD="3300:START" build/gt_native --max-seconds 150 --decomp diff --decomp-cases 32`.
+
+**Progreso** (funciones decompiladas / total y bytes, juego y librerías por separado):
+
+```bash
+# una vez: lista de funciones según Ghidra (≈ 1 min, local, no se sube)
+systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
+  env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=3G \
+  tools/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless ghidra gt -process EBOOT.elf -noanalysis \
+  -readOnly -scriptPath tools/ghidra_scripts -postScript ExportFunctions.java $PWD/recomp/analysis/functions.tsv
+.venv/bin/python -m tools.progress
+```
 
 ## Atajo: todo de una vez
 
