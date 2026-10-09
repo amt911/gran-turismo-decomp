@@ -81,9 +81,18 @@ def first_divergence(a: Sequence[str], b: Sequence[str]) -> Divergence | None:
     return None
 
 
+def _normalise(call: str, logged: set[str]) -> str:
+    """PPSSPP names some import stubs with a suffix its call log omits
+    ("Importing scePowerSetClockFrequency350" vs "scePowerSetClockFrequency(...)")."""
+    if call in logged:
+        return call
+    stripped = call.rstrip("0123456789")
+    return stripped if stripped in logged else call
+
+
 def compare(ppsspp: Sequence[str], ours: Sequence[str]) -> Comparison:
     logged = set(ppsspp)
-    filtered = [c for c in ours if c in logged]
+    filtered = [n for n in (_normalise(c, logged) for c in ours) if n in logged]
     div = first_divergence(ppsspp, filtered)
     matched = div.index if div else min(len(ppsspp), len(filtered))
     return Comparison(matched=matched, divergence=div)

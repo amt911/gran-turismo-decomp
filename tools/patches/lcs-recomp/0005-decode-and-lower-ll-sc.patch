@@ -1,0 +1,40 @@
+diff --git a/include/psprecomp/decoder.hpp b/include/psprecomp/decoder.hpp
+index 2a896d0..4dcdf24 100644
+--- a/include/psprecomp/decoder.hpp
++++ b/include/psprecomp/decoder.hpp
+@@ -22,6 +22,7 @@ enum class OpcodeKind {
+     Syscall,
+     Vflush,
+     Vfpu,
++    Ll, Sc,  // load-linked / store-conditional (atomic sequences)
+     Unsupported,
+ };
+ 
+diff --git a/src/decoder.cpp b/src/decoder.cpp
+index 8a11aff..3beacdc 100644
+--- a/src/decoder.cpp
++++ b/src/decoder.cpp
+@@ -203,6 +203,8 @@ DecodedInstruction decode_allegrex(std::uint32_t word) {
+     case 0x21: d.kind = OpcodeKind::Lh; d.mnemonic = "lh"; break;
+     case 0x22: d.kind = OpcodeKind::Lwl; d.mnemonic = "lwl"; break;
+     case 0x23: d.kind = OpcodeKind::Lw; d.mnemonic = "lw"; break;
++    case 0x30: d.kind = OpcodeKind::Ll; d.mnemonic = "ll"; break;
++    case 0x38: d.kind = OpcodeKind::Sc; d.mnemonic = "sc"; break;
+     case 0x24: d.kind = OpcodeKind::Lbu; d.mnemonic = "lbu"; break;
+     case 0x25: d.kind = OpcodeKind::Lhu; d.mnemonic = "lhu"; break;
+     case 0x26: d.kind = OpcodeKind::Lwr; d.mnemonic = "lwr"; break;
+diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
+index 278562e..a2f94a1 100644
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -180,6 +180,10 @@ std::string emit_regular(const psprecomp::DecodedInstruction &d, std::uint32_t p
+     case psprecomp::OpcodeKind::Lwl: out << "    ctx.set_gpr(" << d.rt << ", rt.memory().aot_load_word_left(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "), " << reg(d.rt) << "));\n"; break;
+     case psprecomp::OpcodeKind::Lwr: out << "    ctx.set_gpr(" << d.rt << ", rt.memory().aot_load_word_right(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "), " << reg(d.rt) << "));\n"; break;
+     case psprecomp::OpcodeKind::Sw: out << "    rt.memory().aot_store32(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "), " << reg(d.rt) << ");\n"; break;
++    // ll/sc: guest threads run cooperatively on one host thread and never switch between an ll
++    // and its sc (no import/dispatch boundary inside the sequence), so the link always holds.
++    case psprecomp::OpcodeKind::Ll: out << "    ctx.set_gpr(" << d.rt << ", rt.memory().aot_load32(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << ")));\n"; break;
++    case psprecomp::OpcodeKind::Sc: out << "    rt.memory().aot_store32(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "), " << reg(d.rt) << ");\n    ctx.set_gpr(" << d.rt << ", 1u);\n"; break;
+     case psprecomp::OpcodeKind::Swl: out << "    rt.memory().aot_store_word_left(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "), " << reg(d.rt) << ");\n"; break;
+     case psprecomp::OpcodeKind::Swr: out << "    rt.memory().aot_store_word_right(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "), " << reg(d.rt) << ");\n"; break;
+     case psprecomp::OpcodeKind::Lh: out << "    ctx.set_gpr(" << d.rt << ", static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(rt.memory().aot_load16(" << reg(d.rs) << " + static_cast<std::uint32_t>(" << imm << "))))));\n"; break;

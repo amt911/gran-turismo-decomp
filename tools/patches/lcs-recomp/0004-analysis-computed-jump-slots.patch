@@ -1,0 +1,63 @@
+diff --git a/src/program_analysis.cpp b/src/program_analysis.cpp
+index 6442e69..74cf044 100644
+--- a/src/program_analysis.cpp
++++ b/src/program_analysis.cpp
+@@ -313,6 +313,44 @@ std::map<std::uint32_t, std::string> collect_initial_seeds(const Elf32Image &elf
+     return seeds;
+ }
+ 
++// Computed jumps into straight-line code ("Duff's device", e.g. GCC/hand-written memset tails):
++//   lui r, hi; addiu r, r, lo; subu|addu r, r, x; jr r
++// land on base -/+ 4*k inside the same function. No pointer or relocation names those slots, so
++// each one is queued as a block entry; otherwise the dispatcher rejects the jump at run time.
++void enqueue_computed_jump_targets(std::uint32_t jr_pc, std::uint32_t reg, const GuestMemory &memory,
++                                   const std::vector<ExecutableRange> &ranges,
++                                   std::set<std::uint32_t> &queued_blocks,
++                                   std::deque<std::uint32_t> &pending_blocks) {
++    constexpr std::uint32_t kLookBack = 6u;
++    constexpr std::uint32_t kMaxSlots = 64u;
++    bool have_hi = false, have_lo = false;
++    std::uint32_t hi = 0u, lo = 0u;
++    int direction = 0;
++    for (std::uint32_t back = 1u; back <= kLookBack && jr_pc >= back * 4u; ++back) {
++        const auto d = decode_allegrex(memory.load32(jr_pc - back * 4u));
++        if (d.is_control_flow()) break;
++        if (direction == 0 && (d.kind == OpcodeKind::Subu || d.kind == OpcodeKind::Addu) &&
++            d.rd == reg && d.rs == reg) {
++            direction = d.kind == OpcodeKind::Subu ? -1 : 1;
++        } else if (!have_lo && d.kind == OpcodeKind::Addiu && d.rt == reg && d.rs == reg) {
++            lo = static_cast<std::uint32_t>(static_cast<std::int32_t>(d.immediate));
++            have_lo = true;
++        } else if (d.kind == OpcodeKind::Lui && d.rt == reg) {
++            hi = static_cast<std::uint32_t>(static_cast<std::uint16_t>(d.immediate)) << 16u;
++            have_hi = true;
++            break;
++        }
++    }
++    if (!have_hi || !have_lo || direction == 0) return;
++    const std::uint32_t base = hi + lo;
++    for (std::uint32_t slot = 0u; slot < kMaxSlots; ++slot) {
++        const std::uint32_t target = direction < 0 ? base - slot * 4u : base + slot * 4u;
++        if (!is_executable_address(ranges, target) || target <= jr_pc + 4u) break;
++        if (slot > 0u && decode_allegrex(memory.load32(target)).is_control_flow()) break;
++        if (queued_blocks.insert(target).second) pending_blocks.push_back(target);
++    }
++}
++
+ FunctionAnalysis analyze_function(std::uint32_t entry,
+                                   const GuestMemory &memory,
+                                   const std::vector<ExecutableRange> &ranges,
+@@ -389,7 +427,12 @@ FunctionAnalysis analyze_function(std::uint32_t entry,
+                 break;
+             }
+ 
+-            if (decoded.kind == OpcodeKind::Jr) break;
++            if (decoded.kind == OpcodeKind::Jr) {
++                if (decoded.rs != 31u) {
++                    enqueue_computed_jump_targets(pc, decoded.rs, memory, ranges, queued_blocks, pending_blocks);
++                }
++                break;
++            }
+ 
+             pc += decoded.has_delay_slot() ? 8u : 4u;
+         }

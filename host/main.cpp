@@ -35,6 +35,7 @@ struct Options {
     std::uint64_t max_dispatches = std::numeric_limits<std::uint64_t>::max();
     double max_seconds = 0.0;
     std::filesystem::path trace;  // import-call trace for tools/trace_compare.py; empty = off
+    std::uint64_t trace_limit = 200'000u;  // lines written; later calls are only counted
 };
 
 // Import trace: one line per import call, "<index> 0x<stub address>", in call order. The stub
@@ -42,12 +43,15 @@ struct Options {
 // without an external NID database. Plain globals because the observer is a function pointer.
 std::FILE *g_trace = nullptr;
 std::uint64_t g_trace_index = 0u;
+std::uint64_t g_trace_limit = 0u;
 std::map<std::pair<std::string, std::uint32_t>, std::uint32_t, std::less<>> g_stub_by_import;
 
 void trace_import(std::string_view library, std::uint32_t nid) {
     const auto it = g_stub_by_import.find(std::pair<std::string, std::uint32_t>(std::string(library), nid));
     const std::uint32_t stub = it != g_stub_by_import.end() ? it->second : 0u;
-    std::fprintf(g_trace, "%llu 0x%08x\n", static_cast<unsigned long long>(g_trace_index++), stub);
+    if (g_trace_index < g_trace_limit)
+        std::fprintf(g_trace, "%llu 0x%08x\n", static_cast<unsigned long long>(g_trace_index), stub);
+    ++g_trace_index;
 }
 
 Options parse_options(int argc, char **argv) {
@@ -60,6 +64,7 @@ Options parse_options(int argc, char **argv) {
         else if (arg == "--max-dispatches" && has_value) options.max_dispatches = std::strtoull(argv[++i], nullptr, 0);
         else if (arg == "--max-seconds" && has_value) options.max_seconds = std::strtod(argv[++i], nullptr);
         else if (arg == "--trace" && has_value) options.trace = argv[++i];
+        else if (arg == "--trace-limit" && has_value) options.trace_limit = std::strtoull(argv[++i], nullptr, 0);
         else std::cerr << "gt_native: ignoring argument \"" << arg << "\"\n";
     }
     return options;
@@ -102,6 +107,7 @@ int main(int argc, char **argv) {
                 g_stub_by_import[{import.library, import.nid}] = import.stub_address;
             g_trace = std::fopen(options.trace.c_str(), "w");
             if (g_trace == nullptr) throw psprecomp::Error("cannot open trace file " + options.trace.string());
+            g_trace_limit = options.trace_limit;
             psprecomp::set_runtime_import_observer(&trace_import);
         }
         runtime.cpu().set_gpr(31, 0u);

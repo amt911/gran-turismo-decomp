@@ -72,3 +72,13 @@ def test_parse_ppsspp_log_accepts_symbolic_return_values(tmp_path: Path):
                    "I scePowerSetClockFrequency(333,333,166)\n")
     assert parse_ppsspp_log(log) == ["sceKernelGetModuleId", "sceKernelChangeThreadPriority",
                                      "scePowerSetClockFrequency"]
+
+
+def test_import_names_with_numeric_suffix_map_to_the_logged_call_name(tmp_path: Path):
+    log = tmp_path / "ppsspp.log"
+    log.write_text("D Importing scePowerSetClockFrequency350 : 08c7af70\n"
+                   "I scePowerSetClockFrequency(333,333,166)\n")
+    trace = tmp_path / "gt.trace"
+    trace.write_text("0 0x08c7af70\n")
+    ours = parse_gt_trace(trace, parse_ppsspp_imports(log))
+    assert compare(parse_ppsspp_log(log), ours).matched == 1

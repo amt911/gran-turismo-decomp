@@ -2043,6 +2043,45 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
     runtime.register_hle("ThreadManForUser", 0x6652B8CAu,  // sceKernelSetAlarm: accepted, not fired yet
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, static_cast<std::uint32_t>(g_next_fake_uid++)); });
 
+    runtime.register_hle("ThreadManForUser", 0x17C1684Eu,  // sceKernelReferThreadStatus(uid, info)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            // SceKernelThreadInfo (pspsdk layout, 0x68 bytes). PPSSPP never logs this call, so the
+            // fields follow the SDK definition; uid 0 means the calling thread.
+            const auto requested = static_cast<std::int32_t>(ctx.gpr[4]);
+            const std::int32_t uid = requested == 0 ? thread_table.current_uid : requested;
+            const auto it = thread_table.threads.find(uid);
+            const std::uint32_t info = ctx.gpr[5];
+            if (it == thread_table.threads.end()) { ctx.set_gpr(2, 0x80020198u); return; }
+            if (info == 0u || !rt.memory().contains(info, 0x68u)) { ctx.set_gpr(2, 0x800200D3u); return; }
+            const std::uint32_t size = std::min<std::uint32_t>(rt.memory().load32(info), 0x68u);
+            if (size < 0x54u) { ctx.set_gpr(2, 0x800200D2u); return; }
+            const ThreadRecord &thread = it->second;
+            std::uint32_t status = 0x10u;  // DORMANT: created and not started, or finished
+            switch (thread.state) {
+            case ThreadState::Running: status = 0x01u; break;
+            case ThreadState::Ready: status = 0x02u; break;
+            case ThreadState::Sleeping:
+            case ThreadState::Delayed:
+            case ThreadState::IoDeferred: status = 0x04u; break;
+            case ThreadState::Created:
+            case ThreadState::Completed: status = 0x10u; break;
+            }
+            rt.memory().zero(info + 4u, size - 4u);
+            for (std::size_t i = 0; i < thread.name.size() && i < 31u; ++i)
+                rt.memory().store8(info + 0x04u + static_cast<std::uint32_t>(i), static_cast<std::uint8_t>(thread.name[i]));
+            rt.memory().store32(info + 0x24u, thread.attributes);
+            rt.memory().store32(info + 0x28u, status);
+            rt.memory().store32(info + 0x2Cu, thread.entry);
+            rt.memory().store32(info + 0x30u, thread.stack_bottom);
+            rt.memory().store32(info + 0x34u, thread.stack_size);
+            rt.memory().store32(info + 0x38u, ctx.gpr[28]);  // one module: every thread shares $gp
+            rt.memory().store32(info + 0x3Cu, thread.priority);
+            rt.memory().store32(info + 0x40u, thread.priority);
+            rt.memory().store32(info + 0x4Cu, thread.wakeup_count);
+            rt.memory().store32(info + 0x50u, thread.exit_status);
+            set_success(ctx);
+        });
+
     // --- Kernel_Library: lightweight mutexes and interrupt masking (user-mode on hardware) ---
     auto lwmutex_try = [](psprecomp::Runtime &rt, std::uint32_t work, std::int32_t count) -> bool {
         const auto held = static_cast<std::int32_t>(rt.memory().load32(work + 0u));
@@ -2113,6 +2152,11 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
         });
     runtime.register_hle("scePower", 0xFDB5BFE9u,  // scePowerGetCpuClockFrequencyInt
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 333u); });
+    runtime.register_hle("scePower", 0xEBD177D6u,  // scePowerSetClockFrequency(pll, cpu, bus)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            // PPSSPP's trace: the caller sleeps ~150 ms (idle thread runs) and then continues.
+            (void)delay_current_thread(rt, ctx, 150'000u, 0u);
+        });
     auto succeed = [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { set_success(ctx); };
     runtime.register_hle("sceUtility", 0x2A2B3DE0u, succeed);       // sceUtilityLoadModule
     runtime.register_hle("sceUtility", 0xE49BFE92u, succeed);       // sceUtilityUnloadModule
@@ -2122,6 +2166,10 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
     runtime.register_hle("sceHprm", 0x7E69EDA4u, succeed);          // sceHprmIsHeadphoneExist -> 0 (no)
     runtime.register_hle("sceSasCore", 0xE175EF66u, succeed);       // __sceSasGetOutputmode -> 0 (stereo)
     runtime.register_hle("sceAtrac3plus", 0x132F1ECAu, succeed);    // sceAtracReinit
+    // Data-cache maintenance by range: guest memory has no cache here, so these are no-ops (PPSSPP: 0).
+    runtime.register_hle("UtilsForUser", 0xBFA98062u, succeed);     // sceKernelDcacheInvalidateRange
+    runtime.register_hle("UtilsForUser", 0x3EE30821u, succeed);     // sceKernelDcacheWritebackRange
+    runtime.register_hle("UtilsForUser", 0x34B9FA9Eu, succeed);     // sceKernelDcacheWritebackInvalidateRange
     runtime.register_hle("sceUmdUser", 0x340B7686u,  // sceUmdGetDiscInfo(info): type 0x10 = game UMD
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             if (rt.memory().contains(ctx.gpr[4], 8u)) rt.memory().store32(ctx.gpr[4] + 4u, 0x10u);
@@ -3457,6 +3505,20 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 rt.memory().store8(sample + 11u, 128u);
                 rt.memory().zero(sample + 12u, 4u);
             }
+            // GT: the pad is sampled once per vblank (~16,667 us); a second read by the same thread
+            // inside one sample period blocks until the next sample (PPSSPP: "ctrl buffer waited").
+            // Without this a GT thread polls in a tight loop and starves every other thread.
+            constexpr std::uint64_t kSamplePeriodUs = 16'667u;
+            static std::unordered_map<std::int32_t, std::uint64_t> last_period;
+            const std::uint64_t period = virtual_time_us / kSamplePeriodUs;
+            auto [seen, fresh] = last_period.try_emplace(thread_table.current_uid, period);
+            if (!fresh && seen->second >= period) {
+                seen->second = period + 1u;
+                const auto wait_us = static_cast<std::uint32_t>((period + 1u) * kSamplePeriodUs - virtual_time_us);
+                (void)delay_current_thread(rt, ctx, wait_us, count);
+                return;
+            }
+            seen->second = period;
             ctx.set_gpr(2, count);
         });
 
