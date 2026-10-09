@@ -49,12 +49,13 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavformat libavutil libswresample libswscale)
 find_package(Threads REQUIRED)
 
-# The kernel/IO/media HLE is lcs-recomp's profile, compiled from the pinned checkout (MIT, not
+# Kernel/IO/media HLE: host/gt_kernel.cpp, our copy of lcs-recomp's lcs_profile.cpp (MIT, notice kept)
+# extended for GT. SAS, media decoding and GE list walking compile from the pinned checkout (MIT, not
 # vendored). Rendering, audio output, window, menu and language hooks are headless stubs of ours.
 add_executable(gt_native
     host/main.cpp
     host/headless_backends.cpp
-    "${GT_LCS_HOST_DIR}/lcs_profile.cpp"
+    host/gt_kernel.cpp
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"
     "${GT_LCS_HOST_DIR}/lcs_media_decoder.cpp"
     "${GT_LCS_HOST_DIR}/lcs_ge_exec.cpp"
