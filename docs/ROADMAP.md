@@ -5,7 +5,8 @@ Estado de cada fase. Se actualiza **en el mismo cambio** que cierra o desbloquea
 implementarse.
 
 **Estrategia (decidida por el usuario el 2026-10-09):** el objetivo es la **decomp** — C/C++ legible
-que compila en otras plataformas. Los compiladores exactos de Sony no son públicos, así que no hay
+que compila en otras plataformas — y, a través de ella, **poder hacer mods**. La recompilación es un
+paso intermedio, no el producto. Los compiladores exactos de Sony no son públicos, así que no hay
 matching byte a byte: **estrategia B**, base recompilada con PSPRecomp + decompilación función a
 función verificada de forma diferencial. Detalle en `AGENTS.md` § Strategy.
 
@@ -63,5 +64,7 @@ Necesita spec (interoperabilidad con la memoria guest, formato de captura de cas
 ## Fase 5 — Más adelante
 
 - [ ] Sin parte recompilada: 100 % fuente decompilada.
+- [ ] **Mods**: cambios sobre la fuente decompilada (lógica, coches, circuitos, UI) sin tocar el
+      binario original; carga de datos modificados de `GT.VOL` con las herramientas de Nenkai.
 - [ ] Otras plataformas.
 - [ ] Pista de matching opcional si aparecen los compiladores exactos.

@@ -4,7 +4,9 @@ A decompilation of **Gran Turismo (PSP, 2009)**, European release **UCES-01245 v
 game executable (`EBOOT.BIN`, module `PDIAPP`) back into **readable C/C++ that compiles and runs on
 other platforms** (PC first). The goal is a decomp — source a person can read and change — not a
 byte-identical rebuild; correctness is proven **differentially** against the original code (see
-*Strategy*). Personal research project by Andrés; no game data is ever stored in the repo.
+*Strategy*). **The end goal is moddability**: source with real names, types and structure that a
+person can change to add mods. The recompiler is an intermediate step towards that, never the
+product. Personal research project by Andrés; no game data is ever stored in the repo.
 
 **This file is `AGENTS.md`, read by every agent.** Codex reads it directly; Claude Code reads
 `CLAUDE.md`, which only imports it. Edit rules here (or in their `docs/agents/` document), never in
@@ -231,8 +233,10 @@ compiles on other platforms, so byte-matching is not the gate. Instead:
    and a **matching track** if the exact compilers ever surface: `psp-gcc-1.7.1` already reproduces some
    functions byte for byte, so matching stays possible per function as extra evidence, never as the gate.
 
-**The goal is the decomp.** The recompiler is scaffolding: the measure of progress is decompiled,
-gate-passing source, never "it runs". A phase whose design is still open (the interop between
+**The goal is the decomp, and through it mods** (user, 2026-10-09). The recompiler is scaffolding:
+the measure of progress is decompiled, gate-passing, *understandable* source — named functions,
+typed structs, known file boundaries — never "it runs". A choice that makes the game run sooner but
+leaves the code harder to read or change (e.g. patching recompiled output) is the wrong trade. A phase whose design is still open (the interop between
 decompiled code and guest memory, the capture format of the harness) gets its own spec before code.
 
 ## Repository layout (planned — create a directory in the phase that needs it)

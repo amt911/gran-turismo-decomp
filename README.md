@@ -2,7 +2,7 @@
 
 Decompilación de **Gran Turismo para PSP** (2009), versión europea **UCES-01245 v2.00**: reconstruir el
 ejecutable del juego (`EBOOT.BIN`, módulo `PDIAPP`) como **C/C++ legible que compila y corre en otras
-plataformas** (PC primero).
+plataformas** (PC primero), para poder **modificar el juego** desde su código fuente.
 
 Cómo: el ejecutable se traduce entero a C++ con [PSPRecomp](https://github.com/jessicanataliagta/PSPRecomp)
 para que el juego corra en PC desde el principio, y después cada función traducida se sustituye por
