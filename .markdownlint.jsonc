@@ -1,0 +1,23 @@
+// markdownlint config for this docs-only repo.
+// CI runs `markdownlint-cli` as an ADVISORY job (see .github/workflows/ci.yml); this file makes
+// that signal meaningful by turning off the rules that fight the repo's deliberate conventions,
+// so what remains is a real finding rather than noise.
+{
+  "default": true,
+
+  // Prose wraps around 100 cols, but tables and pasteable commands legitimately run longer and
+  // must not be broken up. Enforcing a hard width here would flag ~500 intentional lines.
+  "MD013": false,
+
+  // The templates carry `<angle-bracket>` fill-in placeholders on purpose (see CLAUDE.md).
+  // Markdown parses them as inline HTML, so this rule fires on every placeholder.
+  "MD033": false,
+
+  // Same root cause as MD033: a heading that is only a placeholder (`### <Card>`) parses as empty,
+  // so two distinct placeholder headings look like duplicates to the linter.
+  "MD024": false,
+
+  // Tables use compact pipes; padding every cell to align with the header is unmaintainable in
+  // documents whose cells hold sentences.
+  "MD060": false
+}

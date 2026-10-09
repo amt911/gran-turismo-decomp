@@ -1,0 +1,80 @@
+# Reverse engineering — REA, Ghidra, PPSSPP, and names
+
+> Part of `AGENTS.md`, kept in its own file so `AGENTS.md` fits the 32 KiB Codex reads by
+> default. Its rules bind all the same: `AGENTS.md` lists the hard ones in *Rules by topic* and
+> says when to read this file. Edit the rule here, not a copy of it.
+
+## The target you open
+
+Always the **decrypted ELF** (`extracted/EBOOT.elf`, SHA1 `8746583f…94b0`), never the encrypted
+`EBOOT.BIN` and never `BOOT.BIN` (zero-filled). Check the hash before trusting any analysis — a
+different file gives confident, wrong answers.
+
+## REA (MCP) — the default front-end
+
+- Invoke the **`reverse-engineer-anything`** skill first; it routes the question to the right tool.
+  For this target: `open_binary` with the absolute ELF path (Ghidra provider), then focused tools —
+  `search_strings`, `search_procedures`, `procedure_pseudo_code`, `procedure_assembly`, `xrefs`,
+  `procedure_callers` / `procedure_callees`, `read_bytes`.
+- **Requires the Ghidra provider** — see `CLAUDE.md` (registration with `GHIDRA_INSTALL_DIR`) and
+  [toolchain](toolchain.md#ghidra--ghidra-allegrex) (ghidra-allegrex for Allegrex/VFPU/PRX). Without
+  ghidra-allegrex, treat any VFPU region and any relocation-dependent pointer as unknown.
+- **Summary first, then focused follow-ups**; never repeat an identical call. Big results
+  (`binary_session` is ~200 KB) are read with `jq` from the saved file, never inline.
+- **Every conclusion separates observation, inference and unknown**, and cites the REA Evidence IDs.
+  Pseudocode is an analysis artifact, not source.
+- **Annotations made in REA** (`set_address_name`, `annotate_native_function`) are session state. What
+  is worth keeping goes to `config/symbol_addrs.txt` with its evidence; the REA session is disposable.
+- **One open binary per session, `close_binary` when done.** The Ghidra JVM REA starts is outside any
+  `systemd-run` scope you create — see `AGENTS.md` § memory cgroup.
+
+## Ghidra directly
+
+For long interactive sessions (struct editing, data types), Ghidra with ghidra-allegrex. The Ghidra
+project (`ghidra/`, gitignored) is an **exclusive resource**: one process holds its lock. Export what
+matters (names, types) to the repo's text files; the `.gpr`/`.rep` is never the source of truth.
+
+## Addresses — two spaces, one offset
+
+- **ELF vaddr (base 0)** — what splat, the linker and the matching build use; FACTS uses it; the build
+  reproduces the file's unrelocated bytes, so it links at 0. *(Decision proposed for the Phase 3 spec.)*
+- **Runtime address** — what PPSSPP, cheat databases and Ghidra-with-base-`0x08804000` show:
+  `runtime = vaddr + load_base`. `load_base` is **expected** to be `0x08804000` (first user module) —
+  **verify it in PPSSPP** once and record it in FACTS before converting any external address.
+- Always say which space an address is in when you write it down.
+
+## Naming — a name needs evidence
+
+A name is a claim. Acceptable evidence, strongest first:
+
+1. **Import NIDs** — `.rodata.sceNid` + `.lib.stub` resolve to Sony function names through psplibdoc;
+   these are exact.
+2. **Strings the code uses** — assert messages, log formats, file names (`adhoc_system.cpp`,
+   `MMenuGameObjectManager.cpp`, `sgx*.c` are in the binary).
+3. **Adhoc bindings** — the native side registers functions the scripts call; OpenAdhoc's script
+   source gives their names. *(Hypothesis to confirm on the first binding table found.)*
+4. **Matched neighbours** — a callee whose role is fixed by its matched callers.
+5. **Runtime observation** in PPSSPP (what changes when it runs).
+
+Format in `config/symbol_addrs.txt` *(planned)*: one symbol per line with a trailing comment holding the
+evidence, e.g. `sceKernelDelayThread = 0x004768A0; // NID 0xCEADEB47 (psplibdoc)` (illustrative line,
+address not real). Unknowns keep splat's `func_XXXXXXXX` / `D_XXXXXXXX`.
+
+## External sources — useful, not authoritative
+
+- **Nenkai's GT Modding Hub** (<https://nenkai.github.io/gt-modding-hub/builds/gtpsp/>): GT PSP is a
+  stripped GT5-branch engine (`gt5m`), little-endian formats, single EBOOT, "next to no leftover debug
+  functionality".
+- **OpenAdhoc** (<https://github.com/Nenkai/OpenAdhoc>): script-side source, 100 % for GT PSP.
+- **GTAdhocToolchain** (<https://github.com/Nenkai/GTAdhocToolchain>): Adhoc bytecode v12 compiler and
+  disassembler.
+- **CWCheat/PPSSPP patches** for UCES01245 exist (hub) — runtime addresses, convert before use.
+- **Other LLMs, forums, press** — leads only. The binary decides; a claim enters FACTS after it has been
+  checked against our ELF.
+
+## PPSSPP — the runtime oracle
+
+Not installed yet. Use: `PPSSPPHeadless --debugger=<port>` (websocket debugger, breaks at start) or the
+GUI with "Allow remote debugger". Feed it the user's ISO from `game_files/`, never a copy inside the
+repo. A PPSSPP instance is an exclusive resource (one agent per instance/port). Details of runtime
+checks: [runtime verification](runtime-verification.md).
