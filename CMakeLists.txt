@@ -61,6 +61,10 @@ add_executable(gt_native
     host/diff_harness.cpp
     host/diff_compare.cpp
     host/probes.cpp
+    host/psmf.cpp
+    host/psmf_hle.cpp
+    host/ps_demux.cpp
+    host/movie_decoder.cpp
     ${GT_DECOMP_SOURCES}
     host/headless_backends.cpp
     host/gt_kernel.cpp
@@ -77,3 +81,9 @@ enable_testing()
 add_executable(host_tests host/tests/diff_compare_test.cpp host/diff_compare.cpp)
 target_include_directories(host_tests PRIVATE host)
 add_test(NAME diff_compare COMMAND host_tests)
+add_executable(psmf_tests host/tests/psmf_test.cpp host/psmf.cpp)
+target_include_directories(psmf_tests PRIVATE host)
+add_test(NAME psmf COMMAND psmf_tests)
+add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
+target_include_directories(ps_demux_tests PRIVATE host)
+add_test(NAME ps_demux COMMAND ps_demux_tests)

@@ -29,6 +29,8 @@
 #include "lcs_frame_limit.hpp"
 #include "lcs_lang.hpp"
 #include "lcs_menu.hpp"
+#include "psmf_hle.hpp"
+#include "movie_decoder.hpp"
 
 #include "psprecomp/common.hpp"
 
@@ -252,7 +254,17 @@ struct FileTable {
     std::unordered_map<std::string, VirtualDiscFile> virtual_files_by_path;
     std::map<std::uint32_t, std::string> virtual_path_by_sector;
     std::unordered_map<std::int32_t, VirtualDiscHandle> virtual_disc_handles;
+    std::unordered_map<std::int32_t, std::filesystem::path> native_paths;  // GT: plain files
 };
+
+// GT: its movies live inside GT.VOL, not as loose .PMF files. Each sceIoRead that brings a PSMF
+// header into guest memory is remembered (destination -> file, offset), so sceMpeg can decode the
+// movie straight from the archive through FFmpeg's subfile protocol.
+struct PsmfReadOrigin {
+    std::filesystem::path file;
+    std::uint64_t offset{};
+};
+std::unordered_map<std::uint32_t, PsmfReadOrigin> psmf_read_origins;
 
 ThreadTable thread_table;
 PartitionTable partition_table;
@@ -415,6 +427,9 @@ struct MpegContextState {
     bool video_eof{};
     PmfAudioDecoder audio;
     std::filesystem::path audio_source;
+    // GT: no file to decode from (see source_path), so pictures are decoded from the packets the
+    // game puts in the ring buffer.
+    std::unique_ptr<gt::MovieDecoder> movie;
 };
 
 std::uint32_t read_be32(std::span<const std::uint8_t> bytes, std::size_t offset) {
@@ -524,8 +539,18 @@ bool open_video_decoder(MpegContextState &state) {
     return true;
 }
 
+// GT_MPEG_LOG=1: where each movie is decoded from, and why decoding stops.
+bool mpeg_log_enabled() {
+    static const bool enabled = std::getenv("GT_MPEG_LOG") != nullptr;
+    return enabled;
+}
+
 bool read_video_frame(MpegContextState &state, std::span<std::uint8_t> frame) {
-    if (!open_video_decoder(state)) return false;
+    if (!open_video_decoder(state)) {
+        if (mpeg_log_enabled())
+            std::cerr << "[mpeg] cannot open video source '" << state.source_path.string() << "'\n";
+        return false;
+    }
     if (state.video.read(frame) < frame.size()) {
         state.video_eof = true;
         return false;
@@ -1483,6 +1508,20 @@ void lcs_callback_return(psprecomp::Runtime &runtime, psprecomp::AllegrexContext
             const std::int32_t used = static_cast<std::int32_t>(memory.load32(frame.ring + 12u));
             const std::int32_t write_position =
                 static_cast<std::int32_t>(memory.load32(frame.ring + 8u));
+            const std::uint32_t data = memory.load32(frame.ring + 20u);
+            const auto count = static_cast<std::uint32_t>(std::min(produced, packets - write_position));
+            const std::uint32_t first = data + static_cast<std::uint32_t>(write_position) * 2048u;
+            if (packets > 0 && write_position >= 0 && memory.contains(first, count * 2048u)) {
+                for (auto &[address, state] : mpeg_contexts) {
+                    if (state.ring_address != frame.ring || !state.source_path.empty()) continue;
+                    if (!state.movie) state.movie = std::make_unique<gt::MovieDecoder>();
+                    std::vector<std::uint8_t> packet(2048u);
+                    for (std::uint32_t i = 0; i < count; ++i) {
+                        memory.copy_out(first + i * 2048u, packet);
+                        state.movie->push_packet(packet);
+                    }
+                }
+            }
             if (packets > 0) {
                 memory.store32(frame.ring + 12u,
                                static_cast<std::uint32_t>(std::min(packets, used + produced)));
@@ -2213,6 +2252,18 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
     runtime.register_hle("sceAtrac3plus", 0x132F1ECAu, succeed);    // sceAtracReinit
     runtime.register_hle("sceMp3", 0x35750070u, succeed);           // sceMp3InitResource (PPSSPP: 0)
     runtime.register_hle("scePspNpDrm_user", 0xA1336091u, succeed); // sceNpDrmSetLicenseeKey (PPSSPP: 0)
+    gt::psmf::install_hle(runtime);
+    runtime.register_hle("sceMpeg", 0xA11C7026u, succeed);          // sceMpegAvcDecodeMode (PPSSPP: 0)
+    runtime.register_hle("sceMpeg", 0x4571CC64u, succeed);          // sceMpegAvcDecodeFlush (PPSSPP: 0)
+    runtime.register_hle("sceMpeg", 0xC02CF6B5u,  // sceMpegQueryPcmEsSize(mpeg, es_size, out_size)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            // PPSSPP's MPEG_PCM_ES_SIZE / MPEG_PCM_ES_OUTPUT_SIZE.
+            if (rt.memory().contains(ctx.gpr[5], 4u)) rt.memory().store32(ctx.gpr[5], 2112u);
+            if (rt.memory().contains(ctx.gpr[6], 4u)) rt.memory().store32(ctx.gpr[6], 320u);
+            set_success(ctx);
+        });
+    runtime.register_hle("sceMpeg", 0x8C1E027Du,  // sceMpegGetPcmAu: GT's movies carry no PCM stream
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 0x80618001u); });
     runtime.register_hle("sceWlanDrv", 0x0C622081u,  // sceWlanGetEtherAddr(u8 mac[6]) -> 0
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             // Fixed, locally administered MAC; no network is emulated.
@@ -3245,6 +3296,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                                 file_table.files.emplace(fd, std::move(stream));
                                 file_table.raw_sector_files.emplace(
                                     fd, RawSectorFile{0ull, disc_file->size});
+                                file_table.native_paths[fd] = disc_file->native_path;
                                 ctx.set_gpr(2, static_cast<std::uint32_t>(fd));
                                 return;
                             }
@@ -3271,6 +3323,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             }
             const auto fd = file_table.next_fd++;
             file_table.files.emplace(fd, std::move(stream));
+            file_table.native_paths[fd] = native;
             ctx.set_gpr(2, static_cast<std::uint32_t>(fd));
         });
 
@@ -3278,6 +3331,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
             const auto fd = static_cast<std::int32_t>(ctx.gpr[4]);
             file_table.raw_sector_files.erase(fd);
+            file_table.native_paths.erase(fd);
             if (file_table.virtual_disc_handles.erase(fd) == 1u) {
                 ctx.set_gpr(2, 0u);
                 return;
@@ -3303,6 +3357,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 }
                 const auto read = read_virtual_disc(virtual_handle->second,
                                                     std::span<std::uint8_t>(destination, size));
+
                 if (read != 0u) {
                     (void)defer_current_thread_for_io_handoff(
                         ctx, static_cast<std::uint32_t>(read));
@@ -3334,8 +3389,16 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             it->second.clear();
+            const auto read_position = static_cast<std::int64_t>(it->second.tellg());
             it->second.read(reinterpret_cast<char *>(guest_destination), static_cast<std::streamsize>(size));
             const auto read = static_cast<std::uint32_t>(it->second.gcount());
+            if (read >= 4u && std::memcmp(guest_destination, "PSMF", 4u) == 0 && read_position >= 0) {
+                if (const auto path = file_table.native_paths.find(fd); path != file_table.native_paths.end())
+                    psmf_read_origins[dst] = PsmfReadOrigin{path->second, static_cast<std::uint64_t>(read_position)};
+                if (mpeg_log_enabled())
+                    std::cerr << "[mpeg] PSMF header read into " << psprecomp::hex32(dst) << " (fd " << fd
+                              << ", offset " << read_position << ")\n";
+            }
             ctx.set_gpr(2, read);
         });
 
@@ -4052,6 +4115,16 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                         state->second.source_path =
                             find_pmf_on_disc(rt.translate_path("disc0:/"), header);
                     }
+                    if (const auto origin = psmf_read_origins.find(buffer);
+                        state->second.source_path.empty() && origin != psmf_read_origins.end()) {
+                        const std::uint64_t end = origin->second.offset + header.stream_offset +
+                            static_cast<std::uint64_t>(header.stream_size);
+                        state->second.source_path = "subfile,,start," + std::to_string(origin->second.offset) +
+                            ",end," + std::to_string(end) + ",,:" + origin->second.file.string();
+                    }
+                    if (mpeg_log_enabled())
+                        std::cerr << "[mpeg] stream at " << psprecomp::hex32(buffer) << " -> '"
+                                  << state->second.source_path.string() << "'\n";
                 }
             }
             rt.memory().store32(output, header.stream_offset);
@@ -4614,6 +4687,9 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             if (attributes != 0u && rt.memory().contains(attributes, 4u))
                 rt.memory().store32(attributes, 1u);
             ++state->second.video_au_count;
+            if (mpeg_log_enabled() && state->second.video_au_count % 600u == 1u)
+                std::cerr << "[mpeg] video AU " << state->second.video_au_count << " of "
+                          << mpeg_au_limit(state->second) << "\n";
             set_success(ctx);
         });
 
@@ -4678,6 +4754,32 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             std::vector<std::uint8_t> frame(source_stride * header.height);
+            if (state->second.source_path.empty()) {
+                // GT: the movie bytes in GT.VOL are scrambled and only descrambled in guest memory, so
+                // there is no file to decode from: decode the packets the game put in the ring buffer.
+                // When they don't complete a picture yet, the previous one stays on screen.
+                MpegContextState &mpeg = state->second;
+                std::uint32_t width = 0u, height = 0u, consumed = 0u;
+                const bool decoded = mpeg.movie && mpeg.movie->next_frame(frame, width, height, consumed);
+                const std::uint32_t ring = mpeg.ring_address;
+                if (consumed != 0u && rt.memory().contains(ring, 48u)) {
+                    const std::uint32_t used = rt.memory().load32(ring + 12u);
+                    rt.memory().store32(ring + 12u, used > consumed ? used - consumed : 0u);
+                }
+                if (decoded) {
+                    const std::uint32_t rows = std::min(height, header.height);
+                    const std::size_t row_bytes = static_cast<std::size_t>(std::min(width, header.width)) * 4u;
+                    for (std::uint32_t y = 0u; y < rows; ++y)
+                        rt.memory().copy_in(destination + static_cast<std::uint32_t>(y * destination_stride),
+                                            std::span<const std::uint8_t>(frame.data() + y * width * 4u, row_bytes));
+                } else if (mpeg_log_enabled()) {
+                    std::cerr << "[mpeg] no picture yet (" << (mpeg.movie ? mpeg.movie->queued_packets() : 0u)
+                              << " packets queued)\n";
+                }
+                rt.memory().store32(status_pointer, 1u);
+                set_success(ctx);
+                return;
+            }
             if (!read_video_frame(state->second, frame)) {
                 rt.memory().store32(status_pointer, 0u);
                 ctx.set_gpr(2, 0x80628002u);

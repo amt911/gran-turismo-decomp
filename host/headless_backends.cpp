@@ -18,13 +18,67 @@
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace lcs {
 
-// --- window and input: no window; never closed; no buttons pressed, analog stick centred ---
+// --- window and input: no window; never closed; analog stick centred. Buttons come only from
+// GT_PAD="<vblank>:<BUTTON>[,...]" (e.g. "2700:START,3000:CROSS"): each press is held for 6 vblanks,
+// counted from the first vblank wait ---
+namespace {
+
+std::uint64_t g_vblanks = 0u;
+
+struct PadPress {
+    std::uint64_t vblank;
+    std::uint32_t buttons;
+};
+
+std::uint32_t pad_button(const std::string &name) {
+    static const std::pair<const char *, std::uint32_t> kButtons[] = {
+        {"SELECT", 0x0001u}, {"START", 0x0008u}, {"UP", 0x0010u}, {"RIGHT", 0x0020u},
+        {"DOWN", 0x0040u}, {"LEFT", 0x0080u}, {"L", 0x0100u}, {"R", 0x0200u},
+        {"TRIANGLE", 0x1000u}, {"CIRCLE", 0x2000u}, {"CROSS", 0x4000u}, {"SQUARE", 0x8000u},
+    };
+    for (const auto &[label, bit] : kButtons)
+        if (name == label) return bit;
+    std::fprintf(stderr, "GT_PAD: unknown button '%s'\n", name.c_str());
+    return 0u;
+}
+
+const std::vector<PadPress> &pad_script() {
+    static const std::vector<PadPress> script = [] {
+        std::vector<PadPress> presses;
+        const char *text = std::getenv("GT_PAD");
+        if (text == nullptr) return presses;
+        std::string item;
+        for (const char *c = text;; ++c) {
+            if (*c == ',' || *c == '\0') {
+                const auto colon = item.find(':');
+                if (colon != std::string::npos)
+                    presses.push_back({std::strtoull(item.c_str(), nullptr, 10), pad_button(item.substr(colon + 1u))});
+                item.clear();
+                if (*c == '\0') break;
+            } else {
+                item.push_back(*c);
+            }
+        }
+        return presses;
+    }();
+    return script;
+}
+
+} // namespace
+
 bool display_window_closed() { return false; }
-HostInputState display_window_input() { return {}; }
-void display_window_pump() {}
+HostInputState display_window_input() {
+    HostInputState state{};
+    for (const PadPress &press : pad_script())
+        if (g_vblanks >= press.vblank && g_vblanks < press.vblank + 6u) state.buttons |= press.buttons;
+    return state;
+}
+void display_window_pump() { ++g_vblanks; }
 // GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N, default 60): every Nth presented frame is written as
 // <dir>/frame_NNNNNN.ppm from the guest display framebuffer. The images are game output: keep the
 // directory out of git (recomp/ is ignored).

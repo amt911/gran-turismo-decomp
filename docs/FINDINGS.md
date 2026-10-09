@@ -35,6 +35,21 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Intro movie: FFmpeg can't open GT's movies from GT.VOL — the bytes there are scrambled
+
+**Symptom.** `sceMpegAvcDecode` fails forever after the GT logo; `GT_MPEG_LOG=1` shows no source.
+**Cause.** The LCS-derived sceMpeg decodes from a loose `.PMF` file matched by size. GT keeps its
+movies inside GT.VOL, and the 2 KiB `sceIoRead` that loads the PSMF header returns scrambled bytes
+(`38 4D 7B 81…`, not `PSMF`): the game descrambles them in guest memory before `scePsmfVerifyPsmf`.
+Also, LCS never released ring-buffer packets, so the game stopped feeding the ring after 1,024.
+**Fix / workaround.** Decode from what the game puts in the sceMpeg ring buffer: every packet the
+ring callback writes is copied to a host queue (`host/movie_decoder.cpp`), demuxed (MPEG-PS,
+`host/ps_demux.cpp`) and decoded with FFmpeg's H.264; packets are freed in the ring as they are used.
+**Why it isn't obvious.** The header read looks like any other 2 KiB read, and `scePsmfVerifyPsmf`
+then succeeds on the same buffer.
+
+Found: 2026-10-10 · runtime
+
 ### Render thread spins forever on `sceDisplayWaitVblankStartCB`, no frame ever set
 
 **Symptom.** Only one `sceGeListEnQueue`, then thread `PDI:00000005` calls
