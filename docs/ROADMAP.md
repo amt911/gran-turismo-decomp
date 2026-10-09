@@ -69,9 +69,13 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [x] `sceAtrac` completo para GT (`SetDataAndGetID`, `SetData`, `GetAtracID`, `GetNextSample`,
       `GetMaxSample`, `IsSecondBufferNeeded`). La música de GT.VOL está cifrada como los vídeos: hoy
       se "decodifica" silencio llevando toda la contabilidad (muestras, frames, bucles, streaming).
-- [ ] Pantalla de título: ~10 s después del logo GT, lectura de `NULL+4` en el texto localizado de un
-      widget (`MLocalizedText` sin componente, `+0x1e0`; vaddr `0x1865F8` → `0x24B5C0`). En el
-      original nunca es nulo. Aquí se para hoy (con o sin START).
+- [x] `sceLibFont` real: lector PGF propio (`host/pgf.cpp`, con tests) + HLE (`host/font_hle.cpp`)
+      con las fuentes del firmware del usuario (las de PPSSPP). Sin glifos, la maquetación de texto
+      leía un glifo nulo (`NULL+4`) en la pantalla de título (FINDINGS).
+- [x] **Menú principal alcanzado** (2026-10-10): título → menú con sus 8 iconos, minutos sin fallos.
+- [ ] Textos del menú en blanco: revisar `GetCharGlyphImage_Clip` / formato del atlas.
+- [ ] Ventana real (SDL/Vulkan) para jugar: necesita `sudo pacman -S vulkan-headers` (o un backend
+      SDL software).
 - [ ] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo.
 - [ ] `sceDisplaySetMode` espera un vblank en PPSSPP (divergencia nº 236 de la traza).
 

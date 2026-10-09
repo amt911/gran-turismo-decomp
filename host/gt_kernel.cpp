@@ -30,6 +30,7 @@
 #include "lcs_lang.hpp"
 #include "lcs_menu.hpp"
 #include "psmf_hle.hpp"
+#include "font_hle.hpp"
 #include "movie_decoder.hpp"
 
 #include "psprecomp/common.hpp"
@@ -2035,7 +2036,19 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
     runtime.register_hle("SysMemUserForUser", 0xFE707FDFu,  // sceKernelAllocMemoryBlock(name, type, size, opt)
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             const std::uint32_t address = alloc_memory_range(rt, ctx.gpr[6]);
-            if (address == 0u) { ctx.set_gpr(2, 0x80020190u); return; }
+            if (address == 0u) {
+                std::uint64_t free_total = 0u, largest = 0u;
+                for (const auto &range : g_free_memory_ranges) {
+                    free_total += range.size;
+                    largest = std::max<std::uint64_t>(largest, range.size);
+                }
+                std::cerr << "[mem] sceKernelAllocMemoryBlock(" << rt.memory().read_c_string(ctx.gpr[4], 32u)
+                          << ", type " << ctx.gpr[5] << ", " << psprecomp::hex32(ctx.gpr[6]) << ") failed: cursor "
+                          << psprecomp::hex32(partition_table.next_address) << ", " << g_free_memory_ranges.size()
+                          << " free ranges, " << free_total << " bytes free, largest " << largest << "\n";
+                ctx.set_gpr(2, 0x80020190u);
+                return;
+            }
             const std::int32_t uid = partition_table.next_uid++;
             g_memory_blocks.emplace(uid, MemoryBlock{address, (ctx.gpr[6] + 0xFFu) & ~0xFFu});
             ctx.set_gpr(2, static_cast<std::uint32_t>(uid));
@@ -2298,20 +2311,8 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
             set_success(ctx);
         });
 
-    // --- sceLibFont: no glyphs in headless 2a; handles and neutral results so boot proceeds ---
-    auto font_handle = [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
-        ctx.set_gpr(2, 0x09F90000u + static_cast<std::uint32_t>(g_next_fake_uid++) * 0x40u);
-    };
-    runtime.register_hle("sceLibFont", 0x67F17ED7u, font_handle);  // sceFontNewLib
-    runtime.register_hle("sceLibFont", 0xA834319Du, font_handle);  // sceFontOpen
-    runtime.register_hle("sceLibFont", 0x099EF33Cu,  // sceFontFindOptimumFont -> index 1 (as PPSSPP)
-        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 1u); });
-    runtime.register_hle("sceLibFont", 0x0DA7535Eu, succeed);  // sceFontGetFontInfo
-    runtime.register_hle("sceLibFont", 0xDCC80C2Fu, succeed);  // sceFontGetCharInfo
-    runtime.register_hle("sceLibFont", 0xCA1E6945u, succeed);  // sceFontGetCharGlyphImage_Clip
-    runtime.register_hle("sceLibFont", 0x02D7F94Bu, succeed);  // sceFontFlush
-    runtime.register_hle("sceLibFont", 0x3AEA8CB6u, succeed);  // sceFontClose
-    runtime.register_hle("sceLibFont", 0xEE232411u, succeed);  // sceFontSetAltCharacterCode
+    // --- sceLibFont: real glyphs from the user's PGF fonts (host/font_hle.cpp) ---
+    gt::font::install_hle(runtime);
 }
 
 } // namespace

@@ -65,6 +65,8 @@ add_executable(gt_native
     host/psmf_hle.cpp
     host/ps_demux.cpp
     host/movie_decoder.cpp
+    host/pgf.cpp
+    host/font_hle.cpp
     ${GT_DECOMP_SOURCES}
     host/headless_backends.cpp
     host/gt_kernel.cpp
@@ -87,3 +89,6 @@ add_test(NAME psmf COMMAND psmf_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
 target_include_directories(ps_demux_tests PRIVATE host)
 add_test(NAME ps_demux COMMAND ps_demux_tests)
+add_executable(pgf_tests host/tests/pgf_test.cpp host/pgf.cpp)
+target_include_directories(pgf_tests PRIVATE host)
+add_test(NAME pgf COMMAND pgf_tests)
