@@ -114,6 +114,25 @@ the line says otherwise.
 - lcs-recomp (the LCS port on PSPRecomp) builds on Linux with Vulkan, SDL2, FFmpeg. *(verified: its
   README, 2026-10-09)*
 
+## Phase 1 tooling (verified 2026-10-09)
+
+- `tools/setup.sh --with-ghidra`: first run ~18 s (543 MB Ghidra zip, SHA256 checked), second run
+  0.3 s with everything `up to date` / `cached`. *(verified: ran twice)*
+- `.venv` was created with **Python 3.13.15** (uv's pick), not the system 3.14. *(verified: pytest header)*
+- `.venv/bin/python -m tools.extract`: real dump → `extracted/EBOOT.elf` with SHA1 `8746583f…94b0`
+  in ~2 s; second run 0.04 s (skip path). `GT.VOL` is not extracted. *(verified: ran twice)*
+- pytest: 23 passed (incl. the real-dump test), tools coverage 89 %. *(verified: ran it)*
+- `rea doctor --provider ghidra` with `GHIDRA_INSTALL_DIR=tools/ghidra/ghidra_12.1.3_PUBLIC` and
+  `JAVA_HOME=/usr/lib/jvm/java-27-openjdk`: Ghidra 12.1.3 healthy, Java 27 accepted. *(verified: ran it)*
+- **REA 6.2.0 cannot open the EBOOT**: `analyze` → `target_unavailable` "unsupported ELF
+  architecture" in 7 ms, also with `e_type` patched to `EXEC`; `elfArchitecture()` in
+  `dist/domain/binaryTarget.js` admits only `e_machine` 3/62/40/183. *(verified: ran it + read the source)*
+- Ghidra 12.1.3 + ghidra-allegrex v21.4 headless on `extracted/EBOOT.elf`: loader **PSP Executable
+  (ELF)**, language **`Allegrex:LE:32:default`**, image base `0x00000000`, **23,208 functions**,
+  1,132,862 instructions, VFPU decoded (1,122 matches of `lv.`/`sv.`/`vmov`/`vadd`/`vmul`/`vscl`/`mtv`/
+  `mfv`), `adhoc_system.cpp` string at `0x4aea78`, `.text` `0x28` size `0x4767b4`. Total analysis
+  154 s; JVM inside the cgroup scope, ~1 GB RSS early in the run. *(verified: analyzeHeadless + `Phase1Probe.java`)*
+
 ## Environment (this machine)
 
 - Ghidra `12.1.2` at `/opt/ghidra` (Arch `extra` has nothing newer). ghidra-allegrex v21.4 ships only a

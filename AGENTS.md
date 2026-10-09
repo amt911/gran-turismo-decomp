@@ -267,14 +267,16 @@ The split between `src/`, `host/` and `recomp/` is the Phase 2/3 spec's to settl
 *(planned)* and must not be presented as working.
 
 ```bash
-# Phase 0 — verified on 2026-10-09 (manual steps, see docs/FACTS.md § Commands that work here)
-sha1sum "game_files/Gran Turismo (v2.0) [UCES-01245].iso"   # must print c84473375e…6a40
-7z x -oextracted/iso "game_files/<iso>" -x'!PSP_GAME/USRDIR/GT.VOL'
-pspdecrypt -o extracted/EBOOT.elf extracted/iso/PSP_GAME/SYSDIR/EBOOT.BIN
-sha1sum extracted/EBOOT.elf                                   # must print 8746583f…94b0
+# Phase 1 — verified on 2026-10-09
+tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idempotent (2nd run ~0.3 s)
+.venv/bin/python -m tools.extract       # ISO hash → 7z (no GT.VOL) → pspdecrypt → ELF hash; idempotent
+.venv/bin/pytest --cov --cov-fail-under=80   # tool tests (+ the real-dump test when the ISO is present)
+# Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):
+systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
+  env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=4G \
+  tools/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless ghidra gt -import extracted/EBOOT.elf \
+  -overwrite -max-cpu 4 -scriptPath tools/ghidra_scripts -postScript Phase1Probe.java
 
-# (planned) tools/setup.sh      fetch + build pinned tools into tools/bin, create .venv
-# (planned) tools/extract.sh    the four lines above, hash-checked, idempotent
 # (planned) recomp step         PSPRecomp over extracted/EBOOT.elf → recomp/ (GT profile)
 # (planned) cmake --build       game binary = recomp/ + src/ + host/
 # (planned) differential suite  run every decompiled function against its recompiled original
@@ -311,9 +313,11 @@ The detail (the loop, the harness, m2c, C++ specifics, the optional matching che
 
 Detail in [reverse engineering](docs/agents/reverse-engineering.md).
 
-- **Use REA** (`reverse-engineer-anything` skill + `rea` MCP) for binary questions: open the
-  **decrypted ELF**, never the encrypted EBOOT; cite its Evidence IDs; keep observations, inferences
-  and unknowns apart; close the session (`close_binary`) when done.
+- **REA cannot open the EBOOT** (REA 6.2.0 admits only x86/x86_64/ARM/ARM64 ELFs — FINDINGS). For
+  the game binary use **Ghidra 12.1.3 + ghidra-allegrex directly** (headless or GUI). Keep REA's
+  discipline anyway: observations, inferences and unknowns apart; cite where a claim came from. Use
+  REA (`reverse-engineer-anything` skill) for what it does admit, and re-check its ELF support on
+  each release.
 - **Ghidra needs ghidra-allegrex** for VFPU and PRX relocations; without it MIPS decoding of VFPU
   is wrong. Decompiler output is a reading aid for `src/`, never pasted as decompiled code.
 - **Static before runtime; runtime only to answer what static can't.** PPSSPP's debugger is the

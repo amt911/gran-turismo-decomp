@@ -3,9 +3,14 @@
     "rea": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "rea-agents@latest", "mcp"],
+      "args": [
+        "-y",
+        "rea-agents@latest",
+        "mcp"
+      ],
       "env": {
-        "GHIDRA_INSTALL_DIR": "${GHIDRA_INSTALL_DIR:-/opt/ghidra}"
+        "GHIDRA_INSTALL_DIR": "${GHIDRA_INSTALL_DIR:-/home/andres/repos/gran-turismo-decomp/tools/ghidra/ghidra_12.1.3_PUBLIC}",
+        "JAVA_HOME": "${JAVA_HOME_GHIDRA:-/usr/lib/jvm/java-27-openjdk}"
       }
     }
   }

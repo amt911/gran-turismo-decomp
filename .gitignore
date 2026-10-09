@@ -61,3 +61,5 @@ claude-md/
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+.superpowers/

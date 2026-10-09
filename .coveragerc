@@ -1,0 +1,3 @@
+[run]
+source = tools
+omit = tools/tests/*
