@@ -1350,6 +1350,16 @@ gt::libc::strlen = 0x08B35F60; // hand: src/libc/strlen.cpp
 gt::libc::strcmp = 0x08B35FD8; // hand: src/libc/strcmp.cpp
 gt::libc::memset = 0x08B36018; // hand: src/libc/memset.cpp
 gt::libc::memcmp = 0x08B36170; // hand: src/libc/memcmp.cpp
+gt::libc::sink_init = 0x08B36290; // hand: base of the printf sinks (vtable 0x08CDA878, +0x1C = 0); src/libc/printf.cpp
+gt::libc::sink_destroy = 0x08B362B8; // hand: base sink destructor (vtable reset only)
+gt::libc::parse_decimal = 0x08B362F0; // hand: (const char **) -> decimal, cursor advanced; the formatter's width/precision reader
+gt::libc::string_sink_init = 0x08B37314; // hand: (sink, buffer) vtable 0x08CDA898, +0x20 write pointer; vsprintf's sink
+gt::libc::string_sink_write = 0x08B373A8; // hand: (sink, data, n) memcpy + advance, returns n
+gt::libc::vsprintf = 0x08B373EC; // hand: string sink + formatter 0x08B36358 + NUL; the unbounded twin of vsnprintf
+gt::libc::bounded_sink_init = 0x08B3749C; // hand: (sink, buffer, size) vtable 0x08CDA8B8, +0x24 room left
+gt::libc::bounded_sink_write = 0x08B37540; // hand: copies what fits, -1 when it didn't
+gt::libc::vsnprintf = 0x08B375C8; // hand: bounded sink + formatter; -1 (no NUL) when the output didn't fit; snprintf's core
+gt::libc::sprintf = 0x08B37640; // hand: variadic front end of vsprintf (buf, fmt, ...)
 gt::libc::snprintf = 0x08B3767C; // hand: (buf, 0x80, "%s/%s/rtext.rt2", ...) call site
 gt::libc::bsearch = 0x08B77C14; // hand: (key, base, count, size, compare) binary search, returns match or 0
 gt::libc::memcpy = 0x08B79A88; // hand: src/libc/memcpy.cpp
