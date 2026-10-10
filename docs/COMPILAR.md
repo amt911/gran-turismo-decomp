@@ -16,6 +16,7 @@ Paquetes de Arch (los que ya tengas se saltan):
 
 ```bash
 sudo pacman -S --needed git curl unzip 7zip clang cmake ninja uv pkgconf ffmpeg openssl zlib
+sudo pacman -S --needed sdl2 vulkan-icd-loader glslang   # para jugar en ventana (gt_play)
 sudo pacman -S --needed ppsspp            # para la comparación (paso 6)
 sudo pacman -S --needed jdk21-openjdk     # solo si quieres Ghidra (setup.sh --with-ghidra); vale cualquier JDK >= 21
 ```

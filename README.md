@@ -56,9 +56,32 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 
 ## Empezar
 
-1. Pon tu ISO en `game_files/` (está en `.gitignore`).
-2. Sigue [`docs/COMPILAR.md`](docs/COMPILAR.md): herramientas, extracción, recompilación, compilación de
-   `gt_native`, ejecución y comparación con PPSSPP, paso a paso.
+Guía rápida (Arch Linux; detalle y otros usos en [`docs/COMPILAR.md`](docs/COMPILAR.md)):
+
+```bash
+# 0. Una vez: dependencias del sistema
+sudo pacman -S --needed git curl unzip 7zip clang cmake ninja uv pkgconf ffmpeg openssl zlib \
+                        sdl2 vulkan-icd-loader glslang
+
+# 1. Tu ISO (UCES-01245 v2.00) en game_files/ — se comprueba por hash
+cp "/ruta/Gran Turismo (v2.0) [UCES-01245].iso" game_files/
+
+# 2. Herramientas fijadas, extraer el EBOOT y recompilarlo a C++ (todo queda fuera de git)
+tools/setup.sh
+.venv/bin/python -m tools.extract
+.venv/bin/python -m tools.recomp
+
+# 3. Compilar (≈ 4 min la primera vez; con tope de memoria)
+systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
+  sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ && cmake --build build -j8'
+
+# 4. Jugar (ventana, teclado o mando, sonido; partidas en build/savedata/)
+build/gt_play
+```
+
+Controles por defecto: W / Enter = acelerar y aceptar, S = frenar, A / D = girar, flechas = menús,
+Retroceso = atrás, Escape = START, F10 = ajustes, F11 = pantalla completa (mando: gatillos + stick).
+`build/gt_native` es la versión sin ventana para pruebas y el harness diferencial.
 
 ## Para agentes (Claude Code / Codex)
 
