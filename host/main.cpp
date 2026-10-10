@@ -121,6 +121,8 @@ int main(int argc, char **argv) {
             0x369ED59Du, 0x82BC5777u,  // GetSystemTimeLow / Wide: read the virtual clock only
             0x94AA61EEu,               // GetThreadCurrentPriority: read only
             0x71BC9871u,               // ChangeThreadPriority: priorities snapshotted, no switch in a case
+            0x19CFF145u, 0x60107536u,  // Create / Delete LwMutex: work area in RAM, uid counter snapshotted
+            0xB011B11Fu, 0x6B30100Fu,  // Lock / Unlock Mutex: owner and count snapshotted
             0xFE707FDFu, 0x50F61D8Au, 0xDB83A952u,  // Alloc/Free/GetAddr MemoryBlock: allocator snapshotted
         };
         std::unordered_set<std::uint32_t> import_stubs, replay_safe;

@@ -146,6 +146,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Harness: el informe dice por qué un caso no fue comparable; estado del kernel re-ejecutable
       (bloques de memoria y prioridades de hilo, guardado/restaurado y comparado); un fallo de la
       versión decompilada cuenta como discrepancia. Hasta el menú: **0 casos descartados**.
+- [x] 12 nativos de juego/UI más: `MWatcher.append/remove`, `MOrganizer.startGameObjectLoop/
+      setRaceSound/setSoundContext`, `MRaceOperator.setOrganizer`, `MSpecDB.getCarLabelCount/
+      getCarCode` (valor de 64 bits), `GameRecord.CreateGameRecordStructure/InitializeGameRecord`,
+      `MUpdateContext.getRenderContext`, `MRenderContext.getUpdateContext`. **50 funciones.**
+- [x] Harness: mutex de kernel y creación de LwMutex re-ejecutables. Sin comparar aún:
+      `MOrganizer.initialize` (crea hilos), `MMenuGameObjectManager.initialize` (lee ficheros).
 - [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
