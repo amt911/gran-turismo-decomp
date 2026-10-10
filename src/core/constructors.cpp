@@ -1,0 +1,158 @@
+// Constructor-shaped code the compiler emits many times over, one body per shape and a table with
+// each instance's constants:
+//   construct_and_set_table(this)  base(this); *this = table;   (a derived constructor: the base
+//                                  one first, then the object's own vtable)
+//   stride_walk(begin, end)        do { more = begin != end; begin += stride; } while (more);
+//                                  (the loop of an array destructor whose element destructor is
+//                                  empty: it walks the array and changes nothing else)
+// Listed: the ones the race path calls (the harness compared them equal); the others stay
+// recompiled until a run reaches them.
+
+#include "decomp_registry.hpp"
+#include "guest_call.hpp"
+
+#include <unordered_map>
+
+namespace gt::core {
+namespace {
+
+struct Constructor {
+    std::uint32_t base;
+    std::uint32_t table;
+};
+
+std::unordered_map<std::uint32_t, Constructor> &constructor_table() {
+    static std::unordered_map<std::uint32_t, Constructor> table;
+    return table;
+}
+
+} // namespace
+
+struct ConstructorRegistrar {
+    ConstructorRegistrar(std::uint32_t entry, std::uint32_t base, std::uint32_t table) {
+        constructor_table()[entry] = {base, table};
+    }
+};
+
+// construct_and_set_table(this): the base constructor, then the instance's table in *this
+// (v0 is left holding the table's address, as in the original).
+void construct_and_set_table(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const Constructor &c = constructor_table().at(ctx.pc);
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    call_guest(rt, ctx, c.base, {});
+    rt.memory().store32(self, c.table);
+    ctx.gpr[2] = c.table;
+}
+
+// stride_walk(begin, end): only registers change (a0 ends one stride past `end`).
+void stride_walk(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t stride = constructor_table().at(ctx.pc).table;
+    bool more;
+    do {
+        more = ctx.gpr[5] != ctx.gpr[4];
+        ctx.gpr[4] += stride;
+    } while (more);
+}
+
+} // namespace gt::core
+
+#define GT_DECOMP_CONSTRUCT(entry, base, table)                                                          \
+    static const ::gt::core::ConstructorRegistrar GT_DECOMP_CAT(gt_constructor_, __LINE__){(entry), (base), (table)}; \
+    GT_DECOMP(entry, gt::core::construct_and_set_table, gt::ReturnKind::Word)
+#define GT_DECOMP_STRIDE_WALK(entry, stride)                                                             \
+    static const ::gt::core::ConstructorRegistrar GT_DECOMP_CAT(gt_constructor_, __LINE__){(entry), 0u, (stride)}; \
+    GT_DECOMP(entry, gt::core::stride_walk, gt::ReturnKind::Void)
+
+GT_DECOMP_CONSTRUCT(0x08929A08u, 0x08929DD0u, 0x08CC62D0u);
+GT_DECOMP_CONSTRUCT(0x089C1614u, 0x08A5B828u, 0x08CCEFF8u);
+GT_DECOMP_CONSTRUCT(0x089F5918u, 0x08965984u, 0x08CC8158u);
+GT_DECOMP_CONSTRUCT(0x089F5F6Cu, 0x08965984u, 0x08CC8028u);
+GT_DECOMP_CONSTRUCT(0x08A11780u, 0x08965984u, 0x08CC6AA0u);
+GT_DECOMP_CONSTRUCT(0x08A52660u, 0x08A7E88Cu, 0x08CB7440u);
+GT_DECOMP_CONSTRUCT(0x08A55D70u, 0x08A725A0u, 0x08CD20C0u);
+GT_DECOMP_CONSTRUCT(0x08A725A0u, 0x08A5D5A0u, 0x08CD3990u);
+GT_DECOMP_CONSTRUCT(0x08A80214u, 0x08A5D5A0u, 0x08CD4120u);
+GT_DECOMP_CONSTRUCT(0x08A86BDCu, 0x08A5D5A0u, 0x08CD42B8u);
+GT_DECOMP_CONSTRUCT(0x08A98220u, 0x08A5D5A0u, 0x08CD4730u);
+GT_DECOMP_CONSTRUCT(0x08AC0E64u, 0x08B0E85Cu, 0x08CD6500u);
+GT_DECOMP_CONSTRUCT(0x08AC4510u, 0x08ABA00Cu, 0x08CD66B8u);
+GT_DECOMP_CONSTRUCT(0x08AC6A40u, 0x08ABA00Cu, 0x08CD6740u);
+GT_DECOMP_CONSTRUCT(0x08AC8C0Cu, 0x08ABBB90u, 0x08CD67F0u);
+GT_DECOMP_CONSTRUCT(0x08AC92C4u, 0x08ABC5E0u, 0x08CD6890u);
+GT_DECOMP_CONSTRUCT(0x08AD09ACu, 0x08AD40BCu, 0x08CD6BF8u);
+GT_DECOMP_CONSTRUCT(0x08B14BECu, 0x08B14CF8u, 0x08CD8ED0u);
+GT_DECOMP_CONSTRUCT(0x08B14D28u, 0x08B165ACu, 0x08CD8FA0u);
+GT_DECOMP_CONSTRUCT(0x08B2AFE0u, 0x08B2B3F8u, 0x08CDA690u);
+GT_DECOMP_CONSTRUCT(0x08B3356Cu, 0x08B1A7FCu, 0x08CDA860u);
+GT_DECOMP_CONSTRUCT(0x08B84BC4u, 0x08B1E364u, 0x08CB6AE0u);
+GT_DECOMP_CONSTRUCT(0x08B84BF4u, 0x08B1E364u, 0x08CB6B10u);
+GT_DECOMP_CONSTRUCT(0x08B84E14u, 0x08B1E364u, 0x08CB6B40u);
+GT_DECOMP_CONSTRUCT(0x08B84E44u, 0x08B1E364u, 0x08CB6B70u);
+GT_DECOMP_CONSTRUCT(0x08B88C94u, 0x08B1E364u, 0x08CBCD60u);
+GT_DECOMP_CONSTRUCT(0x08B93A70u, 0x08B1FD44u, 0x08CBF758u);
+GT_DECOMP_CONSTRUCT(0x08BDAF74u, 0x08B1E364u, 0x08CC56C0u);
+GT_DECOMP_CONSTRUCT(0x08C15D40u, 0x08B248FCu, 0x08CD04A0u);
+GT_DECOMP_CONSTRUCT(0x08C19CACu, 0x08B1E364u, 0x08CD0E48u);
+GT_DECOMP_CONSTRUCT(0x08C3C050u, 0x08B1FD44u, 0x08CD5F98u);
+GT_DECOMP_CONSTRUCT(0x08C3C080u, 0x08B1F810u, 0x08CD5FA8u);
+GT_DECOMP_CONSTRUCT(0x08C3C1B4u, 0x08B2B654u, 0x08CD60A8u);
+GT_DECOMP_CONSTRUCT(0x08C3C47Cu, 0x08B2477Cu, 0x08CD6360u);
+GT_DECOMP_CONSTRUCT(0x08C3CD4Cu, 0x08B2B654u, 0x08CD6870u);
+GT_DECOMP_CONSTRUCT(0x08C3CF3Cu, 0x08B1FD44u, 0x08CD6930u);
+GT_DECOMP_CONSTRUCT(0x08C3D5A8u, 0x08ABF870u, 0x08CD69C8u);
+GT_DECOMP_CONSTRUCT(0x08C3D5D8u, 0x08AC01C8u, 0x08CD69D8u);
+GT_DECOMP_CONSTRUCT(0x08C4C598u, 0x08B1F810u, 0x08CD7B10u);
+GT_DECOMP_CONSTRUCT(0x08C4C82Cu, 0x08B1FD44u, 0x08CD7C98u);
+GT_DECOMP_CONSTRUCT(0x08C4C85Cu, 0x08B1FD44u, 0x08CD7D50u);
+GT_DECOMP_CONSTRUCT(0x08C4FB30u, 0x08B248FCu, 0x08CD95B0u);
+GT_DECOMP_CONSTRUCT(0x08C4FB94u, 0x08B1FD44u, 0x08CD95A0u);
+GT_DECOMP_CONSTRUCT(0x08C4FBC4u, 0x08B1F810u, 0x08CD95F0u);
+
+GT_DECOMP_STRIDE_WALK(0x08B891ACu, 0x20u);
+GT_DECOMP_STRIDE_WALK(0x08B891BCu, 0x10u);
+GT_DECOMP_STRIDE_WALK(0x08B892A0u, 0x20u);
+GT_DECOMP_STRIDE_WALK(0x08B89328u, 0x10u);
+GT_DECOMP_STRIDE_WALK(0x08BAC238u, 0x20u);
+GT_DECOMP_STRIDE_WALK(0x08BB1314u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BB1B10u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BB1B4Cu, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BB1B8Cu, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BB1C1Cu, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BBB6E8u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BBB838u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BBB8F8u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BBBA34u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BD319Cu, 0x8u);
+GT_DECOMP_STRIDE_WALK(0x08BDD7B8u, 0x2u);
+GT_DECOMP_STRIDE_WALK(0x08BDD7C8u, 0x2u);
+GT_DECOMP_STRIDE_WALK(0x08BE5888u, 0x20u);
+GT_DECOMP_STRIDE_WALK(0x08BEEA84u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BEF140u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BF0BF0u, 0x8u);
+GT_DECOMP_STRIDE_WALK(0x08BF0F4Cu, 0x24u);
+GT_DECOMP_STRIDE_WALK(0x08BF1070u, 0x8u);
+GT_DECOMP_STRIDE_WALK(0x08BF5B28u, 0x10u);
+GT_DECOMP_STRIDE_WALK(0x08BF5B38u, 0x2Cu);
+GT_DECOMP_STRIDE_WALK(0x08BF8B48u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BF8BC4u, 0x8u);
+GT_DECOMP_STRIDE_WALK(0x08BF9044u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BF919Cu, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08BF91D8u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C06560u, 0x10u);
+GT_DECOMP_STRIDE_WALK(0x08C06684u, 0x10u);
+GT_DECOMP_STRIDE_WALK(0x08C0A850u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C0A860u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C0D870u, 0x20u);
+GT_DECOMP_STRIDE_WALK(0x08C15E7Cu, 0x2Cu);
+GT_DECOMP_STRIDE_WALK(0x08C1FBC4u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C2BF24u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C2BF60u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C3F588u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C3F8BCu, 0x8u);
+GT_DECOMP_STRIDE_WALK(0x08C46F94u, 0x2u);
+GT_DECOMP_STRIDE_WALK(0x08C46FD4u, 0x4u);
+GT_DECOMP_STRIDE_WALK(0x08C47014u, 0xF0u);
+GT_DECOMP_STRIDE_WALK(0x08C47024u, 0x54u);
+GT_DECOMP_STRIDE_WALK(0x08C470A4u, 0x6u);
+GT_DECOMP_STRIDE_WALK(0x08C470F4u, 0x8u);
