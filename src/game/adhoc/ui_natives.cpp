@@ -25,6 +25,15 @@ constexpr std::uint32_t kArgumentAsWidget = 0x08969244u;    // (holder *out, arg
 constexpr std::uint32_t kAppendChildSlot = 142u;            // composite->append(context, child)
 constexpr std::uint32_t kRenderContextEvents = 0x14u;       // render context +0x14: its update context (event queue)
 constexpr std::uint32_t kSelfAsUpdateContext = 0x08978000u; // (holder *out) [a1 = self]
+constexpr std::uint32_t kSelfAsTextFace = 0x089896CCu;      // (holder *out) [a1 = self]
+constexpr std::uint32_t kTextFaceAdjustScale = 0x0898930Cu;
+constexpr std::uint32_t kSelfAsToolTipFace = 0x0897E844u;
+constexpr std::uint32_t kToolTipFaceRemove = 0x0897E3D0u;
+constexpr std::uint32_t kSelfAsMovieFace = 0x089BEE4Cu;
+constexpr std::uint32_t kMovieFaceUnload = 0x089C10C8u;
+constexpr std::uint32_t kRootWindowFocusedWidget = 0x089A3130u;  // (root window *) -> widget
+constexpr std::uint32_t kRenderContextFinish = 0x0897BB68u;      // (update context *)
+constexpr std::uint32_t kCompositeChildCount = 0xF0u;
 constexpr std::uint32_t kUpdateContextRenderContext = 0x08977260u;  // (update context *) -> render context
 constexpr std::uint32_t kHolderCopyRenderContext = 0x089AB244u;     // holder copy instances
 constexpr std::uint32_t kHolderCopyUpdateContext = 0x08977AE4u;
@@ -144,6 +153,54 @@ void MRenderContext_getUpdateContext(psprecomp::Runtime &rt, psprecomp::Allegrex
     destroy(rt, ctx, context);
 }
 
+// self as `self_as`, then engine(object), then the holder is dropped.
+void object_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, std::uint32_t engine) {
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t holder = frame.at(0u);
+    (void)call_guest(rt, ctx, self_as, {holder});
+    (void)call_guest(rt, ctx, engine, {rt.memory().load32(holder)});  // NULL is not checked
+    destroy(rt, ctx, holder);
+}
+void MTextFace_adjustScale(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { object_call(rt, ctx, kSelfAsTextFace, kTextFaceAdjustScale); }
+void MToolTipFace_remove(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { object_call(rt, ctx, kSelfAsToolTipFace, kToolTipFaceRemove); }
+void MMovieFace_unload(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { object_call(rt, ctx, kSelfAsMovieFace, kMovieFaceUnload); }
+
+// MRootWindow.getFocusedWidget() -> the focused widget.
+void MRootWindow_getFocusedWidget(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x30u);
+    const std::uint32_t raw = frame.at(0x0u);
+    const std::uint32_t value = frame.at(0x4u);
+    const std::uint32_t root = frame.at(0x8u);
+    (void)call_guest(rt, ctx, kSelfAsRootWindow, {root});
+    rt.memory().store32(raw, call_guest(rt, ctx, kRootWindowFocusedWidget, {rt.memory().load32(root)}));
+    (void)call_guest(rt, ctx, kHolderCopy, {value, raw});
+    if (result != value) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(value)});
+    destroy(rt, ctx, value);
+    destroy(rt, ctx, root);
+}
+
+// MComposite.countChild() -> integer (the child count at +0xF0).
+void MComposite_countChild(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t composite = frame.at(0x4u);
+    (void)call_guest(rt, ctx, kSelfAsComposite, {composite});
+    const std::uint32_t count = rt.memory().load32(rt.memory().load32(composite) + kCompositeChildCount);
+    return_integer(rt, ctx, result, frame.at(0x0u), count);
+    destroy(rt, ctx, composite);
+}
+
+// MRenderContext.finish(): with no arguments, finishes the context's update context.
+void MRenderContext_finish(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    if (ctx.gpr[6] != 0u) return;
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t context = frame.at(0u);
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context});
+    (void)call_guest(rt, ctx, kRenderContextFinish, {rt.memory().load32(rt.memory().load32(context) + kRenderContextEvents)});
+    destroy(rt, ctx, context);
+}
+
 } // namespace gt::adhoc::ui
 
 GT_DECOMP(0x089A358Cu, gt::adhoc::ui::MRootWindow_setFocus, gt::ReturnKind::Void);
@@ -152,3 +209,9 @@ GT_DECOMP(0x089AB54Cu, gt::adhoc::ui::MRenderContext_pushEvent, gt::ReturnKind::
 GT_DECOMP(0x08A01668u, gt::adhoc::ui::MComposite_appendChild, gt::ReturnKind::Void);
 GT_DECOMP(0x08979514u, gt::adhoc::ui::MUpdateContext_getRenderContext, gt::ReturnKind::Void);
 GT_DECOMP(0x089AD804u, gt::adhoc::ui::MRenderContext_getUpdateContext, gt::ReturnKind::Void);
+GT_DECOMP(0x08989890u, gt::adhoc::ui::MTextFace_adjustScale, gt::ReturnKind::Void);
+GT_DECOMP(0x0897E994u, gt::adhoc::ui::MToolTipFace_remove, gt::ReturnKind::Void);
+// Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089C11D0u, gt::adhoc::ui::MMovieFace_unload, gt::ReturnKind::Void);
+GT_DECOMP(0x089A3F54u, gt::adhoc::ui::MRootWindow_getFocusedWidget, gt::ReturnKind::Void);
+GT_DECOMP(0x08A022DCu, gt::adhoc::ui::MComposite_countChild, gt::ReturnKind::Void);
+// Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089AB5D8u, gt::adhoc::ui::MRenderContext_finish, gt::ReturnKind::Void);

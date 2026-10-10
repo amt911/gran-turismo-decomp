@@ -18,7 +18,8 @@ from pathlib import Path
 
 LOAD_BASE = 0x08804000  # runtime address of ELF vaddr 0 (docs/FACTS.md)
 SDK_DIRS = ("libc", "libm", "libstdcxx", "libgcc", "sdk")
-_REGISTRATION = re.compile(r"GT_DECOMP\(\s*0x([0-9A-Fa-f]+)u?\s*,")
+# Only active registrations: one behind `//` is decompiled but not swapped in (not comparable yet).
+_REGISTRATION = re.compile(r"^[ \t]*GT_DECOMP\(\s*0x([0-9A-Fa-f]+)u?\s*,", re.MULTILINE)
 
 
 def load_functions(path: Path) -> dict[int, int]:

@@ -23,6 +23,24 @@ void toFloat(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return_float(rt, ctx, result, frame.at(0u), to_float(rt, ctx, self));
 }
 
+// self.toBool(): a new boolean with the value's truth.
+void toBool(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t self = rt.memory().load32(ctx.gpr[5]);
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t truth = call_guest(rt, ctx, virtual_function(rt, self, kToBoolSlot), {self});
+    return_bool(rt, ctx, result, frame.at(0u), truth);
+}
+
+// self.toULong(): a new 64-bit integer.
+void toULong(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t self = rt.memory().load32(ctx.gpr[5]);
+    GuestFrame frame(ctx, 0x20u);
+    const GuestResult value = call_guest(rt, ctx, virtual_function(rt, self, kToULongSlot), {self}, {});
+    return_long(rt, ctx, result, frame.at(0u), value.v0, value.v1);
+}
+
 // self.defined(name): with exactly one argument, a new boolean telling whether `name` is defined on
 // the value; otherwise the result is left alone.
 void defined(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -41,3 +59,5 @@ void defined(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 GT_DECOMP(0x08A78EE0u, gt::adhoc::object::toInt, gt::ReturnKind::Void);
 GT_DECOMP(0x08A791A0u, gt::adhoc::object::toFloat, gt::ReturnKind::Void);
 GT_DECOMP(0x08A79980u, gt::adhoc::object::defined, gt::ReturnKind::Void);
+GT_DECOMP(0x08A78D84u, gt::adhoc::object::toBool, gt::ReturnKind::Void);
+GT_DECOMP(0x08A79128u, gt::adhoc::object::toULong, gt::ReturnKind::Void);

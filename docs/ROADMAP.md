@@ -162,7 +162,18 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `MUpdateContext.getRenderContext`, `MRenderContext.getUpdateContext`. **50 funciones.**
 - [x] Harness: mutex de kernel y creación de LwMutex re-ejecutables. Sin comparar aún:
       `MOrganizer.initialize` (crea hilos), `MMenuGameObjectManager.initialize` (lee ficheros).
-- [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
+- [x] Nativos por la ruta de la carrera (Single Race → Apricot Hill), 25 más con ayudantes de patrón
+      (`with_self`, `core_call`, `organizer_call`, `car_parameter_call`, `spec_lookup`, `return_long`):
+      `MOrganizer.*` (enter/sound/rendering race…), `MCarParameter.*`, `CarSettings.begin/endSetting`,
+      `MCarDriverParameter.setDefault`, `Object.toBool/toULong`, `Math.sqrt/abs`,
+      `MSpecDB.getCarCategory/getCourseCondition/isDirt`, `MProductInformation.GetParentalLevel`,
+      `MSound.stopMusic`, `MTextFace.adjustScale`, `MToolTipFace.remove`,
+      `MRootWindow.getFocusedWidget`, `MComposite.countChild`. Diff por la ruta de la carrera:
+      **75 funciones, 0 discrepancias**; sabotaje detectado. Sin comparar (registradas pero
+      desactivadas): `exitCourse`, `endSession`, `requestLoadingCourse` (duermen/despiertan hilos),
+      `beginPartsChange` (lee ficheros), `MMovieFace.unload` y `MRenderContext.finish` (imports no
+      re-ejecutables).
+- [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
 

@@ -50,3 +50,14 @@ def test_decompiled_functions_rejects_an_address_below_the_load_base(tmp_path: P
     write_src(tmp_path, "libc/bad.cpp", "GT_DECOMP(0x00001000u, gt::libc::bad, gt::ReturnKind::Word);\n")
     with pytest.raises(ValueError):
         decompiled_functions(tmp_path)
+
+
+def test_decompiled_functions_skips_a_commented_out_registration(tmp_path: Path):
+    write_src(
+        tmp_path,
+        "game/race.cpp",
+        "GT_DECOMP(0x08804028u, gt::race::tick, gt::ReturnKind::Void);\n"
+        "// Not comparable yet (reads files inside a case), so not swapped in: "
+        "GT_DECOMP(0x088040ACu, gt::race::load, gt::ReturnKind::Void);\n",
+    )
+    assert decompiled_functions(tmp_path) == {0x28: "game"}
