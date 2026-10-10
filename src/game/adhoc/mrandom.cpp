@@ -10,7 +10,7 @@
 // Harness: 10/10 cases to the menu, all two-argument draws; the seeded path has no case yet.
 
 #include "decomp_registry.hpp"
-#include "guest_call.hpp"
+#include "value.hpp"
 
 namespace gt::adhoc::mrandom {
 namespace {
@@ -19,10 +19,7 @@ constexpr std::uint32_t kRandomFloat = 0x08B1ECFCu;          // (float span) -> 
 constexpr std::uint32_t kRandomFloatBetween = 0x08BB9130u;   // (float lo, float hi, int *state)
 constexpr std::uint32_t kToIntegerObject = 0x08A85940u;      // (holder *out, argument holder *)
 constexpr std::uint32_t kIntegerValue = 0x08A855E8u;         // (integer object *) -> value
-constexpr std::uint32_t kNewIntegerObject = 0x08A85B1Cu;     // (holder *out, value)
-constexpr std::uint32_t kHolderReset = 0x08A5BAD8u;
 constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;
-constexpr std::uint32_t kObjectToIntSlot = 15u;
 
 std::int32_t integer_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder,
                               std::uint32_t argument) {
@@ -30,13 +27,6 @@ std::int32_t integer_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     const auto value = static_cast<std::int32_t>(call_guest(rt, ctx, kIntegerValue, {rt.memory().load32(holder)}));
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
     return value;
-}
-
-void return_integer(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result,
-                    std::uint32_t holder, std::uint32_t value) {
-    (void)call_guest(rt, ctx, kNewIntegerObject, {holder, value});
-    if (result != holder) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(holder)});
-    (void)call_guest(rt, ctx, kHolderDestroy, {holder});
 }
 
 } // namespace
@@ -56,9 +46,7 @@ void GetValue(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const float span = static_cast<float>(hi - lo);
         drawn = call_guest(rt, ctx, kRandomFloat, {}, {span}).f0 + static_cast<float>(lo);
     } else {
-        const std::uint32_t seed_object = rt.memory().load32(argv + 8u);
-        const std::uint32_t to_int = rt.memory().load32(rt.memory().load32(seed_object) + kObjectToIntSlot * 4u);
-        rt.memory().store32(state, call_guest(rt, ctx, to_int, {seed_object}));
+        rt.memory().store32(state, static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(argv + 8u))));
         drawn = call_guest(rt, ctx, kRandomFloatBetween, {state}, {static_cast<float>(lo), static_cast<float>(hi)}).f0;
     }
     return_integer(rt, ctx, result, holder, ctx.fpu_float_to_word(drawn, 1u));  // trunc.w.s

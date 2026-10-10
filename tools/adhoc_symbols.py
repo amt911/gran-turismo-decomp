@@ -25,6 +25,12 @@ from pathlib import Path
 
 LOAD_BASE = 0x08804000
 _CLASS = re.compile(r"^M[A-Z][A-Za-z0-9_]*$")
+# Initializers whose class name isn't an M* string, named from what they register.
+KNOWN_MODULES = {
+    0x276614: "Object",  # isInstanceOf, getDeepCopy, toBool..toDouble, toString, defined: the root class
+    0x29F0EC: "Math",    # strings "Math", "PI"; abs, sin, cos, ..., clamp, lerp, sqrt
+    0x27AF54: "Module",  # string "Module"; load, defineModule, defineClass, import, clearStatic
+}
 
 Native = tuple[int, int, list[str], str, int]  # registrar, initializer, strings, method, function
 
@@ -41,6 +47,8 @@ def load_natives(path: Path) -> list[Native]:
 
 
 def module_name(strings: Sequence[str], initializer: int) -> str:
+    if initializer in KNOWN_MODULES:
+        return KNOWN_MODULES[initializer]
     for s in strings:
         if _CLASS.match(s):
             return s

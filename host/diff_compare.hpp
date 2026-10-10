@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -30,5 +31,11 @@ enum class ReturnKind { Void, Word, DoubleWord, Float };
 // sp, fp, ra) and every RAM byte outside the ignored range. Caller-saved temporaries never count.
 [[nodiscard]] std::optional<std::string> first_difference(const EndState &original, const EndState &decompiled,
                                                           ReturnKind kind = ReturnKind::Word);
+
+// Offset of the first byte where `a` and `b` differ outside the offsets [skip_begin, skip_end);
+// nullopt when they're equal there. Block-wise memcmp: the harness compares 32 MiB per case.
+[[nodiscard]] std::optional<std::size_t> first_byte_difference(std::span<const std::uint8_t> a,
+                                                               std::span<const std::uint8_t> b,
+                                                               std::size_t skip_begin, std::size_t skip_end);
 
 } // namespace gt

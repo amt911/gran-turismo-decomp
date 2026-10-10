@@ -1,0 +1,32 @@
+// Calling conventions shared by GT's Adhoc natives (the script-callable C++ functions): reading an
+// argument object's value through its virtual interface, and handing a new value object back
+// through the native's result holder. All of it is GT's own code, called through the guest.
+#pragma once
+
+#include "guest_call.hpp"
+
+#include <cstdint>
+
+namespace gt::adhoc {
+
+// Virtual slots of an Adhoc object (vtable word index).
+constexpr std::uint32_t kToIntSlot = 15u;      // int toInt(this)
+constexpr std::uint32_t kToFloatSlot = 21u;    // float toFloat(this)
+constexpr std::uint32_t kDefinedSlot = 38u;    // bool defined(this, name)
+
+// The address of an object's virtual function `slot`.
+std::uint32_t virtual_function(psprecomp::Runtime &rt, std::uint32_t object, std::uint32_t slot);
+
+std::int32_t to_int(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object);
+float to_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object);
+
+// *result = new Adhoc integer / float / boolean holding `value`. `scratch` is a guest-stack holder
+// (gt::GuestFrame) the value is built in, as the originals do; `result` may be that same holder.
+void return_integer(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+                    std::uint32_t scratch, std::uint32_t value);
+void return_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+                  std::uint32_t scratch, float value);
+void return_bool(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+                 std::uint32_t scratch, std::uint32_t value);
+
+} // namespace gt::adhoc

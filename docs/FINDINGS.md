@@ -35,6 +35,24 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### A harness case let the timer preempt the PSP thread — the game then crawled
+
+**Symptom.** With `Module::clearStatic` decompiled, `--decomp diff` advanced 180 vblanks in 60 s
+(normal: ~3,500); `--decomp-cases 0` and `--decomp on` were fine.
+**Cause.** Isolated runs dispatch guest code directly, and the runtime's starvation tick still fired
+inside them: it advanced the virtual clock, woke sleepers and preempted the current thread
+(`timer-preempt`) — real scheduler changes the harness then "undid" only in guest RAM. Two more
+holes of the same family: an LwMutex unlock inside a case could wake a waiter (host-side queue), and
+a decompiled run's `call_guest` re-entered the harness's own trampolines (cases inside cases).
+**Fix / workaround.** `gt::set_kernel_isolated` (`host/kernel_isolation.hpp`): while a case runs the
+starvation tick does nothing, LwMutex lock-with-contention / unlock-with-waiters refuse and mark the
+case broken (dropped and replayed for real); nested decompiled calls run their originals; isolated
+runs are also bounded to 250 ms.
+**Why it isn't obvious.** Every comparison stayed green; only the game's progress showed it, and only
+once a function with a long original (a module-wide clear) was sampled.
+
+Found: 2026-10-10 · harness
+
 ### `--decomp on` stops: "the callee switched PSP threads" — disposing an object can block
 
 **Symptom.** With the strong release decompiled, `--decomp on` stopped at

@@ -31,6 +31,7 @@
 #include "lcs_menu.hpp"
 #include "psmf_hle.hpp"
 #include "font_hle.hpp"
+#include "kernel_isolation.hpp"
 #include "movie_decoder.hpp"
 
 #include "psprecomp/common.hpp"
@@ -1949,6 +1950,9 @@ void check_wall_clock_limit(psprecomp::Runtime &runtime, std::uint64_t sample_ma
 }
 
 void lcs_starvation_tick(psprecomp::Runtime &starvation_runtime, psprecomp::AllegrexContext &ctx) {
+    // Inside an isolated harness case time stands still and nothing is preempted: the tick would
+    // wake sleepers and switch threads behind the case's back (docs/FINDINGS.md).
+    if (gt::kernel_isolated()) return;
     virtual_time_us += starvation_tick_microseconds;
     promote_expired_delays();
 
@@ -2213,6 +2217,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
         const std::uint32_t work = ctx.gpr[4];
         const auto count = static_cast<std::int32_t>(ctx.gpr[5]);
         if (lwmutex_try(rt, work, count)) { set_success(ctx); return; }
+        if (gt::kernel_isolated()) { gt::break_kernel_isolation(); return; }  // would queue and switch
         const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
         g_lwmutex_waiters[work].push_back(LwMutexWaiter{thread_table.current_uid, suspended, count});
         rt.memory().store32(work + 12u, rt.memory().load32(work + 12u) + 1u);
@@ -2226,6 +2231,13 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
             const auto count = static_cast<std::int32_t>(ctx.gpr[5]);
             const auto held = static_cast<std::int32_t>(rt.memory().load32(work + 0u));
             if (held < count) { ctx.set_gpr(2, 0x800201C7u); return; }
+            if (gt::kernel_isolated() && held - count == 0) {
+                const auto waiting = g_lwmutex_waiters.find(work);
+                if (waiting != g_lwmutex_waiters.end() && !waiting->second.empty()) {
+                    gt::break_kernel_isolation();  // would wake a waiter
+                    return;
+                }
+            }
             rt.memory().store32(work + 0u, static_cast<std::uint32_t>(held - count));
             if (held - count == 0) {
                 rt.memory().store32(work + 4u, 0u);
@@ -2241,7 +2253,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
                 }
             }
             set_success(ctx);
-            (void)preempt_if_higher_priority(ctx, "lwmutex-unlock");
+            if (!gt::kernel_isolated()) (void)preempt_if_higher_priority(ctx, "lwmutex-unlock");
         });
     runtime.register_hle("Kernel_Library", 0x092968F4u,  // sceKernelCpuSuspendIntr: returns the old mask
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 1u); });
@@ -5068,3 +5080,19 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
 }
 
 }
+
+namespace gt {
+namespace {
+bool g_kernel_isolated = false;
+bool g_kernel_isolation_broken = false;
+} // namespace
+
+void set_kernel_isolated(bool isolated) noexcept {
+    g_kernel_isolated = isolated;
+    g_kernel_isolation_broken = false;
+}
+bool kernel_isolated() noexcept { return g_kernel_isolated; }
+void break_kernel_isolation() noexcept { g_kernel_isolation_broken = true; }
+bool kernel_isolation_broken() noexcept { return g_kernel_isolation_broken; }
+
+} // namespace gt
