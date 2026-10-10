@@ -54,6 +54,27 @@ constexpr std::uint32_t kUpdateContextSync = 0x089C4558u;      // (frames): jump
 constexpr std::uint32_t kListBoxItemWidget = 0x089CF584u;      // (holder *out, list box *, index, template)
 constexpr std::uint32_t kIconBoxItemWidget = 0x089E7AF4u;      // (holder *out, icon box *, index, template)
 constexpr std::uint32_t kRenderContextClosePage = 0x089AFC78u; // (render context *, root window *)
+constexpr std::uint32_t kIconBoxSetItemCount = 0x089E8848u;    // (icon box *, columns, rows)
+constexpr std::uint32_t kIconBoxSetItemTemplate = 0x089E6050u; // (icon box *, render context *, template *)
+constexpr std::uint32_t kListBoxSetItemTemplate = 0x089CDC0Cu; // (list box *, render context *, template *)
+constexpr std::uint32_t kCompositeClearChildren = 0x089B8BA0u; // (child list *): the composite's +0xE8
+constexpr std::uint32_t kCompositeChildren = 0xE8u;
+constexpr std::uint32_t kClearChildSlot = 144u;                // composite->clear_children(context)
+constexpr std::uint32_t kRenderContextCommonPage = 0x089ABB0Cu;  // (render context *, std::string name) -> page or 0
+constexpr std::uint32_t kHolderCopyPage = 0x08A76AACu;          // thunk to holder_copy
+constexpr std::uint32_t kKeyFilter = 0x089D5B30u;               // () -> the key filter
+constexpr std::uint32_t kUpdateContextSetKeyFilter = 0x0897BB18u;  // (update context *, filter)
+constexpr std::uint32_t kSelfAsEvent = 0x089FDB7Cu;            // (holder *out) [a1 = self]
+constexpr std::uint32_t kDispatchEventSlot = 66u;              // event->dispatch() -> int
+constexpr std::uint32_t kUpdateContextPadButtonState = 0x08977270u;  // (update context *, button) -> int
+constexpr std::uint32_t kApplyAppendSlot = 148u;               // option menu->apply_append(context)
+constexpr std::uint32_t kNodePath = 0x089BCE20u;               // (std::string *out, node *, 0, separator)
+constexpr std::uint32_t kNodePathSeparator = 0x08CA5DA8u;
+constexpr std::uint32_t kSelfAsImageFace = 0x089E1104u;        // (holder *out) [a1 = self]
+constexpr std::uint32_t kImageFacePath = 0x089DFA28u;          // (face *) -> const std::string *
+constexpr std::uint32_t kImageFaceSetPath = 0x089E3200u;       // (face *, const std::string *)
+constexpr std::uint32_t kImageFaceSetTexcoord = 0x089E0428u;   // (u in $f12, v in $f13, face *, corner)
+constexpr std::uint32_t kNewStringObject = 0x08A6D2D4u;        // (holder *out, const std::string *)
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -444,6 +465,176 @@ void MRenderContext_closePage(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     destroy(rt, ctx, page);
 }
 
+// MIconBox.setItemCount(columns, rows), with exactly two arguments.
+void MIconBox_setItemCount(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 2u) return;
+    self_call(rt, ctx, kSelfAsIconBox, [&](std::uint32_t box) {
+        const std::int32_t columns = int_argument(rt, ctx, argv, 0u);
+        const std::int32_t rows = int_argument(rt, ctx, argv, 1u);
+        (void)call_guest(rt, ctx, kIconBoxSetItemCount, {box, static_cast<std::uint32_t>(columns), static_cast<std::uint32_t>(rows)});
+    });
+}
+
+// MIconBox/MListBox.setItemTemplate(context, template), with exactly two arguments.
+void set_item_template(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, std::uint32_t set) {
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 2u) return;
+    auto &memory = rt.memory();
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t raw = frame.at(0x0u);
+    const std::uint32_t box = frame.at(0x4u);
+    const std::uint32_t context = frame.at(0x8u);
+    const std::uint32_t item_template = frame.at(0xCu);
+    (void)call_guest(rt, ctx, self_as, {box});
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, argv});
+    memory.store32(raw, memory.load32(argv + 4u));
+    (void)call_guest(rt, ctx, kHolderCopy, {item_template, raw});
+    (void)call_guest(rt, ctx, set, {memory.load32(box), memory.load32(context), memory.load32(item_template)});
+    destroy(rt, ctx, item_template);
+    destroy(rt, ctx, context);
+    destroy(rt, ctx, box);
+}
+void MIconBox_setItemTemplate(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { set_item_template(rt, ctx, kSelfAsIconBox, kIconBoxSetItemTemplate); }
+void MListBox_setItemTemplate(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { set_item_template(rt, ctx, kSelfAsListBox, kListBoxSetItemTemplate); }
+
+// MComposite.clearChild() / clearChild(context).
+void MComposite_clearChild(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t argc = ctx.gpr[6];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc == 0u) {
+        self_call(rt, ctx, kSelfAsComposite, [&](std::uint32_t composite) {
+            (void)call_guest(rt, ctx, kCompositeClearChildren, {composite + kCompositeChildren});
+        });
+    } else if (argc == 1u) {
+        self_call(rt, ctx, kSelfAsComposite, [&](std::uint32_t composite) {
+            GuestFrame frame(ctx, 0x10u);
+            const std::uint32_t context = frame.at(0u);
+            (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, argv});
+            (void)call_guest(rt, ctx, virtual_function(rt, composite, kClearChildSlot), {composite, rt.memory().load32(context)});
+            destroy(rt, ctx, context);
+        });
+    }
+}
+
+// MRenderContext.getCommonPage(name) -> the shared page of that name, if any.
+void MRenderContext_getCommonPage(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t self = ctx.gpr[5];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    auto &memory = rt.memory();
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t name = frame.at(0x0u);
+    const std::uint32_t context = frame.at(0x4u);
+    const std::uint32_t raw = frame.at(0x8u);
+    to_string(rt, ctx, memory.load32(argv), name);
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, self});
+    const std::uint32_t page = call_guest(rt, ctx, kRenderContextCommonPage, {memory.load32(context), memory.load32(name)});
+    destroy(rt, ctx, context);
+    if (page != 0u) {
+        memory.store32(raw, page);
+        return_holder(rt, ctx, result, [&](std::uint32_t out) { (void)call_guest(rt, ctx, kHolderCopyPage, {out, raw}); });
+    }
+    string_release(rt, ctx, memory.load32(name));
+}
+
+// MRenderContext.filterKeyEvent(): installs the key filter on the context's update context.
+void MRenderContext_filterKeyEvent(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    self_call(rt, ctx, kSelfAsRenderContext, [&](std::uint32_t context) {
+        const std::uint32_t events = rt.memory().load32(context + kRenderContextEvents);
+        (void)call_guest(rt, ctx, kUpdateContextSetKeyFilter, {events, call_guest(rt, ctx, kKeyFilter, {})});
+    });
+}
+
+// MEvent.dispatchEvent() -> integer.
+void MEvent_dispatchEvent(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    self_call(rt, ctx, kSelfAsEvent, [&](std::uint32_t event) {
+        const std::uint32_t handled = call_guest(rt, ctx, virtual_function(rt, event, kDispatchEventSlot), {event});
+        GuestFrame frame(ctx, 0x10u);
+        return_integer(rt, ctx, result, frame.at(0u), handled);
+    });
+}
+
+// MUpdateContext.getPadButtonState(button) -> integer, with exactly one argument.
+void MUpdateContext_getPadButtonState(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 1u) return;
+    self_call(rt, ctx, kSelfAsUpdateContext, [&](std::uint32_t update) {
+        const std::int32_t button = int_argument(rt, ctx, argv, 0u);
+        const std::uint32_t state = call_guest(rt, ctx, kUpdateContextPadButtonState, {update, static_cast<std::uint32_t>(button)});
+        GuestFrame frame(ctx, 0x10u);
+        return_integer(rt, ctx, result, frame.at(0u), state);
+    });
+}
+
+// MOptionMenu.applyAppend(context), with at least one argument.
+void MOptionMenu_applyAppend(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[5];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t context = frame.at(0x0u);
+    const std::uint32_t menu = frame.at(0x4u);
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, argv});
+    (void)call_guest(rt, ctx, kSelfAsOptionMenu, {menu, self});
+    const std::uint32_t object = rt.memory().load32(menu);
+    (void)call_guest(rt, ctx, virtual_function(rt, object, kApplyAppendSlot), {object, rt.memory().load32(context)});
+    destroy(rt, ctx, menu);
+    destroy(rt, ctx, context);
+}
+
+// MNode.getNodePath() -> the node's path.
+void MNode_getNodePath(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    self_call(rt, ctx, kSelfAsNode, [&](std::uint32_t node) {
+        GuestFrame frame(ctx, 0x10u);
+        const std::uint32_t path = frame.at(0u);
+        (void)call_guest(rt, ctx, kNodePath, {path, node, 0u, kNodePathSeparator});
+        return_holder(rt, ctx, result, [&](std::uint32_t out) { (void)call_guest(rt, ctx, kNewStringObject, {out, path}); });
+        string_release(rt, ctx, rt.memory().load32(path));
+    });
+}
+
+// MImageFace.getImagePath() -> path; getImagePath(path) sets it.
+void MImageFace_getImagePath(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t argc = ctx.gpr[6];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc == 0u) {
+        self_call(rt, ctx, kSelfAsImageFace, [&](std::uint32_t face) {
+            const std::uint32_t path = call_guest(rt, ctx, kImageFacePath, {face});
+            return_holder(rt, ctx, result, [&](std::uint32_t out) { (void)call_guest(rt, ctx, kNewStringObject, {out, path}); });
+        });
+    } else if (argc == 1u) {
+        self_call(rt, ctx, kSelfAsImageFace, [&](std::uint32_t face) {
+            GuestFrame frame(ctx, 0x10u);
+            const std::uint32_t path = frame.at(0u);
+            to_string(rt, ctx, rt.memory().load32(argv), path);
+            (void)call_guest(rt, ctx, kImageFaceSetPath, {face, path});
+            string_release(rt, ctx, rt.memory().load32(path));
+        });
+    }
+}
+
+// MImageFace.Texcoord(u0, v0, u1, v1), with exactly four arguments: the four corners' coordinates.
+void MImageFace_Texcoord(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 4u) return;
+    self_call(rt, ctx, kSelfAsImageFace, [&](std::uint32_t face) {
+        float value[4];
+        for (std::uint32_t i = 0u; i < 4u; ++i) value[i] = to_float(rt, ctx, rt.memory().load32(argv + 4u * i));
+        (void)call_guest(rt, ctx, kImageFaceSetTexcoord, {face, 0u}, {value[0], value[1]});
+        (void)call_guest(rt, ctx, kImageFaceSetTexcoord, {face, 1u}, {value[2], value[1]});
+        (void)call_guest(rt, ctx, kImageFaceSetTexcoord, {face, 2u}, {value[2], value[3]});
+        (void)call_guest(rt, ctx, kImageFaceSetTexcoord, {face, 3u}, {value[0], value[3]});
+    });
+}
+
 // MRenderContext.finish(): with no arguments, finishes the context's update context.
 void MRenderContext_finish(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (ctx.gpr[6] != 0u) return;
@@ -482,3 +673,15 @@ GT_DECOMP(0x089BB440u, gt::adhoc::ui::MNode_doInitialize, gt::ReturnKind::Void);
 GT_DECOMP(0x089D0F94u, gt::adhoc::ui::MListBox_getItemWidget, gt::ReturnKind::Void);
 GT_DECOMP(0x089E9944u, gt::adhoc::ui::MIconBox_getItemWidget, gt::ReturnKind::Void);
 // Not comparable yet (sleeps the thread: sceKernelSleepThread), so not swapped in: GT_DECOMP(0x089AFE00u, gt::adhoc::ui::MRenderContext_closePage, gt::ReturnKind::Void);
+GT_DECOMP(0x089E8894u, gt::adhoc::ui::MIconBox_setItemCount, gt::ReturnKind::Void);
+GT_DECOMP(0x089E6160u, gt::adhoc::ui::MIconBox_setItemTemplate, gt::ReturnKind::Void);
+GT_DECOMP(0x089CDD40u, gt::adhoc::ui::MListBox_setItemTemplate, gt::ReturnKind::Void);
+// Not comparable yet (sleeps the thread: sceKernelSleepThread), so not swapped in: GT_DECOMP(0x08A018D8u, gt::adhoc::ui::MComposite_clearChild, gt::ReturnKind::Void);
+GT_DECOMP(0x089AE57Cu, gt::adhoc::ui::MRenderContext_getCommonPage, gt::ReturnKind::Void);
+GT_DECOMP(0x089AB3ECu, gt::adhoc::ui::MRenderContext_filterKeyEvent, gt::ReturnKind::Void);
+GT_DECOMP(0x089FDBBCu, gt::adhoc::ui::MEvent_dispatchEvent, gt::ReturnKind::Void);
+GT_DECOMP(0x08979174u, gt::adhoc::ui::MUpdateContext_getPadButtonState, gt::ReturnKind::Void);
+GT_DECOMP(0x089B62BCu, gt::adhoc::ui::MOptionMenu_applyAppend, gt::ReturnKind::Void);
+GT_DECOMP(0x089BD080u, gt::adhoc::ui::MNode_getNodePath, gt::ReturnKind::Void);
+GT_DECOMP(0x089E3334u, gt::adhoc::ui::MImageFace_getImagePath, gt::ReturnKind::Void);
+GT_DECOMP(0x089E14C4u, gt::adhoc::ui::MImageFace_Texcoord, gt::ReturnKind::Void);
