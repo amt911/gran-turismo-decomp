@@ -25,6 +25,10 @@ void to_string(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, st
 // ~std::string for the string whose characters are at `chars`: drops a reference to its rep and
 // destroys the rep with the last one (the shared empty rep is never counted).
 void string_release(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t chars);
+// *result = a new Adhoc string with the std::string at `string` (left as it is).
+void return_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t string);
+// *result = a new Adhoc string with the C string at `text` (through a std::string, as GT does).
+void return_c_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t text);
 std::int32_t to_int(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object);
 float to_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object);
 

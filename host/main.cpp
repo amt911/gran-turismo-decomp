@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
             0x19CFF145u, 0x60107536u,  // Create / Delete LwMutex: work area in RAM, uid counter snapshotted
             0xB011B11Fu, 0x6B30100Fu,  // Lock / Unlock Mutex: owner and count snapshotted
             0xFE707FDFu, 0x50F61D8Au, 0xDB83A952u,  // Alloc/Free/GetAddr MemoryBlock: allocator snapshotted
+            0xA5DA2406u, 0x34B78343u,  // sceUtilityGetSystemParamInt / String: constants written to guest RAM
         };
         std::unordered_set<std::uint32_t> import_stubs, replay_safe;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {

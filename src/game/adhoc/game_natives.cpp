@@ -127,8 +127,6 @@ constexpr std::uint32_t kEnterButtonParameter = 0x08CF6540u;
 constexpr std::uint32_t kTextCross = 0x08CABB64u;                     // "cross"
 constexpr std::uint32_t kTextCircle = 0x08CABB5Cu;                    // "circle"
 constexpr std::uint32_t kGameRegionCode = 0x08ABDC28u;                // () -> const char *
-constexpr std::uint32_t kStringFromCString = 0x08B85EB8u;             // std::string(out, const char *, allocator)
-constexpr std::uint32_t kNewStringObject = 0x08A6D2D4u;               // (holder *out, const std::string *)
 constexpr std::uint32_t kSelfAsController = 0x088378F0u;              // (holder *out, self holder *)
 constexpr std::uint32_t kControllerCore = 0x08837498u;                // (controller *, 0) -> config owner
 constexpr std::uint32_t kWrapControllerConfig = 0x08838380u;          // (holder *out, owner, index)
@@ -537,17 +535,6 @@ void MMenuGameObjectManager_start(psprecomp::Runtime &rt, psprecomp::AllegrexCon
     destroy(rt, ctx, manager);
 }
 
-// *result = an Adhoc string with the C string at `text` (through a std::string, as the originals).
-void return_cstring(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t text) {
-    GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t string = frame.at(0x0u);
-    const std::uint32_t holder = frame.at(0x4u);
-    (void)call_guest(rt, ctx, kStringFromCString, {string, text, frame.at(0x8u)});
-    (void)call_guest(rt, ctx, kNewStringObject, {holder, string});
-    if (result != holder) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(holder)});
-    destroy(rt, ctx, holder);
-    string_release(rt, ctx, rt.memory().load32(string));
-}
 void return_int(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t value) {
     GuestFrame frame(ctx, 0x10u);
     return_integer(rt, ctx, result, frame.at(0u), value);
@@ -794,11 +781,11 @@ void MSystemConfiguration_SetTemporalAntialias(psprecomp::Runtime &rt, psprecomp
 void MSystemConfiguration_GetEnterButtonAssign(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
     const bool circle = call_guest(rt, ctx, kEnterButtonQuery, {kEnterButtonParameter}) != 0u;
-    return_cstring(rt, ctx, result, circle ? kTextCircle : kTextCross);
+    return_c_string(rt, ctx, result, circle ? kTextCircle : kTextCross);
 }
 void MProductInformation_GetGameRegionCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
-    return_cstring(rt, ctx, result, call_guest(rt, ctx, kGameRegionCode, {}));
+    return_c_string(rt, ctx, result, call_guest(rt, ctx, kGameRegionCode, {}));
 }
 
 // MController.getConfig([index]) -> the controller configuration.
