@@ -10,6 +10,7 @@
 namespace gt::adhoc {
 
 // Virtual slots of an Adhoc object (vtable word index).
+constexpr std::uint32_t kToStringSlot = 3u;    // std::string toString(this) (into *out)
 constexpr std::uint32_t kToBoolSlot = 12u;     // bool toBool(this)
 constexpr std::uint32_t kToIntSlot = 15u;      // int toInt(this)
 constexpr std::uint32_t kToULongSlot = 20u;    // u64 toULong(this) (v0:v1)
@@ -19,6 +20,11 @@ constexpr std::uint32_t kDefinedSlot = 38u;    // bool defined(this, name)
 // The address of an object's virtual function `slot`.
 std::uint32_t virtual_function(psprecomp::Runtime &rt, std::uint32_t object, std::uint32_t slot);
 
+// *out = object.toString(): a libstdc++ (copy-on-write) std::string, i.e. a pointer to its characters.
+void to_string(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object, std::uint32_t out);
+// ~std::string for the string whose characters are at `chars`: drops a reference to its rep and
+// destroys the rep with the last one (the shared empty rep is never counted).
+void string_release(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t chars);
 std::int32_t to_int(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object);
 float to_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object);
 

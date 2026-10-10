@@ -51,6 +51,9 @@ constexpr std::uint32_t kCompositeChild = 0x08A00BF4u;         // (composite *, 
 constexpr std::uint32_t kRemoveChildSlot = 141u;               // composite->remove(context, child)
 constexpr std::uint32_t kClearWindowSlot = 147u;               // composite->clear(context)
 constexpr std::uint32_t kUpdateContextSync = 0x089C4558u;      // (frames): jumped to
+constexpr std::uint32_t kListBoxItemWidget = 0x089CF584u;      // (holder *out, list box *, index, template)
+constexpr std::uint32_t kIconBoxItemWidget = 0x089E7AF4u;      // (holder *out, icon box *, index, template)
+constexpr std::uint32_t kRenderContextClosePage = 0x089AFC78u; // (render context *, root window *)
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -399,6 +402,48 @@ void MNode_doInitialize(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx)
     destroy(rt, ctx, node);
 }
 
+// MListBox/MIconBox.getItemWidget(index[, template]) -> the item's widget (made from the template,
+// if one is given).
+void get_item_widget(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, std::uint32_t item_widget) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t argc = ctx.gpr[6];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc != 1u && argc != 2u) return;
+    self_call(rt, ctx, self_as, [&](std::uint32_t box) {
+        GuestFrame frame(ctx, 0x10u);
+        const std::uint32_t raw = frame.at(0x0u);
+        const std::uint32_t item_template = frame.at(0x4u);
+        std::uint32_t template_object = 0u;
+        if (argc == 2u) {
+            rt.memory().store32(raw, rt.memory().load32(argv + 4u));
+            (void)call_guest(rt, ctx, kHolderCopyRenderContext, {item_template, raw});
+            template_object = rt.memory().load32(item_template);
+        }
+        const std::int32_t index = int_argument(rt, ctx, argv, 0u);
+        return_holder(rt, ctx, result, [&](std::uint32_t out) {
+            (void)call_guest(rt, ctx, item_widget, {out, box, static_cast<std::uint32_t>(index), template_object});
+        });
+        if (argc == 2u) destroy(rt, ctx, item_template);
+    });
+}
+void MListBox_getItemWidget(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { get_item_widget(rt, ctx, kSelfAsListBox, kListBoxItemWidget); }
+void MIconBox_getItemWidget(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { get_item_widget(rt, ctx, kSelfAsIconBox, kIconBoxItemWidget); }
+
+// MRenderContext.closePage(page), with exactly one argument.
+void MRenderContext_closePage(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[5];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 1u) return;
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t page = frame.at(0x0u);
+    const std::uint32_t context = frame.at(0x4u);
+    (void)call_guest(rt, ctx, kSelfAsRootWindow, {page, argv});
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, self});
+    (void)call_guest(rt, ctx, kRenderContextClosePage, {rt.memory().load32(context), rt.memory().load32(page)});
+    destroy(rt, ctx, context);
+    destroy(rt, ctx, page);
+}
+
 // MRenderContext.finish(): with no arguments, finishes the context's update context.
 void MRenderContext_finish(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (ctx.gpr[6] != 0u) return;
@@ -434,3 +479,6 @@ GT_DECOMP(0x08A019A0u, gt::adhoc::ui::MComposite_clearWindow, gt::ReturnKind::Vo
 // Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x08978080u, gt::adhoc::ui::MUpdateContext_Sync, gt::ReturnKind::Void);
 // Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089AB5D8u, gt::adhoc::ui::MRenderContext_finish, gt::ReturnKind::Void);
 GT_DECOMP(0x089BB440u, gt::adhoc::ui::MNode_doInitialize, gt::ReturnKind::Void);
+GT_DECOMP(0x089D0F94u, gt::adhoc::ui::MListBox_getItemWidget, gt::ReturnKind::Void);
+GT_DECOMP(0x089E9944u, gt::adhoc::ui::MIconBox_getItemWidget, gt::ReturnKind::Void);
+// Not comparable yet (sleeps the thread: sceKernelSleepThread), so not swapped in: GT_DECOMP(0x089AFE00u, gt::adhoc::ui::MRenderContext_closePage, gt::ReturnKind::Void);

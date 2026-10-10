@@ -196,6 +196,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Los tipos de valor de Adhoc (`src/game/adhoc/values.cpp`): fábricas y constructores de
       entero, float, booleano y entero de 64 bits (con las que todo nativo devuelve su resultado;
       ~15.000 y ~20.000 llamadas las de entero y booleano). **113 funciones, 0 discrepancias.**
+- [x] 15 nativos más (MCalendar, MOrganizer de entradas y pilotos, MCarParameter/MCarDriverParameter,
+      MRaceParameter, MListBox/MIconBox.getItemWidget, MSound.play) y ayudantes para `std::string`
+      de libstdc++ (`to_string`, `string_release`: la cadena COW). **127 funciones, 0 discrepancias.**
+      Sin comparar (duermen el hilo con `sceKernelSleepThread`): `MRenderContext.closePage`,
+      `MMenuGameObjectManager.start`.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
