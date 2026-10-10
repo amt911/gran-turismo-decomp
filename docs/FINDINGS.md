@@ -44,8 +44,10 @@ inside them: it advanced the virtual clock, woke sleepers and preempted the curr
 (`timer-preempt`) — real scheduler changes the harness then "undid" only in guest RAM. Two more
 holes of the same family: an LwMutex unlock inside a case could wake a waiter (host-side queue), and
 a decompiled run's `call_guest` re-entered the harness's own trampolines (cases inside cases).
-**Fix / workaround.** `gt::set_kernel_isolated` (`host/kernel_isolation.hpp`): while a case runs the
-starvation tick does nothing, LwMutex lock-with-contention / unlock-with-waiters refuse and mark the
+**Fix / workaround.** `gt::set_kernel_isolated` (`host/kernel_isolation.hpp`): while a case runs —
+**both** the original and the decompiled run; isolating only the original later made
+`Module.clearStatic` differ by 1,652 bytes, the tick firing inside the decompiled run's
+`call_guest` — the starvation tick does nothing, LwMutex lock-with-contention / unlock-with-waiters refuse and mark the
 case broken (dropped and replayed for real); nested decompiled calls run their originals; isolated
 runs are also bounded to 250 ms.
 **Why it isn't obvious.** Every comparison stayed green; only the game's progress showed it, and only

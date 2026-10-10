@@ -1,6 +1,7 @@
 #include "guest_call.hpp"
 
 #include "fiber.hpp"
+#include "kernel_isolation.hpp"
 
 #include "psprecomp/common.hpp"
 
@@ -40,6 +41,7 @@ GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext 
         }
         function(rt, ctx);
         ctx.gpr[0] = 0u;
+        if (kernel_isolation_broken()) return {};  // a harness case gave up; its result is discarded
         if (!psprecomp::runtime_thread_switch_generation_matches(generation)) {
             if (!fiber::on_fiber()) {
                 rt.stop("call_guest(" + psprecomp::hex32(address) +

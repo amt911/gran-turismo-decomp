@@ -30,6 +30,9 @@ KNOWN_MODULES = {
     0x276614: "Object",  # isInstanceOf, getDeepCopy, toBool..toDouble, toString, defined: the root class
     0x29F0EC: "Math",    # strings "Math", "PI"; abs, sin, cos, ..., clamp, lerp, sqrt
     0x27AF54: "Module",  # string "Module"; load, defineModule, defineClass, import, clearStatic
+    0x297404: "Array",   # string "Array"; resize, push, pop, join, sort, each, indexOf
+    0x24FD4C: "STStructure",  # string "STStructure"; define
+    0x2463A0: "pdistd",  # DelayThread, ReadFile, CRC32, GetSystemTimeMicroSecond: scripts call pdistd::*
 }
 
 Native = tuple[int, int, list[str], str, int]  # registrar, initializer, strings, method, function

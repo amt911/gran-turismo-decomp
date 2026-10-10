@@ -69,9 +69,17 @@ std::uint64_t g_imports = 0u;
 // callees (each callee is compared on its own).
 bool g_in_case = false;
 
+// Both runs of a case are isolated from the kernel (host/kernel_isolation.hpp) for their whole
+// length — the decompiled run too: its call_guest loops dispatch guest code just the same.
 struct InCase {
-    InCase() { g_in_case = true; }
-    ~InCase() { g_in_case = false; }
+    InCase() {
+        g_in_case = true;
+        set_kernel_isolated(true);
+    }
+    ~InCase() {
+        g_in_case = false;
+        set_kernel_isolated(false);
+    }
 };
 
 // RAM snapshots reuse a few 32 MiB buffers: allocating (and faulting in) a fresh one per snapshot
@@ -116,10 +124,6 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     // Also bounded in time: an original that spins waiting for another thread (which never runs in
     // isolation) would otherwise burn its whole step budget per case and stall the game.
     const auto deadline = std::chrono::steady_clock::now() + kMaxIsolatedTime;
-    struct Isolated {
-        Isolated() { set_kernel_isolated(true); }
-        ~Isolated() { set_kernel_isolated(false); }
-    } isolated;
     for (std::uint64_t step = 0; ctx.pc != kSentinelReturn; ++step) {
         const bool replay_safe = g_replay_safe_imports.contains(ctx.pc);
         if (step >= kMaxSteps || (g_import_stubs.contains(ctx.pc) && !replay_safe) || rt.stopped()) return false;
@@ -208,7 +212,8 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     {
         InCase in_case;
         run_decompiled(entry, rt, decompiled_ctx);
-        decompiled_ran = decompiled_ctx.pc == kSentinelReturn || run_to_sentinel(rt, decompiled_ctx);
+        decompiled_ran = !kernel_isolation_broken() &&
+                         (decompiled_ctx.pc == kSentinelReturn || run_to_sentinel(rt, decompiled_ctx));
     }
     if (!decompiled_ran) {
         ++entry.skipped;  // the tail target left what the harness can replay: keep the original's run
