@@ -18,6 +18,14 @@ namespace gt {
 std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
                          std::initializer_list<std::uint32_t> arguments);
 
+// The same for callees with float arguments ($f12, $f13, ...) and a float result ($f0).
+struct GuestResult {
+    std::uint32_t v0;
+    float f0;
+};
+GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
+                       std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> float_arguments);
+
 // Room on the guest stack for locals a guest callee needs the address of (a smart pointer it fills,
 // an output struct). Lowers ctx's sp by `bytes` (16-aligned) for as long as it lives, like the
 // original's frame; the harness ignores that dead stack when comparing.
