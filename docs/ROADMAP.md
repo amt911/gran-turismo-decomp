@@ -242,6 +242,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (`assign_from_factory`; 56). Sabotajes detectados en todas. En guardar-y-saltar, la base vuelve
       a escribir `*this`, así que el sabotaje se hizo sobre s0. **1.081 funciones, 0 discrepancias**
       (`tools.progress`: 1.077, 4,64 % de funciones, 1,51 % de bytes).
+- [x] **Constructores, bucles y conversiones** (`src/core/constructors.cpp`,
+      `src/game/adhoc/try_cast.cpp`): constructor base + vtable (44), recorrido de un array cuyo
+      destructor de elemento está vacío (47) y `try_cast` (asignar si es instancia de la clase; 2 de
+      111: el recompilador no tiene entrada en las otras 109 y el juego no las llama). Sabotajes
+      detectados en todas. **1.174 funciones, 0 discrepancias**.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
