@@ -118,6 +118,7 @@ int main(int argc, char **argv) {
             0xBEA46419u, 0x1FC64E09u, 0x15B6446Bu, 0xDC692EE3u,  // Lock/LockCB/Unlock/TryLock LwMutex
             0x092968F4u, 0x5F10D406u,                            // CpuSuspendIntr / CpuResumeIntr
             0x79D1C3FAu, 0xB435DEC5u, 0x3EE30821u, 0x34B9FA9Eu, 0xBFA98062u,  // Dcache maintenance
+            0x369ED59Du, 0x82BC5777u,  // GetSystemTimeLow / Wide: read the virtual clock only
         };
         std::unordered_set<std::uint32_t> import_stubs, replay_safe;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {

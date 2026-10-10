@@ -132,6 +132,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       se ejecutan (74 nativos Adhoc hasta el menú).
 - [x] Primeros nativos Adhoc: los 8 de `MUnit` (`Set/GetCurrentUnitOf{Velocity,Power,Torque,
       Temperature}`, `src/game/adhoc/munit.cpp`), con `GuestFrame` para locales en la pila guest.
+- [x] `MRandom::GetValue` (10/10, rama de 2 argumentos); `call_guest` con floats; leer la hora del
+      sistema es re-ejecutable en el harness.
 - [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
