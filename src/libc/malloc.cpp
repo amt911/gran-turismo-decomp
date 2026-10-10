@@ -1,7 +1,6 @@
 // The malloc front ends of the C library statically linked into GT (newlib-style: each function has
 // a reentrant _r twin that ignores its struct _reent argument). All of them end in the allocator core
-// at 0x08B35840 (memalign(alignment, size), still recompiled: it locks a mutex and grows the heap
-// with sceKernelAllocPartitionMemory("UserSbrk")).
+// at 0x08B35840 (memalign(alignment, size), src/libc/memalign.cpp).
 //
 // Runtime addresses: malloc 0x08B35DA0, _malloc_r 0x08B35DAC. Name evidence: memalign with the
 // default alignment 4, and the _r twin's argument shift. calloc (0x08B35DDC), realloc (0x08B35E3C)
