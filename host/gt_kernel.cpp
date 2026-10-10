@@ -871,12 +871,21 @@ SavedataUtilityState savedata_utility{};
 
 constexpr std::uint32_t kUtilityCommonResultOffset = 0x1Cu;
 constexpr std::uint32_t kSavedataModeOffset = 0x30u;
+// Set by the firmware on load: whether the save belongs to this console. GT refuses a secure load
+// unless (bind & 3) == 1 ("Save data created on another system"); 1021 as PPSSPP sets it.
+constexpr std::uint32_t kSavedataBindOffset = 0x34u;
+constexpr std::uint32_t kSavedataBindThisSystem = 1021u;
 constexpr std::uint32_t kSavedataGameNameOffset = 0x3Cu;
 constexpr std::uint32_t kSavedataSaveNameOffset = 0x4Cu;
 constexpr std::uint32_t kSavedataFileNameOffset = 0x64u;
 constexpr std::uint32_t kSavedataDataBufferOffset = 0x74u;
 constexpr std::uint32_t kSavedataDataBufferSizeOffset = 0x78u;
 constexpr std::uint32_t kSavedataDataSizeOffset = 0x7Cu;
+// SceUtilitySavedataSFOParam: title, savedata title, detail, parental level (what a real PSP keeps in
+// PARAM.SFO and gives back on load). Kept as raw bytes in SFOPARAM.BIN next to the data.
+constexpr std::uint32_t kSavedataSfoParamOffset = 0x80u;
+constexpr std::uint32_t kSavedataSfoParamSize = 0x504u;
+constexpr const char *kSavedataSfoParamFile = "SFOPARAM.BIN";
 constexpr std::uint32_t kSavedataIcon0Offset = 0x584u;
 constexpr std::uint32_t kSavedataIcon1Offset = 0x594u;
 constexpr std::uint32_t kSavedataPic1Offset = 0x5A4u;
@@ -902,9 +911,9 @@ std::string safe_savedata_component(std::string value) {
     return value;
 }
 
-// GT: saves go to GT_SAVEDATA_DIR when set (kept between runs); otherwise to recomp/savedata, emptied
-// when gt_native starts, so every run boots the same way. Loading a save GT wrote itself still ends on
-// a white screen (docs/ROADMAP.md), and a leftover save in the game directory caused exactly that.
+// GT: saves go to GT_SAVEDATA_DIR when set (kept between runs; gt_play sets it to savedata/ next to
+// the executable); otherwise to recomp/savedata, emptied when gt_native starts, so every headless run
+// boots the same way.
 std::filesystem::path savedata_root(const psprecomp::Runtime &) {
     static const std::filesystem::path root = [] {
         if (const char *dir = std::getenv("GT_SAVEDATA_DIR")) return std::filesystem::path(dir);
@@ -971,6 +980,13 @@ std::uint32_t load_savedata_file(psprecomp::Runtime &runtime, std::uint32_t para
     if (!input && !bytes.empty()) return 0x80110305u;
     if (!bytes.empty()) runtime.memory().copy_in(destination, bytes);
     runtime.memory().store32(parameter_address + kSavedataDataSizeOffset, static_cast<std::uint32_t>(bytes.size()));
+    runtime.memory().store32(parameter_address + kSavedataBindOffset, kSavedataBindThisSystem);
+    if (!raw_mode) {  // the SFO parameters come back with the data, as from PARAM.SFO
+        std::ifstream sfo(path.parent_path() / kSavedataSfoParamFile, std::ios::binary);
+        std::vector<std::uint8_t> param(kSavedataSfoParamSize);
+        if (sfo && sfo.read(reinterpret_cast<char *>(param.data()), static_cast<std::streamsize>(param.size())))
+            runtime.memory().copy_in(parameter_address + kSavedataSfoParamOffset, param);
+    }
     return 0u;
 }
 
@@ -984,6 +1000,9 @@ std::uint32_t save_savedata_file(psprecomp::Runtime &runtime, std::uint32_t para
     }
     if (!write_guest_file(runtime, path, source, size)) return raw_mode ? 0x80110329u : 0x80110385u;
     if (!raw_mode) {
+        if (!write_guest_file(runtime, path.parent_path() / kSavedataSfoParamFile,
+                              parameter_address + kSavedataSfoParamOffset, kSavedataSfoParamSize))
+            return 0x80110385u;
         if (!write_savedata_auxiliary(runtime, parameter_address, kSavedataIcon0Offset, "ICON0.PNG") ||
             !write_savedata_auxiliary(runtime, parameter_address, kSavedataIcon1Offset, "ICON1.PMF") ||
             !write_savedata_auxiliary(runtime, parameter_address, kSavedataPic1Offset, "PIC1.PNG") ||

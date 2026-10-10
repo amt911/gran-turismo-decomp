@@ -147,7 +147,8 @@ build/gt_play
 - `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
 - Sonido: efectos, motor y música. `GT_AUDIO_DUMP=<dir>` (también en `gt_native`) escribe la mezcla en
   `<dir>/channel_7.wav`.
-- Pendiente: cargar una partida deja la pantalla en blanco; el audio de los vídeos.
+- Partidas: se guardan en `build/savedata/` y se cargan al arrancar (`GT_SAVEDATA_DIR` para otra carpeta).
+- Pendiente: el audio de los vídeos.
 
 ## 6. Comparar con el juego original en PPSSPP
 

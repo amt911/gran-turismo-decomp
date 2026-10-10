@@ -80,12 +80,11 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
       Hicieron falta un asignador de bloques que fusiona huecos y respeta las peticiones "altas" (la
       carga de 6,6 MB fallaba con 10,5 MB libres en 1.141 trozos; FINDINGS) y `sceRtc` (reloj
       determinista: 2009-10-01 + tiempo virtual, UTC).
-- [ ] Controlar el coche (acelerador/dirección analógica en `GT_PAD`), ventana en tiempo real, sonido.
-- [ ] Cargar una partida que GT guardó deja la pantalla en blanco (`recomp/analysis/savedata_white_bug`
-      la conserva). Mientras tanto las partidas van a `recomp/savedata`, vaciada en cada arranque
-      (`GT_SAVEDATA_DIR` para conservarlas).
-- [ ] Ventana real (SDL/Vulkan) para jugar: necesita `sudo pacman -S vulkan-headers` (o un backend
-      SDL software).
+- [x] Ventana en tiempo real, controles y sonido: `gt_play` (sección *Jugable*).
+- [x] Cargar partidas: GT rechazaba la suya ("Save data created on another system") porque el HLE de
+      `sceUtilitySavedata` no ponía el campo `bind` al cargar (GT exige `bind & 3 == 1`); ahora 1021,
+      y el `sfoParam` se guarda y se devuelve como en un PARAM.SFO. `gt_play` conserva las partidas en
+      `build/savedata/`; `gt_native` sigue empezando sin partida (reproducible).
 - [ ] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo.
 - [ ] `sceDisplaySetMode` espera un vblank en PPSSPP (divergencia nº 236 de la traza).
 
