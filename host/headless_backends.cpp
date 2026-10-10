@@ -4,6 +4,7 @@
 // real backends. Declarations come from the pinned lcs-recomp headers (MIT); bodies are ours.
 
 #include "display_window.hpp"
+#include "frontend.hpp"
 #include "ge_gpu_backend.hpp"
 #include "ge_renderer.hpp"
 #include "lcs_audio_output.hpp"
@@ -23,111 +24,14 @@
 
 namespace lcs {
 
-// --- window and input: no window; never closed; analog stick centred. Buttons come only from
-// GT_PAD="<vblank>:<BUTTON>[:<frames>][,...]" (e.g. "2700:START,3000:CROSS:600"): each press is held
-// for <frames> vblanks (default 6), counted from the first vblank wait ---
-namespace {
-
-std::uint64_t g_vblanks = 0u;
-
-struct PadPress {
-    std::uint64_t vblank;
-    std::uint32_t buttons;
-    std::uint64_t frames;  // how long it is held (default 6)
-};
-
-std::uint32_t pad_button(const std::string &name) {
-    static const std::pair<const char *, std::uint32_t> kButtons[] = {
-        {"SELECT", 0x0001u}, {"START", 0x0008u}, {"UP", 0x0010u}, {"RIGHT", 0x0020u},
-        {"DOWN", 0x0040u}, {"LEFT", 0x0080u}, {"L", 0x0100u}, {"R", 0x0200u},
-        {"TRIANGLE", 0x1000u}, {"CIRCLE", 0x2000u}, {"CROSS", 0x4000u}, {"SQUARE", 0x8000u},
-    };
-    for (const auto &[label, bit] : kButtons)
-        if (name == label) return bit;
-    std::fprintf(stderr, "GT_PAD: unknown button '%s'\n", name.c_str());
-    return 0u;
-}
-
-const std::vector<PadPress> &pad_script() {
-    static const std::vector<PadPress> script = [] {
-        std::vector<PadPress> presses;
-        const char *text = std::getenv("GT_PAD");
-        if (text == nullptr) return presses;
-        std::string item;
-        for (const char *c = text;; ++c) {
-            if (*c == ',' || *c == '\0') {
-                const auto colon = item.find(':');
-                if (colon != std::string::npos) {  // <vblank>:<BUTTON>[:<frames held>]
-                    const std::string rest = item.substr(colon + 1u);
-                    const auto second = rest.find(':');
-                    const std::uint64_t frames = second == std::string::npos ? 6u : std::strtoull(rest.c_str() + second + 1u, nullptr, 10);
-                    presses.push_back({std::strtoull(item.c_str(), nullptr, 10), pad_button(rest.substr(0u, second)), frames});
-                }
-                item.clear();
-                if (*c == '\0') break;
-            } else {
-                item.push_back(*c);
-            }
-        }
-        return presses;
-    }();
-    return script;
-}
-
-} // namespace
-
+// --- window and input: no window; never closed; analog stick centred; no buttons (scripted presses,
+// GT_PAD, are added by the kernel for both executables: host/pad_script.cpp) ---
 bool display_window_closed() { return false; }
-HostInputState display_window_input() {
-    HostInputState state{};
-    for (const PadPress &press : pad_script())
-        if (g_vblanks >= press.vblank && g_vblanks < press.vblank + press.frames) state.buttons |= press.buttons;
-    return state;
-}
-void display_window_pump() { ++g_vblanks; }
-// GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N, default 60): every Nth presented frame is written as
-// <dir>/frame_NNNNNN.ppm from the guest display framebuffer. The images are game output: keep the
-// directory out of git (recomp/ is ignored).
-void display_window_present(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::uint32_t buffer_width,
-                            std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height) {
-    static const char *dump_dir = std::getenv("GT_FRAME_DUMP");
-    static const std::uint64_t every = [] {
-        const char *text = std::getenv("GT_FRAME_EVERY");
-        const auto value = text != nullptr ? std::strtoull(text, nullptr, 10) : 60ull;
-        return value == 0u ? 1ull : value;
-    }();
-    static std::uint64_t presented = 0u;
-    if (dump_dir == nullptr || (presented++ % every) != 0u) return;
-    if (width == 0u || height == 0u || buffer_width == 0u) return;
-    const std::uint32_t bytes_per_pixel = pixel_format == 3u ? 4u : 2u;  // 0 565, 1 5551, 2 4444, 3 8888
-    auto &memory = runtime.memory();
-    if (!memory.contains(frame_buffer, static_cast<std::size_t>(buffer_width) * height * bytes_per_pixel)) return;
-    std::filesystem::create_directories(dump_dir);
-    char name[32];
-    std::snprintf(name, sizeof name, "frame_%06llu.ppm", static_cast<unsigned long long>(presented - 1u));
-    std::FILE *out = std::fopen((std::filesystem::path(dump_dir) / name).c_str(), "wb");
-    if (out == nullptr) return;
-    std::fprintf(out, "P6\n%u %u\n255\n", width, height);
-    for (std::uint32_t y = 0; y < height; ++y) {
-        for (std::uint32_t x = 0; x < width; ++x) {
-            const std::uint32_t address = frame_buffer + (y * buffer_width + x) * bytes_per_pixel;
-            std::uint8_t rgb[3];
-            if (pixel_format == 3u) {
-                const std::uint32_t p = memory.load32(address);
-                rgb[0] = static_cast<std::uint8_t>(p); rgb[1] = static_cast<std::uint8_t>(p >> 8u);
-                rgb[2] = static_cast<std::uint8_t>(p >> 16u);
-            } else {
-                const std::uint32_t p = memory.load16(address);
-                std::uint32_t r = 0, g = 0, b = 0;
-                if (pixel_format == 0u) { r = (p & 31u) << 3u; g = ((p >> 5u) & 63u) << 2u; b = ((p >> 11u) & 31u) << 3u; }
-                else if (pixel_format == 1u) { r = (p & 31u) << 3u; g = ((p >> 5u) & 31u) << 3u; b = ((p >> 10u) & 31u) << 3u; }
-                else { r = (p & 15u) << 4u; g = ((p >> 4u) & 15u) << 4u; b = ((p >> 8u) & 15u) << 4u; }
-                rgb[0] = static_cast<std::uint8_t>(r); rgb[1] = static_cast<std::uint8_t>(g); rgb[2] = static_cast<std::uint8_t>(b);
-            }
-            std::fwrite(rgb, 1u, 3u, out);
-        }
-    }
-    std::fclose(out);
-}
+HostInputState display_window_input() { return HostInputState{}; }
+void display_window_pump() {}
+// Frames are dumped (GT_FRAME_DUMP) by the kernel before it presents: host/frame_dump.cpp.
+void display_window_present(psprecomp::Runtime &, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t,
+                            std::uint32_t) {}
 void display_window_present_rgba(std::span<const std::byte>, std::uint32_t, std::uint32_t) {}
 
 // --- audio output: samples are produced by the HLE and dropped here ---
@@ -194,3 +98,8 @@ void precise_sleep_until(std::chrono::steady_clock::time_point deadline) noexcep
 }
 
 } // namespace lcs
+
+// Headless: no configuration, window, GPU backend or audio device to set up.
+void gt::frontend_init(const std::filesystem::path &) {}
+void gt::frontend_attach() {}
+void gt::frontend_shutdown() {}
