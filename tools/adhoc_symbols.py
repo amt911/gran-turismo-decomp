@@ -1,6 +1,10 @@
 """Turn the Adhoc native-method map into config/symbol_addrs.txt entries.
 
-Usage: .venv/bin/python -m tools.adhoc_symbols recomp/analysis/adhoc_natives.tsv > config/symbol_addrs.txt
+Usage: .venv/bin/python -m tools.adhoc_symbols recomp/analysis/adhoc_natives.tsv [--keep config/symbol_addrs.txt] \
+           > new_symbol_addrs.txt
+
+--keep carries over the hand-written names of an existing file (every line that isn't an
+"adhoc native" one); they own their addresses.
 
 Input: the lines tools/ghidra_scripts/AdhocNatives.java writes — registrar, initializer, the
 identifier strings that initializer uses, method name, function (ELF vaddrs, hex). GT registers each
@@ -43,34 +47,50 @@ def module_name(strings: Sequence[str], initializer: int) -> str:
     return f"adhoc_init_{initializer:06X}"
 
 
-def symbol_lines(natives: Sequence[Native]) -> list[str]:
+def hand_lines(path: Path) -> dict[int, str]:
+    """Runtime address -> line, for the hand-written names of an existing symbol file."""
+    kept: dict[int, str] = {}
+    for line in path.read_text().splitlines():
+        match = re.match(r"^\S+ = 0x([0-9A-Fa-f]{8});", line)
+        if match and "// adhoc native" not in line:
+            kept[int(match.group(1), 16)] = line
+    return kept
+
+
+def symbol_lines(natives: Sequence[Native], kept: dict[int, str] | None = None) -> list[str]:
+    kept = kept or {}
     named: dict[int, str] = {}
     evidence: dict[int, str] = {}
     by_name: dict[str, set[int]] = {}
     for registrar, initializer, strings, method, function in natives:
         by_name.setdefault(f"{module_name(strings, initializer)}::{method}", set()).add(function)
     for registrar, initializer, strings, method, function in natives:
-        if function in named:
+        if function in named or function + LOAD_BASE in kept:
             continue
         name = f"{module_name(strings, initializer)}::{method}"
         if len(by_name[name]) > 1:
             name = f"{name}_{function + LOAD_BASE:08X}"
         named[function] = name
         evidence[function] = f"registrar {registrar:#x}, initializer {initializer:#x}"
-    lines = []
-    for function in sorted(named):
-        lines.append(f"{named[function]} = 0x{function + LOAD_BASE:08X}; // adhoc native ({evidence[function]})")
-    return lines
+    entries = {function + LOAD_BASE: f"{named[function]} = 0x{function + LOAD_BASE:08X}; "
+               f"// adhoc native ({evidence[function]})" for function in named}
+    entries.update(kept)
+    return [entries[address] for address in sorted(entries)]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    kept: dict[int, str] = {}
+    if len(args) == 3 and args[1] == "--keep":
+        kept = hand_lines(Path(args[2]))
+        args = args[:1]
     if len(args) != 1:
         print(__doc__.splitlines()[2], file=sys.stderr)
         return 2
     print("// GT symbol names, runtime addresses (ELF vaddr + 0x08804000). One name per address.")
-    print("// Generated from Adhoc native registrations: .venv/bin/python -m tools.adhoc_symbols")
-    for line in symbol_lines(load_natives(Path(args[0]))):
+    print("// Adhoc natives are generated (.venv/bin/python -m tools.adhoc_symbols ... --keep this file);")
+    print("// every other line is hand-written with its evidence and survives regeneration.")
+    for line in symbol_lines(load_natives(Path(args[0])), kept):
         print(line)
     return 0
 
