@@ -32,6 +32,7 @@
 #include "psmf_hle.hpp"
 #include "font_hle.hpp"
 #include "kernel_isolation.hpp"
+#include "kernel_replay_state.hpp"
 #include "movie_decoder.hpp"
 
 #include "psprecomp/common.hpp"
@@ -2713,12 +2714,18 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
 
+            const std::uint32_t previous_priority = thread.priority;
             thread.priority = priority;
 
             const auto best = best_ready_thread();
             const std::uint32_t current_priority = thread_priority(thread_table.current_uid);
             if (best != thread_table.continuations.end() &&
                 thread_priority(best->uid) < current_priority) {
+                if (gt::kernel_isolated()) {  // would switch threads inside a harness case
+                    thread.priority = previous_priority;
+                    gt::break_kernel_isolation();
+                    return;
+                }
                 const std::int32_t caller_uid = thread_table.current_uid;
                 psprecomp::AllegrexContext caller = ctx;
                 caller.set_gpr(2, 0u);
@@ -5081,3 +5088,31 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
 
 }
 
+namespace gt {
+
+KernelReplayState save_kernel_replay_state() {
+    KernelReplayState state;
+    for (const auto &[uid, block] : lcs::g_memory_blocks) state.blocks.push_back({uid, {block.address, block.size}});
+    std::sort(state.blocks.begin(), state.blocks.end());
+    for (const auto &range : lcs::g_free_memory_ranges) state.free_ranges.push_back({range.address, range.size});
+    state.next_address = lcs::partition_table.next_address;
+    state.next_uid = lcs::partition_table.next_uid;
+    for (const auto &[uid, thread] : lcs::thread_table.threads) state.thread_priorities.push_back({uid, thread.priority});
+    std::sort(state.thread_priorities.begin(), state.thread_priorities.end());
+    return state;
+}
+
+void restore_kernel_replay_state(const KernelReplayState &state) {
+    lcs::g_memory_blocks.clear();
+    for (const auto &[uid, block] : state.blocks) lcs::g_memory_blocks.emplace(uid, lcs::MemoryBlock{block.first, block.second});
+    lcs::g_free_memory_ranges.clear();
+    for (const auto &[address, size] : state.free_ranges) lcs::g_free_memory_ranges.push_back(lcs::MemoryBlock{address, size});
+    lcs::partition_table.next_address = state.next_address;
+    lcs::partition_table.next_uid = state.next_uid;
+    for (const auto &[uid, priority] : state.thread_priorities) {
+        const auto thread = lcs::thread_table.threads.find(uid);
+        if (thread != lcs::thread_table.threads.end()) thread->second.priority = priority;
+    }
+}
+
+} // namespace gt

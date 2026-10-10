@@ -22,7 +22,9 @@ void set_import_stubs(std::unordered_set<std::uint32_t> stubs);
 // Import stubs an isolated original may still call: their HLE keeps no state outside guest RAM
 // (which the harness snapshots and restores) and doesn't switch threads when uncontended — LwMutex
 // lock/unlock, interrupt suspend/resume, data-cache maintenance, reading the system time (the
-// virtual clock doesn't move inside a case). A thread switch still makes the case not comparable.
+// virtual clock doesn't move inside a case), thread priorities and memory blocks (the
+// harness snapshots that kernel state, host/kernel_replay_state.hpp). A thread switch still makes the
+// case not comparable.
 void set_replay_safe_imports(std::unordered_set<std::uint32_t> stubs);
 
 // Called for every import call (from the runtime import observer).

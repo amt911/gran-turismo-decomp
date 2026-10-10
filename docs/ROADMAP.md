@@ -141,6 +141,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       búferes reutilizados (antes ~100 ms por caso).
 - [x] `Array.resize` (vector de holders: truncar o crecer con `nil`), `MManager.registerClass`;
       módulos con nombre `Array`, `STStructure`, `pdistd`.
+- [x] Nativos de UI: `MRootWindow.setFocus`, `MNode.doCopy`, `MRenderContext.pushEvent`,
+      `MComposite.appendChild`.
+- [x] Harness: el informe dice por qué un caso no fue comparable; estado del kernel re-ejecutable
+      (bloques de memoria y prioridades de hilo, guardado/restaurado y comparado); un fallo de la
+      versión decompilada cuenta como discrepancia. Hasta el menú: **0 casos descartados**.
 - [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante

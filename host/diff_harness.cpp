@@ -2,12 +2,15 @@
 
 #include "fiber.hpp"
 #include "kernel_isolation.hpp"
+#include "kernel_replay_state.hpp"
 
 #include "decomp_registry.hpp"
 #include "diff_compare.hpp"
 #include "psprecomp/common.hpp"
 
 #include <chrono>
+#include <exception>
+#include <optional>
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -44,7 +47,11 @@ struct Entry {
     std::uint64_t calls{};    // all calls seen, to spread the compared cases over the run
     std::uint64_t next_sample{};
     std::string first_mismatch;
+    std::string first_skip;   // why the first not-comparable case was dropped
 };
+
+// Why the last run_to_sentinel gave up (for the report).
+std::string g_last_stop;
 
 // Compared calls: the first few, then geometrically further apart (each ~1.6x the previous call
 // index, plus a small jitter), so a function called 100,000 times is still compared late in the run
@@ -126,17 +133,39 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const auto deadline = std::chrono::steady_clock::now() + kMaxIsolatedTime;
     for (std::uint64_t step = 0; ctx.pc != kSentinelReturn; ++step) {
         const bool replay_safe = g_replay_safe_imports.contains(ctx.pc);
-        if (step >= kMaxSteps || (g_import_stubs.contains(ctx.pc) && !replay_safe) || rt.stopped()) return false;
-        if ((step & 0x3FFu) == 0x3FFu && std::chrono::steady_clock::now() > deadline) return false;
+        if (g_import_stubs.contains(ctx.pc) && !replay_safe) {
+            g_last_stop = "import stub " + psprecomp::hex32(ctx.pc);
+            return false;
+        }
+        if (step >= kMaxSteps || rt.stopped()) {
+            g_last_stop = rt.stopped() ? "runtime stopped" : "step bound";
+            return false;
+        }
+        if ((step & 0x3FFu) == 0x3FFu && std::chrono::steady_clock::now() > deadline) {
+            g_last_stop = "time bound";
+            return false;
+        }
         const auto decompiled = g_entries.find(ctx.pc);  // nested calls run originals, not the harness
         const auto fn = decompiled != g_entries.end() ? decompiled->second.original : rt.function_at(ctx.pc);
-        if (fn == nullptr) return false;
+        if (fn == nullptr) {
+            g_last_stop = "no function at " + psprecomp::hex32(ctx.pc);
+            return false;
+        }
         const std::uint64_t imports_before = g_imports;
         fn(rt, ctx);
         ctx.gpr[0] = 0u;
-        if (g_imports != imports_before && !replay_safe) return false;
-        if (kernel_isolation_broken()) return false;
-        if (!psprecomp::runtime_thread_switch_generation_matches(generation)) return false;
+        if (g_imports != imports_before && !replay_safe) {
+            g_last_stop = "import inside " + psprecomp::hex32(ctx.pc);
+            return false;
+        }
+        if (kernel_isolation_broken()) {
+            g_last_stop = "kernel isolation (LwMutex contention)";
+            return false;
+        }
+        if (!psprecomp::runtime_thread_switch_generation_matches(generation)) {
+            g_last_stop = "thread switch";
+            return false;
+        }
     }
     return true;
 }
@@ -188,6 +217,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
     const psprecomp::AllegrexContext entry_ctx = ctx;
     auto entry_ram = snapshot_ram(rt);
+    const KernelReplayState allocator_before = save_kernel_replay_state();
 
     psprecomp::AllegrexContext original_ctx = entry_ctx;
     bool original_ran;
@@ -197,27 +227,39 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     if (!original_ran) {
         ++entry.skipped;
+        if (entry.first_skip.empty()) entry.first_skip = "original: " + g_last_stop;
         restore_ram(rt, entry_ram);
+        restore_kernel_replay_state(allocator_before);
         recycle(std::move(entry_ram));
         entry.original(rt, ctx);  // no HLE ran yet: replay the call normally
         return;
     }
     original_ctx.gpr[31] = entry_ctx.gpr[31];
     EndState original = end_state(original_ctx, snapshot_ram(rt), entry_ctx.gpr[29]);
+    const KernelReplayState allocator_original = save_kernel_replay_state();
 
     restore_ram(rt, entry_ram);
+    restore_kernel_replay_state(allocator_before);
     psprecomp::AllegrexContext decompiled_ctx = entry_ctx;
     decompiled_ctx.gpr[31] = kSentinelReturn;
-    bool decompiled_ran;
-    {
+    bool decompiled_ran = false;
+    std::string decompiled_fault;
+    try {
         InCase in_case;
         run_decompiled(entry, rt, decompiled_ctx);
+        if (kernel_isolation_broken()) g_last_stop = "kernel isolation (LwMutex contention)";
         decompiled_ran = !kernel_isolation_broken() &&
                          (decompiled_ctx.pc == kSentinelReturn || run_to_sentinel(rt, decompiled_ctx));
+    } catch (const std::exception &error) {  // e.g. a guest memory access the original never made
+        decompiled_fault = error.what();
+        decompiled_ran = true;
     }
     if (!decompiled_ran) {
-        ++entry.skipped;  // the tail target left what the harness can replay: keep the original's run
+        ++entry.skipped;
+        // the decompiled run (or its tail target) left what the harness can replay: keep the original's
+        if (entry.first_skip.empty()) entry.first_skip = "decompiled: " + g_last_stop;
         restore_ram(rt, original.ram);
+        restore_kernel_replay_state(allocator_original);
         recycle(std::move(entry_ram));
         recycle(std::move(original.ram));
         ctx = original_ctx;
@@ -231,7 +273,12 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::size_t skip_begin = original.ignore_begin - kRamBase;
     const std::size_t skip_end = original.ignore_end - kRamBase;
     if (first_byte_difference(entry_ram, original.ram, skip_begin, skip_end)) ++entry.informative;
-    if (const auto difference = first_difference(original, decompiled, entry.info.returns)) {
+    auto difference = decompiled_fault.empty()
+                          ? first_difference(original, decompiled, entry.info.returns)
+                          : std::optional<std::string>("decompiled run faulted: " + decompiled_fault);
+    if (!difference && save_kernel_replay_state() != allocator_original)
+        difference = "kernel state differs (memory blocks or thread priorities)";
+    if (difference) {
         ++entry.mismatched;
         if (entry.first_mismatch.empty()) {
             entry.first_mismatch = *difference + " (a0=" + psprecomp::hex32(entry_ctx.gpr[4]) +
@@ -244,6 +291,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
     // The game continues with the original's result, so diff mode never changes the run.
     restore_ram(rt, original.ram);
+    restore_kernel_replay_state(allocator_original);
     recycle(std::move(entry_ram));
     recycle(std::move(original.ram));
     recycle(std::move(decompiled.ram));
@@ -300,6 +348,7 @@ int decomp_report() {
                   << entry.mismatched << ", not comparable " << entry.skipped << " (calls " << entry.calls
                   << ", cases that changed memory " << entry.informative << ")\n";
         if (!entry.first_mismatch.empty()) std::cerr << "[decomp]   first mismatch: " << entry.first_mismatch << "\n";
+        if (!entry.first_skip.empty()) std::cerr << "[decomp]   first not comparable: " << entry.first_skip << "\n";
         if (entry.mismatched != 0u) status = 2;
         if (entry.compared == 0u) std::cerr << "[decomp]   warning: never compared in this run\n";
     }
