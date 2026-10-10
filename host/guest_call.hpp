@@ -18,4 +18,23 @@ namespace gt {
 std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
                          std::initializer_list<std::uint32_t> arguments);
 
+// Room on the guest stack for locals a guest callee needs the address of (a smart pointer it fills,
+// an output struct). Lowers ctx's sp by `bytes` (16-aligned) for as long as it lives, like the
+// original's frame; the harness ignores that dead stack when comparing.
+class GuestFrame {
+public:
+    GuestFrame(psprecomp::AllegrexContext &ctx, std::uint32_t bytes)
+        : ctx_(ctx), saved_sp_(ctx.gpr[29]) {
+        ctx_.gpr[29] = (saved_sp_ - bytes) & ~15u;
+    }
+    ~GuestFrame() { ctx_.gpr[29] = saved_sp_; }
+    GuestFrame(const GuestFrame &) = delete;
+    GuestFrame &operator=(const GuestFrame &) = delete;
+    std::uint32_t at(std::uint32_t offset) const { return ctx_.gpr[29] + offset; }
+
+private:
+    psprecomp::AllegrexContext &ctx_;
+    std::uint32_t saved_sp_;
+};
+
 } // namespace gt

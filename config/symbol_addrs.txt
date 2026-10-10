@@ -1261,6 +1261,7 @@ adhoc_init_27E3E4::insert = 0x08A81E4C; // adhoc native (registrar 0x383108, ini
 adhoc_init_27E3E4::clear = 0x08A81F34; // adhoc native (registrar 0x383108, initializer 0x27e3e4)
 adhoc_init_27E3E4::erase = 0x08A82014; // adhoc native (registrar 0x383108, initializer 0x27e3e4)
 adhoc_init_27E3E4::find = 0x08A82170; // adhoc native (registrar 0x383108, initializer 0x27e3e4)
+adhoc::new_integer_object = 0x08A85B1C; // hand: (holder*, value) allocates 0x18 bytes, constructs an Adhoc integer (0x08A854CC) and stores it in the holder; MUnit getters
 adhoc_init_28564C::open = 0x08A89750; // adhoc native (registrar 0x383108, initializer 0x28564c)
 adhoc_init_290338::open = 0x08A93E5C; // adhoc native (registrar 0x383108, initializer 0x290338)
 adhoc_init_297404::move = 0x08A98F80; // adhoc native (registrar 0x383108, initializer 0x297404)
