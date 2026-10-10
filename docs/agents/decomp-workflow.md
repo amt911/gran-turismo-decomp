@@ -63,9 +63,12 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
 - Arguments go in `a0-a3, t0-t3`; the callee's frame goes below the caller's `sp`. The caller keeps
   its own state in C++ and gets only `v0` back.
 - The harness still compares such functions: an isolated original may call the **replay-safe
-  imports** (`gt::set_replay_safe_imports`: LwMutex lock/unlock, interrupt suspend/resume, data-cache
-  maintenance) because their state lives in guest RAM, which the harness snapshots and restores.
-  Any other import, or a thread switch, makes the case "not comparable".
+  imports** (`gt::set_replay_safe_imports` in `host/main.cpp`): LwMutex, interrupt suspend/resume,
+  data-cache maintenance, system time, thread priority get/change, memory blocks. Their state is
+  guest RAM or host kernel state the harness snapshots, restores and compares
+  (`host/kernel_replay_state.hpp`); anything that would switch threads refuses inside a case
+  (`host/kernel_isolation.hpp`). The report names the reason of the first "not comparable" case —
+  extend the list when an import keeps showing up there.
 - A function the reached game states never call can't be compared, so it stays recompiled (e.g.
   `calloc`/`realloc`, `src/libc/malloc.cpp`).
 - **Tail calls**: where the original ends with `j other` / `jr $t9`, end the decompiled function with

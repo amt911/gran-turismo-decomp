@@ -119,6 +119,9 @@ int main(int argc, char **argv) {
             0x092968F4u, 0x5F10D406u,                            // CpuSuspendIntr / CpuResumeIntr
             0x79D1C3FAu, 0xB435DEC5u, 0x3EE30821u, 0x34B9FA9Eu, 0xBFA98062u,  // Dcache maintenance
             0x369ED59Du, 0x82BC5777u,  // GetSystemTimeLow / Wide: read the virtual clock only
+            0x94AA61EEu,               // GetThreadCurrentPriority: read only
+            0x71BC9871u,               // ChangeThreadPriority: priorities snapshotted, no switch in a case
+            0xFE707FDFu, 0x50F61D8Au, 0xDB83A952u,  // Alloc/Free/GetAddr MemoryBlock: allocator snapshotted
         };
         std::unordered_set<std::uint32_t> import_stubs, replay_safe;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
