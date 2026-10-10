@@ -24,7 +24,7 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
 > - **💾 Las partidas se guardan y se cargan** (`gt_play` las conserva en `build/savedata/`).
 > - **Pendiente visible:** el audio de los vídeos; el backend Vulkan de la GE (hoy se dibuja por software).
-> - **Decompilación (Fase 3-4):** 943 funciones decompiladas y probadas contra el original con el
+> - **Decompilación (Fase 3-4):** 1.081 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `bsearch`, y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;
 >   scripts: `MUnit` (8), `MRandom.GetValue`, `Object.toInt/toFloat/defined`, `Math.clamp`,
@@ -32,7 +32,7 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   interfaz (`setFocus`, `doCopy`, `pushEvent`, `appendChild`…) y el juego (`MOrganizer`,
 >   `MRaceOperator`, `MSpecDB.getCarCode`, récords…) y, por la ruta de la carrera, `MCarParameter`,
 >   `CarSettings`, `Math.sqrt/abs`, `MSpecDB.isDirt`, `MSound.stopMusic`, menús de opciones,
->   `MCarCollection.hasCar`…) 261 «thunks» de salto (`src/core/thunks.cpp`) y 357 funciones triviales de plantilla: vacías, lectores de globales y accesores de miembro (`src/core/trivial.cpp`, `src/core/accessors.cpp`). Todas iguales al
+>   `MCarCollection.hasCar`…) 261 «thunks» de salto (`src/core/thunks.cpp`) 357 funciones triviales de plantilla: vacías, lectores de globales y accesores de miembro (`src/core/trivial.cpp`, `src/core/accessors.cpp`) y 138 reenvíos y fábricas de objetos (`src/core/forwarders.cpp`, `src/core/factories.cpp`). Todas iguales al
 >   original jugando hasta la carrera (0 discrepancias).
 >   **1.313 funciones ya tienen su nombre real** (los nativos que usan los scripts Adhoc:
 >   `config/symbol_addrs.txt`). Informe: `.venv/bin/python -m tools.progress`.
