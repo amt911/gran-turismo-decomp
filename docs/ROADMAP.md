@@ -211,6 +211,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Sonido: la mezcla de GT sale por `sceAudioOutput2` (antes se descartaba) y la música Atrac3+ se
       decodifica desde los datos que el juego entrega en su búfer (FFmpeg atrac3p, trama a trama).
 - [ ] Audio de los vídeos PSMF.
+- [x] Menús e iconos/HUD que faltaban: los sprites se dibujaban antes que los triángulos pendientes
+      (parche 0015; FINDINGS). Referencia: PPSSPPSDL en Xvfb.
 - [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS).
 - [ ] Probarlo jugando de verdad (el usuario) y ajustar controles.
 

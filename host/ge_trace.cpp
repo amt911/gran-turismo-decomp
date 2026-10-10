@@ -40,6 +40,7 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
         case 0x23: ztest_on = arg & 1u; break;
         case 0xDE: zfunc = arg; break;
         case 0xDF: blend_mode = arg; break;
+
         case 0x1E: texture = (arg & 1u) != 0u; break;
         case 0x21: blend = (arg & 1u) != 0u; break;
         case 0x9C: fb = (fb & 0xFF000000u) | arg; break;
@@ -78,6 +79,35 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
                 std::fprintf(stderr, "[ge] T4 texture %08x: %u of %u bytes non-zero; clut[0..3] %08x %08x %08x %08x\n",
                              address, nonzero, bytes, memory.load32(clut), memory.load32(clut + 4u),
                              memory.load32(clut + 8u), memory.load32(clut + 60u));
+                // GT_GE_DUMP_DIR=<dir>: the texture decoded (swizzled T4 + 8888 CLUT) as <dir>/tex_ADDR.ppm,
+                // composited on magenta so transparent texels show.
+                if (const char *dir = std::getenv("GT_GE_DUMP_DIR"); dir != nullptr && tbw != 0u) {
+                    const std::uint32_t w = 1u << (size & 0xFu), h = 1u << ((size >> 8u) & 0xFu);
+                    const bool swizzled = (mode & 1u) != 0u;
+                    char name[256];
+                    std::snprintf(name, sizeof name, "%s/tex_%08x.ppm", dir, address);
+                    if (std::FILE *out = std::fopen(name, "wb")) {
+                        std::fprintf(out, "P6\n%u %u\n255\n", w, h);
+                        const std::uint32_t row_bytes = tbw / 2u;
+                        for (std::uint32_t y = 0; y < h; ++y) {
+                            for (std::uint32_t x = 0; x < w; ++x) {
+                                std::uint32_t offset = y * row_bytes + x / 2u;
+                                if (swizzled) {  // 16-byte x 8-row blocks
+                                    const std::uint32_t bx = (x / 2u) / 16u, by = y / 8u;
+                                    offset = (by * (row_bytes / 16u) + bx) * 128u + (y % 8u) * 16u + (x / 2u) % 16u;
+                                }
+                                const std::uint32_t byte = memory.load8(address + offset);
+                                const std::uint32_t index = (x & 1u) ? (byte >> 4u) : (byte & 15u);
+                                const std::uint32_t c = memory.load32(clut + index * 4u);
+                                const std::uint32_t a = c >> 24u;
+                                const auto mix = [&](std::uint32_t v, std::uint32_t bg) { return static_cast<unsigned char>((v * a + bg * (255u - a)) / 255u); };
+                                const unsigned char px[3] = {mix(c & 0xFFu, 255u), mix((c >> 8u) & 0xFFu, 0u), mix((c >> 16u) & 0xFFu, 255u)};
+                                std::fwrite(px, 1u, 3u, out);
+                            }
+                        }
+                        std::fclose(out);
+                    }
+                }
             }
             static int vertex_dumps = 0;
             if (texture && format == 4u && primitive == 6u && vertex_dumps++ < 3) {
