@@ -1,0 +1,27 @@
+diff --git a/lcs/host/ge_renderer.cpp b/lcs/host/ge_renderer.cpp
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4813,6 +4813,11 @@
+         break;
+     }
+     case 6u:
++        // Rectangles rasterize immediately, but triangles wait in the deferred batches (and the HW
++        // draw queue) until the list ends: draw the pending ones a sprite overlaps first, or the
++        // sprite ends up under triangles the list drew before it (GT's menu icons under their
++        // panels, its race HUD).
++        hw_draw_queue().drain();
+         for (std::size_t i = 0u; i + 1u < vertices.size(); i += 2u) {
+             Vertex a = vertices[i];
+             Vertex b = vertices[i + 1u];
+@@ -4834,6 +4839,11 @@
+             }
+             if (gpu_backend_enabled)
+                 accumulate_gpu_rectangle(gpu_draw, a, b);
++            if (!g_deferred_triangles.empty()) {
++                const auto top = static_cast<std::int32_t>(std::floor(std::min(a.y, b.y)));
++                const auto bottom = static_cast<std::int32_t>(std::ceil(std::max(a.y, b.y)));
++                if (bottom >= g_deferred_min_y && top <= g_deferred_max_y) flush_deferred_batches(memory);
++            }
+             rasterize_rectangle(memory, commands, setup, a, b);
+         }
+         break;

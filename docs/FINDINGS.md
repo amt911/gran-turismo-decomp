@@ -128,6 +128,23 @@ showed up once in 3,000).
 
 Found: 2026-10-10 · harness
 
+### Menu icons and the race HUD missing: sprites drawn before the triangles under them
+
+**Symptom.** Single Player's mode panels empty (no helmet/car/track icons, no arrows, no OK
+button), the main menu's "i" button and most of the race HUD (position, times, speed, gauges)
+missing — while the frame-by-frame trace showed those sprites being drawn, with the right colours.
+**Cause.** lcs-recomp's software renderer defers triangles (batched until the list ends or a
+transfer) but rasterizes sprites (PRIM 6) at once, so a sprite lands *under* panels the list drew
+before it. LCS rarely mixes the two; GT's UI does it everywhere.
+**Fix / workaround.** Patch 0015: before a sprite, drain the HW draw queue and flush the deferred
+triangles whose rows it overlaps. Costs ~3 % of speed.
+**Why it isn't obvious.** Every individual draw is correct (texture, CLUT, blend); only the order is
+wrong. A PPSSPP reference settled it: PPSSPPHeadless's websocket debugger never answered here, but
+PPSSPPSDL under `xvfb-run`, driven with python-xlib's XTEST key presses (Space = START, Z = Cross)
+and `import -window root` screenshots, gives the real frames.
+
+Found: 2026-10-10 · renderer
+
 ### "Save data created on another system": the savedata `bind` field
 
 **Symptom.** Loading any save GT wrote showed "Save data created on another system has been
