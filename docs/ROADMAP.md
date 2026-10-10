@@ -193,6 +193,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (FINDINGS). Con ello, las 8 auxiliares del heap de libc (`page_heap.cpp`: lock/unlock, clase de
       tamaño, búsqueda/inserción/borrado en la tabla de páginas, liberar página, pedir bloque) pasan
       de 0 llamadas a millones. **105 funciones, 0 discrepancias** hasta la carrera.
+- [x] Los tipos de valor de Adhoc (`src/game/adhoc/values.cpp`): fábricas y constructores de
+      entero, float, booleano y entero de 64 bits (con las que todo nativo devuelve su resultado;
+      ~15.000 y ~20.000 llamadas las de entero y booleano). **113 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
