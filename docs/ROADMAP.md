@@ -213,6 +213,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       MOptionMenu.applyAppend, MNode.getNodePath, MImageFace.getImagePath/Texcoord, MSound.fadeOutMusic).
       **184 funciones, 0 discrepancias.** Sin comparar: `MComposite.clearChild` (duerme el hilo),
       `MMusic.fadein` (`sceKernelWakeupThread`).
+- [x] Métodos de String (`toInt/toLong/toULong/upcase/substr`, `src/game/adhoc/string_natives.cpp`),
+      `pdistd.AsciiStringHash` y `Module.removeStatic/defineModule/defineAttribute`.
+      **193 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
