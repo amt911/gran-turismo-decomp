@@ -1,5 +1,6 @@
 // GT symbol names, runtime addresses (ELF vaddr + 0x08804000). One name per address.
-// Generated from Adhoc native registrations: .venv/bin/python -m tools.adhoc_symbols
+// Adhoc natives are generated (.venv/bin/python -m tools.adhoc_symbols ... --keep this file);
+// every other line is hand-written with its evidence and survives regeneration.
 adhoc_init_0032F8::CreateGameRecordObject = 0x08805EFC; // adhoc native (registrar 0x382fb0, initializer 0x32f8)
 adhoc_init_0032F8::CreateGameRecordStructure = 0x08805FD0; // adhoc native (registrar 0x382fb0, initializer 0x32f8)
 adhoc_init_0022D0::getBoardSR = 0x0880602C; // adhoc native (registrar 0x383108, initializer 0x22d0)
@@ -1172,6 +1173,15 @@ adhoc_init_254118::setElement = 0x08A57894; // adhoc native (registrar 0x383108,
 adhoc_init_254118::setMember = 0x08A57930; // adhoc native (registrar 0x383108, initializer 0x254118)
 adhoc_init_254118::getMember = 0x08A57BD4; // adhoc native (registrar 0x383108, initializer 0x254118)
 adhoc_init_254118::getElement = 0x08A57CB0; // adhoc native (registrar 0x383108, initializer 0x254118)
+gt::core::object_release_weak = 0x08A5B930; // hand: weak count -1, last one tail-calls vtable[1] (delete); src/core/refcount.cpp
+gt::core::object_release = 0x08A5B970; // hand: strong count -1, last one calls vtable[2] (dispose) then the weak release
+gt::core::holder_destroy = 0x08A5B9EC; // hand: smart pointer destructor (also 0x08A5B9D0, not a recompiled entry)
+gt::core::object_retain_weak = 0x08A5BA08; // hand: weak count +1 (ll/sc)
+gt::core::object_retain = 0x08A5BA28; // hand: strong count +1, the first also retains weak
+gt::core::holder_copy = 0x08A5BA78; // hand: smart pointer copy (identical copies at 0x08A5BA58/98/B8)
+gt::core::holder_copy_2 = 0x08A5BAB8; // hand: identical template instance of holder_copy
+gt::core::holder_reset = 0x08A5BAD8; // hand: retain new, release old, store
+gt::core::null_object_check = 0x08A5BB7C; // hand: empty release-build check called with a class name
 adhoc_init_25D310::getCurrent = 0x08A60FB0; // adhoc native (registrar 0x383108, initializer 0x25d310)
 adhoc_init_25D310::run = 0x08A611C0; // adhoc native (registrar 0x383108, initializer 0x25d310)
 adhoc_init_25D310::append = 0x08A614A8; // adhoc native (registrar 0x383108, initializer 0x25d310)
@@ -1313,3 +1323,18 @@ adhoc_init_2B2654::readChar = 0x08AB6564; // adhoc native (registrar 0x383108, i
 adhoc_init_2B29B0::GetMicroSecond = 0x08AB6964; // adhoc native (registrar 0x382fb0, initializer 0x2b29b0)
 adhoc_init_2B2AD0::GetFileModifyTime = 0x08AB6BA0; // adhoc native (registrar 0x382fb0, initializer 0x2b2ad0)
 adhoc_init_2B2AD0::GetFileSize = 0x08AB6E80; // adhoc native (registrar 0x382fb0, initializer 0x2b2ad0)
+gt::libc::free = 0x08B35254; // hand: callee of realloc/delete paths
+gt::libc::memalign = 0x08B35840; // hand: allocator core (mutex, sbrk via sceKernelAllocPartitionMemory)
+gt::libc::malloc = 0x08B35DA0; // hand: memalign(4, n); src/libc/malloc.cpp
+gt::libc::malloc_r = 0x08B35DAC; // hand: newlib reentrant twin of malloc
+gt::libc::calloc = 0x08B35DDC; // hand: malloc(n*size) + memset 0
+gt::libc::realloc = 0x08B35E3C; // hand: malloc + memcpy(size) + free(old), frees old even on failure
+gt::libc::strchrnul = 0x08B35ED0; // hand: src/libc/strchrnul.cpp
+gt::libc::strlen = 0x08B35F60; // hand: src/libc/strlen.cpp
+gt::libc::strcmp = 0x08B35FD8; // hand: src/libc/strcmp.cpp
+gt::libc::memset = 0x08B36018; // hand: src/libc/memset.cpp
+gt::libc::memcmp = 0x08B36170; // hand: src/libc/memcmp.cpp
+gt::libc::snprintf = 0x08B3767C; // hand: (buf, 0x80, "%s/%s/rtext.rt2", ...) call site
+gt::libc::bsearch = 0x08B77C14; // hand: (key, base, count, size, compare) binary search, returns match or 0
+gt::libc::memcpy = 0x08B79A88; // hand: src/libc/memcpy.cpp
+gt::libc::memmove = 0x08B79BAC; // hand: src/libc/memmove.cpp

@@ -35,6 +35,22 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### The diff gate passed sabotaged smart-pointer code: all samples came from boot
+
+**Symptom.** `holder_destroy` / `holder_reset` sabotaged (no release, wrong store) still showed
+32/32 equal — with 0 "cases that changed memory" although they run 200,000 times to the menu.
+**Cause.** Sampling 1 call in 64 with a 32-case budget spends the whole budget in the first ~2,000
+calls, i.e. boot, where these calls were trivial (empty holders) — and a fixed stride can lock onto
+one call site of a periodic loop.
+**Fix / workaround.** Geometric spacing with jitter (each sample ~1.6× the previous call index):
+cases now come from the whole run, both sabotages fail the gate. For rare branches,
+`GT_DECOMP_DENSE=0xADDR` compares every call of one function (the weak release's delete branch
+showed up once in 3,000).
+**Why it isn't obvious.** The gate looked green and the case counts looked healthy; only the
+"cases that changed memory" column gave it away.
+
+Found: 2026-10-10 · harness
+
 ### Title screen crashes reading address 4 — no font glyphs, not a localisation problem
 
 **Symptom.** ~10 s after the GT logo (with or without skipping the movie): `Guest memory access

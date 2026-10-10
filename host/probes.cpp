@@ -8,6 +8,7 @@
 #include "psprecomp/common.hpp"
 
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -18,11 +19,13 @@ namespace {
 
 struct Probe {
     psprecomp::Runtime::RecompiledFunction original{};
+    std::string name;
     std::uint64_t hits{};
     unsigned first_order{};
 };
 
 std::map<std::uint32_t, Probe> g_probes;
+bool g_quiet = false;  // GT_PROBE_SYMBOLS probes hundreds of functions: only the summary prints
 unsigned g_next_order = 1u;
 
 // ` "text"` when `address` holds a short printable C string (paths, names), else nothing.
@@ -45,7 +48,7 @@ void probe_trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
     Probe &probe = it->second;
-    if (probe.hits++ == 0u) {
+    if (probe.hits++ == 0u && !g_quiet) {
         probe.first_order = g_next_order++;
         std::cerr << "[probe] first entry #" << probe.first_order << " " << psprecomp::hex32(ctx.pc)
                   << " ra=" << psprecomp::hex32(ctx.gpr[31]) << " a0=" << psprecomp::hex32(ctx.gpr[4])
@@ -54,29 +57,45 @@ void probe_trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     probe.original(rt, ctx);
 }
 
+void add_probe(psprecomp::Runtime &runtime, std::uint32_t address, std::string name) {
+    const auto original = runtime.function_at(address);
+    if (original == nullptr) {
+        if (!g_quiet) std::cerr << "[probe] no registered function at " << psprecomp::hex32(address) << "\n";
+        return;
+    }
+    g_probes[address] = Probe{original, std::move(name)};
+    runtime.register_function(address, &probe_trampoline, "probe:" + g_probes[address].name);
+}
+
 } // namespace
 
 void install_probes(psprecomp::Runtime &runtime) {
-    const char *list = std::getenv("GT_PROBE");
-    if (list == nullptr) return;
-    std::stringstream stream(list);
-    std::string item;
-    while (std::getline(stream, item, ',')) {
-        const auto address = static_cast<std::uint32_t>(std::strtoul(item.c_str(), nullptr, 0));
-        const auto original = runtime.function_at(address);
-        if (original == nullptr) {
-            std::cerr << "[probe] no registered function at " << item << "\n";
-            continue;
+    if (const char *list = std::getenv("GT_PROBE")) {
+        std::stringstream stream(list);
+        std::string item;
+        while (std::getline(stream, item, ','))
+            add_probe(runtime, static_cast<std::uint32_t>(std::strtoul(item.c_str(), nullptr, 0)), item);
+    }
+    // GT_PROBE_SYMBOLS=config/symbol_addrs.txt: probe every named function ("name = 0xADDR; ...").
+    if (const char *path = std::getenv("GT_PROBE_SYMBOLS")) {
+        g_quiet = true;
+        std::ifstream symbols(path);
+        std::string line;
+        while (std::getline(symbols, line)) {
+            const auto equals = line.find(" = 0x");
+            if (line.rfind("//", 0) == 0u || equals == std::string::npos) continue;
+            add_probe(runtime, static_cast<std::uint32_t>(std::strtoul(line.c_str() + equals + 3, nullptr, 16)),
+                      line.substr(0, equals));
         }
-        g_probes[address] = Probe{original};
-        runtime.register_function(address, &probe_trampoline, "probe:" + item);
     }
 }
 
 void probe_report() {
     for (const auto &[address, probe] : g_probes) {
+        if (g_quiet && probe.hits == 0u) continue;
         std::cerr << "[probe] " << psprecomp::hex32(address) << " hits=" << probe.hits;
         if (probe.hits != 0u) std::cerr << " first=#" << probe.first_order;
+        if (g_quiet) std::cerr << " " << probe.name;
         std::cerr << "\n";
     }
 }

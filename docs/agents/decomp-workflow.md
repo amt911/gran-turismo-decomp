@@ -66,6 +66,14 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
   Any other import, or a thread switch, makes the case "not comparable".
 - A function the reached game states never call can't be compared, so it stays recompiled (e.g.
   `calloc`/`realloc`, `src/libc/malloc.cpp`).
+- **Tail calls**: where the original ends with `j other` / `jr $t9`, end the decompiled function with
+  `gt::tail_call(ctx, address, {args})` (`host/decomp_registry.hpp`). No native frame stays behind,
+  so the target may block. A *non-tail* call whose callee can block (e.g. a virtual dispose — seen
+  switching threads under `--decomp on`) keeps the caller recompiled.
+- **Coverage**: compared calls are spread geometrically over the run. When a branch is rare (an
+  object's last release deletes it), compare every call of that function:
+  `GT_DECOMP_DENSE=0xADDR … --decomp diff --decomp-cases 3000`, and prove the branch with a sabotage
+  of it.
 
 ## Interop with guest memory — open, decided in the Phase 3 spec
 

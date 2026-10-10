@@ -37,16 +37,24 @@ struct Entry {
     unsigned skipped{};
     unsigned informative{};   // compared cases where the original actually changed memory
     std::uint64_t calls{};    // all calls seen, to spread the compared cases over the run
+    std::uint64_t next_sample{};
     std::string first_mismatch;
 };
 
-// Compared calls: the first few, then one in kSampleStride, so the cases are not all the same
-// boot-time call (e.g. memset of already-zero memory, which can't reveal a missing write).
+// Compared calls: the first few, then geometrically further apart (each ~1.6x the previous call
+// index, plus a small jitter), so a function called 100,000 times is still compared late in the run
+// and the samples don't lock onto one call site of a periodic loop. A fixed 1-in-64 stride spent the
+// whole budget in the first ~2,000 calls (boot) and kept hitting the same trivial site
+// (docs/FINDINGS.md).
 constexpr std::uint64_t kFirstCases = 4u;
-constexpr std::uint64_t kSampleStride = 64u;
+
+std::uint64_t next_sample_after(std::uint64_t call) {
+    const std::uint64_t jitter = ((call + 1u) * 0x9E3779B97F4A7C15ull) >> 61u;  // 0..7
+    return call + 1u + call * 3u / 5u + jitter;
+}
 
 DecompMode g_mode = DecompMode::Off;
-unsigned g_cases = 16u;
+unsigned g_cases = 32u;
 std::unordered_map<std::uint32_t, Entry> g_entries;
 std::unordered_set<std::uint32_t> g_import_stubs;
 std::unordered_set<std::uint32_t> g_replay_safe_imports;
@@ -73,11 +81,10 @@ EndState end_state(const psprecomp::AllegrexContext &ctx, std::vector<std::uint8
     return state;
 }
 
-// Runs the recompiled original from `ctx` until it returns to kSentinelReturn. False when it would
-// enter an import, exceeds the step bound, or stops the runtime: then the case is not comparable.
-bool run_original_isolated(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, const Entry &entry) {
-    ctx.gpr[31] = kSentinelReturn;
-    ctx.pc = entry.info.address;
+// Runs guest code from ctx.pc until it returns to kSentinelReturn. False when it would enter an
+// import that isn't replay-safe, switches threads, exceeds the step bound, or stops the runtime:
+// then the case is not comparable.
+bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
     for (std::uint64_t step = 0; ctx.pc != kSentinelReturn; ++step) {
         const bool replay_safe = g_replay_safe_imports.contains(ctx.pc);
@@ -94,10 +101,19 @@ bool run_original_isolated(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     return true;
 }
 
+bool run_original_isolated(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, const Entry &entry) {
+    ctx.gpr[31] = kSentinelReturn;
+    ctx.pc = entry.info.address;
+    return run_to_sentinel(rt, ctx);
+}
+
+// Runs the decompiled function. Returns to ra unless it ended with gt::tail_call, in which case
+// ctx.pc is the tail target and the guest code there returns to ra by itself.
 void run_decompiled(Entry &entry, psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.pc = entry.info.address;
     entry.info.fn(rt, ctx);
     ctx.gpr[0] = 0u;
-    ctx.pc = ctx.gpr[31];
+    if (ctx.pc == entry.info.address) ctx.pc = ctx.gpr[31];
 }
 
 void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -112,7 +128,15 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
     const std::uint64_t call = entry.calls++;
-    const bool sampled = call < kFirstCases || call % kSampleStride == 0u;
+    // GT_DECOMP_DENSE=0xADDR compares every call of that one function (up to the case budget), to
+    // reach branches the spread-out samples miss.
+    static const std::uint32_t dense = [] {
+        const char *text = std::getenv("GT_DECOMP_DENSE");
+        return text != nullptr ? static_cast<std::uint32_t>(std::strtoul(text, nullptr, 0)) : 0u;
+    }();
+    const bool sampled = call < kFirstCases || call == entry.next_sample || entry.info.address == dense;
+    if (sampled && call >= kFirstCases) entry.next_sample = next_sample_after(call);
+    if (call + 1u == kFirstCases) entry.next_sample = next_sample_after(call);
     if (!sampled || entry.compared + entry.skipped >= g_cases) {  // not sampled / budget spent: run as recompiled
         entry.original(rt, ctx);
         return;
@@ -133,7 +157,16 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
     restore_ram(rt, entry_ram);
     psprecomp::AllegrexContext decompiled_ctx = entry_ctx;
+    decompiled_ctx.gpr[31] = kSentinelReturn;
     run_decompiled(entry, rt, decompiled_ctx);
+    if (decompiled_ctx.pc != kSentinelReturn && !run_to_sentinel(rt, decompiled_ctx)) {
+        ++entry.skipped;  // the tail target left what the harness can replay: keep the original's run
+        restore_ram(rt, original.ram);
+        ctx = original_ctx;
+        ctx.pc = entry_ctx.gpr[31];
+        return;
+    }
+    decompiled_ctx.gpr[31] = entry_ctx.gpr[31];
     const EndState decompiled = end_state(decompiled_ctx, snapshot_ram(rt), entry_ctx.gpr[29]);
 
     ++entry.compared;

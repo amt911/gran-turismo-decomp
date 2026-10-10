@@ -40,7 +40,7 @@ struct Options {
     std::filesystem::path trace;  // import-call trace for tools/trace_compare.py; empty = off
     std::uint64_t trace_limit = 200'000u;  // lines written; later calls are only counted
     gt::DecompMode decomp = gt::DecompMode::Off;  // --decomp off|on|diff (docs/agents/decomp-workflow.md)
-    unsigned decomp_cases = 16u;                   // diff cases per decompiled function
+    unsigned decomp_cases = 32u;                   // diff cases per decompiled function
 };
 
 // Import trace: one line per import call, "<index> 0x<stub address>", in call order. The stub

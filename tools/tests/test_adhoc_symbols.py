@@ -48,3 +48,23 @@ def test_symbol_lines_are_sorted_by_address(tmp_path: Path):
     path.write_text(TSV)
     addresses = [int(line.split("= ")[1].split(";")[0], 16) for line in symbol_lines(load_natives(path)) if "=" in line]
     assert addresses == sorted(addresses)
+
+
+def test_keep_preserves_hand_names_and_they_win_over_generated_ones(tmp_path: Path):
+    from tools.adhoc_symbols import hand_lines
+
+    existing = tmp_path / "symbol_addrs.txt"
+    existing.write_text(
+        "// header\n"
+        "gt::core::object_retain = 0x08A3D61C; // hand: retains the strong count\n"
+        "MOld::stale = 0x08A3D588; // adhoc native (registrar 0x382fb0, initializer 0x239394)\n"
+    )
+    kept = hand_lines(existing)
+    assert kept == {0x08A3D61C: "gt::core::object_retain = 0x08A3D61C; // hand: retains the strong count"}
+    path = tmp_path / "natives.tsv"
+    path.write_text(TSV)
+    lines = symbol_lines(load_natives(path), kept)
+    text = "\n".join(lines)
+    assert "gt::core::object_retain = 0x08A3D61C;" in text
+    assert "MLocale::getLanguage" not in text  # the hand name owns that address
+    assert "MLocale::setLanguage = 0x08A3D588;" in text  # stale generated line replaced

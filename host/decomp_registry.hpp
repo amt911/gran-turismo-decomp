@@ -10,13 +10,27 @@
 #include "psprecomp/runtime.hpp"
 
 #include <cstdint>
+#include <initializer_list>
 #include <vector>
 
 namespace gt {
 
 // Same shape as a recompiled guest function: arguments come in ctx (a0-a3, t0-t3), results go back
-// into ctx (v0...) and guest memory. The harness handles returning to the caller (ctx.pc = ra).
+// into ctx (v0...) and guest memory. The harness handles returning to the caller (ctx.pc = ra),
+// unless the function ends with a tail call (tail_call below): then the guest code at the target
+// runs next and returns to the caller itself — no native frame stays behind, so the target may block.
 using DecompiledFn = void (*)(psprecomp::Runtime &, psprecomp::AllegrexContext &);
+
+// Ends a decompiled function with a jump to the guest function at `address` (the original's `j` /
+// `jr $t9` to another function): arguments go in a0-a3, t0-t3, ra is left alone. Call it last.
+inline void tail_call(psprecomp::AllegrexContext &ctx, std::uint32_t address,
+                      std::initializer_list<std::uint32_t> arguments) {
+    unsigned reg = 4u;
+    for (const std::uint32_t argument : arguments) {
+        if (reg <= 11u) ctx.gpr[reg++] = argument;
+    }
+    ctx.pc = address;
+}
 
 struct DecompiledFunction {
     std::uint32_t address;
