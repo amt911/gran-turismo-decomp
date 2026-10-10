@@ -224,6 +224,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] **Plantilla de conversión** (`holder_cast`, a la que saltan las anteriores): 197 instancias con dos
       asignaciones de registros del mismo código (comparador tolerante a registros y a saltos absolutos).
       Registradas las 58 de la ruta de la carrera. **325 funciones, 0 discrepancias.**
+- [x] **Thunks de salto** (`src/core/thunks.cpp`): funciones de una sola instrucción `j destino`
+      (538 candidatas). Una función (`jump_thunk`) + tabla entrada→destino; `GT_DECOMP_THUNK` cuenta en
+      `tools.progress` y en las fronteras. Registradas las 261 que la carrera compara iguales (sabotaje
+      `a2 += 4` detectado). **586 funciones, 0 discrepancias** (`tools.progress`: 582 por entrada
+      conocida, 2,51 % de funciones, 1,23 % de bytes).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
