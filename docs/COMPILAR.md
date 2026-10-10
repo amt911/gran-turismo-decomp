@@ -145,7 +145,9 @@ build/gt_play
   FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
 - `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
-- Pendiente: sonido (la música va en silencio), y cargar una partida deja la pantalla en blanco.
+- Sonido: efectos, motor y música. `GT_AUDIO_DUMP=<dir>` (también en `gt_native`) escribe la mezcla en
+  `<dir>/channel_7.wav`.
+- Pendiente: cargar una partida deja la pantalla en blanco; el audio de los vídeos.
 
 ## 6. Comparar con el juego original en PPSSPP
 

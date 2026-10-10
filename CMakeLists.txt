@@ -73,6 +73,8 @@ add_library(gt_host_objs OBJECT
     host/movie_decoder.cpp
     host/pgf.cpp
     host/font_hle.cpp
+    host/atrac_decoder.cpp
+    host/audio_dump.cpp
     host/frame_dump.cpp
     host/pad_script.cpp
     ${GT_DECOMP_SOURCES}

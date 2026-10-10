@@ -17,6 +17,8 @@
 //
 // LCS (GTA: Liberty City Stories) kernel HLE.
 
+#include "atrac_decoder.hpp"
+#include "audio_dump.hpp"
 #include "frame_dump.hpp"
 #include "pad_script.hpp"
 #include "lcs_profile.hpp"
@@ -614,6 +616,14 @@ struct AtracContextState {
     std::filesystem::path source_path;
     AudioStreamDecoder decoder;
     bool decoder_eof{};
+    // GT: no file on disc, so the data the game streams into its buffer is kept here by file offset
+    // (header and first block at load, each AddStreamData chunk) and decoded frame by frame.
+    std::vector<std::uint8_t> stream_bytes;
+    std::vector<std::uint8_t> stream_filled;
+    gt::AtracFrameDecoder frame_decoder;
+    std::int64_t last_decoded_frame{-2};
+    std::int64_t cached_frame{-1};
+    std::vector<std::int16_t> cached_pcm;
 };
 
 std::array<AtracContextState, 6> atrac_contexts{};
@@ -729,10 +739,57 @@ void close_atrac_decoder(AtracContextState &state) {
     state.decoder_eof = false;
 }
 
-// GT: its music sits scrambled inside GT.VOL, so there is no file for AudioStreamDecoder. Such a
-// context decodes silence: every count (samples, frames left, loops, stream refills) still advances
-// as if real audio were produced. Headless runs have no audio output anyway.
+// GT: its music sits inside GT.VOL, so there is no file for AudioStreamDecoder. Such a context
+// decodes the bytes the game streamed into its buffer (stream_bytes); frames whose bytes never
+// arrived, and ATRAC3 (not plus) streams, decode as silence.
 bool atrac_is_silent(const AtracContextState &state) { return state.source_path.empty(); }
+
+void atrac_keep_stream(AtracContextState &state, std::uint32_t file_offset, std::span<const std::uint8_t> bytes) {
+    if (state.stream_bytes.empty() || file_offset >= state.stream_bytes.size()) return;
+    const std::size_t count = std::min<std::size_t>(bytes.size(), state.stream_bytes.size() - file_offset);
+    std::copy_n(bytes.begin(), count, state.stream_bytes.begin() + file_offset);
+    std::fill_n(state.stream_filled.begin() + file_offset, count, std::uint8_t{1});
+}
+
+// The stereo PCM of frame `frame` (2048 samples); silence when its bytes are missing.
+const std::vector<std::int16_t> &atrac_stream_frame(AtracContextState &state, std::int64_t frame) {
+    constexpr std::size_t kSamplesPerFrame = 2048u;
+    if (frame == state.cached_frame) return state.cached_pcm;
+    state.cached_frame = frame;
+    state.cached_pcm.assign(kSamplesPerFrame * 2u, 0);
+    const std::uint32_t block = state.header.block_align;
+    const std::uint64_t offset = state.header.data_offset + static_cast<std::uint64_t>(frame) * block;
+    if (block == 0u || offset + block > state.stream_bytes.size() ||
+        std::find(state.stream_filled.begin() + static_cast<std::ptrdiff_t>(offset),
+                  state.stream_filled.begin() + static_cast<std::ptrdiff_t>(offset + block),
+                  std::uint8_t{0}) != state.stream_filled.begin() + static_cast<std::ptrdiff_t>(offset + block)) {
+        state.last_decoded_frame = -2;  // the next decoded frame restarts the decoder
+        return state.cached_pcm;
+    }
+    if (!state.frame_decoder.is_open() &&
+        !state.frame_decoder.open(state.header.channels, state.header.sample_rate, block))
+        return state.cached_pcm;
+    if (frame != state.last_decoded_frame + 1) state.frame_decoder.reset();
+    state.last_decoded_frame = frame;
+    const auto pcm = state.frame_decoder.decode(
+        std::span<const std::uint8_t>(state.stream_bytes.data() + offset, block));
+    std::copy_n(pcm.begin(), std::min(pcm.size(), state.cached_pcm.size()), state.cached_pcm.begin());
+    return state.cached_pcm;
+}
+
+void read_atrac_stream_pcm(AtracContextState &state, std::span<std::uint8_t> output) {
+    constexpr std::uint64_t kSamplesPerFrame = 2048u;
+    std::uint64_t position = state.sample_position;
+    std::size_t written = 0u;
+    while (written + 4u <= output.size()) {
+        const auto &pcm = atrac_stream_frame(state, static_cast<std::int64_t>(position / kSamplesPerFrame));
+        const std::uint64_t within = position % kSamplesPerFrame;
+        const std::size_t take = std::min<std::size_t>(kSamplesPerFrame - within, (output.size() - written) / 4u);
+        std::memcpy(output.data() + written, pcm.data() + within * 2u, take * 4u);
+        written += take * 4u;
+        position += take;
+    }
+}
 
 bool open_atrac_decoder(AtracContextState &state) {
     if (atrac_is_silent(state)) return true;
@@ -749,7 +806,8 @@ bool open_atrac_decoder(AtracContextState &state) {
 
 std::size_t read_atrac_pcm(AtracContextState &state, std::span<std::uint8_t> output) {
     if (atrac_is_silent(state)) {
-        std::fill(output.begin(), output.end(), std::uint8_t{0});
+        if (state.header.atrac3plus && !state.stream_bytes.empty()) read_atrac_stream_pcm(state, output);
+        else std::fill(output.begin(), output.end(), std::uint8_t{0});
         return output.size();
     }
     if (!open_atrac_decoder(state)) return 0u;
@@ -2417,8 +2475,26 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { g_output2_samples = ctx.gpr[4]; set_success(ctx); });
     runtime.register_hle("sceAudio", 0x2D53F36Eu,  // sceAudioOutput2OutputBlocking(vol, buf): blocks one buffer
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            // GT's whole mix (SAS) goes out here: 16-bit stereo at 44.1 kHz. Sent to the host's
+            // output as channel 7 (GT reserves no normal channels), queued back to back in guest time.
+            constexpr std::uint32_t kOutput2Channel = 7u;
+            static std::uint64_t next_start_us = 0u;
             const std::uint32_t samples = g_output2_samples != 0u ? g_output2_samples : 0x200u;
-            (void)delay_current_thread(rt, ctx, samples * 1'000'000u / 44'100u, samples);
+            const std::uint32_t volume = ctx.gpr[4];
+            const std::uint32_t buffer = ctx.gpr[5];
+            const std::uint64_t duration_us = static_cast<std::uint64_t>(samples) * 1'000'000u / 44'100u;
+            const std::uint64_t start_us = std::max(next_start_us, virtual_time_us);
+            next_start_us = start_us + duration_us;
+            const std::size_t count = static_cast<std::size_t>(samples) * 2u;
+            if (buffer != 0u && rt.memory().contains(buffer, count * sizeof(std::int16_t))) {
+                std::vector<std::int16_t> pcm(count);
+                for (std::size_t index = 0; index < count; ++index)
+                    pcm[index] = static_cast<std::int16_t>(rt.memory().load16(buffer + static_cast<std::uint32_t>(index * 2u)));
+                gt::audio_dump(kOutput2Channel, pcm, true, 44'100u);
+                audio_output_submit(pcm, samples, true, volume, volume, 44'100u, kOutput2Channel, start_us,
+                                    virtual_time_us);
+            }
+            (void)delay_current_thread(rt, ctx, static_cast<std::uint32_t>(duration_us), samples);
         });
     runtime.register_hle("scePower", 0xFDB5BFE9u,  // scePowerGetCpuClockFrequencyInt
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.set_gpr(2, 333u); });
@@ -4403,6 +4479,11 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             state.next_file_offset = std::min(read_size, parsed.file_size);
             state.write_offset = buffer_size == 0u ? 0u : read_size % buffer_size;
             state.source_path = identify_atrac_source(rt.translate_path("disc0:/"), header_bytes, parsed);
+            if (state.source_path.empty() && parsed.atrac3plus) {
+                state.stream_bytes.assign(parsed.file_size, 0u);
+                state.stream_filled.assign(parsed.file_size, 0u);
+                atrac_keep_stream(state, 0u, header_bytes);
+            }
             return static_cast<std::uint32_t>(id);
         };
     runtime.register_hle("sceAtrac3plus", 0x0FAE370Eu,  // sceAtracSetHalfwayBufferAndGetID(buf, read, size)
@@ -4483,7 +4564,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         });
 
     runtime.register_hle("sceAtrac3plus", 0x7DB31251u,
-        [get_atrac](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+        [get_atrac](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             auto *state = get_atrac(ctx.gpr[4]);
             if (!state) { ctx.set_gpr(2, kAtracErrorBadId); return; }
             const std::uint32_t bytes = ctx.gpr[5];
@@ -4492,6 +4573,12 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             }
             if (bytes > state->last_writable_bytes) {
                 ctx.set_gpr(2, kAtracErrorIncorrectReadSize); return;
+            }
+            if (!state->stream_bytes.empty() && bytes != 0u &&
+                rt.memory().contains(state->buffer_address + state->write_offset, bytes)) {
+                std::vector<std::uint8_t> chunk(bytes);
+                rt.memory().copy_out(state->buffer_address + state->write_offset, chunk);
+                atrac_keep_stream(*state, state->next_file_offset, chunk);
             }
             state->buffered_encoded_bytes = std::min(state->buffer_size, state->buffered_encoded_bytes + bytes);
             state->next_file_offset = std::min(state->header.file_size, state->next_file_offset + bytes);
@@ -4788,6 +4875,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 pcm[index] = static_cast<std::int16_t>(
                     rt.memory().load16(buffer + static_cast<std::uint32_t>(index * 2u)));
             }
+            gt::audio_dump(channel, pcm, stereo, 44100u);
             audio_output_submit(pcm, frames, stereo, left, right, 44100u, channel, start_us,
                                 virtual_time_us);
         }

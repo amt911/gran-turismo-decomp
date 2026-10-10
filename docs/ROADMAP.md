@@ -209,7 +209,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       teclado/mando, audio), mismo juego y mismo código decompilado que `gt_native`. Llega a la carrera
       (prueba sin pantalla: `SDL_VIDEODRIVER=offscreen` + `GT_PAD`). Controles para GT en
       `config/gt_play.ini`. Spec: `docs/superpowers/specs/2026-10-10-playable-window-design.md`.
-- [ ] Sonido (Atrac en silencio hoy).
+- [x] Sonido: la mezcla de GT sale por `sceAudioOutput2` (antes se descartaba) y la música Atrac3+ se
+      decodifica desde los datos que el juego entrega en su búfer (FFmpeg atrac3p, trama a trama).
+- [ ] Audio de los vídeos PSMF.
 - [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS).
 - [ ] Probarlo jugando de verdad (el usuario) y ajustar controles.
 

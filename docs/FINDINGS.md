@@ -128,6 +128,22 @@ showed up once in 3,000).
 
 Found: 2026-10-10 · harness
 
+### GT's sound never reached the output: sceAudioOutput2 and GT.VOL music
+
+**Symptom.** No audio at all (no `sceAudioOutput*` channel ever written), and the Atrac music
+silent.
+**Cause.** GT mixes everything (SAS) into `sceAudioOutput2OutputBlocking`, whose HLE only slept;
+lcs-recomp's Atrac HLE decodes from a loose file found by header match on the disc — GT's music sits
+inside GT.VOL, so no file matched and the context produced silence.
+**Fix / workaround.** Output2 buffers go to `audio_output_submit` (channel 7) and `GT_AUDIO_DUMP`;
+Atrac contexts without a file keep the bytes the game streams into its buffer (load +
+`AddStreamData`, by file offset) and decode them frame by frame with FFmpeg's atrac3p decoder
+(`host/atrac_decoder.cpp`). Menu RMS went from ~700 (effects only) to ~5,800.
+**Why it isn't obvious.** Everything counted and timed correctly — samples, frames left, loops — so
+the game behaved; only the output was empty.
+
+Found: 2026-10-10 · audio
+
 ### Decompiled functions called only from their own generated unit never ran
 
 **Symptom.** The page-heap helpers (`find_page`, `size_class`, …) showed `calls 0` in a race-path
