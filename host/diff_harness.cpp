@@ -215,6 +215,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
 
+    wait_for_ge_idle();  // a GE list still running would write RAM during the case
     const psprecomp::AllegrexContext entry_ctx = ctx;
     auto entry_ram = snapshot_ram(rt);
     const KernelReplayState allocator_before = save_kernel_replay_state();
