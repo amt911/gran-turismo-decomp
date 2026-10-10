@@ -10,7 +10,9 @@
 namespace gt::adhoc {
 
 // Virtual slots of an Adhoc object (vtable word index).
+constexpr std::uint32_t kToBoolSlot = 12u;     // bool toBool(this)
 constexpr std::uint32_t kToIntSlot = 15u;      // int toInt(this)
+constexpr std::uint32_t kToULongSlot = 20u;    // u64 toULong(this) (v0:v1)
 constexpr std::uint32_t kToFloatSlot = 21u;    // float toFloat(this)
 constexpr std::uint32_t kDefinedSlot = 38u;    // bool defined(this, name)
 
@@ -28,5 +30,8 @@ void return_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx,
                   std::uint32_t scratch, float value);
 void return_bool(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
                  std::uint32_t scratch, std::uint32_t value);
+// A 64-bit integer, passed as its low and high words (the EABI a2:a3 pair).
+void return_long(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+                 std::uint32_t scratch, std::uint32_t low, std::uint32_t high);
 
 } // namespace gt::adhoc
