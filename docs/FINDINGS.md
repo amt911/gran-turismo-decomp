@@ -510,3 +510,26 @@ Found: 2026-10-09 · extract
 **Why it isn't obvious.** Exit code 0, no error message.
 
 Found: 2026-10-09 · extract
+
+### Import stubs look like empty functions
+
+**Symptom.** Registering every `jr $ra; nop` function as `empty_function` gave mismatches (RAM,
+kernel state) in 9 of them, all at `0x08C7A7F8`–`0x08C7B240`.
+**Cause.** That range is `.sceStub.text`: the import stubs are `jr $ra; nop` in the file and the
+loader patches them into syscalls. In the ELF they look empty, but at runtime they are not.
+**Fix / workaround.** Templates found by scanning code shapes skip `.sceStub.text`.
+**Why it isn't obvious.** Several of the stubs compared *equal* (calls with no visible effect), so
+the stubs that passed would have been registered as empty functions too.
+
+Found: 2026-10-10 · src/core
+
+### A registration without a comma was invisible to progress and boundaries
+
+**Symptom.** `tools.progress` counted 892 of 943 registrations; `decomp_boundaries.txt` had 896.
+**Cause.** The registration regex required a `,` after the address. One-argument templates
+(`GT_DECOMP_EMPTY(0x…u);`, `GT_DECOMP_ZERO`) end in `)`.
+**Fix / workaround.** The regex accepts `,` or `)`. Re-run `tools.recomp` after the fix.
+**Why it isn't obvious.** Without a boundary, a function is still compared when it is called from
+another unit, so the diff run looked complete.
+
+Found: 2026-10-10 · tools

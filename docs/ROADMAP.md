@@ -229,6 +229,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `tools.progress` y en las fronteras. Registradas las 261 que la carrera compara iguales (sabotaje
       `a2 += 4` detectado). **586 funciones, 0 discrepancias** (`tools.progress`: 582 por entrada
       conocida, 2,51 % de funciones, 1,23 % de bytes).
+- [x] **Funciones triviales** (`src/core/trivial.cpp`, `src/core/accessors.cpp`): vacías (37),
+      lectores de una global (199), `return this->campo` (46), `return 0` (10), reenvío con
+      `this->miembro` (49) y `return (*this)->campo` (16). Los stubs de importación (`.sceStub.text`)
+      quedan fuera: parecen vacíos pero el cargador los parchea (FINDINGS). Sabotajes detectados en los
+      lectores de globales (199/199) y en los reenvíos. `tools.progress` ya cuenta los registros de un
+      argumento. **943 funciones, 0 discrepancias** (`tools.progress`: 939, 4,05 % de funciones,
+      1,31 % de bytes).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
