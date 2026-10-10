@@ -19,6 +19,7 @@ constexpr std::uint32_t kFindPage = 0x08B34FD4u;    // (table **out, heap *, ptr
 constexpr std::uint32_t kInsertPage = 0x08B356C8u;  // (heap *, table *, position, page range *) -> 0 on failure
 constexpr std::uint32_t kReleasePage = 0x08B34E44u; // (heap *, class, page)
 constexpr std::uint32_t kFreePage = 0x08B350C8u;    // (heap *, table *, index)
+constexpr std::uint32_t kAllocBlock = 0x08B3564Cu;  // (name, type, size, addr) -> kernel block id (> 0)
 constexpr std::uint32_t kSlotSizes = 0x08C93B4Cu;   // u16[43]: slot size of each small size class
 constexpr std::uint32_t kSmallClasses = 43u;
 
@@ -27,12 +28,23 @@ constexpr std::uint32_t kDescriptorBlocks = 0x00u;      // descriptor blocks wit
 constexpr std::uint32_t kFullDescriptorBlocks = 0x04u;  // descriptor blocks with none left
 constexpr std::uint32_t kPagesWithFree = 0x08u;         // [class]: pages with free slots, by descending address
 constexpr std::uint32_t kFullPages = 0xB8u;             // [class]: pages with no free slot
+constexpr std::uint32_t kFirstTable = 0x168u;           // page tables, a list sorted by address
+constexpr std::uint32_t kLastTable = 0x16Cu;
 constexpr std::uint32_t kPageCount = 0x170u;            // [class]: pages created (sizes the next page)
 
-// Page table entry (12 bytes, from +0x10 of the table kFindPage returns): page descriptor, first slot.
+// Page table (one 0x1000-byte "PDI:UBLOCK" kernel block): list links, block id, entry count, then
+// up to 340 entries sorted by address. All tables but the last are kept full.
+constexpr std::uint32_t kTablePrev = 0x00u;
+constexpr std::uint32_t kTableNext = 0x04u;
+constexpr std::uint32_t kTableBlock = 0x08u;
+constexpr std::uint32_t kTableCount = 0x0Cu;
+constexpr std::uint32_t kTableEntries = 340u;
+
+// Page table entry (12 bytes, from +0x10 of the table): page descriptor, first slot, end.
 constexpr std::uint32_t kEntryStride = 12u;
 constexpr std::uint32_t kEntryPage = 0x10u;
 constexpr std::uint32_t kEntryBase = 0x14u;
+constexpr std::uint32_t kEntryEnd = 0x18u;
 
 // Page descriptor (0x1C bytes).
 constexpr std::uint32_t kPagePrev = 0x04u;
@@ -45,9 +57,10 @@ constexpr std::uint32_t kPageSlots = 0x18u;      // u16: slots in the page
 constexpr std::uint32_t kPageFreeCount = 0x1Au;  // u16
 
 // Descriptor block (one 0x1000-byte kernel block): list links, the next spare descriptor, its block
-// id, how many spare descriptors are left, then 145 descriptors from +0x14.
-constexpr std::uint32_t kBlockNext = 0x00u;
-constexpr std::uint32_t kBlockPrev = 0x04u;
+// id, how many spare descriptors are left, then 145 descriptors from +0x14 (each starting with its
+// block's address). The blocks with spares form a list sorted by descending address.
+constexpr std::uint32_t kBlockPrev = 0x00u;
+constexpr std::uint32_t kBlockNext = 0x04u;
 constexpr std::uint32_t kBlockSpare = 0x08u;
 constexpr std::uint32_t kBlockId = 0x0Cu;
 constexpr std::uint32_t kBlockSpareCount = 0x10u;

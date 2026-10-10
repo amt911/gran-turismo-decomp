@@ -16,7 +16,6 @@ namespace {
 
 using namespace page_heap;
 
-constexpr std::uint32_t kAllocBlock = 0x08B3564Cu;     // (name, type, size, addr) -> block id (> 0), the kernel's block allocator
 constexpr std::uint32_t kBlockHeadAddr = 0x08C7A950u;  // sceKernelGetBlockHeadAddr(id, void **out) (import stub)
 constexpr std::uint32_t kMemset = 0x08B36018u;
 constexpr std::uint32_t kDescriptorBlockName = 0x08CB5518u;  // "PDI:MBLOCK"
@@ -156,16 +155,16 @@ void memalign(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                 const std::uint32_t left = memory.load32(descriptors + kBlockSpareCount) - 1u;
                 memory.store32(descriptors + kBlockSpareCount, left);
                 if (left == 0u) {
-                    const std::uint32_t next = memory.load32(descriptors + kBlockNext);
                     const std::uint32_t prev = memory.load32(descriptors + kBlockPrev);
-                    if (next != 0u) memory.store32(next + kBlockPrev, prev);
-                    else memory.store32(kHeap + kDescriptorBlocks, prev);
+                    const std::uint32_t next = memory.load32(descriptors + kBlockNext);
                     if (prev != 0u) memory.store32(prev + kBlockNext, next);
+                    else memory.store32(kHeap + kDescriptorBlocks, next);
+                    if (next != 0u) memory.store32(next + kBlockPrev, prev);
                     const std::uint32_t full = memory.load32(kHeap + kFullDescriptorBlocks);
                     memory.store32(kHeap + kFullDescriptorBlocks, descriptors);
-                    memory.store32(descriptors + kBlockNext, 0u);
-                    memory.store32(descriptors + kBlockPrev, full);
-                    if (full != 0u) memory.store32(full + kBlockNext, descriptors);
+                    memory.store32(descriptors + kBlockPrev, 0u);
+                    memory.store32(descriptors + kBlockNext, full);
+                    if (full != 0u) memory.store32(full + kBlockPrev, descriptors);
                 }
                 if (small) memory.store32(kHeap + kPageCount + cls * 4u, memory.load32(kHeap + kPageCount + cls * 4u) + 1u);
                 fresh = true;
