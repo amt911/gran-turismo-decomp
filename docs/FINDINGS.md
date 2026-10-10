@@ -128,6 +128,20 @@ showed up once in 3,000).
 
 Found: 2026-10-10 · harness
 
+### "Save data created on another system": the savedata `bind` field
+
+**Symptom.** Loading any save GT wrote showed "Save data created on another system has been
+detected…" (earlier, with another HLE state, a white screen).
+**Cause.** After a secure load GT's loader (0x08A1CECC, called by `MSaveDataUtilPSP.autoLoad`)
+returns 0xE unless `(param->bind & 3) == 1` — `bind` (offset 0x34 of SceUtilitySavedataParam) is
+what the firmware sets to say the save belongs to this console. The HLE never wrote it.
+**Fix / workaround.** `load_savedata_file` sets `bind = 1021` (as PPSSPP); the `sfoParam` is saved
+next to the data (SFOPARAM.BIN) and given back on load like PARAM.SFO.
+**Why it isn't obvious.** The MAC address (`sceWlanGetEtherAddr`) is read on that path and looks
+like the identity check; it isn't — no import is called between the load and the refusal.
+
+Found: 2026-10-10 · savedata
+
 ### GT's sound never reached the output: sceAudioOutput2 and GT.VOL music
 
 **Symptom.** No audio at all (no `sceAudioOutput*` channel ever written), and the Atrac music
