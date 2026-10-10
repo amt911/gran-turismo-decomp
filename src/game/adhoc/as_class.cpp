@@ -46,7 +46,72 @@ void as_class(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, instance.cast, {out, source});
 }
 
+// --- the cast template: holder_cast(holder *out, const holder *source) -> bool ---
+// out = source when it holds an instance of the class (an empty source gives an empty out);
+// otherwise out = what the class's fallback makes (nil for most classes, a conversion of the source
+// for the few that convert), and the result says whether out holds something. 197 instances in the
+// executable, two register allocations of the same code; a table gives each one's class getter,
+// fallback and whether the fallback takes the source. Listed: the ones the race path calls.
+namespace {
+
+constexpr std::uint32_t kIsInstanceOf = 0x08A76F20u;  // (object *, class *) -> bool
+constexpr std::uint32_t kHolderReset = 0x08A5BAD8u;   // (holder *, object *)
+constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;
+
+struct HolderCast {
+    std::uint32_t class_of;    // () -> the class
+    std::uint32_t fallback;    // (holder *out[, const holder *source])
+    bool fallback_takes_source;
+};
+
+std::unordered_map<std::uint32_t, HolderCast> &cast_table() {
+    static std::unordered_map<std::uint32_t, HolderCast> table;
+    return table;
+}
+
+} // namespace
+
+struct HolderCastRegistrar {
+    HolderCastRegistrar(std::uint32_t entry, std::uint32_t class_of, std::uint32_t fallback, bool takes_source) {
+        cast_table()[entry] = {class_of, fallback, takes_source};
+    }
+};
+
+void holder_cast(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const HolderCast &instance = cast_table().at(ctx.pc);
+    auto &memory = rt.memory();
+    const std::uint32_t out = ctx.gpr[4];
+    const std::uint32_t source = ctx.gpr[5];
+    const std::uint32_t object = memory.load32(source);
+    if (object == 0u) {
+        (void)call_guest(rt, ctx, kHolderReset, {out, 0u});
+        ctx.gpr[2] = 1u;
+        return;
+    }
+    const std::uint32_t cls = call_guest(rt, ctx, instance.class_of, {out, 0u});
+    if (call_guest(rt, ctx, kIsInstanceOf, {object, cls}) != 0u) {
+        (void)call_guest(rt, ctx, kHolderReset, {out, memory.load32(source)});
+        ctx.gpr[2] = 1u;
+        return;
+    }
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t made = frame.at(0u);
+    (void)call_guest(rt, ctx, instance.fallback, {made, instance.fallback_takes_source ? source : cls});
+    std::uint32_t holds = 0u;
+    if (const std::uint32_t value = memory.load32(made); value != 0u) {
+        (void)call_guest(rt, ctx, kHolderReset, {out, value});
+        holds = 1u;
+    }
+    (void)call_guest(rt, ctx, kHolderDestroy, {made});
+    ctx.gpr[2] = holds;
+}
+
 } // namespace gt::adhoc
+
+#define GT_DECOMP_CAST(entry, class_of, fallback, takes_source)                                                \
+    static const ::gt::adhoc::HolderCastRegistrar GT_DECOMP_CAT(gt_cast_, __LINE__){(entry), (class_of), (fallback), \
+                                                                                    (takes_source)};            \
+    GT_DECOMP(entry, gt::adhoc::holder_cast, gt::ReturnKind::Word)
 
 #define GT_DECOMP_AS_CLASS(entry, copy, cast)                                                                  \
     static const ::gt::adhoc::AsClassRegistrar GT_DECOMP_CAT(gt_as_class_, __LINE__){(entry), (copy), (cast)}; \
@@ -126,3 +191,62 @@ GT_DECOMP_AS_CLASS(0x08A85940u, 0x08A76AB4u, 0x08A85890u);
 GT_DECOMP_AS_CLASS(0x08A92548u, 0x08A7C0D8u, 0x08A92348u);
 GT_DECOMP_AS_CLASS(0x08A94DA0u, 0x08A76AB4u, 0x08A94CF4u);
 GT_DECOMP_AS_CLASS(0x08A98674u, 0x08A76AB4u, 0x08A985C8u);
+
+GT_DECOMP_CAST(0x0880881Cu, 0x08808524u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0881BCECu, 0x0881B060u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08824838u, 0x08824668u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x088296FCu, 0x0882930Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x088377E4u, 0x08837430u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08846F5Cu, 0x08846E48u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0884C7BCu, 0x0884C494u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0884D5B4u, 0x0884D3D0u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08854718u, 0x08854670u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08965710u, 0x08965454u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08969198u, 0x08965B94u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08973E4Cu, 0x08973B54u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0897482Cu, 0x089742B0u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08976E5Cu, 0x08976CDCu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08977F54u, 0x08977258u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0897E798u, 0x0897E290u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08989620u, 0x08988EE4u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08993928u, 0x08993240u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08994718u, 0x08994494u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089953B4u, 0x08994F9Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0899B9D8u, 0x0899B8B8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x0899DCB4u, 0x0899D00Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089A34A0u, 0x089A2B5Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089A6A88u, 0x089A692Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089AB2C4u, 0x089A88F4u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089B60F8u, 0x089B57F0u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089BB2FCu, 0x089BA3E8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089BEDA0u, 0x089BE7FCu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089C57A4u, 0x089C40DCu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089CD580u, 0x089CC8D4u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089D5D48u, 0x089D5B6Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089E1058u, 0x089DF9F0u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089E5AB0u, 0x089E4D54u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089F0D34u, 0x089F0C2Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089F5BC8u, 0x089F5ACCu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x089FDAD0u, 0x089FD970u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A0128Cu, 0x08A003C0u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A0EAA8u, 0x08A0E850u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A0FC74u, 0x08A0F048u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A14564u, 0x08A141E8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A21FA4u, 0x08A21E34u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A353E0u, 0x08A34D40u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A3A924u, 0x08A3A2D8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A40C4Cu, 0x08A40B20u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A40DE4u, 0x08A40AE8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A5296Cu, 0x08A52628u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A532A0u, 0x08A53080u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A5524Cu, 0x08A5514Cu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A56B28u, 0x08A561A0u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A58A8Cu, 0x08A588D8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A5A638u, 0x08A5A490u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A6C360u, 0x08A6BF40u, 0x08AA2F1Cu, true);
+GT_DECOMP_CAST(0x08A7C2F8u, 0x08A7BC88u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A81048u, 0x08A80EDCu, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A84F9Cu, 0x08A84C98u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A85890u, 0x08A85454u, 0x08AA2494u, true);
+GT_DECOMP_CAST(0x08A92348u, 0x08A921A8u, 0x08A76AA0u, false);
+GT_DECOMP_CAST(0x08A985C8u, 0x08A9833Cu, 0x08A76AA0u, false);
