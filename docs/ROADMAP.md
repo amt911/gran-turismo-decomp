@@ -221,6 +221,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       y su conversión las cubre. Registradas las 74 que la ruta de la carrera llama (todas iguales; el
       resto sigue recompilado hasta que una ejecución las alcance). `GT_DECOMP_AS_CLASS` cuenta en
       `tools.progress` y en las fronteras. **267 funciones, 0 discrepancias.**
+- [x] **Plantilla de conversión** (`holder_cast`, a la que saltan las anteriores): 197 instancias con dos
+      asignaciones de registros del mismo código (comparador tolerante a registros y a saltos absolutos).
+      Registradas las 58 de la ruta de la carrera. **325 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
