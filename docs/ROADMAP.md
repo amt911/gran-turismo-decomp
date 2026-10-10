@@ -123,9 +123,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `0x383108` métodos de clase) dan **1.313 funciones con su nombre real** de script
       (`MLocale::getLanguage`, `MSpecDB::…`) → `config/symbol_addrs.txt` (generado y versionado).
 - [x] Modelo de objetos del motor (`src/core/refcount.cpp`): objeto `{vtable, fuerte, débil}`,
-      retener/soltar débil, retener fuerte, copia y destructor del puntero inteligente (6 funciones,
-      con saltos-cola donde el original los hace). `release` fuerte y `holder_reset` siguen
-      recompiladas (llaman a un dispose que puede bloquear).
+      retener/soltar (fuerte y débil), copia, destructor y reasignación del puntero inteligente
+      (8 funciones, con saltos-cola donde el original los hace).
+- [x] **Fibras** (`host/fiber.cpp`, con test): el código decompilado puede llamar a funciones que
+      bloquean (cambio de hilo PSP); se suspende y se reanuda. Hasta el menú: 41 suspensiones.
 - [x] Harness: saltos-cola (`gt::tail_call`), muestreo geométrico (el de 1/64 se gastaba en el
       arranque: FINDINGS), modo denso por función. `GT_PROBE_SYMBOLS` cuenta qué funciones con nombre
       se ejecutan (74 nativos Adhoc hasta el menú).

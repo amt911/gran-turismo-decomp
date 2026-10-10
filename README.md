@@ -21,7 +21,7 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   (`/usr/share/ppsspp/assets/flash0/font`, o `GT_FONT_DIR=…`).
 > - **Pendiente visible:** los textos del menú salen en blanco/vacíos; sin sonido (la música va
 >   "en silencio"); sin ventana (solo imágenes).
-> - **Decompilación (Fase 3-4):** 15 funciones decompiladas y probadas contra el original con el
+> - **Decompilación (Fase 3-4):** 17 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `malloc`, `_malloc_r`; motor: el recuento de referencias y el puntero inteligente).
 >   **1.313 funciones ya tienen su nombre real** (los nativos que usan los scripts Adhoc:

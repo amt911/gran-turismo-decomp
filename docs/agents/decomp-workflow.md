@@ -55,9 +55,11 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
 `gt::call_guest(rt, ctx, address, {args…})` (`host/guest_call.hpp`) runs a recompiled — or already
 decompiled — guest function as a nested call and returns its `v0`. Rules:
 
-- **The callee must not block in the kernel** (switch PSP threads). A native C++ frame can't be
-  suspended the way recompiled code unwinds to the dispatcher, so a switch stops the runtime with a
-  message naming the call. Uncontended LwMutex locks are fine; anything that waits is not.
+- **The callee may block** (switch PSP threads): under `--decomp on` every decompiled call from the
+  dispatcher runs on a **fiber** (`host/fiber.hpp`, its own native stack). `call_guest` suspends the
+  fiber when its thread blocks and resumes it when that thread returns to the fiber's private return
+  address (`0x100 + 8·id`). The report prints `fibers: N created, M suspensions`. Outside a fiber
+  (the harness's isolated diff runs) a switch still stops the runtime with a message.
 - Arguments go in `a0-a3, t0-t3`; the callee's frame goes below the caller's `sp`. The caller keeps
   its own state in C++ and gets only `v0` back.
 - The harness still compares such functions: an isolated original may call the **replay-safe
@@ -67,9 +69,8 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
 - A function the reached game states never call can't be compared, so it stays recompiled (e.g.
   `calloc`/`realloc`, `src/libc/malloc.cpp`).
 - **Tail calls**: where the original ends with `j other` / `jr $t9`, end the decompiled function with
-  `gt::tail_call(ctx, address, {args})` (`host/decomp_registry.hpp`). No native frame stays behind,
-  so the target may block. A *non-tail* call whose callee can block (e.g. a virtual dispose — seen
-  switching threads under `--decomp on`) keeps the caller recompiled.
+  `gt::tail_call(ctx, address, {args})` (`host/decomp_registry.hpp`), so the code shape matches the
+  original and no native frame stays behind.
 - **Coverage**: compared calls are spread geometrically over the run. When a branch is rare (an
   object's last release deletes it), compare every call of that function:
   `GT_DECOMP_DENSE=0xADDR … --decomp diff --decomp-cases 3000`, and prove the branch with a sabotage
