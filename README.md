@@ -20,8 +20,10 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   fuentes del firmware que trae PPSSPP (`/usr/share/ppsspp/assets/flash0/font`).
 > - **🎮 Ya se puede jugar en ventana:** `build/gt_play` (ventana SDL + Vulkan, teclado o mando, 60 fps)
 >   llega igual hasta la carrera. Controles y ajustes: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
-> - **Pendiente visible:** sin sonido (la música va "en silencio"); cargar una partida guardada deja la
->   pantalla en blanco (por eso cada ejecución empieza sin partida).
+> - **🔊 Con sonido:** efectos y motor (la mezcla SAS) y la **música** (Atrac3+ decodificada desde los
+>   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
+> - **Pendiente visible:** cargar una partida guardada deja la pantalla en blanco (por eso cada
+>   ejecución empieza sin partida); el audio de los vídeos.
 > - **Decompilación (Fase 3-4):** 127 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `bsearch`, y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;
