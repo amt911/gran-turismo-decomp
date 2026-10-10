@@ -5,6 +5,7 @@
 // or input; see docs/superpowers/specs/2026-10-09-phase2a-recomp-boot-design.md.
 
 #include "diff_harness.hpp"
+#include "frontend.hpp"
 #include "lcs_profile.hpp"
 #include "probes.hpp"
 #include "psprecomp/common.hpp"
@@ -106,7 +107,11 @@ int main(int argc, char **argv) {
         psprecomp::register_generated_functions(runtime);
         std::cout << "Registered " << runtime.function_count() << " generated functions\n";
 
+        std::error_code exe_error;
+        gt::frontend_init(argc > 0 ? std::filesystem::absolute(argv[0], exe_error).parent_path()
+                                   : std::filesystem::current_path());
         lcs::install_profile(runtime, user_arena_start(elf));
+        gt::frontend_attach();
         lcs::set_wall_clock_limit(options.max_seconds);
 
         const auto module = elf.find_module_info(runtime.memory(), kLoadBase);
@@ -151,6 +156,7 @@ int main(int argc, char **argv) {
         runtime.run(entry, options.max_dispatches);
         lcs::ge_worker_shutdown();
         if (runtime.stopped()) std::cout << "Runtime stopped: " << runtime.stop_reason() << "\n";
+        gt::frontend_shutdown();
         psprecomp::set_runtime_import_observer(nullptr);
         if (g_trace != nullptr) {
             std::fclose(g_trace);

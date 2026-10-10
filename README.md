@@ -18,8 +18,10 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 > - **Verlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md) §5 tiene la línea exacta (`GT_PAD=…`,
 >   `GT_FRAME_DUMP=recomp/frames`); las imágenes se quedan en tu disco, no se suben. Necesita las
 >   fuentes del firmware que trae PPSSPP (`/usr/share/ppsspp/assets/flash0/font`).
-> - **Pendiente visible:** sin sonido (la música va "en silencio"); sin ventana (solo imágenes); cargar
->   una partida guardada deja la pantalla en blanco (por eso cada ejecución empieza sin partida).
+> - **🎮 Ya se puede jugar en ventana:** `build/gt_play` (ventana SDL + Vulkan, teclado o mando, 60 fps)
+>   llega igual hasta la carrera. Controles y ajustes: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
+> - **Pendiente visible:** sin sonido (la música va "en silencio"); cargar una partida guardada deja la
+>   pantalla en blanco (por eso cada ejecución empieza sin partida).
 > - **Decompilación (Fase 3-4):** 127 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `bsearch`, y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;

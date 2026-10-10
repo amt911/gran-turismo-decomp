@@ -127,6 +127,26 @@ Las imágenes a partir de `frame_019800.ppm` son la parrilla y la carrera.
 `seek`/`read` de ficheros (para compararlo con el log de PPSSPP). `GT_PROBE=0x…` también muestra el
 segundo argumento y, si es texto, la cadena (rutas de fichero, nombres).
 
+## 5b. Jugarlo en ventana (`gt_play`)
+
+`cmake --build build -j8` compila también `build/gt_play` si el sistema tiene SDL2, el loader de
+Vulkan y glslang (las cabeceras de Vulkan las baja `tools/setup.sh`). Es el mismo juego que
+`gt_native`, pero con ventana, teclado/mando y ritmo de 60 fps:
+
+```bash
+build/gt_play
+```
+
+- **Teclado:** W / Enter / Espacio = Cruz (acelerar, aceptar) · S / Shift = Cuadrado (frenar) ·
+  A / D = girar (stick) · flechas = cruceta (menús) · Retroceso = Círculo (atrás) · F = Triángulo ·
+  Q / E = L / R · Escape = START · V = SELECT · F10 = ajustes del host · F11 = pantalla completa.
+- **Mando:** gatillo derecho / A = acelerar, gatillo izquierdo / X = frenar, stick izquierdo = girar.
+- Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` al compilar): escala de la ventana,
+  FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
+  de la GE (`NativeGE=true`) aún no está adaptado a GT.
+- `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
+- Pendiente: sonido (la música va en silencio), y cargar una partida deja la pantalla en blanco.
+
 ## 6. Comparar con el juego original en PPSSPP
 
 La referencia se graba una vez (30 s, ~190 MB de log; va a disco, no a `/tmp`, que aquí está en RAM):

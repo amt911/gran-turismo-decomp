@@ -56,7 +56,9 @@ find_package(Threads REQUIRED)
 # static registrars are never dropped by the linker.
 file(GLOB_RECURSE GT_DECOMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
-add_executable(gt_native
+# Everything both executables share. An OBJECT library, so the GT_DECOMP registrars in src/ are
+# linked in whole (a static archive would let the linker drop them).
+add_library(gt_host_objs OBJECT
     host/main.cpp
     host/diff_harness.cpp
     host/diff_compare.cpp
@@ -71,16 +73,88 @@ add_executable(gt_native
     host/movie_decoder.cpp
     host/pgf.cpp
     host/font_hle.cpp
+    host/frame_dump.cpp
+    host/pad_script.cpp
     ${GT_DECOMP_SOURCES}
-    host/headless_backends.cpp
     host/gt_kernel.cpp
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"
     "${GT_LCS_HOST_DIR}/lcs_media_decoder.cpp"
     host/gt_ge_exec.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
+target_include_directories(gt_host_objs PRIVATE host "${GT_LCS_HOST_DIR}")
+target_link_libraries(gt_host_objs PRIVATE psprecomp_core PkgConfig::FFMPEG)
+
+# gt_native: headless (no window, audio or input; GT_PAD scripts the pad). The differential harness
+# and the boot checks run this one.
+add_executable(gt_native $<TARGET_OBJECTS:gt_host_objs> host/headless_backends.cpp)
 target_include_directories(gt_native PRIVATE host "${GT_LCS_HOST_DIR}")
 target_link_libraries(gt_native PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG Threads::Threads)
+
+# gt_play: the same game with lcs-recomp's real host backends (SDL2 window and input, audio output,
+# Vulkan GE backend), compiled from the pinned checkout (MIT, not vendored), plus our hooks for what
+# GT must not get from LCS (host/play_backends.cpp). Design: docs/superpowers/specs/
+# 2026-10-10-playable-window-design.md.
+pkg_check_modules(SDL2 IMPORTED_TARGET sdl2)
+pkg_check_modules(VULKAN IMPORTED_TARGET vulkan)
+find_program(GT_GLSLANG NAMES glslangValidator glslang)
+if(SDL2_FOUND AND VULKAN_FOUND AND GT_GLSLANG)
+    option(GT_PLAY "Build gt_play (window, input, audio)" ON)
+else()
+    option(GT_PLAY "Build gt_play (window, input, audio)" OFF)
+endif()
+if(GT_PLAY)
+    set(GT_PLAY_GENERATED "${CMAKE_BINARY_DIR}/play_generated")
+    set(GT_GE_SPV_HEADER "${GT_PLAY_GENERATED}/vulkan/ge_spv.hpp")
+    add_custom_command(
+        OUTPUT "${GT_GE_SPV_HEADER}"
+        COMMAND ${CMAKE_COMMAND}
+            -DGLSLANG=${GT_GLSLANG}
+            -DVERT=${GT_LCS_HOST_DIR}/vulkan/ge.vert
+            -DFRAG=${GT_LCS_HOST_DIR}/vulkan/ge.frag
+            -DPRESENT_VERT=${GT_LCS_HOST_DIR}/vulkan/present.vert
+            -DPRESENT_FRAG=${GT_LCS_HOST_DIR}/vulkan/present.frag
+            -DOUT=${GT_GE_SPV_HEADER}
+            -P ${GT_LCS_HOST_DIR}/vulkan/embed_spirv.cmake
+        DEPENDS ${GT_LCS_HOST_DIR}/vulkan/ge.vert ${GT_LCS_HOST_DIR}/vulkan/ge.frag
+                ${GT_LCS_HOST_DIR}/vulkan/present.vert ${GT_LCS_HOST_DIR}/vulkan/present.frag
+                ${GT_LCS_HOST_DIR}/vulkan/embed_spirv.cmake
+        COMMENT "Compiling Vulkan GE shaders"
+        VERBATIM)
+    add_executable(gt_pack_font5x7 "${GT_LCS_HOST_DIR}/pack_font5x7.cpp")
+    set(GT_FONT_HEADER "${GT_PLAY_GENERATED}/host_font_5x7.hpp")
+    add_custom_command(
+        OUTPUT "${GT_FONT_HEADER}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GT_PLAY_GENERATED}"
+        COMMAND gt_pack_font5x7 "${GT_LCS_HOST_DIR}/font5x7.txt" "${GT_FONT_HEADER}"
+        DEPENDS gt_pack_font5x7 "${GT_LCS_HOST_DIR}/font5x7.txt"
+        COMMENT "Packing host menu font"
+        VERBATIM)
+    add_executable(gt_play
+        $<TARGET_OBJECTS:gt_host_objs>
+        host/play_backends.cpp
+        "${GT_LCS_HOST_DIR}/display_window.cpp"
+        "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
+        "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_audio_output.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_controls.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_fps_overlay.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_frame_limit.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_menu.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_render_config.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_runtime_log.cpp"
+        "${GT_GE_SPV_HEADER}" "${GT_FONT_HEADER}")
+    target_compile_definitions(gt_play PRIVATE LCS_VULKAN_GE_BACKEND=1)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
+        target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")
+    endif()
+    target_include_directories(gt_play BEFORE PRIVATE "${GT_PLAY_GENERATED}")
+    target_include_directories(gt_play PRIVATE host "${GT_LCS_HOST_DIR}")
+    target_link_libraries(gt_play PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::SDL2
+                          PkgConfig::VULKAN Threads::Threads)
+    configure_file("${CMAKE_SOURCE_DIR}/config/gt_play.ini" "${CMAKE_BINARY_DIR}/gt_play.ini" COPYONLY)
+endif()
 
 # Host unit tests (plain executables run by CTest): `ctest --test-dir build`.
 enable_testing()

@@ -17,6 +17,8 @@
 //
 // LCS (GTA: Liberty City Stories) kernel HLE.
 
+#include "frame_dump.hpp"
+#include "pad_script.hpp"
 #include "lcs_profile.hpp"
 #include "display_window.hpp"
 #include "lcs_ge_exec.hpp"
@@ -1946,6 +1948,7 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
         }
     }
     if (!presented_gpu_frame) {
+        gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height);
         display_window_present(rt, present_buffer, present_stride, request.pixel_format,
                                present_width, present_height);
     }
@@ -3801,7 +3804,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             const HostInputState host = display_window_input();
-            const std::uint32_t buttons = host.buttons;
+            const std::uint32_t buttons = host.buttons | gt::scripted_buttons();  // + GT_PAD
             for (std::uint32_t index = 0u; index < count; ++index) {
                 const std::uint32_t sample = destination + index * sample_size;
                 rt.memory().store32(sample, static_cast<std::uint32_t>(system_time_microseconds()));
@@ -3901,6 +3904,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         }
 
         display_window_pump();
+        gt::pad_script_tick();
         if (display_window_closed()) {
             ge_worker_wait_idle();
             rt.stop("Display window closed");

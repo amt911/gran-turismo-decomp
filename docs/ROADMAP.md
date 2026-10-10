@@ -203,6 +203,16 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `MMenuGameObjectManager.start`.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
+## Jugable — `gt_play` (2026-10-10)
+
+- [x] Segundo ejecutable con los backends reales de lcs-recomp (ventana SDL2, presentación Vulkan,
+      teclado/mando, audio), mismo juego y mismo código decompilado que `gt_native`. Llega a la carrera
+      (prueba sin pantalla: `SDL_VIDEODRIVER=offscreen` + `GT_PAD`). Controles para GT en
+      `config/gt_play.ini`. Spec: `docs/superpowers/specs/2026-10-10-playable-window-design.md`.
+- [ ] Sonido (Atrac en silencio hoy).
+- [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS).
+- [ ] Probarlo jugando de verdad (el usuario) y ajustar controles.
+
 ## Fase 5 — Más adelante
 
 - [ ] Sin parte recompilada: 100 % fuente decompilada.
