@@ -66,6 +66,28 @@ constexpr std::uint32_t kCarCollectionCore = 0x0881B068u;    // (collection *) -
 constexpr std::uint32_t kCarCollectionFind = 0x0881BF5Cu;    // (core, argc, argv, u64 *code, int *index) -> kind
 constexpr std::uint32_t kCarCollectionHasKind1 = 0x0881A8F0u;  // (core, -, u64 code) -> count
 constexpr std::uint32_t kCarCollectionHasKind2 = 0x0881A8C0u;  // (core, -, u64 code, index) -> count
+constexpr std::uint32_t kSelfAsCalendar = 0x08817FCCu;       // (holder *out) [a1 = self]
+constexpr std::uint32_t kCalendarToday = 0x08817A54u;        // (calendar *) -> int * (the current day)
+constexpr std::uint32_t kCalendarFirstDay = 0x08817924u;     // () -> int
+constexpr std::uint32_t kOrganizerEntryMax = 0x0885EC1Cu;    // (organizer core) -> int
+constexpr std::uint32_t kOrganizerCanEnterCourse = 0x0885E8B8u;  // (organizer core) -> bool
+constexpr std::uint32_t kOrganizerSetChangeableDriver = 0x0885ED58u;  // (core, entry, slot, driver parameter core)
+constexpr std::uint32_t kOrganizerEntriedDriver = 0x0885ECF4u;  // (core, entry, slot) -> driver parameter or 0
+constexpr std::uint32_t kOrganizerCurrentRace = 0x0885EDF8u;    // (core) -> race state (race parameter at +4)
+constexpr std::uint32_t kWrapDriverParameter = 0x0884F674u;  // (holder *out, driver parameter *)
+constexpr std::uint32_t kWrapRaceParameter = 0x08848DB8u;    // (holder *out, race parameter *)
+constexpr std::uint32_t kCarParameterHasTarget = 0x088A5928u;  // (core) -> int
+constexpr std::uint32_t kCarParameterIsRemote = 0x088A5984u;   // (core) -> int
+constexpr std::uint32_t kDriverParameterIsHuman = 0x08897788u; // (core) -> bool
+constexpr std::uint32_t kDriverParameterSetAILevel = 0x08897290u;  // (core, level)
+constexpr std::uint32_t kSelfAsRaceParameter = 0x08847008u;  // (holder *out) [a1 = self]
+constexpr std::uint32_t kRaceParameterCore = 0x08846E50u;    // (race parameter *) -> engine object
+constexpr std::uint32_t kRaceParameterSetLaunchPosition = 0x088D59A0u;  // (core, a, b)
+constexpr std::uint32_t kRaceParameterSetLaunchSpeed = 0x088D4E3Cu;     // (core, a, (u8)b)
+constexpr std::uint32_t kSoundPlay = 0x08A34DA8u;            // (sound *, std::string name)
+constexpr std::uint32_t kSoundPlayWith = 0x08A34D98u;        // (sound *, std::string name, float in $f12)
+constexpr std::uint32_t kSelfAsMenuObjectManager = 0x08A14610u;  // (holder *out) [a1 = self]
+constexpr std::uint32_t kMenuObjectManagerStart = 0x08A142C8u;   // (manager *, const std::string *name)
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -294,6 +316,179 @@ void MCarCollection_hasCar(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     return_bool(rt, ctx, result, value.at(0u), has);
 }
 
+// self as `self_as`, then its engine object (`core_of`); the holder is dropped before returning.
+std::uint32_t self_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, std::uint32_t core_of,
+                        std::uint32_t self_holder_arg = 0u, bool explicit_self = false) {
+    std::uint32_t core = 0u;
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t holder = frame.at(0u);
+    if (explicit_self) (void)call_guest(rt, ctx, self_as, {holder, self_holder_arg});
+    else (void)call_guest(rt, ctx, self_as, {holder});
+    core = call_guest(rt, ctx, core_of, {rt.memory().load32(holder)});
+    destroy(rt, ctx, holder);
+    return core;
+}
+std::uint32_t organizer_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    return self_core(rt, ctx, kAsOrganizer, kOrganizerCore);
+}
+
+// Argument `index` as an integer (its toInt()).
+std::uint32_t int_argument(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t argv, std::uint32_t index) {
+    return static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(argv + 4u * index)));
+}
+
+// *result = the holder `wrap(out, object)` fills.
+void return_wrapped(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t wrap,
+                    std::uint32_t object) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t out = frame.at(0u);
+    (void)call_guest(rt, ctx, wrap, {out, object});
+    if (result != out) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(out)});
+    destroy(rt, ctx, out);
+}
+
+// MCalendar.getGameDay() -> integer: days since the calendar's first day.
+void MCalendar_getGameDay(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t today = self_core(rt, ctx, kSelfAsCalendar, kCalendarToday);
+    const std::uint32_t day = rt.memory().load32(today);
+    const std::uint32_t first = call_guest(rt, ctx, kCalendarFirstDay, {});
+    GuestFrame frame(ctx, 0x10u);
+    return_integer(rt, ctx, result, frame.at(0u), day - first);
+}
+
+// MOrganizer.getEntryMaxAtCurrentRace() -> integer; canEnterCourse() -> boolean.
+void MOrganizer_getEntryMaxAtCurrentRace(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t max = call_guest(rt, ctx, kOrganizerEntryMax, {organizer_core(rt, ctx)});
+    GuestFrame frame(ctx, 0x10u);
+    return_integer(rt, ctx, result, frame.at(0u), max);
+}
+void MOrganizer_canEnterCourse(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t can = call_guest(rt, ctx, kOrganizerCanEnterCourse, {organizer_core(rt, ctx)});
+    GuestFrame frame(ctx, 0x10u);
+    return_bool(rt, ctx, result, frame.at(0u), can);
+}
+
+// MOrganizer.setChangeableDriverParameterAtBeginningOfSession(entry, slot or nil, driver parameter),
+// with at least three arguments.
+void MOrganizer_setChangeableDriverParameterAtBeginningOfSession(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 2) return;
+    const std::uint32_t core = organizer_core(rt, ctx);
+    const std::uint32_t entry = int_argument(rt, ctx, argv, 0u);
+    const std::uint32_t slot = rt.memory().load32(argv + 4u) != 0u ? int_argument(rt, ctx, argv, 1u) : 0xFFFFFFFFu;
+    const std::uint32_t driver = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore, argv + 8u, true);
+    (void)call_guest(rt, ctx, kOrganizerSetChangeableDriver, {core, entry, slot, driver});
+}
+
+// MOrganizer.getEntriedDriverParameter(entry[, slot]) -> the driver parameter, if there is one.
+void MOrganizer_getEntriedDriverParameter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    const std::uint32_t core = organizer_core(rt, ctx);
+    const auto entry = static_cast<std::int32_t>(int_argument(rt, ctx, argv, 0u));
+    if (entry < 0) return;
+    const std::uint32_t slot = argc > 1 ? int_argument(rt, ctx, argv, 1u) : 0xFFFFFFFFu;
+    const std::uint32_t driver = call_guest(rt, ctx, kOrganizerEntriedDriver, {core, static_cast<std::uint32_t>(entry), slot});
+    if (driver != 0u) return_wrapped(rt, ctx, result, kWrapDriverParameter, driver);
+}
+
+// MOrganizer.getCurrentRaceParameter() -> the current race's parameter.
+void MOrganizer_getCurrentRaceParameter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t race = call_guest(rt, ctx, kOrganizerCurrentRace, {organizer_core(rt, ctx)});
+    return_wrapped(rt, ctx, result, kWrapRaceParameter, race + 4u);
+}
+
+// MCarParameter.isTargetLocal() -> integer: it has a target and the target isn't remote.
+void MCarParameter_isTargetLocal(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarParameter, kCarParameterCore);
+    std::uint32_t local = 0u;
+    if (call_guest(rt, ctx, kCarParameterHasTarget, {core}) != 0u && call_guest(rt, ctx, kCarParameterIsRemote, {core}) == 0u) {
+        local = 1u;
+    }
+    GuestFrame frame(ctx, 0x10u);
+    return_integer(rt, ctx, result, frame.at(0u), local);
+}
+
+// MCarDriverParameter.isHuman() -> boolean; setAILevel(level), with at least one argument.
+void MCarDriverParameter_isHuman(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
+    const std::uint32_t human = call_guest(rt, ctx, kDriverParameterIsHuman, {core});
+    GuestFrame frame(ctx, 0x10u);
+    return_bool(rt, ctx, result, frame.at(0u), human);
+}
+void MCarDriverParameter_setAILevel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
+    (void)call_guest(rt, ctx, kDriverParameterSetAILevel, {core, int_argument(rt, ctx, argv, 0u)});
+}
+
+// MRaceParameter.setLaunchPosition(a, b) / setLaunchSpeed(a, b): with at least two arguments
+// (setLaunchSpeed passes b as a byte).
+void race_parameter_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t set, std::uint32_t mask) {
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 1) return;
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsRaceParameter, kRaceParameterCore);
+    const std::uint32_t a = int_argument(rt, ctx, argv, 0u);
+    const std::uint32_t b = int_argument(rt, ctx, argv, 1u) & mask;
+    (void)call_guest(rt, ctx, set, {core, a, b});
+}
+void MRaceParameter_setLaunchPosition(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    race_parameter_set(rt, ctx, kRaceParameterSetLaunchPosition, 0xFFFFFFFFu);
+}
+void MRaceParameter_setLaunchSpeed(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    race_parameter_set(rt, ctx, kRaceParameterSetLaunchSpeed, 0xFFu);
+}
+
+// MSound.play(name[, value]): plays the named sound (with a float parameter when given).
+void MSound_play(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[5];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    auto &memory = rt.memory();
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t name = frame.at(0x0u);
+    const std::uint32_t sound = frame.at(0x4u);
+    to_string(rt, ctx, memory.load32(argv), name);
+    (void)call_guest(rt, ctx, kSelfAsSound, {sound, self});
+    if (argc < 2) {
+        (void)call_guest(rt, ctx, kSoundPlay, {memory.load32(sound), memory.load32(name)});
+    } else {
+        const float value = to_float(rt, ctx, memory.load32(argv + 4u));
+        (void)call_guest(rt, ctx, kSoundPlayWith, {memory.load32(sound), memory.load32(name)}, {value});
+    }
+    destroy(rt, ctx, sound);
+    string_release(rt, ctx, memory.load32(name));
+}
+
+// MMenuGameObjectManager.start(name), with at least one argument.
+void MMenuGameObjectManager_start(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    auto &memory = rt.memory();
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t manager = frame.at(0x0u);
+    const std::uint32_t name = frame.at(0x4u);
+    (void)call_guest(rt, ctx, kSelfAsMenuObjectManager, {manager});
+    to_string(rt, ctx, memory.load32(argv), name);
+    (void)call_guest(rt, ctx, kMenuObjectManagerStart, {memory.load32(manager), name});
+    string_release(rt, ctx, memory.load32(name));
+    destroy(rt, ctx, manager);
+}
+
 // MProductInformation.GetParentalLevel() -> integer.
 void MProductInformation_GetParentalLevel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -354,6 +549,19 @@ GT_DECOMP(0x0882689Cu, gt::adhoc::game::MRaceOperator_getTargetSlot, gt::ReturnK
 GT_DECOMP(0x08826070u, gt::adhoc::game::MRaceOperator_isOnline, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3B220u, gt::adhoc::game::MMusic_isPlaying, gt::ReturnKind::Void);
 GT_DECOMP(0x0881D538u, gt::adhoc::game::MCarCollection_hasCar, gt::ReturnKind::Void);
+GT_DECOMP(0x08818560u, gt::adhoc::game::MCalendar_getGameDay, gt::ReturnKind::Void);
+GT_DECOMP(0x0882FE1Cu, gt::adhoc::game::MOrganizer_getEntryMaxAtCurrentRace, gt::ReturnKind::Void);
+GT_DECOMP(0x0882F498u, gt::adhoc::game::MOrganizer_canEnterCourse, gt::ReturnKind::Void);
+GT_DECOMP(0x0882B9C4u, gt::adhoc::game::MOrganizer_setChangeableDriverParameterAtBeginningOfSession, gt::ReturnKind::Void);
+GT_DECOMP(0x08830874u, gt::adhoc::game::MOrganizer_getEntriedDriverParameter, gt::ReturnKind::Void);
+GT_DECOMP(0x0883332Cu, gt::adhoc::game::MOrganizer_getCurrentRaceParameter, gt::ReturnKind::Void);
+GT_DECOMP(0x0885600Cu, gt::adhoc::game::MCarParameter_isTargetLocal, gt::ReturnKind::Void);
+GT_DECOMP(0x0884D81Cu, gt::adhoc::game::MCarDriverParameter_isHuman, gt::ReturnKind::Void);
+GT_DECOMP(0x0884D77Cu, gt::adhoc::game::MCarDriverParameter_setAILevel, gt::ReturnKind::Void);
+GT_DECOMP(0x088472C0u, gt::adhoc::game::MRaceParameter_setLaunchPosition, gt::ReturnKind::Void);
+GT_DECOMP(0x088471E4u, gt::adhoc::game::MRaceParameter_setLaunchSpeed, gt::ReturnKind::Void);
+GT_DECOMP(0x08A36608u, gt::adhoc::game::MSound_play, gt::ReturnKind::Void);
+// Not comparable yet (sleeps the thread: sceKernelSleepThread), so not swapped in: GT_DECOMP(0x08A1511Cu, gt::adhoc::game::MMenuGameObjectManager_start, gt::ReturnKind::Void);
 GT_DECOMP(0x08854B74u, gt::adhoc::game::MCarParameter_beginInfo, gt::ReturnKind::Void);
 GT_DECOMP(0x08854BC8u, gt::adhoc::game::MCarParameter_endInfo, gt::ReturnKind::Void);
 GT_DECOMP(0x08854C1Cu, gt::adhoc::game::MCarParameter_updateScratch, gt::ReturnKind::Void);
