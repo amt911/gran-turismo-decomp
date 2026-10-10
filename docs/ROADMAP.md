@@ -216,6 +216,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Métodos de String (`toInt/toLong/toULong/upcase/substr`, `src/game/adhoc/string_natives.cpp`),
       `pdistd.AsciiStringHash` y `Module.removeStatic/defineModule/defineAttribute`.
       **193 funciones, 0 discrepancias.**
+- [x] **Plantillas:** las funciones "como clase X" (convertir un holder a una clase del motor) son 394
+      instancias del mismo código; una función (`src/game/adhoc/as_class.cpp`) + una tabla con su copia
+      y su conversión las cubre. Registradas las 74 que la ruta de la carrera llama (todas iguales; el
+      resto sigue recompilado hasta que una ejecución las alcance). `GT_DECOMP_AS_CLASS` cuenta en
+      `tools.progress` y en las fronteras. **267 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
