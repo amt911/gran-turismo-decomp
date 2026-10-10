@@ -33,6 +33,7 @@
 #include "font_hle.hpp"
 #include "kernel_isolation.hpp"
 #include "kernel_replay_state.hpp"
+#include "ge_trace.hpp"
 #include "movie_decoder.hpp"
 
 #include "psprecomp/common.hpp"
@@ -841,8 +842,18 @@ std::string safe_savedata_component(std::string value) {
     return value;
 }
 
-std::filesystem::path savedata_root(const psprecomp::Runtime &runtime) {
-    return runtime.game_root() / "PSP" / "SAVEDATA";
+// GT: saves go to GT_SAVEDATA_DIR when set (kept between runs); otherwise to recomp/savedata, emptied
+// when gt_native starts, so every run boots the same way. Loading a save GT wrote itself still ends on
+// a white screen (docs/ROADMAP.md), and a leftover save in the game directory caused exactly that.
+std::filesystem::path savedata_root(const psprecomp::Runtime &) {
+    static const std::filesystem::path root = [] {
+        if (const char *dir = std::getenv("GT_SAVEDATA_DIR")) return std::filesystem::path(dir);
+        const std::filesystem::path fresh = "recomp/savedata";
+        std::error_code error;
+        std::filesystem::remove_all(fresh, error);
+        return fresh;
+    }();
+    return root;
 }
 
 std::filesystem::path savedata_directory(const psprecomp::Runtime &runtime, std::uint32_t parameter_address) {
@@ -3795,6 +3806,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
     runtime.register_hle("sceGe_user", 0xAB49E76Au,
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             const std::uint32_t list_address = ctx.gpr[4];
+            gt::trace_ge_list(rt.memory(), list_address, display_vblank_index);
             const bool from_vblank = in_vblank_interrupt();
             if (!from_vblank) cap_frame_rate(list_address);
             bool list_finished = false;

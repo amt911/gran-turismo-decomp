@@ -35,6 +35,33 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Menu text invisible: glyphs arrive by GE block transfer and are drawn as transformed sprites
+
+**Symptom.** Boxes and icons render, every text is missing; `sceFontGetCharGlyphImage_Clip` writes
+correct glyphs into GT's glyph cache.
+**Cause.** Two renderer gaps (`GT_GE_LOG=<vblank>` traces a frame's GE lists): GT copies each glyph
+from its cache into a 32×32 T4 texture with a GE block transfer (TRXKICK, 3,340 per frame) right
+before drawing it, and the LCS executor ignored TRXKICK; and the glyph is a *transformed* sprite
+(`through = 0`), which the software rasterizer skipped outright.
+**Fix / workaround.** TRXKICK in `host/gt_ge_exec.cpp` (flushing deferred rasterization first);
+transformed sprites project both corners and draw the rectangle (lcs-recomp patch 0013).
+**Why it isn't obvious.** The atlas texture reads as all zeros when you inspect it at enqueue time —
+it is filled by the list itself, one glyph at a time.
+
+Found: 2026-10-10 · rendering
+
+### White screen after the logo — a save GT wrote itself
+
+**Symptom.** Every run suddenly showed a white layout instead of the title and menu, even on old
+commits.
+**Cause.** GT autosaves; our runs had written `PSP/SAVEDATA/UCES01245-GAMEDAT` into the game
+directory, and loading that save ends on a white screen (save loading isn't right yet).
+**Fix / workaround.** Saves go to `recomp/savedata`, emptied at every start (`GT_SAVEDATA_DIR` keeps
+them). The faulty save is kept in `recomp/analysis/savedata_white_bug` for later.
+**Why it isn't obvious.** Nothing in the code had changed; the state lived outside the repo.
+
+Found: 2026-10-10 · runtime
+
 ### A harness case let the timer preempt the PSP thread — the game then crawled
 
 **Symptom.** With `Module::clearStatic` decompiled, `--decomp diff` advanced 180 vblanks in 60 s

@@ -19,8 +19,10 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   guarda una imagen por segundo y pulsa START para saltar el vídeo ([`docs/COMPILAR.md`](docs/COMPILAR.md)
 >   §5). Las imágenes no se suben al repo. Necesita las fuentes del firmware que trae PPSSPP
 >   (`/usr/share/ppsspp/assets/flash0/font`, o `GT_FONT_DIR=…`).
-> - **Pendiente visible:** los textos del menú salen en blanco/vacíos; sin sonido (la música va
->   "en silencio"); sin ventana (solo imágenes).
+> - **Textos:** ya se ven en el menú ("Single Player", "Day 1 · Cr 100,000", la lista de marcas, el
+>   copyright).
+> - **Pendiente visible:** sin sonido (la música va "en silencio"); sin ventana (solo imágenes); cargar
+>   una partida guardada deja la pantalla en blanco (por eso cada ejecución empieza sin partida).
 > - **Decompilación (Fase 3-4):** 50 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `malloc`, `_malloc_r`; motor: el recuento de referencias y el puntero inteligente;

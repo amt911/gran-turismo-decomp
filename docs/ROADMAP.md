@@ -73,7 +73,12 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
       con las fuentes del firmware del usuario (las de PPSSPP). Sin glifos, la maquetación de texto
       leía un glifo nulo (`NULL+4`) en la pantalla de título (FINDINGS).
 - [x] **Menú principal alcanzado** (2026-10-10): título → menú con sus 8 iconos, minutos sin fallos.
-- [ ] Textos del menú en blanco: revisar `GetCharGlyphImage_Clip` / formato del atlas.
+- [x] Textos visibles: GT copia cada glifo a una textura pequeña con transferencias de bloque de la
+      GE (TRXKICK, ahora en `host/gt_ge_exec.cpp`) y lo dibuja como sprite transformado, que el
+      renderer descartaba (parche 0013). Trazador de listas GE: `GT_GE_LOG=<vblank>`.
+- [ ] Cargar una partida que GT guardó deja la pantalla en blanco (`recomp/analysis/savedata_white_bug`
+      la conserva). Mientras tanto las partidas van a `recomp/savedata`, vaciada en cada arranque
+      (`GT_SAVEDATA_DIR` para conservarlas).
 - [ ] Ventana real (SDL/Vulkan) para jugar: necesita `sudo pacman -S vulkan-headers` (o un backend
       SDL software).
 - [ ] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo.

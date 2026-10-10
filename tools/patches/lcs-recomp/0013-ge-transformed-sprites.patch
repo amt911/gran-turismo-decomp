@@ -1,0 +1,42 @@
+diff --git a/lcs/host/ge_renderer.cpp b/lcs/host/ge_renderer.cpp
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4307,7 +4307,7 @@
+         return false;
+     }
+ 
+-    if (primitive > 6u || (!layout.through && primitive == 6u)) {
++    if (primitive > 6u) {
+         advance_stream();
+         error.clear();
+         return true;
+@@ -4814,9 +4814,27 @@
+     }
+     case 6u:
+         for (std::size_t i = 0u; i + 1u < vertices.size(); i += 2u) {
++            Vertex a = vertices[i];
++            Vertex b = vertices[i + 1u];
++            if (!layout.through) {
++                // Transformed sprite (Gran Turismo draws all its text this way): both corners go
++                // through the viewport transform, then the rectangle between them is drawn as in
++                // through mode, with screen-space texture coordinates (u, v divided by q).
++                const bool depth_clip_enabled = (data24(commands[0x1Cu]) & 1u) != 0u;
++                if (!point_inside_clip(a, depth_clip_enabled) || !point_inside_clip(b, depth_clip_enabled) ||
++                    !viewport_transform(a, commands) || !viewport_transform(b, commands))
++                    continue;
++                for (Vertex *corner : {&a, &b}) {
++                    if (std::isfinite(corner->q) && std::fabs(corner->q) >= 1.0e-20f) {
++                        corner->u /= corner->q;
++                        corner->v /= corner->q;
++                    }
++                    corner->q = 1.0f;
++                }
++            }
+             if (gpu_backend_enabled)
+-                accumulate_gpu_rectangle(gpu_draw, vertices[i], vertices[i + 1u]);
+-            rasterize_rectangle(memory, commands, setup, vertices[i], vertices[i + 1u]);
++                accumulate_gpu_rectangle(gpu_draw, a, b);
++            rasterize_rectangle(memory, commands, setup, a, b);
+         }
+         break;
+     default:

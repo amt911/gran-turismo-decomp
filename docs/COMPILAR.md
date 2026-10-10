@@ -108,6 +108,10 @@ GT_PAD="3300:START" GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 90
 Los textos necesitan las fuentes del firmware de la PSP. Se usan las que instala PPSSPP
 (`/usr/share/ppsspp/assets/flash0/font`); si las tienes en otro sitio: `GT_FONT_DIR=/ruta/a/flash0/font`.
 
+Las partidas guardadas van a `recomp/savedata` y se borran al arrancar (cada ejecución empieza igual);
+con `GT_SAVEDATA_DIR=/ruta` se conservan. `GT_GE_LOG=<vblank>` vuelca los dibujos de las listas GE de
+ese frame (texturas, transferencias, estados).
+
 `GT_MPEG_LOG=1` explica de dónde sale cada vídeo y si se decodifica; `GT_IO_LOG=1` lista cada
 `seek`/`read` de ficheros (para compararlo con el log de PPSSPP). `GT_PROBE=0x…` también muestra el
 segundo argumento y, si es texto, la cadena (rutas de fichero, nombres).

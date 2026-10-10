@@ -64,6 +64,7 @@ add_executable(gt_native
     host/guest_call.cpp
     host/fiber.cpp
     host/kernel_isolation.cpp
+    host/ge_trace.cpp
     host/psmf.cpp
     host/psmf_hle.cpp
     host/ps_demux.cpp
@@ -75,7 +76,7 @@ add_executable(gt_native
     host/gt_kernel.cpp
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"
     "${GT_LCS_HOST_DIR}/lcs_media_decoder.cpp"
-    "${GT_LCS_HOST_DIR}/lcs_ge_exec.cpp"
+    host/gt_ge_exec.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
 target_include_directories(gt_native PRIVATE host "${GT_LCS_HOST_DIR}")
