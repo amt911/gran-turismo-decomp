@@ -1,5 +1,7 @@
 #include "diff_harness.hpp"
 
+#include "fiber.hpp"
+
 #include "decomp_registry.hpp"
 #include "diff_compare.hpp"
 #include "psprecomp/common.hpp"
@@ -124,7 +126,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     Entry &entry = it->second;
     if (g_mode == DecompMode::On) {
-        run_decompiled(entry, rt, ctx);
+        fiber::run(rt, ctx, entry.info.fn, entry.info.address);  // may block: see host/fiber.hpp
         return;
     }
     const std::uint64_t call = entry.calls++;
@@ -230,6 +232,9 @@ void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned c
 int decomp_report() {
     if (g_mode == DecompMode::Off) return 0;
     int status = 0;
+    if (g_mode == DecompMode::On)
+        std::cerr << "[decomp] fibers: " << fiber::created() << " created, " << fiber::suspensions()
+                  << " suspensions (a decompiled call waited for its PSP thread)\n";
     for (const auto &[address, entry] : g_entries) {
         std::cerr << "[decomp] " << entry.info.name << " @" << psprecomp::hex32(address);
         if (g_mode == DecompMode::On) {

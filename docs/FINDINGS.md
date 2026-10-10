@@ -35,6 +35,21 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### `--decomp on` stops: "the callee switched PSP threads" — disposing an object can block
+
+**Symptom.** With the strong release decompiled, `--decomp on` stopped at
+`call_guest(0x08A849CC): the callee switched PSP threads`.
+**Cause.** The release calls the object's dispose function (vtable slot 2); some disposals wait in
+the kernel (a semaphore, an LwMutex under contention). Recompiled code survives that by returning
+to the dispatcher with everything in guest registers; a native C++ frame can't.
+**Fix / workaround.** Fibers (`host/fiber.cpp`): each decompiled call from the dispatcher runs on its
+own native stack; `call_guest` suspends it on a thread switch and resumes it when the thread
+returns to the fiber's return address. To the menu: 3 fibers, 41 suspensions, no stop.
+**Why it isn't obvious.** In `--decomp diff` the same function never blocked — the sampled calls
+happened not to dispose anything that waits.
+
+Found: 2026-10-10 · runtime
+
 ### The diff gate passed sabotaged smart-pointer code: all samples came from boot
 
 **Symptom.** `holder_destroy` / `holder_reset` sabotaged (no release, wrong store) still showed

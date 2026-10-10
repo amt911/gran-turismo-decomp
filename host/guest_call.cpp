@@ -1,5 +1,7 @@
 #include "guest_call.hpp"
 
+#include "fiber.hpp"
+
 #include "psprecomp/common.hpp"
 
 #include <string>
@@ -20,10 +22,11 @@ std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
     for (const std::uint32_t argument : arguments) {
         if (next < std::size(kArgumentRegisters)) ctx.gpr[kArgumentRegisters[next++]] = argument;
     }
-    ctx.gpr[31] = kReturnSentinel;
+    const std::uint32_t sentinel = fiber::on_fiber() ? fiber::return_address() : kReturnSentinel;
+    ctx.gpr[31] = sentinel;
     ctx.pc = address;
-    const std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
-    for (std::uint64_t step = 0; ctx.pc != kReturnSentinel; ++step) {
+    std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
+    for (std::uint64_t step = 0; ctx.pc != sentinel; ++step) {
         if (rt.stopped()) return 0u;
         const auto function = rt.function_at(ctx.pc);
         if (function == nullptr || step >= kMaxSteps) {
@@ -34,9 +37,13 @@ std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         function(rt, ctx);
         ctx.gpr[0] = 0u;
         if (!psprecomp::runtime_thread_switch_generation_matches(generation)) {
-            rt.stop("call_guest(" + psprecomp::hex32(address) +
-                    "): the callee switched PSP threads, which a decompiled caller can't survive");
-            return 0u;
+            if (!fiber::on_fiber()) {
+                rt.stop("call_guest(" + psprecomp::hex32(address) +
+                        "): the callee switched PSP threads outside a fiber (harness diff run?)");
+                return 0u;
+            }
+            fiber::suspend(ctx);  // back when this thread returns to `sentinel`
+            generation = psprecomp::runtime_thread_switch_generation();
         }
     }
     return ctx.gpr[2];
