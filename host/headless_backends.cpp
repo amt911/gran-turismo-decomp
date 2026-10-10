@@ -24,8 +24,8 @@
 namespace lcs {
 
 // --- window and input: no window; never closed; analog stick centred. Buttons come only from
-// GT_PAD="<vblank>:<BUTTON>[,...]" (e.g. "2700:START,3000:CROSS"): each press is held for 6 vblanks,
-// counted from the first vblank wait ---
+// GT_PAD="<vblank>:<BUTTON>[:<frames>][,...]" (e.g. "2700:START,3000:CROSS:600"): each press is held
+// for <frames> vblanks (default 6), counted from the first vblank wait ---
 namespace {
 
 std::uint64_t g_vblanks = 0u;
@@ -33,6 +33,7 @@ std::uint64_t g_vblanks = 0u;
 struct PadPress {
     std::uint64_t vblank;
     std::uint32_t buttons;
+    std::uint64_t frames;  // how long it is held (default 6)
 };
 
 std::uint32_t pad_button(const std::string &name) {
@@ -56,8 +57,12 @@ const std::vector<PadPress> &pad_script() {
         for (const char *c = text;; ++c) {
             if (*c == ',' || *c == '\0') {
                 const auto colon = item.find(':');
-                if (colon != std::string::npos)
-                    presses.push_back({std::strtoull(item.c_str(), nullptr, 10), pad_button(item.substr(colon + 1u))});
+                if (colon != std::string::npos) {  // <vblank>:<BUTTON>[:<frames held>]
+                    const std::string rest = item.substr(colon + 1u);
+                    const auto second = rest.find(':');
+                    const std::uint64_t frames = second == std::string::npos ? 6u : std::strtoull(rest.c_str() + second + 1u, nullptr, 10);
+                    presses.push_back({std::strtoull(item.c_str(), nullptr, 10), pad_button(rest.substr(0u, second)), frames});
+                }
                 item.clear();
                 if (*c == '\0') break;
             } else {
@@ -75,7 +80,7 @@ bool display_window_closed() { return false; }
 HostInputState display_window_input() {
     HostInputState state{};
     for (const PadPress &press : pad_script())
-        if (g_vblanks >= press.vblank && g_vblanks < press.vblank + 6u) state.buttons |= press.buttons;
+        if (g_vblanks >= press.vblank && g_vblanks < press.vblank + press.frames) state.buttons |= press.buttons;
     return state;
 }
 void display_window_pump() { ++g_vblanks; }

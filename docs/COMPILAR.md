@@ -98,7 +98,8 @@ magick recomp/frames/frame_001500.ppm logo.png    # o ábrelos con cualquier vis
 juego: se quedan en `recomp/` (ignorado por git), **no se suben**.
 
 Sin ventana no hay mando, pero se pueden simular pulsaciones con `GT_PAD="<vblank>:<BOTÓN>,…"`
-(cada una dura 6 vblanks; 60 vblanks ≈ 1 s). Botones: `START SELECT CROSS CIRCLE SQUARE TRIANGLE
+(cada una dura 6 vblanks salvo que pongas `:<frames>`, p. ej. `20000:CROSS:600` mantiene X 10 s;
+60 vblanks ≈ 1 s). Botones: `START SELECT CROSS CIRCLE SQUARE TRIANGLE
 UP DOWN LEFT RIGHT L R`. Por ejemplo, para saltar el vídeo de introducción:
 
 ```bash

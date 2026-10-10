@@ -5276,3 +5276,7 @@ void restore_kernel_replay_state(const KernelReplayState &state) {
 }
 
 } // namespace gt
+
+namespace gt {
+void wait_for_ge_idle() { lcs::ge_worker_wait_idle(); }
+} // namespace gt

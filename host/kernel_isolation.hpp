@@ -19,4 +19,10 @@ void break_kernel_isolation() noexcept;
 // Whether that happened since set_kernel_isolated(true).
 bool kernel_isolation_broken() noexcept;
 
+// Waits until the GE worker thread has executed every queued display list. GE lists write guest
+// RAM (block transfers, render targets in RAM), so a case must not start while one is running; none
+// can start during a case (sceGeListEnQueue isn't replay-safe). Implemented in host/gt_kernel.cpp;
+// tests that don't link the kernel provide their own.
+void wait_for_ge_idle();
+
 } // namespace gt
