@@ -15,6 +15,7 @@ struct KernelReplayState {
     std::vector<std::pair<std::int32_t, std::pair<std::uint32_t, std::uint32_t>>> blocks;  // uid -> address, size
     std::vector<std::pair<std::uint32_t, std::uint32_t>> free_ranges;                      // address, size
     std::uint32_t next_address{};
+    std::uint32_t next_stack_top{};  // high blocks and thread stacks share the top of user memory
     std::int32_t next_uid{};
     std::vector<std::pair<std::int32_t, std::uint32_t>> thread_priorities;  // uid -> priority
     std::int32_t next_lwmutex_uid{};  // sceKernelCreateLwMutex (its work area is guest RAM)

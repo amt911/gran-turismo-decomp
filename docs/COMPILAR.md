@@ -112,6 +112,16 @@ Las partidas guardadas van a `recomp/savedata` y se borran al arrancar (cada eje
 con `GT_SAVEDATA_DIR=/ruta` se conservan. `GT_GE_LOG=<vblank>` vuelca los dibujos de las listas GE de
 ese frame (texturas, transferencias, estados).
 
+Para llegar a una carrera (Single Player → Single Race → coche → pista → salida), unas 7 min:
+
+```bash
+GT_FRAME_DUMP=recomp/frames GT_FRAME_EVERY=200 \
+GT_PAD="3300:START,6600:CROSS,7800:CROSS,9000:CROSS,10200:CROSS,11400:CROSS,12600:CROSS,13800:CROSS,15000:CROSS,16200:CROSS,17400:CROSS,18600:CROSS,19800:CROSS,21000:CROSS" \
+build/gt_native --max-seconds 480
+```
+
+Las imágenes a partir de `frame_019800.ppm` son la parrilla y la carrera.
+
 `GT_MPEG_LOG=1` explica de dónde sale cada vídeo y si se decodifica; `GT_IO_LOG=1` lista cada
 `seek`/`read` de ficheros (para compararlo con el log de PPSSPP). `GT_PROBE=0x…` también muestra el
 segundo argumento y, si es texto, la cadena (rutas de fichero, nombres).

@@ -76,6 +76,11 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
 - [x] Textos visibles: GT copia cada glifo a una textura pequeña con transferencias de bloque de la
       GE (TRXKICK, ahora en `host/gt_ge_exec.cpp`) y lo dibuja como sprite transformado, que el
       renderer descartaba (parche 0013). Trazador de listas GE: `GT_GE_LOG=<vblank>`.
+- [x] **Primera carrera** (2026-10-10): menú → Single Race → coche → pista → parrilla → carrera en 3D.
+      Hicieron falta un asignador de bloques que fusiona huecos y respeta las peticiones "altas" (la
+      carga de 6,6 MB fallaba con 10,5 MB libres en 1.141 trozos; FINDINGS) y `sceRtc` (reloj
+      determinista: 2009-10-01 + tiempo virtual, UTC).
+- [ ] Controlar el coche (acelerador/dirección analógica en `GT_PAD`), ventana en tiempo real, sonido.
 - [ ] Cargar una partida que GT guardó deja la pantalla en blanco (`recomp/analysis/savedata_white_bug`
       la conserva). Mientras tanto las partidas van a `recomp/savedata`, vaciada en cada arranque
       (`GT_SAVEDATA_DIR` para conservarlas).

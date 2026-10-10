@@ -2005,21 +2005,70 @@ struct MemoryBlock { std::uint32_t address; std::uint32_t size; };
 std::unordered_map<std::int32_t, MemoryBlock> g_memory_blocks;
 std::vector<MemoryBlock> g_free_memory_ranges;
 
-std::uint32_t alloc_memory_range(psprecomp::Runtime &rt, std::uint32_t size) {
+// GT asks for "high" blocks (type 1, PSP_SMEM_High) in ~96 % of its allocations (PPSSPP log): they
+// come from the top of the free user memory, which thread stacks also take from
+// (thread_table.next_stack_top); low blocks come from the bottom (partition_table.next_address).
+// Freed ranges are kept sorted and merged, and a range touching either cursor gives the space back
+// to it. Without merging, a race's 6.6 MB load block failed with 10.5 MB free in 1,141 pieces.
+std::uint32_t alloc_memory_range(psprecomp::Runtime &rt, std::uint32_t size, std::uint32_t type) {
     const std::uint32_t aligned = (size + 0xFFu) & ~0xFFu;
-    for (auto it = g_free_memory_ranges.begin(); it != g_free_memory_ranges.end(); ++it) {
-        if (it->size < aligned) continue;
-        const std::uint32_t address = it->address;
-        if (it->size == aligned) g_free_memory_ranges.erase(it);
-        else { it->address += aligned; it->size -= aligned; }
-        rt.memory().zero(address, aligned);
-        return address;
+    if (aligned == 0u) return 0u;
+    std::uint32_t address = 0u;
+    if (type == 1u) {
+        for (auto it = g_free_memory_ranges.rbegin(); it != g_free_memory_ranges.rend(); ++it) {
+            if (it->size < aligned) continue;
+            address = it->address + it->size - aligned;
+            it->size -= aligned;
+            if (it->size == 0u) g_free_memory_ranges.erase(std::next(it).base());
+            break;
+        }
+        if (address == 0u) {
+            const std::uint32_t top = thread_table.next_stack_top & ~0xFFu;
+            const std::uint32_t floor = (partition_table.next_address + 0xFFu) & ~0xFFu;
+            if (top < floor || top - floor < aligned) return 0u;
+            address = top - aligned;
+            thread_table.next_stack_top = address;
+        }
+    } else {
+        for (auto it = g_free_memory_ranges.begin(); it != g_free_memory_ranges.end(); ++it) {
+            if (it->size < aligned) continue;
+            address = it->address;
+            it->address += aligned;
+            it->size -= aligned;
+            if (it->size == 0u) g_free_memory_ranges.erase(it);
+            break;
+        }
+        if (address == 0u) {
+            const std::uint32_t floor = (partition_table.next_address + 0xFFu) & ~0xFFu;
+            if (floor + aligned > (thread_table.next_stack_top & ~0xFFu)) return 0u;
+            address = floor;
+            partition_table.next_address = floor + aligned;
+        }
     }
-    const std::uint32_t address = (partition_table.next_address + 0xFFu) & ~0xFFu;
-    if (aligned == 0u || !rt.memory().contains(address, aligned)) return 0u;
-    partition_table.next_address = address + aligned;
+    if (!rt.memory().contains(address, aligned)) return 0u;
     rt.memory().zero(address, aligned);
     return address;
+}
+
+void free_memory_range(MemoryBlock block) {
+    auto at = std::lower_bound(g_free_memory_ranges.begin(), g_free_memory_ranges.end(), block,
+                               [](const MemoryBlock &a, const MemoryBlock &b) { return a.address < b.address; });
+    at = g_free_memory_ranges.insert(at, block);
+    if (std::next(at) != g_free_memory_ranges.end() && at->address + at->size == std::next(at)->address) {
+        at->size += std::next(at)->size;
+        g_free_memory_ranges.erase(std::next(at));
+    }
+    if (at != g_free_memory_ranges.begin() && std::prev(at)->address + std::prev(at)->size == at->address) {
+        std::prev(at)->size += at->size;
+        at = std::prev(g_free_memory_ranges.erase(at));
+    }
+    if (at->address + at->size == partition_table.next_address) {
+        partition_table.next_address = at->address;
+        g_free_memory_ranges.erase(at);
+    } else if (at->address == thread_table.next_stack_top) {
+        thread_table.next_stack_top = at->address + at->size;
+        g_free_memory_ranges.erase(at);
+    }
 }
 
 // Kernel mutexes (sceKernelCreateMutex & co), same wait/wake pattern as the semaphores above.
@@ -2045,13 +2094,87 @@ constexpr std::uint32_t kErrorMutexLocked = 0x800201C4u;  // unverified: never h
 std::uint32_t g_output2_samples = 0u;
 std::int32_t g_next_fake_uid = 0x400;  // modules, alarms, fonts
 
+// sceRtc: ticks are microseconds since 0001-01-01 00:00 UTC. The clock is deterministic — a fixed
+// start date plus the virtual time — so runs stay reproducible; the zone is UTC.
+constexpr std::uint64_t kRtcUnixEpochTicks = 62135596800000000ull;
+constexpr std::uint64_t kRtcStartUnixSeconds = 1254355200ull;  // 2009-10-01, GT PSP's release month
+std::uint64_t rtc_now_ticks() { return kRtcUnixEpochTicks + kRtcStartUnixSeconds * 1000000ull + virtual_time_us; }
+
+// ScePspDateTime { u16 year, month, day, hour, minute, second; u32 microsecond } from ticks.
+void rtc_write_date(psprecomp::GuestMemory &memory, std::uint32_t address, std::uint64_t ticks) {
+    const std::uint64_t microsecond = ticks % 1000000ull;
+    std::uint64_t seconds = ticks / 1000000ull;
+    const std::int64_t days = static_cast<std::int64_t>(seconds / 86400ull) - 719162;  // days since 1970-01-01
+    seconds %= 86400ull;
+    // civil_from_days (H. Hinnant).
+    const std::int64_t z = days + 719468;
+    const std::int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    const auto doe = static_cast<std::uint64_t>(z - era * 146097);
+    const std::uint64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const std::uint64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const std::uint64_t mp = (5 * doy + 2) / 153;
+    const auto day = static_cast<std::uint32_t>(doy - (153 * mp + 2) / 5 + 1);
+    const auto month = static_cast<std::uint32_t>(mp < 10 ? mp + 3 : mp - 9);
+    const auto year = static_cast<std::uint32_t>(static_cast<std::int64_t>(yoe) + era * 400 + (month <= 2 ? 1 : 0));
+    memory.store16(address + 0u, static_cast<std::uint16_t>(year));
+    memory.store16(address + 2u, static_cast<std::uint16_t>(month));
+    memory.store16(address + 4u, static_cast<std::uint16_t>(day));
+    memory.store16(address + 6u, static_cast<std::uint16_t>(seconds / 3600u));
+    memory.store16(address + 8u, static_cast<std::uint16_t>((seconds / 60u) % 60u));
+    memory.store16(address + 10u, static_cast<std::uint16_t>(seconds % 60u));
+    memory.store32(address + 12u, static_cast<std::uint32_t>(microsecond));
+}
+
 void install_gt_additions(psprecomp::Runtime &runtime) {
+    // --- sceRtc (see rtc_now_ticks) ---
+    runtime.register_hle("sceRtc", 0x3F7AD767u,  // sceRtcGetCurrentTick(u64 *tick)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (!rt.memory().contains(ctx.gpr[4], 8u)) { ctx.set_gpr(2, 0x80000103u); return; }
+            const std::uint64_t now = rtc_now_ticks();
+            rt.memory().store32(ctx.gpr[4], static_cast<std::uint32_t>(now));
+            rt.memory().store32(ctx.gpr[4] + 4u, static_cast<std::uint32_t>(now >> 32u));
+            set_success(ctx);
+        });
+    runtime.register_hle("sceRtc", 0x011F03C1u,  // sceRtcGetAccumulativeTime() -> u64 ticks (PPSSPP: current tick)
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            const std::uint64_t now = rtc_now_ticks();
+            ctx.set_gpr(2, static_cast<std::uint32_t>(now));
+            ctx.set_gpr(3, static_cast<std::uint32_t>(now >> 32u));
+        });
+    runtime.register_hle("sceRtc", 0x34885E0Du,  // sceRtcConvertUtcToLocalTime(const u64 *utc, u64 *local): UTC zone
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (!rt.memory().contains(ctx.gpr[4], 8u) || !rt.memory().contains(ctx.gpr[5], 8u)) {
+                ctx.set_gpr(2, 0x80000103u);
+                return;
+            }
+            rt.memory().store32(ctx.gpr[5], rt.memory().load32(ctx.gpr[4]));
+            rt.memory().store32(ctx.gpr[5] + 4u, rt.memory().load32(ctx.gpr[4] + 4u));
+            set_success(ctx);
+        });
+    runtime.register_hle("sceRtc", 0x7ED29E40u,  // sceRtcSetTick(ScePspDateTime *date, const u64 *tick)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (!rt.memory().contains(ctx.gpr[4], 16u) || !rt.memory().contains(ctx.gpr[5], 8u)) {
+                ctx.set_gpr(2, 0x80000103u);
+                return;
+            }
+            const std::uint64_t ticks = rt.memory().load32(ctx.gpr[5]) |
+                                        (static_cast<std::uint64_t>(rt.memory().load32(ctx.gpr[5] + 4u)) << 32u);
+            rtc_write_date(rt.memory(), ctx.gpr[4], ticks);
+            set_success(ctx);
+        });
+    runtime.register_hle("sceRtc", 0xE7C27D1Bu,  // sceRtcGetCurrentClockLocalTime(ScePspDateTime *time)
+        [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (!rt.memory().contains(ctx.gpr[4], 16u)) { ctx.set_gpr(2, 0x80000103u); return; }
+            rtc_write_date(rt.memory(), ctx.gpr[4], rtc_now_ticks());
+            set_success(ctx);
+        });
+
     // --- SysMemUserForUser ---
     runtime.register_hle("SysMemUserForUser", 0x91DE343Cu,  // sceKernelSetCompiledSdkVersion500_505
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { set_success(ctx); });
     runtime.register_hle("SysMemUserForUser", 0xFE707FDFu,  // sceKernelAllocMemoryBlock(name, type, size, opt)
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-            const std::uint32_t address = alloc_memory_range(rt, ctx.gpr[6]);
+            const std::uint32_t address = alloc_memory_range(rt, ctx.gpr[6], ctx.gpr[5]);
             if (address == 0u) {
                 std::uint64_t free_total = 0u, largest = 0u;
                 for (const auto &range : g_free_memory_ranges) {
@@ -2080,7 +2203,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
             const auto it = g_memory_blocks.find(static_cast<std::int32_t>(ctx.gpr[4]));
             if (it == g_memory_blocks.end()) { ctx.set_gpr(2, 0x800200CBu); return; }
-            g_free_memory_ranges.push_back(it->second);
+            free_memory_range(it->second);
             g_memory_blocks.erase(it);
             set_success(ctx);
         });
@@ -5121,6 +5244,7 @@ KernelReplayState save_kernel_replay_state() {
     for (const auto &range : lcs::g_free_memory_ranges) state.free_ranges.push_back({range.address, range.size});
     state.next_address = lcs::partition_table.next_address;
     state.next_uid = lcs::partition_table.next_uid;
+    state.next_stack_top = lcs::thread_table.next_stack_top;
     for (const auto &[uid, thread] : lcs::thread_table.threads) state.thread_priorities.push_back({uid, thread.priority});
     std::sort(state.thread_priorities.begin(), state.thread_priorities.end());
     state.next_lwmutex_uid = lcs::g_next_lwmutex_uid;
@@ -5136,6 +5260,7 @@ void restore_kernel_replay_state(const KernelReplayState &state) {
     for (const auto &[address, size] : state.free_ranges) lcs::g_free_memory_ranges.push_back(lcs::MemoryBlock{address, size});
     lcs::partition_table.next_address = state.next_address;
     lcs::partition_table.next_uid = state.next_uid;
+    lcs::thread_table.next_stack_top = state.next_stack_top;
     for (const auto &[uid, priority] : state.thread_priorities) {
         const auto thread = lcs::thread_table.threads.find(uid);
         if (thread != lcs::thread_table.threads.end()) thread->second.priority = priority;
