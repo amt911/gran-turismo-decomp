@@ -75,6 +75,7 @@ constexpr std::uint32_t kImageFacePath = 0x089DFA28u;          // (face *) -> co
 constexpr std::uint32_t kImageFaceSetPath = 0x089E3200u;       // (face *, const std::string *)
 constexpr std::uint32_t kImageFaceSetTexcoord = 0x089E0428u;   // (u in $f12, v in $f13, face *, corner)
 constexpr std::uint32_t kNewStringObject = 0x08A6D2D4u;        // (holder *out, const std::string *)
+constexpr std::uint32_t kListBoxItemCount = 0x089CDFF0u;       // (list box *) -> int
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -202,6 +203,18 @@ void object_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::u
 void MTextFace_adjustScale(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { object_call(rt, ctx, kSelfAsTextFace, kTextFaceAdjustScale); }
 void MToolTipFace_remove(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { object_call(rt, ctx, kSelfAsToolTipFace, kToolTipFaceRemove); }
 void MMovieFace_unload(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { object_call(rt, ctx, kSelfAsMovieFace, kMovieFaceUnload); }
+
+// MListBox.getItemCount() -> the number of items; nothing happens when called with arguments.
+void MListBox_getItemCount(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    if (ctx.gpr[6] != 0u) return;
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t self = frame.at(4u);
+    (void)call_guest(rt, ctx, kSelfAsListBox, {self});
+    const std::uint32_t count = call_guest(rt, ctx, kListBoxItemCount, {rt.memory().load32(self)});
+    return_integer(rt, ctx, result, frame.at(0u), count);
+    destroy(rt, ctx, self);
+}
 
 // MRootWindow.getFocusedWidget() -> the focused widget.
 void MRootWindow_getFocusedWidget(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -685,3 +698,5 @@ GT_DECOMP(0x089B62BCu, gt::adhoc::ui::MOptionMenu_applyAppend, gt::ReturnKind::V
 GT_DECOMP(0x089BD080u, gt::adhoc::ui::MNode_getNodePath, gt::ReturnKind::Void);
 GT_DECOMP(0x089E3334u, gt::adhoc::ui::MImageFace_getImagePath, gt::ReturnKind::Void);
 GT_DECOMP(0x089E14C4u, gt::adhoc::ui::MImageFace_Texcoord, gt::ReturnKind::Void);
+// Reached once in one run (equal), not since: sabotage unproven, so not registered yet.
+// GT_DECOMP(0x089D0F04u, gt::adhoc::ui::MListBox_getItemCount, gt::ReturnKind::Void);
