@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.recomp import RecompError, regenerate
+from tools.recomp import RecompError, decomp_boundaries, regenerate
 
 BASE = 0x08804000
 
@@ -100,3 +100,40 @@ def test_failed_run_leaves_no_stamp(env):
     with pytest.raises(RuntimeError):
         regenerate(elf, out, tool, BASE, runner=boom)
     assert not (out / ".inputs.sha1").exists()
+
+
+def test_passes_the_decompiled_functions_as_boundaries(env):
+    elf, out, tool = env
+    fake = FakeRecomp()
+    assert regenerate(elf, out, tool, BASE, boundaries=[0x08B35840, 0x08A5BAD8], runner=fake) is True
+    listing = out / "decomp_boundaries.txt"
+    assert fake.calls[0][-1] == str(listing)
+    assert listing.read_text() == "0x08a5bad8\n0x08b35840\n"
+
+
+def test_reruns_when_boundaries_change(env):
+    elf, out, tool = env
+    regenerate(elf, out, tool, BASE, boundaries=[0x08B35840], runner=FakeRecomp())
+    fake = FakeRecomp()
+    assert regenerate(elf, out, tool, BASE, boundaries=[0x08B35840, 0x08B35254], runner=fake) is True
+    assert len(fake.calls) == 1
+
+
+def test_skips_when_boundaries_unchanged(env):
+    elf, out, tool = env
+    regenerate(elf, out, tool, BASE, boundaries=[0x08B35840], runner=FakeRecomp())
+
+    def must_not_run(cmd):
+        raise AssertionError(f"ran {cmd}")
+
+    assert regenerate(elf, out, tool, BASE, boundaries=[0x08B35840], runner=must_not_run) is False
+
+
+def test_decomp_boundaries_are_the_active_registrations(tmp_path: Path):
+    unit = tmp_path / "libc" / "heap.cpp"
+    unit.parent.mkdir(parents=True)
+    unit.write_text(
+        "GT_DECOMP(0x08B35840u, gt::libc::memalign, gt::ReturnKind::Word);\n"
+        "// Not comparable yet: GT_DECOMP(0x08B35254u, gt::libc::free, gt::ReturnKind::Void);\n"
+    )
+    assert decomp_boundaries(tmp_path) == [0x08B35840]

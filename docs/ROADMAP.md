@@ -187,6 +187,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       tamaño (bloques del kernel "PDI:ABLOCK"/"PDI:MBLOCK"; `src/libc/page_heap.hpp`). Diff: 29/29 y
       28/28 en la ruta de la carrera, 2.000/2.000 cada uno en modo denso; sabotajes de las ramas raras
       detectados solo en modo denso (FINDINGS). **97 funciones, 0 discrepancias.**
+- [x] **Arreglo de fondo:** las funciones decompiladas a las que solo se llamaba desde su propia
+      unidad generada nunca se ejecutaban (el recompilador las enlazaba con `goto`). Parche 0014 de
+      lcs-recomp + `tools.recomp`: cada `GT_DECOMP` activo es una frontera que pasa por el despachador
+      (FINDINGS). Con ello, las 8 auxiliares del heap de libc (`page_heap.cpp`: lock/unlock, clase de
+      tamaño, búsqueda/inserción/borrado en la tabla de páginas, liberar página, pedir bloque) pasan
+      de 0 llamadas a millones. **105 funciones, 0 discrepancias** hasta la carrera.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante

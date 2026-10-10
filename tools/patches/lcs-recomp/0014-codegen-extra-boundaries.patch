@@ -1,0 +1,98 @@
+diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -956,20 +956,23 @@
+                  const std::map<std::uint32_t, std::uint16_t> *direct_entry_ids = nullptr,
+                  const std::set<std::uint32_t> *import_stubs = nullptr,
+                  const std::set<std::uint32_t> *valid_units = nullptr) {
+-    if (labels.contains(target)) {
+-        body << indent << "goto L_" << psprecomp::hex32(target).substr(2) << ";\n";
+-        return;
+-    }
+-
+     // A fixed J/JAL to a PSP import must return to the outer dispatcher.
+     // Trying the generated-unit chain first is guaranteed to fail because import
+     // registration deliberately poisons/replaces that exact PC, and these stubs
+     // are frequently hot in real titles. Emit the minimal correct handoff directly.
++    // The set also holds the extra boundaries passed on the command line (functions
++    // the host replaces at run time): checked before same-unit labels so even a
++    // local jump reaches the replacement.
+     if (import_stubs != nullptr && import_stubs->contains(target)) {
+         body << indent << "ctx.pc = " << psprecomp::hex32(target) << "u; return;\n";
+         return;
+     }
+ 
++    if (labels.contains(target)) {
++        body << indent << "goto L_" << psprecomp::hex32(target).substr(2) << ";\n";
++        return;
++    }
++
+     // A fixed-span AOT partition can split one guest CFG across neighbouring
+     // C++ translation units. knows the destination bucket for every
+     // fixed direct edge, so the common case bypasses Runtime's large per-PC
+@@ -1150,7 +1153,8 @@
+                     body << emit_regular(slot, pc + 4u);
+                     if (decoded.kind == psprecomp::OpcodeKind::J) {
+                         emit_target(body, target, function.entry_labels, "    ", function.executable_base, function.unit_span_bytes, function.direct_entry_ids, function.import_stubs, function.valid_units);
+-                    } else if (function.entry_labels.contains(target)) {
++                    } else if (function.entry_labels.contains(target) &&
++                               (function.import_stubs == nullptr || !function.import_stubs->contains(target))) {
+                         // Fixed same-unit JAL: the destination is already a C++
+                         // label. Going through ctx.pc + LOCAL_DISPATCH needlessly
+                         // re-decodes a dense entry id and burns the local-transfer
+@@ -1559,7 +1563,8 @@
+ int generate_auto(const std::filesystem::path &elf_path,
+                   const std::filesystem::path &output_dir,
+                   std::uint32_t load_base,
+-                  std::uint32_t unit_span_bytes) {
++                  std::uint32_t unit_span_bytes,
++                  const std::filesystem::path &boundaries_path) {
+     const auto elf = psprecomp::Elf32Image::from_file(elf_path);
+     psprecomp::GuestMemory memory;
+     (void)elf.load_and_relocate(memory, load_base);
+@@ -1567,6 +1572,18 @@
+     if (const auto module = elf.find_module_info(memory, load_base)) imports = elf.scan_imports(memory, *module);
+     std::set<std::uint32_t> import_stubs;
+     for (const auto &import : imports) import_stubs.insert(import.stub_address);
++    // Extra boundaries: guest addresses (one hex number per line, '#' comments) that every fixed
++    // J/JAL reaches through the dispatcher, like an import, so the host can replace them.
++    if (!boundaries_path.empty()) {
++        std::ifstream boundaries(boundaries_path);
++        if (!boundaries) throw psprecomp::Error("cannot read boundaries file " + boundaries_path.string());
++        std::string line;
++        while (std::getline(boundaries, line)) {
++            line = line.substr(0, line.find('#'));
++            if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
++            import_stubs.insert(static_cast<std::uint32_t>(std::stoul(line, nullptr, 16)));
++        }
++    }
+     const auto program = psprecomp::analyze_program(elf, memory, load_base);
+     if (program.executable_ranges.empty()) throw psprecomp::Error("ELF has no executable ranges");
+ 
+@@ -1743,8 +1760,8 @@
+ int main(int argc, char **argv) {
+     try {
+         if (argc >= 4 && std::string_view(argv[2]) == "--auto") {
+-            if (argc > 6) {
+-                std::cerr << "Usage: psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes]\n";
++            if (argc > 7) {
++                std::cerr << "Usage: psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes] [boundaries_file]\n";
+                 return 2;
+             }
+             const std::uint32_t load_base = argc >= 5
+@@ -1754,12 +1771,13 @@
+                 ? static_cast<std::uint32_t>(std::stoul(argv[5], nullptr, 0))
+                 : 0x20000u;
+             if (unit_span == 0u || (unit_span & 3u) != 0u) throw psprecomp::Error("unit_span_bytes must be non-zero and 4-byte aligned");
+-            return generate_auto(argv[1], argv[3], load_base, unit_span);
++            return generate_auto(argv[1], argv[3], load_base, unit_span,
++                                 argc >= 7 ? std::filesystem::path(argv[6]) : std::filesystem::path());
+         }
+         if (argc == 4) return generate_manual(argv[1], argv[2], argv[3]);
+         std::cerr << "Usage:\n"
+                   << "  psp_recomp <ELF> <functions.csv> <generated_manifest.cpp>\n"
+-                  << "  psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes]\n";
++                  << "  psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes] [boundaries_file]\n";
+         return 2;
+     } catch (const std::exception &e) {
+         std::cerr << "psp_recomp error: " << e.what() << "\n";
