@@ -11,16 +11,13 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 
 > **Estado (2026-10-10, madrugada) — para leer mañana.**
 >
-> - **🎉 ¡Llega al MENÚ PRINCIPAL!** `gt_native` (sin GPU, renderer por software) pinta: aviso legal →
->   «Sony Computer Entertainment presents» → Polyphony Digital → aviso de autoguardado → logo GT →
->   **vídeo de introducción completo** → pantalla de título (el coche) → **menú principal de Gran
->   Turismo** con sus 8 iconos. Corre minutos sin fallar.
-> - **Verlo tú:** `GT_PAD="3300:START" GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 120`
->   guarda una imagen por segundo y pulsa START para saltar el vídeo ([`docs/COMPILAR.md`](docs/COMPILAR.md)
->   §5). Las imágenes no se suben al repo. Necesita las fuentes del firmware que trae PPSSPP
->   (`/usr/share/ppsspp/assets/flash0/font`, o `GT_FONT_DIR=…`).
-> - **Textos:** ya se ven en el menú ("Single Player", "Day 1 · Cr 100,000", la lista de marcas, el
->   copyright).
+> - **🏁 ¡SE JUEGA UNA CARRERA!** `gt_native` (sin GPU, renderer por software) arranca el juego,
+>   reproduce el vídeo de intro, llega al menú (con sus textos) y, pulsando botones simulados, entra en
+>   **Single Player → Single Race → elige coche (Peugeot 206 S16 '99) → pista (Apricot Hill Raceway) →
+>   parrilla de salida → carrera en 3D** con el HUD (mapa, posición, vuelta).
+> - **Verlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md) §5 tiene la línea exacta (`GT_PAD=…`,
+>   `GT_FRAME_DUMP=recomp/frames`); las imágenes se quedan en tu disco, no se suben. Necesita las
+>   fuentes del firmware que trae PPSSPP (`/usr/share/ppsspp/assets/flash0/font`).
 > - **Pendiente visible:** sin sonido (la música va "en silencio"); sin ventana (solo imágenes); cargar
 >   una partida guardada deja la pantalla en blanco (por eso cada ejecución empieza sin partida).
 > - **Decompilación (Fase 3-4):** 50 funciones decompiladas y probadas contra el original con el

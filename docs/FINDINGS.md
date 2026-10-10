@@ -35,6 +35,21 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### A race never finishes loading: 10.5 MB free, a 6.6 MB block refused
+
+**Symptom.** After the track's "Confirm" the GT logo stays on screen; the log shows
+`sceKernelAllocMemoryBlock(PDI:ABLOCK, type 0, 0x006A0000) failed: … 1141 free ranges, 10500864 bytes
+free, largest 196608`.
+**Cause.** Our memory-block allocator bump-allocated from the bottom and never merged freed ranges.
+The firmware's PSP_SMEM_High (type 1) — which GT uses for ~96 % of its blocks (PPSSPP log) — takes
+from the top, keeping long-lived and transient blocks apart.
+**Fix / workaround.** `host/gt_kernel.cpp`: sorted, merged free list; type 1 from the top (sharing
+`next_stack_top` with thread stacks), type 0 from the bottom; a freed range touching a cursor
+returns to it. The race loads and runs.
+**Why it isn't obvious.** Plenty of memory was free; only the largest-piece figure tells.
+
+Found: 2026-10-10 · runtime
+
 ### Menu text invisible: glyphs arrive by GE block transfer and are drawn as transformed sprites
 
 **Symptom.** Boxes and icons render, every text is missing; `sceFontGetCharGlyphImage_Clip` writes
