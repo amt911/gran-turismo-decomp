@@ -200,6 +200,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       de libstdc++ (`to_string`, `string_release`: la cadena COW). **127 funciones, 0 discrepancias.**
       Sin comparar (duermen el hilo con `sceKernelSleepThread`): `MRenderContext.closePage`,
       `MMenuGameObjectManager.start`.
+- [x] 31 nativos más de la carrera (MRaceOperator, MOrganizer, MCarParameter, MCarDriverParameter,
+      MRaceParameter, MCarCollection.hasFavorite, MController.getConfig, configuración del sistema;
+      ayudante `return_cstring` para devolver textos). **158 funciones, 0 discrepancias.** Sin comparar:
+      `MRaceOperator.checkIn` (`sceUmdWaitDriveStat`), `allocateResource` (`sceKernelCreateThread`).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
