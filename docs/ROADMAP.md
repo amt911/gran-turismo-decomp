@@ -139,6 +139,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Harness: aislamiento del kernel en los casos (sin preempción por temporizador ni colas de
       LwMutex; FINDINGS), sin casos anidados, límite de 250 ms, comparación de RAM por bloques y
       búferes reutilizados (antes ~100 ms por caso).
+- [x] `Array.resize` (vector de holders: truncar o crecer con `nil`), `MManager.registerClass`;
+      módulos con nombre `Array`, `STStructure`, `pdistd`.
 - [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
