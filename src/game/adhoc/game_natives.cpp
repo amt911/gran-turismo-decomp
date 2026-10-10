@@ -130,6 +130,8 @@ constexpr std::uint32_t kGameRegionCode = 0x08ABDC28u;                // () -> c
 constexpr std::uint32_t kSelfAsController = 0x088378F0u;              // (holder *out, self holder *)
 constexpr std::uint32_t kControllerCore = 0x08837498u;                // (controller *, 0) -> config owner
 constexpr std::uint32_t kWrapControllerConfig = 0x08838380u;          // (holder *out, owner, index)
+constexpr std::uint32_t kSoundFadeOutMusic = 0x08A35040u;   // (seconds in $f12, sound *)
+constexpr std::uint32_t kMusicFadeIn = 0x08A3A3E4u;         // (seconds in $f12, music *, std::string name)
 constexpr std::uint32_t kSoundPlay = 0x08A34DA8u;            // (sound *, std::string name)
 constexpr std::uint32_t kSoundPlayWith = 0x08A34D98u;        // (sound *, std::string name, float in $f12)
 constexpr std::uint32_t kSelfAsMenuObjectManager = 0x08A14610u;  // (holder *out) [a1 = self]
@@ -495,6 +497,38 @@ void MRaceParameter_setLaunchPosition(psprecomp::Runtime &rt, psprecomp::Allegre
 }
 void MRaceParameter_setLaunchSpeed(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     race_parameter_set(rt, ctx, kRaceParameterSetLaunchSpeed, 0xFFu);
+}
+
+// MSound.fadeOutMusic([seconds = 1]).
+void MSound_fadeOutMusic(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[5];
+    const std::uint32_t argv = ctx.gpr[7];
+    float seconds = 1.0f;
+    if (ctx.gpr[6] == 1u) seconds = to_float(rt, ctx, rt.memory().load32(argv));
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t sound = frame.at(0u);
+    (void)call_guest(rt, ctx, kSelfAsSound, {sound, self});
+    (void)call_guest(rt, ctx, kSoundFadeOutMusic, {rt.memory().load32(sound)}, {seconds});
+    destroy(rt, ctx, sound);
+}
+
+// MMusic.fadein(name[, seconds = 3]).
+void MMusic_fadein(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[5];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    auto &memory = rt.memory();
+    float seconds = 3.0f;
+    if (argc >= 2) seconds = to_float(rt, ctx, memory.load32(argv + 4u));
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t name = frame.at(0x0u);
+    const std::uint32_t music = frame.at(0x4u);
+    to_string(rt, ctx, memory.load32(argv), name);
+    (void)call_guest(rt, ctx, kSelfAsMusic, {music, self});
+    (void)call_guest(rt, ctx, kMusicFadeIn, {memory.load32(music), memory.load32(name)}, {seconds});
+    destroy(rt, ctx, music);
+    string_release(rt, ctx, memory.load32(name));
 }
 
 // MSound.play(name[, value]): plays the named sound (with a float parameter when given).
@@ -930,3 +964,5 @@ GT_DECOMP(0x08A29730u, gt::adhoc::game::MSystemConfiguration_SetTemporalAntialia
 GT_DECOMP(0x08A29FD8u, gt::adhoc::game::MSystemConfiguration_GetEnterButtonAssign, gt::ReturnKind::Void);
 GT_DECOMP(0x08A28CE4u, gt::adhoc::game::MProductInformation_GetGameRegionCode, gt::ReturnKind::Void);
 GT_DECOMP(0x088387DCu, gt::adhoc::game::MController_getConfig, gt::ReturnKind::Void);
+GT_DECOMP(0x08A35B8Cu, gt::adhoc::game::MSound_fadeOutMusic, gt::ReturnKind::Void);
+// Not comparable yet (wakes a thread: sceKernelWakeupThread), so not swapped in: GT_DECOMP(0x08A3B9E8u, gt::adhoc::game::MMusic_fadein, gt::ReturnKind::Void);
