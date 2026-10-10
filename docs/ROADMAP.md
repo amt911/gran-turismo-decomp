@@ -182,8 +182,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       29/29 casos iguales; comparador como 5.º argumento EABI), `Object.getObjectAttribute/
       setObjectAttribute`, `STStructure.define`, `MNode.doInitialize`, `MSystemBGM.stop` (salto de
       cola). **95 funciones, 0 discrepancias** hasta la carrera.
-- [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`); `memalign`/`free`
-      (núcleo del asignador, ~1,2 M llamadas cada uno).
+- [x] **El asignador de memoria de libc**: `memalign` (el núcleo de `malloc`) y `free`, ~1,2 M y
+      ~1,1 M llamadas hasta la carrera. No es dlmalloc sino un asignador de páginas por clases de
+      tamaño (bloques del kernel "PDI:ABLOCK"/"PDI:MBLOCK"; `src/libc/page_heap.hpp`). Diff: 29/29 y
+      28/28 en la ruta de la carrera, 2.000/2.000 cada uno en modo denso; sabotajes de las ramas raras
+      detectados solo en modo denso (FINDINGS). **97 funciones, 0 discrepancias.**
+- [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
 

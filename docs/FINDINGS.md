@@ -128,6 +128,22 @@ showed up once in 3,000).
 
 Found: 2026-10-10 · harness
 
+### A hot function's rare branch can pass the gate unexercised — even with every case changing memory
+
+**Symptom.** `free` (1.1 million calls to the race) passed 28/28 with a sabotage in its page-relink
+branch (taken when a full page gets its first free slot) — and all 28 cases had changed memory, so
+the column above looked healthy.
+**Cause.** Geometric sampling picks ~30 calls out of a million; a branch taken in a few percent of
+calls is easily missed. Re-reading the asm then found a real bug the samples had missed too (the
+page-release call lacked its class/page arguments).
+**Fix / workaround.** Run hot functions with rare branches dense as well, with a big budget:
+`GT_DECOMP_DENSE=0x08B35254 build/gt_native --max-seconds 120 --decomp diff --decomp-cases 2000`
+caught the sabotage (7 of 2,000 cases). Sabotage the rare branch on purpose to prove it is covered.
+**Why it isn't obvious.** Nothing in the report tells "branch exercised" from "branch never
+reached"; only a targeted sabotage does.
+
+Found: 2026-10-10 · harness
+
 ### Title screen crashes reading address 4 — no font glyphs, not a localisation problem
 
 **Symptom.** ~10 s after the GT logo (with or without skipping the movie): `Guest memory access
