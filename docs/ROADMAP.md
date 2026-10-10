@@ -204,6 +204,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       MRaceParameter, MCarCollection.hasFavorite, MController.getConfig, configuración del sistema;
       ayudante `return_cstring` para devolver textos). **158 funciones, 0 discrepancias.** Sin comparar:
       `MRaceOperator.checkIn` (`sceUmdWaitDriveStat`), `allocateResource` (`sceKernelCreateThread`).
+- [x] 14 nativos que devuelven texto (`src/game/adhoc/text_natives.cpp`: etiquetas de coches y
+      circuitos, nombre corto, código de preparador, idioma, nick, versión, unidades, dinero,
+      `Object.toString`); ayudantes `return_string`/`return_c_string`. `sceUtilityGetSystemParamInt/
+      String` pasan a ser re-ejecutables en el harness. **172 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
