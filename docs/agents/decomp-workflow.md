@@ -78,6 +78,11 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
   object's last release deletes it), compare every call of that function:
   `GT_DECOMP_DENSE=0xADDR … --decomp diff --decomp-cases 3000`, and prove the branch with a sabotage
   of it.
+- **Re-run `tools.recomp` after adding or removing a `GT_DECOMP`**: it passes every active
+  registration to psp_recomp as a boundary (patch 0014), so calls from the *same* generated unit go
+  through the dispatcher and reach the decompiled version. Without that, those calls `goto` straight
+  into the recompiled original and the function shows `calls 0` (FINDINGS). Only the units that
+  change are rewritten.
 
 ## Interop with guest memory — open, decided in the Phase 3 spec
 

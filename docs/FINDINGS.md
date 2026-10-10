@@ -128,6 +128,23 @@ showed up once in 3,000).
 
 Found: 2026-10-10 · harness
 
+### Decompiled functions called only from their own generated unit never ran
+
+**Symptom.** The page-heap helpers (`find_page`, `size_class`, …) showed `calls 0` in a race-path
+diff although memalign and free call them about a million times.
+**Cause.** psp_recomp lowers a fixed `jal`/`j`/branch whose target lies in the same generated unit to
+a C++ `goto` to that label; only import stubs were sent back to the dispatcher. A decompiled function
+replaces the original in the dispatcher's table, so every same-unit caller kept running the
+recompiled original — in `--decomp on` too. Functions with callers in other units (most natives)
+were unaffected, which hid it.
+**Fix / workaround.** Patch 0014 (`codegen-extra-boundaries`) adds an optional boundaries file to
+`psp_recomp --auto`; its addresses are treated like import stubs, before the same-unit label check.
+`tools.recomp` writes the active `GT_DECOMP` addresses there and includes them in its input digest.
+**Why it isn't obvious.** The gate stays green — it just never sees those calls; only the `calls`
+column (or a sabotage that changes nothing) gives it away.
+
+Found: 2026-10-10 · recomp
+
 ### A hot function's rare branch can pass the gate unexercised — even with every case changing memory
 
 **Symptom.** `free` (1.1 million calls to the race) passed 28/28 with a sabotage in its page-relink
