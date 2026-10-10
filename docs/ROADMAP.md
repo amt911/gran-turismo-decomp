@@ -247,6 +247,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       destructor de elemento está vacío (47) y `try_cast` (asignar si es instancia de la clase; 2 de
       111: el recompilador no tiene entrada en las otras 109 y el juego no las llama). Sabotajes
       detectados en todas. **1.174 funciones, 0 discrepancias**.
+- [x] **Cadenas, destructores y listas libres** (`src/core/chains.cpp`, `destructors.cpp`,
+      `containers.cpp`): `first(this); return this` (9), `return next(first(...))` (1), destructores
+      vtable + cuerpo/miembro + base o delete (4), `free_list_push` (43). `tree_clear` (44 candidatas)
+      no se ejecuta en la carrera. Sabotajes detectados en todas. **1.231 funciones, 0 discrepancias**.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
