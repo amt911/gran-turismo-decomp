@@ -134,6 +134,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Temperature}`, `src/game/adhoc/munit.cpp`), con `GuestFrame` para locales en la pila guest.
 - [x] `MRandom::GetValue` (10/10, rama de 2 argumentos); `call_guest` con floats; leer la hora del
       sistema es re-ejecutable en el harness.
+- [x] Nativos `Object.toInt/toFloat/defined`, `Math.clamp`, `Module.clearStatic`,
+      `MSystemBGM.getContextSize`; ayudantes compartidos de valores Adhoc (`src/game/adhoc/value.*`).
+- [x] Harness: aislamiento del kernel en los casos (sin preempción por temporizador ni colas de
+      LwMutex; FINDINGS), sin casos anidados, límite de 250 ms, comparación de RAM por bloques y
+      búferes reutilizados (antes ~100 ms por caso).
 - [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante

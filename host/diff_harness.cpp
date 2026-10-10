@@ -1,11 +1,13 @@
 #include "diff_harness.hpp"
 
 #include "fiber.hpp"
+#include "kernel_isolation.hpp"
 
 #include "decomp_registry.hpp"
 #include "diff_compare.hpp"
 #include "psprecomp/common.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -27,6 +29,7 @@ constexpr std::uint32_t kRamSize = 32u * 1024u * 1024u;
 // original returns to it.
 constexpr std::uint32_t kSentinelReturn = 0x0BADC0DCu;
 constexpr std::uint64_t kMaxSteps = 1'000'000u;
+constexpr auto kMaxIsolatedTime = std::chrono::milliseconds(250);
 // Dead stack below the caller's sp that an original may scribble on (spilled registers).
 constexpr std::uint32_t kDeadStackWindow = 64u * 1024u;
 
@@ -61,11 +64,33 @@ std::unordered_map<std::uint32_t, Entry> g_entries;
 std::unordered_set<std::uint32_t> g_import_stubs;
 std::unordered_set<std::uint32_t> g_replay_safe_imports;
 std::uint64_t g_imports = 0u;
+// True while a case runs (original or decompiled): nested calls to decompiled functions then run
+// their originals, so a case never opens another case inside itself and both runs see the same
+// callees (each callee is compared on its own).
+bool g_in_case = false;
+
+struct InCase {
+    InCase() { g_in_case = true; }
+    ~InCase() { g_in_case = false; }
+};
+
+// RAM snapshots reuse a few 32 MiB buffers: allocating (and faulting in) a fresh one per snapshot
+// cost more than the copy.
+std::vector<std::vector<std::uint8_t>> g_spare_buffers;
 
 std::vector<std::uint8_t> snapshot_ram(const psprecomp::Runtime &rt) {
-    std::vector<std::uint8_t> ram(kRamSize);
+    std::vector<std::uint8_t> ram;
+    if (!g_spare_buffers.empty()) {
+        ram = std::move(g_spare_buffers.back());
+        g_spare_buffers.pop_back();
+    }
+    ram.resize(kRamSize);
     rt.memory().copy_out(kRamBase, ram);
     return ram;
+}
+
+void recycle(std::vector<std::uint8_t> &&ram) {
+    if (g_spare_buffers.size() < 4u) g_spare_buffers.push_back(std::move(ram));
 }
 
 void restore_ram(psprecomp::Runtime &rt, const std::vector<std::uint8_t> &ram) {
@@ -88,9 +113,17 @@ EndState end_state(const psprecomp::AllegrexContext &ctx, std::vector<std::uint8
 // then the case is not comparable.
 bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
+    // Also bounded in time: an original that spins waiting for another thread (which never runs in
+    // isolation) would otherwise burn its whole step budget per case and stall the game.
+    const auto deadline = std::chrono::steady_clock::now() + kMaxIsolatedTime;
+    struct Isolated {
+        Isolated() { set_kernel_isolated(true); }
+        ~Isolated() { set_kernel_isolated(false); }
+    } isolated;
     for (std::uint64_t step = 0; ctx.pc != kSentinelReturn; ++step) {
         const bool replay_safe = g_replay_safe_imports.contains(ctx.pc);
         if (step >= kMaxSteps || (g_import_stubs.contains(ctx.pc) && !replay_safe) || rt.stopped()) return false;
+        if ((step & 0x3FFu) == 0x3FFu && std::chrono::steady_clock::now() > deadline) return false;
         const auto decompiled = g_entries.find(ctx.pc);  // nested calls run originals, not the harness
         const auto fn = decompiled != g_entries.end() ? decompiled->second.original : rt.function_at(ctx.pc);
         if (fn == nullptr) return false;
@@ -98,6 +131,7 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         fn(rt, ctx);
         ctx.gpr[0] = 0u;
         if (g_imports != imports_before && !replay_safe) return false;
+        if (kernel_isolation_broken()) return false;
         if (!psprecomp::runtime_thread_switch_generation_matches(generation)) return false;
     }
     return true;
@@ -129,6 +163,10 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         fiber::run(rt, ctx, entry.info.fn, entry.info.address);  // may block: see host/fiber.hpp
         return;
     }
+    if (g_in_case) {
+        entry.original(rt, ctx);
+        return;
+    }
     const std::uint64_t call = entry.calls++;
     // GT_DECOMP_DENSE=0xADDR compares every call of that one function (up to the case budget), to
     // reach branches the spread-out samples miss.
@@ -145,12 +183,18 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
 
     const psprecomp::AllegrexContext entry_ctx = ctx;
-    const auto entry_ram = snapshot_ram(rt);
+    auto entry_ram = snapshot_ram(rt);
 
     psprecomp::AllegrexContext original_ctx = entry_ctx;
-    if (!run_original_isolated(rt, original_ctx, entry)) {
+    bool original_ran;
+    {
+        InCase in_case;
+        original_ran = run_original_isolated(rt, original_ctx, entry);
+    }
+    if (!original_ran) {
         ++entry.skipped;
         restore_ram(rt, entry_ram);
+        recycle(std::move(entry_ram));
         entry.original(rt, ctx);  // no HLE ran yet: replay the call normally
         return;
     }
@@ -160,25 +204,28 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     restore_ram(rt, entry_ram);
     psprecomp::AllegrexContext decompiled_ctx = entry_ctx;
     decompiled_ctx.gpr[31] = kSentinelReturn;
-    run_decompiled(entry, rt, decompiled_ctx);
-    if (decompiled_ctx.pc != kSentinelReturn && !run_to_sentinel(rt, decompiled_ctx)) {
+    bool decompiled_ran;
+    {
+        InCase in_case;
+        run_decompiled(entry, rt, decompiled_ctx);
+        decompiled_ran = decompiled_ctx.pc == kSentinelReturn || run_to_sentinel(rt, decompiled_ctx);
+    }
+    if (!decompiled_ran) {
         ++entry.skipped;  // the tail target left what the harness can replay: keep the original's run
         restore_ram(rt, original.ram);
+        recycle(std::move(entry_ram));
+        recycle(std::move(original.ram));
         ctx = original_ctx;
         ctx.pc = entry_ctx.gpr[31];
         return;
     }
     decompiled_ctx.gpr[31] = entry_ctx.gpr[31];
-    const EndState decompiled = end_state(decompiled_ctx, snapshot_ram(rt), entry_ctx.gpr[29]);
+    EndState decompiled = end_state(decompiled_ctx, snapshot_ram(rt), entry_ctx.gpr[29]);
 
     ++entry.compared;
-    for (std::size_t i = 0; i < entry_ram.size(); ++i) {
-        const std::uint32_t address = kRamBase + static_cast<std::uint32_t>(i);
-        if (entry_ram[i] != original.ram[i] && (address < original.ignore_begin || address >= original.ignore_end)) {
-            ++entry.informative;
-            break;
-        }
-    }
+    const std::size_t skip_begin = original.ignore_begin - kRamBase;
+    const std::size_t skip_end = original.ignore_end - kRamBase;
+    if (first_byte_difference(entry_ram, original.ram, skip_begin, skip_end)) ++entry.informative;
     if (const auto difference = first_difference(original, decompiled, entry.info.returns)) {
         ++entry.mismatched;
         if (entry.first_mismatch.empty()) {
@@ -192,6 +239,9 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
     // The game continues with the original's result, so diff mode never changes the run.
     restore_ram(rt, original.ram);
+    recycle(std::move(entry_ram));
+    recycle(std::move(original.ram));
+    recycle(std::move(decompiled.ram));
     ctx = original_ctx;
     ctx.pc = entry_ctx.gpr[31];
 }

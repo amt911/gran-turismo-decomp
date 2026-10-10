@@ -1,5 +1,8 @@
 #include "diff_compare.hpp"
 
+#include <algorithm>
+#include <cstring>
+
 #include <cstdio>
 
 namespace gt {
@@ -48,21 +51,38 @@ std::optional<std::string> first_difference(const EndState &original, const EndS
         return "f0: original " + hex32(original.f0_bits) + ", decompiled " + hex32(decompiled.f0_bits);
     if (original.ram.size() != decompiled.ram.size())
         return "RAM snapshot sizes differ";
-    const auto ignored = [&](std::size_t offset) {
-        const std::uint32_t address = original.ram_base + static_cast<std::uint32_t>(offset);
-        return address >= original.ignore_begin && address < original.ignore_end;
+    const auto offset_of = [&](std::uint32_t address) -> std::size_t {
+        if (address <= original.ram_base) return 0u;
+        return std::min<std::size_t>(address - original.ram_base, original.ram.size());
     };
-    for (std::size_t i = 0; i < original.ram.size(); ++i) {
-        if (original.ram[i] == decompiled.ram[i] || ignored(i)) continue;
-        std::size_t differing = 0;
-        for (std::size_t j = i; j < original.ram.size(); ++j)
-            differing += original.ram[j] != decompiled.ram[j] && !ignored(j);
-        char bytes[64];
-        std::snprintf(bytes, sizeof bytes, ": original %02X, decompiled %02X (%zu bytes differ)",
-                      original.ram[i], decompiled.ram[i], differing);
-        return "RAM at " + hex32(original.ram_base + static_cast<std::uint32_t>(i)) + bytes;
-    }
-    return std::nullopt;
+    const std::size_t skip_begin = offset_of(original.ignore_begin);
+    const std::size_t skip_end = std::max(skip_begin, offset_of(original.ignore_end));
+    const auto first = first_byte_difference(original.ram, decompiled.ram, skip_begin, skip_end);
+    if (!first) return std::nullopt;
+    std::size_t differing = 0;
+    for (std::size_t j = *first; j < original.ram.size(); ++j)
+        differing += original.ram[j] != decompiled.ram[j] && (j < skip_begin || j >= skip_end);
+    char bytes[64];
+    std::snprintf(bytes, sizeof bytes, ": original %02X, decompiled %02X (%zu bytes differ)",
+                  original.ram[*first], decompiled.ram[*first], differing);
+    return "RAM at " + hex32(original.ram_base + static_cast<std::uint32_t>(*first)) + bytes;
+}
+
+std::optional<std::size_t> first_byte_difference(std::span<const std::uint8_t> a, std::span<const std::uint8_t> b,
+                                                 std::size_t skip_begin, std::size_t skip_end) {
+    constexpr std::size_t kBlock = 4096u;
+    const std::size_t size = std::min(a.size(), b.size());
+    const auto scan = [&](std::size_t begin, std::size_t end) -> std::optional<std::size_t> {
+        for (std::size_t at = begin; at < end; at += kBlock) {
+            const std::size_t length = std::min(kBlock, end - at);
+            if (std::memcmp(a.data() + at, b.data() + at, length) == 0) continue;
+            for (std::size_t i = at; i < at + length; ++i)
+                if (a[i] != b[i]) return i;
+        }
+        return std::nullopt;
+    };
+    if (auto found = scan(0u, std::min(skip_begin, size))) return found;
+    return scan(std::min(skip_end, size), size);
 }
 
 } // namespace gt

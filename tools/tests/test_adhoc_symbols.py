@@ -16,6 +16,10 @@ def test_module_name_prefers_an_M_class_name():
     assert module_name(["HADHOC", "psp", "MSystemBGM", "MOther"], 0x29CDAC) == "MSystemBGM"
 
 
+def test_module_name_uses_the_known_module_table():
+    assert module_name(["Math", "PI"], 0x29F0EC) == "Math"
+
+
 def test_module_name_falls_back_to_the_initializer_address():
     assert module_name(["Impl", "STStructure"], 0x32F8) == "adhoc_init_0032F8"
 
