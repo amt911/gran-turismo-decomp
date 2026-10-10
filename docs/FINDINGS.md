@@ -533,3 +533,17 @@ Found: 2026-10-10 · src/core
 another unit, so the diff run looked complete.
 
 Found: 2026-10-10 · tools
+
+### A local constant can silently shadow one from `value.hpp`
+
+**Symptom.** None. The build was clean and the diff stayed green, but an existing native
+(line ~742 of `game_natives.cpp`) began calling virtual slot 15 instead of 12.
+**Cause.** A new `constexpr kToBoolSlot = 15` in the file's anonymous namespace shadowed
+`gt::adhoc::kToBoolSlot = 12` from `value.hpp`. Slot 15 is `toInt`, not `toBool`. The function's
+cases happened to return the same value either way.
+**Fix / workaround.** Before declaring a constant, grep `src/` and `value.hpp` for the name *and* the
+value (reuse first). The slots are `kToBoolSlot` 12, `kToIntSlot` 15, `kToStringSlot` 3, and so on.
+**Why it isn't obvious.** C++ allows the shadowing with no warning, and a green gate does not prove
+the right slot is called when both slots give the same answer.
+
+Found: 2026-10-10 · src/game/adhoc
