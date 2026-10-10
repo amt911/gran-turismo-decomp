@@ -2109,6 +2109,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
             if (mutex.owner == thread_table.current_uid && (mutex.attributes & kMutexRecursive) != 0u) {
                 mutex.count += count; set_success(ctx); return;
             }
+            if (gt::kernel_isolated()) { gt::break_kernel_isolation(); return; }  // would wait
             const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
             mutex.waiters.push_back(MutexWaiter{thread_table.current_uid, suspended, count});
             (void)suspend_current_thread(rt, ctx, suspended, "mutex " + mutex.name);
@@ -2120,6 +2121,10 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
             if (it == g_mutexes.end() || count <= 0) { ctx.set_gpr(2, 0x800201C3u); return; }
             MutexRecord &mutex = it->second;
             if (mutex.owner != thread_table.current_uid || mutex.count < count) { ctx.set_gpr(2, 0x800201C7u); return; }
+            if (gt::kernel_isolated() && mutex.count == count && !mutex.waiters.empty()) {
+                gt::break_kernel_isolation();  // would wake a waiter
+                return;
+            }
             mutex.count -= count;
             if (mutex.count == 0) {
                 mutex.owner = -1;
@@ -2133,7 +2138,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
                 }
             }
             set_success(ctx);
-            (void)preempt_if_higher_priority(ctx, "mutex-unlock");
+            if (!gt::kernel_isolated()) (void)preempt_if_higher_priority(ctx, "mutex-unlock");
         });
     runtime.register_hle("ThreadManForUser", 0x19CFF145u,  // sceKernelCreateLwMutex(work, name, attr, count, opt)
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -2149,6 +2154,13 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
         });
     runtime.register_hle("ThreadManForUser", 0x60107536u,  // sceKernelDeleteLwMutex(work)
         [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+            if (gt::kernel_isolated()) {
+                const auto waiting = g_lwmutex_waiters.find(ctx.gpr[4]);
+                if (waiting != g_lwmutex_waiters.end() && !waiting->second.empty()) {
+                    gt::break_kernel_isolation();  // would drop waiters
+                    return;
+                }
+            }
             if (rt.memory().contains(ctx.gpr[4], 32u)) rt.memory().store32(ctx.gpr[4] + 16u, 0u);
             g_lwmutex_waiters.erase(ctx.gpr[4]);
             set_success(ctx);
@@ -5099,6 +5111,9 @@ KernelReplayState save_kernel_replay_state() {
     state.next_uid = lcs::partition_table.next_uid;
     for (const auto &[uid, thread] : lcs::thread_table.threads) state.thread_priorities.push_back({uid, thread.priority});
     std::sort(state.thread_priorities.begin(), state.thread_priorities.end());
+    state.next_lwmutex_uid = lcs::g_next_lwmutex_uid;
+    for (const auto &[uid, mutex] : lcs::g_mutexes) state.mutexes.push_back({uid, {mutex.owner, mutex.count}});
+    std::sort(state.mutexes.begin(), state.mutexes.end());
     return state;
 }
 
@@ -5112,6 +5127,14 @@ void restore_kernel_replay_state(const KernelReplayState &state) {
     for (const auto &[uid, priority] : state.thread_priorities) {
         const auto thread = lcs::thread_table.threads.find(uid);
         if (thread != lcs::thread_table.threads.end()) thread->second.priority = priority;
+    }
+    lcs::g_next_lwmutex_uid = state.next_lwmutex_uid;
+    for (const auto &[uid, held] : state.mutexes) {
+        const auto mutex = lcs::g_mutexes.find(uid);
+        if (mutex != lcs::g_mutexes.end()) {
+            mutex->second.owner = held.first;
+            mutex->second.count = held.second;
+        }
     }
 }
 

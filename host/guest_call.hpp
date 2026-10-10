@@ -22,6 +22,7 @@ std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
 struct GuestResult {
     std::uint32_t v0;
     float f0;
+    std::uint32_t v1;  // high word of a 64-bit result
 };
 GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
                        std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> float_arguments);

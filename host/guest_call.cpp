@@ -52,7 +52,7 @@ GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext 
             generation = psprecomp::runtime_thread_switch_generation();
         }
     }
-    return GuestResult{ctx.gpr[2], ctx.fpr[0]};
+    return GuestResult{ctx.gpr[2], ctx.fpr[0], ctx.gpr[3]};
 }
 
 std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,

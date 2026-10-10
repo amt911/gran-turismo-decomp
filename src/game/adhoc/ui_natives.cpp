@@ -23,7 +23,11 @@ constexpr std::uint32_t kPushEvent = 0x0897783Cu;           // (event queue *, e
 constexpr std::uint32_t kSelfAsComposite = 0x08A01338u;     // (holder *out) [a1 = self]
 constexpr std::uint32_t kArgumentAsWidget = 0x08969244u;    // (holder *out, argument)
 constexpr std::uint32_t kAppendChildSlot = 142u;            // composite->append(context, child)
-constexpr std::uint32_t kRenderContextEvents = 0x14u;       // render context: its event queue
+constexpr std::uint32_t kRenderContextEvents = 0x14u;       // render context +0x14: its update context (event queue)
+constexpr std::uint32_t kSelfAsUpdateContext = 0x08978000u; // (holder *out) [a1 = self]
+constexpr std::uint32_t kUpdateContextRenderContext = 0x08977260u;  // (update context *) -> render context
+constexpr std::uint32_t kHolderCopyRenderContext = 0x089AB244u;     // holder copy instances
+constexpr std::uint32_t kHolderCopyUpdateContext = 0x08977AE4u;
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -110,9 +114,41 @@ void MComposite_appendChild(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
     }
 }
 
+// MUpdateContext.getRenderContext() -> the update context's render context.
+void MUpdateContext_getRenderContext(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x30u);
+    const std::uint32_t raw = frame.at(0x0u);
+    const std::uint32_t value = frame.at(0x4u);
+    const std::uint32_t update = frame.at(0x8u);
+    (void)call_guest(rt, ctx, kSelfAsUpdateContext, {update});
+    rt.memory().store32(raw, call_guest(rt, ctx, kUpdateContextRenderContext, {rt.memory().load32(update)}));
+    (void)call_guest(rt, ctx, kHolderCopyRenderContext, {value, raw});
+    if (result != value) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(value)});
+    destroy(rt, ctx, value);
+    destroy(rt, ctx, update);
+}
+
+// MRenderContext.getUpdateContext() -> the render context's update context (+0x14).
+void MRenderContext_getUpdateContext(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t context = frame.at(0x0u);
+    const std::uint32_t raw = frame.at(0x4u);
+    const std::uint32_t value = frame.at(0x8u);
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context});
+    rt.memory().store32(raw, rt.memory().load32(rt.memory().load32(context) + kRenderContextEvents));
+    (void)call_guest(rt, ctx, kHolderCopyUpdateContext, {value, raw});
+    if (result != value) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(value)});
+    destroy(rt, ctx, value);
+    destroy(rt, ctx, context);
+}
+
 } // namespace gt::adhoc::ui
 
 GT_DECOMP(0x089A358Cu, gt::adhoc::ui::MRootWindow_setFocus, gt::ReturnKind::Void);
 GT_DECOMP(0x089BBE38u, gt::adhoc::ui::MNode_doCopy, gt::ReturnKind::Void);
 GT_DECOMP(0x089AB54Cu, gt::adhoc::ui::MRenderContext_pushEvent, gt::ReturnKind::Void);
 GT_DECOMP(0x08A01668u, gt::adhoc::ui::MComposite_appendChild, gt::ReturnKind::Void);
+GT_DECOMP(0x08979514u, gt::adhoc::ui::MUpdateContext_getRenderContext, gt::ReturnKind::Void);
+GT_DECOMP(0x089AD804u, gt::adhoc::ui::MRenderContext_getUpdateContext, gt::ReturnKind::Void);
