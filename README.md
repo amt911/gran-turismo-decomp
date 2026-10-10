@@ -20,14 +20,15 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   fuentes del firmware que trae PPSSPP (`/usr/share/ppsspp/assets/flash0/font`).
 > - **Pendiente visible:** sin sonido (la música va "en silencio"); sin ventana (solo imágenes); cargar
 >   una partida guardada deja la pantalla en blanco (por eso cada ejecución empieza sin partida).
-> - **Decompilación (Fase 3-4):** 75 funciones decompiladas y probadas contra el original con el
+> - **Decompilación (Fase 3-4):** 89 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `malloc`, `_malloc_r`; motor: el recuento de referencias y el puntero inteligente;
 >   scripts: `MUnit` (8), `MRandom.GetValue`, `Object.toInt/toFloat/defined`, `Math.clamp`,
 >   `Module.clearStatic`, `MSystemBGM.getContextSize`, `Array.resize`, `MManager.registerClass`, la
 >   interfaz (`setFocus`, `doCopy`, `pushEvent`, `appendChild`…) y el juego (`MOrganizer`,
 >   `MRaceOperator`, `MSpecDB.getCarCode`, récords…) y, por la ruta de la carrera, `MCarParameter`,
->   `CarSettings`, `Math.sqrt/abs`, `MSpecDB.isDirt`, `MSound.stopMusic`…). Todas iguales al
+>   `CarSettings`, `Math.sqrt/abs`, `MSpecDB.isDirt`, `MSound.stopMusic`, menús de opciones,
+>   `MCarCollection.hasCar`…). Todas iguales al
 >   original jugando hasta la carrera (0 discrepancias).
 >   **1.313 funciones ya tienen su nombre real** (los nativos que usan los scripts Adhoc:
 >   `config/symbol_addrs.txt`). Informe: `.venv/bin/python -m tools.progress`.

@@ -56,6 +56,16 @@ constexpr std::uint32_t kHolderCopyRecord = 0x08A53224u;     // holder copy (an 
 constexpr std::uint32_t kArgumentAsRecord = 0x08A57854u;     // (holder *out, argv): argument as STRecord
 constexpr std::uint32_t kInitializeGameRecord = 0x08805D9Cu; // (record data)
 constexpr std::uint32_t kEngineObject = 0x14u;               // MRaceOperator: its engine object
+constexpr std::uint32_t kCarParameterCarCode = 0x088A5EE0u;  // (engine object) -> 64-bit car code
+constexpr std::uint32_t kRaceOperatorTargetSlot = 0x0885BBF0u;  // (operator engine object, index) -> slot
+constexpr std::uint32_t kRaceOperatorIsOnline = 0x0885BE14u;    // (operator engine object) -> bool
+constexpr std::uint32_t kSelfAsMusic = 0x08A3A9D0u;          // (holder *out) [a1 = self]
+constexpr std::uint32_t kMusicIsPlaying = 0x08A3A788u;       // (music *) -> int
+constexpr std::uint32_t kSelfAsCarCollection = 0x0881BD98u;  // (holder *out) [a1 = self]
+constexpr std::uint32_t kCarCollectionCore = 0x0881B068u;    // (collection *) -> its engine object
+constexpr std::uint32_t kCarCollectionFind = 0x0881BF5Cu;    // (core, argc, argv, u64 *code, int *index) -> kind
+constexpr std::uint32_t kCarCollectionHasKind1 = 0x0881A8F0u;  // (core, -, u64 code) -> count
+constexpr std::uint32_t kCarCollectionHasKind2 = 0x0881A8C0u;  // (core, -, u64 code, index) -> count
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -207,6 +217,83 @@ void MSpecDB_getCarCategory(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
 void MSpecDB_getCourseCondition(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { spec_lookup(rt, ctx, kCourseCode, kCourseCondition, false); }
 void MSpecDB_isDirt(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { spec_lookup(rt, ctx, kCourseCode, kCourseCondition, true); }
 
+// MCarParameter.getCarCode() -> the 64-bit code of the parameter's car.
+void MCarParameter_getCarCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    std::uint32_t core = 0u;
+    with_self(rt, ctx, kSelfAsCarParameter, [&](std::uint32_t object) { core = call_guest(rt, ctx, kCarParameterCore, {object}); });
+    const GuestResult code = call_guest(rt, ctx, kCarParameterCarCode, {core}, {});
+    GuestFrame frame(ctx, 0x20u);
+    return_long(rt, ctx, result, frame.at(0u), code.v0, code.v1);
+}
+
+// MRaceOperator's engine object (self as MRaceOperator, +0x14; the holder is dropped first).
+std::uint32_t race_operator(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    std::uint32_t engine = 0u;
+    with_self(rt, ctx, kSelfAsRaceOperator, [&](std::uint32_t op) { engine = rt.memory().load32(op + kEngineObject); });
+    return engine;
+}
+
+// MRaceOperator.getTargetSlot(index) -> integer, with at least one argument.
+void MRaceOperator_getTargetSlot(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    const std::uint32_t engine = race_operator(rt, ctx);
+    const auto index = static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(argv)));
+    const std::uint32_t slot = call_guest(rt, ctx, kRaceOperatorTargetSlot, {engine, index});
+    GuestFrame frame(ctx, 0x20u);
+    return_integer(rt, ctx, result, frame.at(0u), slot);
+}
+
+// MRaceOperator.isOnline() -> boolean.
+void MRaceOperator_isOnline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t online = call_guest(rt, ctx, kRaceOperatorIsOnline, {race_operator(rt, ctx)});
+    GuestFrame frame(ctx, 0x20u);
+    return_bool(rt, ctx, result, frame.at(0u), online);
+}
+
+// MMusic.isPlaying() -> integer (the engine's state, not a boolean).
+void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    with_self(rt, ctx, kSelfAsMusic, [&](std::uint32_t music) {
+        GuestFrame frame(ctx, 0x20u);
+        return_integer(rt, ctx, result, frame.at(0u), call_guest(rt, ctx, kMusicIsPlaying, {music}));
+    });
+}
+
+// MCarCollection.hasCar(car...) -> boolean: the arguments name a car (its code, plus an index for
+// kind 2); no car (code -1) gives false, otherwise whether the collection holds at least one.
+void MCarCollection_hasCar(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    auto &memory = rt.memory();
+    std::uint32_t core = 0u;
+    with_self(rt, ctx, kSelfAsCarCollection, [&](std::uint32_t collection) { core = call_guest(rt, ctx, kCarCollectionCore, {collection}); });
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t index = frame.at(0x0u);
+    const std::uint32_t code = frame.at(0x8u);  // u64, 8-aligned
+    const std::uint32_t kind =
+        call_guest(rt, ctx, kCarCollectionFind, {core, static_cast<std::uint32_t>(argc), argv, code, index});
+    const std::uint32_t low = memory.load32(code);
+    const std::uint32_t high = memory.load32(code + 4u);
+    std::uint32_t has = 0u;
+    if (low != 0xFFFFFFFFu || high != 0xFFFFFFFFu) {
+        std::int32_t count = 0;
+        if (kind == 1u) count = static_cast<std::int32_t>(call_guest(rt, ctx, kCarCollectionHasKind1, {core, 0u, low, high}));
+        else if (kind == 2u)
+            count = static_cast<std::int32_t>(
+                call_guest(rt, ctx, kCarCollectionHasKind2, {core, 0u, low, high, memory.load32(index)}));
+        has = count > 0 ? 1u : 0u;
+    }
+    GuestFrame value(ctx, 0x20u);
+    return_bool(rt, ctx, result, value.at(0u), has);
+}
+
 // MProductInformation.GetParentalLevel() -> integer.
 void MProductInformation_GetParentalLevel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -262,6 +349,11 @@ GT_DECOMP(0x0882A428u, gt::adhoc::game::MOrganizer_enableRenderingRace, gt::Retu
 GT_DECOMP(0x0882A3D0u, gt::adhoc::game::MOrganizer_disableRenderingRace, gt::ReturnKind::Void);
 // Not comparable yet (reads files inside a case), so not swapped in: GT_DECOMP(0x08854A78u, gt::adhoc::game::MCarParameter_beginPartsChange, gt::ReturnKind::Void);
 GT_DECOMP(0x08854ACCu, gt::adhoc::game::MCarParameter_endPartsChange, gt::ReturnKind::Void);
+GT_DECOMP(0x088558F8u, gt::adhoc::game::MCarParameter_getCarCode, gt::ReturnKind::Void);
+GT_DECOMP(0x0882689Cu, gt::adhoc::game::MRaceOperator_getTargetSlot, gt::ReturnKind::Void);
+GT_DECOMP(0x08826070u, gt::adhoc::game::MRaceOperator_isOnline, gt::ReturnKind::Void);
+GT_DECOMP(0x08A3B220u, gt::adhoc::game::MMusic_isPlaying, gt::ReturnKind::Void);
+GT_DECOMP(0x0881D538u, gt::adhoc::game::MCarCollection_hasCar, gt::ReturnKind::Void);
 GT_DECOMP(0x08854B74u, gt::adhoc::game::MCarParameter_beginInfo, gt::ReturnKind::Void);
 GT_DECOMP(0x08854BC8u, gt::adhoc::game::MCarParameter_endInfo, gt::ReturnKind::Void);
 GT_DECOMP(0x08854C1Cu, gt::adhoc::game::MCarParameter_updateScratch, gt::ReturnKind::Void);

@@ -37,6 +37,20 @@ constexpr std::uint32_t kCompositeChildCount = 0xF0u;
 constexpr std::uint32_t kUpdateContextRenderContext = 0x08977260u;  // (update context *) -> render context
 constexpr std::uint32_t kHolderCopyRenderContext = 0x089AB244u;     // holder copy instances
 constexpr std::uint32_t kHolderCopyUpdateContext = 0x08977AE4u;
+constexpr std::uint32_t kSelfAsOptionMenu = 0x089B6204u;       // (holder *out, [self])
+constexpr std::uint32_t kOptionMenuCount = 0x089B5828u;        // (option menu *) -> item count
+constexpr std::uint32_t kOptionMenuCurrentItem = 0x089B5E18u;  // (holder *out, option menu *)
+constexpr std::uint32_t kOptionMenuItem = 0x089B5DB4u;         // (holder *out, option menu *, index)
+constexpr std::uint32_t kOptionMenuSetIndex = 0x089B7C80u;     // (option menu *, render context *, index)
+constexpr std::uint32_t kSelfAsIconBox = 0x089E5E50u;          // (holder *out) [a1 = self]
+constexpr std::uint32_t kIconBoxItemCount = 0x089E6B00u;       // (icon box *) -> count
+constexpr std::uint32_t kIconBoxItemVisible = 0x089E7700u;     // (icon box *, index) -> bool
+constexpr std::uint32_t kSelfAsListBox = 0x089CD62Cu;          // (holder *out) [a1 = self]
+constexpr std::uint32_t kListBoxSetItemCount = 0x089D027Cu;    // (list box *, count)
+constexpr std::uint32_t kCompositeChild = 0x08A00BF4u;         // (composite *, index) -> widget
+constexpr std::uint32_t kRemoveChildSlot = 141u;               // composite->remove(context, child)
+constexpr std::uint32_t kClearWindowSlot = 147u;               // composite->clear(context)
+constexpr std::uint32_t kUpdateContextSync = 0x089C4558u;      // (frames): jumped to
 
 void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
@@ -191,6 +205,183 @@ void MComposite_countChild(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     destroy(rt, ctx, composite);
 }
 
+// self as `self_as` into a frame holder, `use(object)`, then drop the holder. The *As* helpers get
+// self in a1, which call_guest leaves as the native's own.
+template <typename Use>
+void self_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, Use use) {
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t holder = frame.at(0u);
+    (void)call_guest(rt, ctx, self_as, {holder});
+    use(rt.memory().load32(holder));  // NULL is not checked (the originals only report it)
+    destroy(rt, ctx, holder);
+}
+
+// Argument `index` as an integer (its toInt()).
+std::int32_t int_argument(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t argv,
+                          std::uint32_t index) {
+    return to_int(rt, ctx, rt.memory().load32(argv + 4u * index));
+}
+
+// *result = the holder `make(out)` fills, dropping `out` afterwards (the getters returning objects).
+template <typename Make>
+void return_holder(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, Make make) {
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t out = frame.at(0u);
+    make(out);
+    if (result != out) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(out)});
+    destroy(rt, ctx, out);
+}
+
+// MOptionMenu.Count() -> integer.
+void MOptionMenu_Count(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    self_call(rt, ctx, kSelfAsOptionMenu, [&](std::uint32_t menu) {
+        GuestFrame frame(ctx, 0x20u);
+        return_integer(rt, ctx, result, frame.at(0u), call_guest(rt, ctx, kOptionMenuCount, {menu}));
+    });
+}
+
+// MOptionMenu.getItem() -> the current item; getItem(index) -> that item.
+void MOptionMenu_getItem(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    self_call(rt, ctx, kSelfAsOptionMenu, [&](std::uint32_t menu) {
+        if (argc < 1) {
+            return_holder(rt, ctx, result, [&](std::uint32_t out) { (void)call_guest(rt, ctx, kOptionMenuCurrentItem, {out, menu}); });
+            return;
+        }
+        const std::int32_t index = int_argument(rt, ctx, argv, 0u);
+        return_holder(rt, ctx, result, [&](std::uint32_t out) {
+            (void)call_guest(rt, ctx, kOptionMenuItem, {out, menu, static_cast<std::uint32_t>(index)});
+        });
+    });
+}
+
+// MOptionMenu.setIndex(context, index): with at least two arguments; a nil context is passed as NULL.
+void MOptionMenu_setIndex(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[5];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc < 2) return;
+    auto &memory = rt.memory();
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t menu = frame.at(0x0u);
+    const std::uint32_t holder = frame.at(0x4u);
+    std::uint32_t context = 0u;
+    if (memory.load32(argv) != 0u) {
+        (void)call_guest(rt, ctx, kSelfAsRenderContext, {holder, argv});
+        context = memory.load32(holder);  // read before the holder drops its reference, as the original
+        destroy(rt, ctx, holder);
+    }
+    (void)call_guest(rt, ctx, kSelfAsOptionMenu, {menu, self});
+    const std::int32_t index = int_argument(rt, ctx, argv, 1u);
+    (void)call_guest(rt, ctx, kOptionMenuSetIndex, {memory.load32(menu), context, static_cast<std::uint32_t>(index)});
+    destroy(rt, ctx, menu);
+}
+
+// MIconBox.getItemCount() -> integer, with no arguments.
+void MIconBox_getItemCount(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    if (ctx.gpr[6] != 0u) return;
+    self_call(rt, ctx, kSelfAsIconBox, [&](std::uint32_t box) {
+        GuestFrame frame(ctx, 0x20u);
+        return_integer(rt, ctx, result, frame.at(0u), call_guest(rt, ctx, kIconBoxItemCount, {box}));
+    });
+}
+
+// MIconBox.getItemVisible(index) -> boolean, with exactly one argument.
+void MIconBox_getItemVisible(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 1u) return;
+    self_call(rt, ctx, kSelfAsIconBox, [&](std::uint32_t box) {
+        const std::int32_t index = int_argument(rt, ctx, argv, 0u);
+        const std::uint32_t visible = call_guest(rt, ctx, kIconBoxItemVisible, {box, static_cast<std::uint32_t>(index)});
+        GuestFrame frame(ctx, 0x20u);
+        return_bool(rt, ctx, result, frame.at(0u), visible);
+    });
+}
+
+// MListBox.setItemCount(count), with exactly one argument.
+void MListBox_setItemCount(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 1u) return;
+    self_call(rt, ctx, kSelfAsListBox, [&](std::uint32_t box) {
+        const std::int32_t count = int_argument(rt, ctx, argv, 0u);
+        (void)call_guest(rt, ctx, kListBoxSetItemCount, {box, static_cast<std::uint32_t>(count)});
+    });
+}
+
+// MComposite.getChild(index) -> the child widget, with at least one argument.
+void MComposite_getChild(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    self_call(rt, ctx, kSelfAsComposite, [&](std::uint32_t composite) {
+        const std::int32_t index = int_argument(rt, ctx, argv, 0u);
+        GuestFrame frame(ctx, 0x20u);
+        const std::uint32_t raw = frame.at(0x0u);
+        rt.memory().store32(raw, call_guest(rt, ctx, kCompositeChild, {composite, static_cast<std::uint32_t>(index)}));
+        return_holder(rt, ctx, result, [&](std::uint32_t out) { (void)call_guest(rt, ctx, kHolderCopy, {out, raw}); });
+    });
+}
+
+// MComposite.removeChild(child) / removeChild(context, child).
+void MComposite_removeChild(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t argc = ctx.gpr[6];
+    const std::uint32_t argv = ctx.gpr[7];
+    auto &memory = rt.memory();
+    self_call(rt, ctx, kSelfAsComposite, [&](std::uint32_t composite) {
+        GuestFrame frame(ctx, 0x20u);
+        const std::uint32_t context = frame.at(0x0u);
+        const std::uint32_t child = frame.at(0x4u);
+        if (argc == 2u) {
+            (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, argv});
+            (void)call_guest(rt, ctx, kArgumentAsWidget, {child, argv + 4u});
+            (void)call_guest(rt, ctx, virtual_function(rt, composite, kRemoveChildSlot),
+                             {composite, memory.load32(context), memory.load32(child)});
+            destroy(rt, ctx, child);
+            destroy(rt, ctx, context);
+        } else if (argc == 1u) {
+            (void)call_guest(rt, ctx, kArgumentAsWidget, {child, argv});
+            (void)call_guest(rt, ctx, virtual_function(rt, composite, kRemoveChildSlot), {composite, 0u, memory.load32(child)});
+            destroy(rt, ctx, child);
+        }
+    });
+}
+
+// MComposite.clearWindow(context), with at least one argument.
+void MComposite_clearWindow(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    self_call(rt, ctx, kSelfAsComposite, [&](std::uint32_t composite) {
+        GuestFrame frame(ctx, 0x20u);
+        const std::uint32_t context = frame.at(0x0u);
+        (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, argv});
+        (void)call_guest(rt, ctx, virtual_function(rt, composite, kClearWindowSlot), {composite, rt.memory().load32(context)});
+        destroy(rt, ctx, context);
+    });
+}
+
+// Allegrex trunc.w.s: toward zero; NaN and out-of-range values give 0x7FFFFFFF (portable: no C++ UB).
+std::int32_t trunc_w_s(float value) {
+    if (!(value > -2147483648.0f && value < 2147483648.0f)) return 0x7FFFFFFF;
+    return static_cast<std::int32_t>(value);
+}
+
+// MUpdateContext.Sync(seconds = 1/60): waits that many frames (seconds * 60). Module function
+// (result, argc, argv); the original jumps to the wait.
+void MUpdateContext_Sync(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
+    const std::uint32_t argv = ctx.gpr[6];
+    std::int32_t frames = 1;
+    if (argc > 0) frames = trunc_w_s(to_float(rt, ctx, rt.memory().load32(argv)) * 60.0f);
+    tail_call(ctx, kUpdateContextSync, {static_cast<std::uint32_t>(frames)});
+}
+
 // MRenderContext.finish(): with no arguments, finishes the context's update context.
 void MRenderContext_finish(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (ctx.gpr[6] != 0u) return;
@@ -214,4 +405,14 @@ GT_DECOMP(0x0897E994u, gt::adhoc::ui::MToolTipFace_remove, gt::ReturnKind::Void)
 // Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089C11D0u, gt::adhoc::ui::MMovieFace_unload, gt::ReturnKind::Void);
 GT_DECOMP(0x089A3F54u, gt::adhoc::ui::MRootWindow_getFocusedWidget, gt::ReturnKind::Void);
 GT_DECOMP(0x08A022DCu, gt::adhoc::ui::MComposite_countChild, gt::ReturnKind::Void);
+GT_DECOMP(0x089B6E00u, gt::adhoc::ui::MOptionMenu_Count, gt::ReturnKind::Void);
+GT_DECOMP(0x089B6CE8u, gt::adhoc::ui::MOptionMenu_getItem, gt::ReturnKind::Void);
+GT_DECOMP(0x089B7FD8u, gt::adhoc::ui::MOptionMenu_setIndex, gt::ReturnKind::Void);
+GT_DECOMP(0x089E98B4u, gt::adhoc::ui::MIconBox_getItemCount, gt::ReturnKind::Void);
+GT_DECOMP(0x089E9AC8u, gt::adhoc::ui::MIconBox_getItemVisible, gt::ReturnKind::Void);
+// Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089D02B8u, gt::adhoc::ui::MListBox_setItemCount, gt::ReturnKind::Void);
+GT_DECOMP(0x08A0235Cu, gt::adhoc::ui::MComposite_getChild, gt::ReturnKind::Void);
+GT_DECOMP(0x08A01558u, gt::adhoc::ui::MComposite_removeChild, gt::ReturnKind::Void);
+GT_DECOMP(0x08A019A0u, gt::adhoc::ui::MComposite_clearWindow, gt::ReturnKind::Void);
+// Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x08978080u, gt::adhoc::ui::MUpdateContext_Sync, gt::ReturnKind::Void);
 // Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089AB5D8u, gt::adhoc::ui::MRenderContext_finish, gt::ReturnKind::Void);
