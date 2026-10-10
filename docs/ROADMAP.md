@@ -236,6 +236,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       lectores de globales (199/199) y en los reenvíos. `tools.progress` ya cuenta los registros de un
       argumento. **943 funciones, 0 discrepancias** (`tools.progress`: 939, 4,05 % de funciones,
       1,31 % de bytes).
+- [x] **Reenvíos y fábricas** (`src/core/forwarders.cpp`, `src/core/factories.cpp`): llamar y
+      devolver (13), guardar la vtable y saltar a la base (23), crear una instancia de la clase en un
+      holder (`make_instance`: reservar, construir, iniciar el holder; 46) y asignar desde la fábrica
+      (`assign_from_factory`; 56). Sabotajes detectados en todas. En guardar-y-saltar, la base vuelve
+      a escribir `*this`, así que el sabotaje se hizo sobre s0. **1.081 funciones, 0 discrepancias**
+      (`tools.progress`: 1.077, 4,64 % de funciones, 1,51 % de bytes).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
