@@ -130,7 +130,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Harness: saltos-cola (`gt::tail_call`), muestreo geométrico (el de 1/64 se gastaba en el
       arranque: FINDINGS), modo denso por función. `GT_PROBE_SYMBOLS` cuenta qué funciones con nombre
       se ejecutan (74 nativos Adhoc hasta el menú).
-- [ ] Decompilar los nativos pequeños ya nombrados (`MUnit::*`…), con el harness.
+- [x] Primeros nativos Adhoc: los 8 de `MUnit` (`Set/GetCurrentUnitOf{Velocity,Power,Torque,
+      Temperature}`, `src/game/adhoc/munit.cpp`), con `GuestFrame` para locales en la pila guest.
+- [ ] Más nativos de los 74 que se ejecutan hasta el menú (`GT_PROBE_SYMBOLS`).
 
 ## Fase 5 — Más adelante
 
