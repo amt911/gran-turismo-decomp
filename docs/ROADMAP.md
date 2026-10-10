@@ -263,6 +263,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       sabotaje probado, quedan escritos y sin registrar. `loadCarArray/loadCourseMap` leen ficheros (no comparables, registro desactivado con el
       motivo); `getCarCatalogLength/Height/Width` comparten cuerpo con `Ms` pero ninguna ruta las llama.
       **1.304 funciones, 0 discrepancias en las tres rutas.**
+- [x] **printf de la libc** (`src/libc/printf.cpp`): no es el de newlib; formatea a través de objetos
+      «sink» de C++. `sprintf/snprintf/vsprintf/vsnprintf`, los sinks de cadena y acotado (init y
+      write), la base del sink y el lector de anchura/precisión. Sabotajes detectados en las 12.
+      `calloc/realloc` escritos pero ninguna ruta los llama. **1.316 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
