@@ -382,6 +382,23 @@ void MUpdateContext_Sync(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
     tail_call(ctx, kUpdateContextSync, {static_cast<std::uint32_t>(frames)});
 }
 
+// MNode.doInitialize(context), with at least one argument: the node's virtual initialize(context).
+void MNode_doInitialize(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    constexpr std::uint32_t kInitializeSlot = 88u;
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc <= 0) return;
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t node = frame.at(0x0u);
+    const std::uint32_t context = frame.at(0x4u);
+    (void)call_guest(rt, ctx, kSelfAsNode, {node});
+    (void)call_guest(rt, ctx, kSelfAsRenderContext, {context, argv});
+    const std::uint32_t object = rt.memory().load32(node);
+    (void)call_guest(rt, ctx, virtual_function(rt, object, kInitializeSlot), {object, rt.memory().load32(context)});
+    destroy(rt, ctx, context);
+    destroy(rt, ctx, node);
+}
+
 // MRenderContext.finish(): with no arguments, finishes the context's update context.
 void MRenderContext_finish(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (ctx.gpr[6] != 0u) return;
@@ -416,3 +433,4 @@ GT_DECOMP(0x08A01558u, gt::adhoc::ui::MComposite_removeChild, gt::ReturnKind::Vo
 GT_DECOMP(0x08A019A0u, gt::adhoc::ui::MComposite_clearWindow, gt::ReturnKind::Void);
 // Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x08978080u, gt::adhoc::ui::MUpdateContext_Sync, gt::ReturnKind::Void);
 // Not comparable yet (calls a kernel import that is not replay-safe), so not swapped in: GT_DECOMP(0x089AB5D8u, gt::adhoc::ui::MRenderContext_finish, gt::ReturnKind::Void);
+GT_DECOMP(0x089BB440u, gt::adhoc::ui::MNode_doInitialize, gt::ReturnKind::Void);

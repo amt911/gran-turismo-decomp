@@ -39,6 +39,43 @@ void isInstanceOf(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, kHolderDestroy, {cls});
 }
 
+constexpr std::uint32_t kToSymbolSlot = 23u;             // symbol toSymbol(this) (into a 16-byte symbol)
+constexpr std::uint32_t kSymbolDestroy = 0x08A69D68u;     // (symbol *)
+constexpr std::uint32_t kSymbolBytes = 0x10u;
+
+// self.getObjectAttribute(name): *result = self's attribute `name` (argv[0] as a symbol; argc is not
+// checked).
+void getObjectAttribute(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    constexpr std::uint32_t kGetAttribute = 0x08A774B0u;  // (object *, holder *result, symbol *)
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t self = rt.memory().load32(ctx.gpr[5]);
+    const std::uint32_t name = rt.memory().load32(ctx.gpr[7]);
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t symbol = frame.at(0u);
+    (void)call_guest(rt, ctx, virtual_function(rt, name, kToSymbolSlot), {symbol, name});
+    (void)call_guest(rt, ctx, kGetAttribute, {self, result, symbol});
+    (void)call_guest(rt, ctx, kSymbolDestroy, {symbol});
+}
+
+// self.setObjectAttribute(name, value), with exactly two arguments.
+void setObjectAttribute(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    constexpr std::uint32_t kHolderCopySelf = 0x08A76ABCu;  // (holder *out, const holder *self)
+    constexpr std::uint32_t kSetAttribute = 0x08A7761Cu;    // (object *, symbol *, holder *value)
+    constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;
+    const std::uint32_t argv = ctx.gpr[7];
+    if (ctx.gpr[6] != 2u) return;
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t symbol = frame.at(0x0u);
+    const std::uint32_t holder = frame.at(kSymbolBytes);
+    (void)call_guest(rt, ctx, kHolderCopySelf, {holder});  // a1 = the self holder, as passed in
+    const std::uint32_t self = rt.memory().load32(holder);
+    const std::uint32_t name = rt.memory().load32(argv);
+    (void)call_guest(rt, ctx, virtual_function(rt, name, kToSymbolSlot), {symbol, name});
+    (void)call_guest(rt, ctx, kSetAttribute, {self, symbol, argv + 4u});
+    (void)call_guest(rt, ctx, kSymbolDestroy, {symbol});
+    (void)call_guest(rt, ctx, kHolderDestroy, {holder});
+}
+
 // self.toBool(): a new boolean with the value's truth.
 void toBool(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -78,3 +115,5 @@ GT_DECOMP(0x08A79980u, gt::adhoc::object::defined, gt::ReturnKind::Void);
 GT_DECOMP(0x08A78D84u, gt::adhoc::object::toBool, gt::ReturnKind::Void);
 GT_DECOMP(0x08A79128u, gt::adhoc::object::toULong, gt::ReturnKind::Void);
 GT_DECOMP(0x08A78C6Cu, gt::adhoc::object::isInstanceOf, gt::ReturnKind::Void);
+GT_DECOMP(0x08A7758Cu, gt::adhoc::object::getObjectAttribute, gt::ReturnKind::Void);
+GT_DECOMP(0x08A7788Cu, gt::adhoc::object::setObjectAttribute, gt::ReturnKind::Void);

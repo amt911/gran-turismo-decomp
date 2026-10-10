@@ -178,7 +178,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `Object.isInstanceOf`, `MCarParameter.getCarCode`, `MRaceOperator.getTargetSlot/isOnline`,
       `MMusic.isPlaying`, `MCarCollection.hasCar`. **89 funciones, 0 discrepancias** hasta la carrera.
       Sin comparar: `MUpdateContext.Sync` y `MListBox.setItemCount` (imports no re-ejecutables).
-- [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
+- [x] `bsearch` de libc (la función SDK más llamada hasta la carrera: 1,6 millones de llamadas,
+      29/29 casos iguales; comparador como 5.º argumento EABI), `Object.getObjectAttribute/
+      setObjectAttribute`, `STStructure.define`, `MNode.doInitialize`, `MSystemBGM.stop` (salto de
+      cola). **95 funciones, 0 discrepancias** hasta la carrera.
+- [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`); `memalign`/`free`
+      (núcleo del asignador, ~1,2 M llamadas cada uno).
 
 ## Fase 5 — Más adelante
 

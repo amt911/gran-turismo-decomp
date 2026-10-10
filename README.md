@@ -20,9 +20,9 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   fuentes del firmware que trae PPSSPP (`/usr/share/ppsspp/assets/flash0/font`).
 > - **Pendiente visible:** sin sonido (la música va "en silencio"); sin ventana (solo imágenes); cargar
 >   una partida guardada deja la pantalla en blanco (por eso cada ejecución empieza sin partida).
-> - **Decompilación (Fase 3-4):** 89 funciones decompiladas y probadas contra el original con el
+> - **Decompilación (Fase 3-4):** 95 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
->   `strchrnul`, `malloc`, `_malloc_r`; motor: el recuento de referencias y el puntero inteligente;
+>   `strchrnul`, `malloc`, `_malloc_r`, `bsearch`; motor: el recuento de referencias y el puntero inteligente;
 >   scripts: `MUnit` (8), `MRandom.GetValue`, `Object.toInt/toFloat/defined`, `Math.clamp`,
 >   `Module.clearStatic`, `MSystemBGM.getContextSize`, `Array.resize`, `MManager.registerClass`, la
 >   interfaz (`setFocus`, `doCopy`, `pushEvent`, `appendChild`…) y el juego (`MOrganizer`,
