@@ -560,3 +560,22 @@ candidates stayed registered, including the ones never compared.
 C macro, and only the tools that read the source with a regex miss it.
 
 Found: 2026-10-11 · tools
+
+### A diff run that stopped early still exited 0
+
+**Symptom.** Every `--decomp diff` run after PR #50 printed
+`Runtime stopped: call_guest(0x0893244C): no function at 0x0893244C or no return` and exited **0**.
+Every function compared before the stop showed `mismatched 0`, so the gate looked green. The race
+route stopped at car selection and never reached the race.
+**Cause.** A typo in a decompiled native's callee (`kCarSpecDestroy` 0x0893244C instead of
+0x08932448, the `jal 0x12e448` target). `call_guest` stops the runtime when the target isn't a
+function, and `gt_native` returned only the harness's status.
+**Fix / workaround.** The address is fixed. `gt_native` now exits **3** when the runtime stops for
+anything other than the wall-clock bound or "All PSP threads completed"; a mismatch (2) still wins.
+After every diff run, check the exit code and the `Runtime stopped:` line, not only the
+`mismatched` counts.
+**Why it isn't obvious.** The comparisons made before the stop are all real and equal, and nothing
+says the run covered far less than usual. The only hint is that functions later in the route show
+`calls 0`, which looks like flaky coverage.
+
+Found: 2026-10-11 · host/main.cpp, src/game/adhoc

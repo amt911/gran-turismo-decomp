@@ -49,6 +49,7 @@ struct Options {
 // without an external NID database. Plain globals because the observer is a function pointer.
 std::FILE *g_trace = nullptr;
 std::uint64_t g_trace_index = 0u;
+bool g_abnormal_stop = false;  // the runtime stopped for a reason other than an expected end
 std::uint64_t g_trace_limit = 0u;
 std::map<std::pair<std::string, std::uint32_t>, std::uint32_t, std::less<>> g_stub_by_import;
 
@@ -156,7 +157,14 @@ int main(int argc, char **argv) {
         std::cout << "Running from entry " << psprecomp::hex32(entry) << "\n" << std::flush;
         runtime.run(entry, options.max_dispatches);
         lcs::ge_worker_shutdown();
-        if (runtime.stopped()) std::cout << "Runtime stopped: " << runtime.stop_reason() << "\n";
+        if (runtime.stopped()) {
+            std::cout << "Runtime stopped: " << runtime.stop_reason() << "\n";
+            // Only the wall-clock bound and the game ending its threads are expected ends; any other
+            // stop (a decompiled call to a non-function, a deadlock...) cut the run short, and a
+            // diff run that stopped early has not compared what it should have.
+            const std::string &reason = runtime.stop_reason();
+            g_abnormal_stop = !reason.starts_with("Wall-clock limit reached") && reason != "All PSP threads completed";
+        }
         gt::frontend_shutdown();
         psprecomp::set_runtime_import_observer(nullptr);
         if (g_trace != nullptr) {
@@ -170,5 +178,6 @@ int main(int argc, char **argv) {
         return decomp_status != 0 ? decomp_status : 1;
     }
     gt::probe_report();
-    return gt::decomp_report();
+    const int decomp_status = gt::decomp_report();  // a mismatch (2) wins over an early stop (3)
+    return decomp_status != 0 ? decomp_status : (g_abnormal_stop ? 3 : 0);
 }
