@@ -340,6 +340,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       inf × 0 da su NaN), un hash de 4 bytes por tabla, un escalado global antes de una llamada, dos
       recorridos de hijos… Sabotajes detectados en las 15. **1.762 funciones, 0 discrepancias en las
       tres rutas.**
+- [x] **+12 funciones calientes**: un paso pseudoaleatorio (`*state = *state * 17 + 17` y su hash),
+      el plegado de un ángulo a [-0,25, 0,25] antes de una función de onda, la pertenencia a un rango,
+      un despacho entre dos punteros, un byte con signo… Sabotajes detectados en las 12.
+      **1.774 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
