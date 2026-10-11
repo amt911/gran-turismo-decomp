@@ -331,6 +331,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       cuerpo de su ranura, una pila de holders con marca de nivel máximo, la fábrica de un objeto de
       0x14 bytes, el par float+bandera de un bloque, accesores por índice con comprobación de rango…
       Sabotajes detectados en las 17. **1.729 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+18 funciones calientes** (las más llamadas que quedaban en la carrera): visibilidad por
+      virtual y banderas, la tabla de ranuras por fila/columna, copias de vec4 hechas con la VFPU,
+      reenvíos a un delegado, el empaquetado y aplicación de un color, un lector de un byte por
+      virtual… Sabotajes detectados en las 18. **1.747 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
