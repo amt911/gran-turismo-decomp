@@ -316,6 +316,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       la distancia a lo largo de una dirección (|dot|), una matriz 3x3 identidad, asignar con
       retain/release bajo mutex, conversiones byte→float (/100, ×10)… Sabotajes detectados en las 27.
       **1.642 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+30 funciones calientes**: listas de callbacks y de objetos recorridas bajo su mutex, avisos
+      que se saltan si están desactivados, colas globales, el reloj de 64 bits, lecturas bajo cerrojo,
+      dos `madd` que conservan HI… (`func_08AD96A0` escrita, no se alcanza). Sabotajes detectados en las
+      30. **1.672 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

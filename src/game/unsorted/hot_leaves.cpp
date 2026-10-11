@@ -2514,3 +2514,311 @@ GT_DECOMP(0x08AF27C0u, gt::game::func_08AF27C0, gt::ReturnKind::Word);
 GT_DECOMP(0x08956530u, gt::game::func_08956530, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF3FA0u, gt::game::func_08AF3FA0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A6710Cu, gt::game::func_08A6710C, gt::ReturnKind::Word);
+
+// --- batch 12 ---
+
+namespace gt::game {
+namespace {
+
+constexpr std::uint32_t kOwnerLock = 0x08CF4994u;        // mutex guarding func_089A717C's read
+constexpr std::uint32_t kCopyOut = 0x089A6A68u;          // (out, source)
+constexpr std::uint32_t kNotifyDisabled = 0x08CFFB70u;   // a global flag byte: notifications off
+constexpr std::uint32_t kForEachLocked = 0x08ABFF20u;    // (list, callback)
+constexpr std::uint32_t kForEachLocked2 = 0x08ABFFA0u;   // (list, callback)
+constexpr std::uint32_t kQueuePost = 0x08B1C820u;        // (queue, item, -1, -1)
+constexpr std::uint32_t kSwapGlobal = 0x08D405D8u;       // a global word swapped by func_08AD9784
+constexpr std::uint32_t kSetMode = 0x08AD95ECu;          // (mode)
+constexpr std::uint32_t kListHeadA = 0x08CFF9C0u, kListLockA = 0x08CFF9C8u;
+constexpr std::uint32_t kListHeadB = 0x08CFF98Cu, kListLockB = 0x08CFF994u;
+constexpr std::uint32_t kListHeadC = 0x08D4059Cu, kListLockC = 0x08D405A4u;
+constexpr std::uint32_t kListHeadD = 0x08D77188u;
+constexpr std::uint32_t kListHeadE = 0x08D7717Cu;
+constexpr std::uint32_t kDetach = 0x089A7414u;           // (target, this)
+constexpr std::uint32_t kOwnerOf = 0x089A717Cu;          // func_089A717C below
+constexpr std::uint32_t kAttachTo = 0x089A89A0u;         // (b, owner)
+constexpr std::uint32_t kClock = 0x08B1C490u;            // func_08B1C490 below
+constexpr std::uint32_t kClockValue = 0x08D68A80u;       // u64
+
+void for_each_callback(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t head, std::uint32_t lock) {
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, kHeapLock, {lock});
+    for (std::uint32_t node = word(rt, head); node != 0u;) {
+        const std::uint32_t entry = word(rt, node);
+        const std::uint32_t next = word(rt, node + 0x8u);
+        const std::uint32_t function = word(rt, entry);
+        if (function != 0u) (void)call_guest(rt, ctx, function, {word(rt, entry + 0x4u)});
+        node = next;
+    }
+}
+
+} // namespace
+
+// func_089A717C(this) -> the word at +0x14, read under the lock at 0x08CF4994.
+void func_089A717C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, kHeapLock, {kOwnerLock});
+    const std::uint32_t value = word(rt, self + 0x14u);
+    (void)call_guest(rt, ctx, kHeapUnlock, {kOwnerLock});
+    ctx.gpr[2] = value;
+}
+
+// func_08A7BF7C(this) -> the word at +0x34, read under the lock at 0x08CFF450.
+void func_08A7BF7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, kHeapLock, {kAttachLock});
+    const std::uint32_t value = word(rt, self + 0x34u);
+    (void)call_guest(rt, ctx, kHeapUnlock, {kAttachLock});
+    ctx.gpr[2] = value;
+}
+
+// func_089AA658(out, source) -> out, after func_089A6A68(out, &source->member68) under the lock at 0x08CF4ACC.
+void func_089AA658(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4];
+    const std::uint32_t source = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, kHeapLock, {kStateLock});
+    (void)call_guest(rt, ctx, kCopyOut, {out, source + 0x68u});
+    (void)call_guest(rt, ctx, kHeapUnlock, {kStateLock});
+    ctx.gpr[2] = out;
+}
+
+// func_08ABF9B4 / ..990 / ..96C / ..948 / ..924(list): unless notifications are off (0x08CFFB70),
+// runs the list with one of five callbacks (through func_08ABFF20 or func_08ABFFA0).
+void notify(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t walk, std::uint32_t callback) {
+    if (rt.memory().load8(kNotifyDisabled) != 0u) return;
+    tail_call(ctx, walk, {ctx.gpr[4], callback});
+}
+void func_08ABF9B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { notify(rt, ctx, kForEachLocked, 0x08ABFC18u); }
+void func_08ABF990(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { notify(rt, ctx, kForEachLocked, 0x08ABFC08u); }
+void func_08ABF96C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { notify(rt, ctx, kForEachLocked2, 0x08ABFBF8u); }
+void func_08ABF948(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { notify(rt, ctx, kForEachLocked2, 0x08ABFBE8u); }
+void func_08ABF924(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { notify(rt, ctx, kForEachLocked2, 0x08ABFBD8u); }
+
+// func_08B1C468 / func_08B1C3F8 / func_08B1C374(-, item): posts the item to one of three global
+// queues (func_08B1C820(queue, item, -1, -1)).
+void func_08B1C468(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, kQueuePost, {0x08D68A70u, ctx.gpr[5], 0xFFFFFFFFu, 0xFFFFFFFFu}); }
+void func_08B1C3F8(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, kQueuePost, {0x08D68A50u, ctx.gpr[5], 0xFFFFFFFFu, 0xFFFFFFFFu}); }
+void func_08B1C374(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, kQueuePost, {0x08D68A30u, ctx.gpr[5], 0xFFFFFFFFu, 0xFFFFFFFFu}); }
+
+// func_08AF4F24(this, i): the flag byte i at +0x424 = 1.
+void func_08AF4F24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store8(ctx.gpr[5] + ctx.gpr[4] + 0x424u, 1u);
+    ctx.gpr[2] = 1u;
+}
+
+// func_08AD9784(value) -> the previous value of the global at 0x08D405D8, which becomes `value`.
+void func_08AD9784(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t old = word(rt, kSwapGlobal);
+    rt.memory().store32(kSwapGlobal, ctx.gpr[4]);
+    ctx.gpr[2] = old;
+}
+
+// func_08AD96A0(): func_08AD95EC(0).
+void func_08AD96A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[2] = call_guest(rt, ctx, kSetMode, {0u});
+}
+
+// func_08AB9C48 / func_08AB9A9C(): run the callbacks of two global lists ({function, argument}
+// entries, next at +8), each under its lock.
+void func_08AB9C48(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    for_each_callback(rt, ctx, kListHeadA, kListLockA);
+    tail_call(ctx, kHeapUnlock, {kListLockA});
+}
+void func_08AB9A9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    for_each_callback(rt, ctx, kListHeadB, kListLockB);
+    tail_call(ctx, kHeapUnlock, {kListLockB});
+}
+
+// func_08AC8D20(): calls the virtual at +0x14 of every object in a global list (object at +0, next
+// at +8), under its lock.
+void func_08AC8D20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, kHeapLock, {kListLockC});
+        for (std::uint32_t node = word(rt, kListHeadC); node != 0u; node = word(rt, node + 0x8u)) {
+            const std::uint32_t object = word(rt, node);
+            (void)call_guest(rt, ctx, word(rt, word(rt, object) + 0x14u), {object});
+        }
+    }
+    tail_call(ctx, kHeapUnlock, {kListLockC});
+}
+
+// func_08ABBC64(): calls the virtual at +0x14 of every object in a global list (next at +0, object
+// at +4).
+void func_08ABBC64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    for (std::uint32_t node = word(rt, kListHeadD); node != 0u; node = word(rt, node)) {
+        const std::uint32_t object = word(rt, node + 0x4u);
+        (void)call_guest(rt, ctx, word(rt, word(rt, object) + 0x14u), {object});
+    }
+}
+
+// func_08AB978C(value in $f12): calls the virtual at +0x20 of every object in another global list with
+// `value`.
+void func_08AB978C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const float value = ctx.fpr[12];
+    GuestFrame frame(ctx, 0x20u);
+    for (std::uint32_t node = word(rt, kListHeadE); node != 0u; node = word(rt, node)) {
+        const std::uint32_t object = word(rt, node + 0x4u);
+        (void)call_guest(rt, ctx, word(rt, word(rt, object) + 0x20u), {object}, {value});
+    }
+}
+
+// func_089AB274(this): func_089A7414(this->ptr68, this) if set, under the lock at 0x08CF4ACC.
+void func_089AB274(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, kHeapLock, {kStateLock});
+        const std::uint32_t target = word(rt, self + 0x68u);
+        if (target != 0u) (void)call_guest(rt, ctx, kDetach, {target, self});
+    }
+    tail_call(ctx, kHeapUnlock, {kStateLock});
+}
+
+// func_089A73B8(this, b): func_089A89A0(b, func_089A717C(this)) when there is an owner and this's
+// state (+0x38) isn't 3.
+void func_089A73B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t b = ctx.gpr[5];
+    std::uint32_t owner;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        owner = call_guest(rt, ctx, kOwnerOf, {self});
+    }
+    if (owner != 0u && word(rt, self + 0x38u) != 3u) tail_call(ctx, kAttachTo, {b, owner});
+}
+
+// func_088D776C(this, flag) -> 1 after storing the flag byte at +0x5B7, unless the child at +0x640
+// exists and the flag is set (then 0).
+void func_088D776C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t flag = ctx.gpr[5] & 0xFFu;
+    std::uint32_t stored = 0u;
+    if (word(rt, ctx.gpr[4] + 0x640u) == 0u || flag == 0u) {
+        rt.memory().store8(ctx.gpr[4] + 0x5B7u, static_cast<std::uint8_t>(flag));
+        stored = 1u;
+    }
+    ctx.gpr[2] = stored;
+}
+
+// func_08B21A4C(this): hands the pending item at +0x6C to the sink at +0x2C (its virtual at +0xC)
+// and clears it.
+void func_08B21A4C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t sink = word(rt, self + 0x2Cu);
+    if (sink == 0u) return;
+    const std::uint32_t pending = word(rt, self + 0x6Cu);
+    if (pending == 0u) return;
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, word(rt, word(rt, sink) + 0xCu), {sink, pending});
+    rt.memory().store32(self + 0x6Cu, 0u);
+}
+
+// func_08B1C490() -> the u64 at 0x08D68A80 (v0:v1).
+void func_08B1C490(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = word(rt, kClockValue);
+    ctx.gpr[3] = word(rt, kClockValue + 0x4u);
+}
+
+// func_088DB4F8(this): this->+0x90 = func_08B1C490() (64 bits).
+void func_088DB4F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    const GuestResult value = call_guest(rt, ctx, kClock, {}, {});
+    rt.memory().store32(self + 0x90u, value.v0);
+    rt.memory().store32(self + 0x94u, value.v1);
+}
+
+// func_08AD4050(callback): calls callback->function (+0xC) with (callback->argument (+0x10), callback).
+void func_08AD4050(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t callback = ctx.gpr[4];
+    const std::uint32_t function = word(rt, callback + 0xCu);
+    ctx.gpr[5] = callback;
+    if (function != 0u) tail_call(ctx, function, {word(rt, callback + 0x10u), callback});
+}
+
+// func_0890AF20(-, vec3 *out): *out = {1, 1, 1}.
+void func_0890AF20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    constexpr std::uint32_t kOne = 0x3F800000u;
+    rt.memory().store32(ctx.gpr[5] + 0x8u, kOne);
+    rt.memory().store32(ctx.gpr[5], kOne);
+    rt.memory().store32(ctx.gpr[5] + 0x4u, kOne);
+}
+
+// func_088FBB70(this) -> &object->member3C of this's virtual +0x30 result when that object's word at
+// +0x18 is set, else NULL.
+void func_088FBB70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t object = call_guest(rt, ctx, word(rt, word(rt, self) + 0x30u), {self});
+    ctx.gpr[2] = (object != 0u && word(rt, object + 0x18u) != 0u) ? object + 0x3Cu : 0u;
+}
+
+// func_088F960C(this): when this->ptr8's flag byte +0x14 is clear and it has a source at +0x10,
+// sets the flag to the source's virtual +8 (source, &ptr8->member4).
+void func_088F960C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t q = word(rt, ctx.gpr[4] + 0x8u);
+    if (rt.memory().load8(q + 0x14u) != 0u) return;
+    const std::uint32_t source = word(rt, q + 0x10u);
+    if (source == 0u) return;
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t flag = call_guest(rt, ctx, word(rt, word(rt, source) + 0x8u), {source, q + 0x4u});
+    rt.memory().store8(q + 0x14u, static_cast<std::uint8_t>(flag));
+}
+
+// func_088937A8(holder, i) -> &object->records[object->signed byte 1][i] + 0x38 (rows of 0x14C bytes,
+// i of 1000 bytes; a madd, so HI changes too).
+void func_088937A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t object = word(rt, ctx.gpr[4]);
+    const auto row = static_cast<std::int32_t>(static_cast<std::int8_t>(rt.memory().load8(object + 0x1u)));
+    const std::uint64_t accumulator = (static_cast<std::uint64_t>(ctx.hi) << 32) | (ctx.gpr[5] * 1000u);
+    const std::uint64_t sum = accumulator + static_cast<std::uint64_t>(static_cast<std::int64_t>(row) * 0x14C);
+    ctx.lo = static_cast<std::uint32_t>(sum);
+    ctx.hi = static_cast<std::uint32_t>(sum >> 32);
+    ctx.gpr[2] = ctx.lo + object + 0x38u;
+}
+
+// func_088936C0(holder) -> the float at +0x844C of the object it points to.
+void func_088936C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t base = word(rt, ctx.gpr[4]) + 0x10000u;
+    ctx.gpr[2] = base;
+    ctx.fpr[0] = float_at(rt, base - 0x7BB4u);
+}
+
+} // namespace gt::game
+
+GT_DECOMP(0x089A717Cu, gt::game::func_089A717C, gt::ReturnKind::Word);
+GT_DECOMP(0x08A7BF7Cu, gt::game::func_08A7BF7C, gt::ReturnKind::Word);
+GT_DECOMP(0x089AA658u, gt::game::func_089AA658, gt::ReturnKind::Word);
+GT_DECOMP(0x08ABF9B4u, gt::game::func_08ABF9B4, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABF990u, gt::game::func_08ABF990, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABF96Cu, gt::game::func_08ABF96C, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABF948u, gt::game::func_08ABF948, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABF924u, gt::game::func_08ABF924, gt::ReturnKind::Void);
+GT_DECOMP(0x08B1C468u, gt::game::func_08B1C468, gt::ReturnKind::Void);
+GT_DECOMP(0x08B1C3F8u, gt::game::func_08B1C3F8, gt::ReturnKind::Void);
+GT_DECOMP(0x08B1C374u, gt::game::func_08B1C374, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF4F24u, gt::game::func_08AF4F24, gt::ReturnKind::Void);
+GT_DECOMP(0x08AD9784u, gt::game::func_08AD9784, gt::ReturnKind::Word);
+// Never reached on the three routes: written, registered once one does.
+// GT_DECOMP(0x08AD96A0u, gt::game::func_08AD96A0, gt::ReturnKind::Void);
+GT_DECOMP(0x08AB9C48u, gt::game::func_08AB9C48, gt::ReturnKind::Void);
+GT_DECOMP(0x08AB9A9Cu, gt::game::func_08AB9A9C, gt::ReturnKind::Void);
+GT_DECOMP(0x08AC8D20u, gt::game::func_08AC8D20, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABBC64u, gt::game::func_08ABBC64, gt::ReturnKind::Void);
+GT_DECOMP(0x08AB978Cu, gt::game::func_08AB978C, gt::ReturnKind::Void);
+GT_DECOMP(0x089AB274u, gt::game::func_089AB274, gt::ReturnKind::Void);
+GT_DECOMP(0x089A73B8u, gt::game::func_089A73B8, gt::ReturnKind::Void);
+GT_DECOMP(0x088D776Cu, gt::game::func_088D776C, gt::ReturnKind::Word);
+GT_DECOMP(0x08B21A4Cu, gt::game::func_08B21A4C, gt::ReturnKind::Void);
+GT_DECOMP(0x08B1C490u, gt::game::func_08B1C490, gt::ReturnKind::DoubleWord);
+GT_DECOMP(0x088DB4F8u, gt::game::func_088DB4F8, gt::ReturnKind::Void);
+GT_DECOMP(0x08AD4050u, gt::game::func_08AD4050, gt::ReturnKind::Void);
+GT_DECOMP(0x0890AF20u, gt::game::func_0890AF20, gt::ReturnKind::Void);
+GT_DECOMP(0x088FBB70u, gt::game::func_088FBB70, gt::ReturnKind::Word);
+GT_DECOMP(0x088F960Cu, gt::game::func_088F960C, gt::ReturnKind::Void);
+GT_DECOMP(0x088937A8u, gt::game::func_088937A8, gt::ReturnKind::Word);
+GT_DECOMP(0x088936C0u, gt::game::func_088936C0, gt::ReturnKind::Float);
