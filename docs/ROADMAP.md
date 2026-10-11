@@ -287,6 +287,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       una caché hash de 2048 entradas (buscar/insertar), el `append` de un búfer dinámico, la búsqueda en
       una lista u16, accesores vía `this->ptr`, constructores de listas… Sabotajes detectados en las 37.
       **1.500 funciones, 0 discrepancias en las tres rutas.**
+- [x] **Plantilla `holder_virtual`** (`src/core/virtuals.cpp`, 13 de 19 candidatas: `if (h && h->obj)
+      h->obj->vslot(h->obj, h)`) y +15 funciones calientes a mano (las esquinas de un rectángulo en
+      un vector de puntos, la diferencia de ángulos envuelta a [-π, π), un vec3 global…). Sabotajes
+      detectados en todas. **1.528 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
