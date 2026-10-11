@@ -344,6 +344,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       el plegado de un ángulo a [-0,25, 0,25] antes de una función de onda, la pertenencia a un rango,
       un despacho entre dos punteros, un byte con signo… Sabotajes detectados en las 12.
       **1.774 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+15 funciones calientes**: despachos entre los dos punteros de un par, llamadas virtuales a
+      través de un holder, la reserva alineada a 16 bytes (`func_08A5BC14`), dos llamadas a imports
+      del sistema, un enlace dueño/índice, una condición de tres bytes… Sabotajes detectados en las
+      15. **1.789 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
