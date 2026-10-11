@@ -1,0 +1,23 @@
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index 647b80b..13295f8 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -421,13 +421,16 @@ void display_window_init() {
+     // Takes the Wayland surface, so create it only when the swapchain cannot.
+     // SDL_WINDOW_VULKAN fails when the video driver has no Vulkan support.
+     const Uint32 window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN;
+-    g_window = SDL_CreateWindow("LCSNative - GTA: Liberty City Stories",
++    const char *title_override = std::getenv("PSPRECOMP_WINDOW_TITLE");
++    const char *title = title_override != nullptr && *title_override != '\0'
++        ? title_override : "LCSNative - GTA: Liberty City Stories";
++    g_window = SDL_CreateWindow(title,
+                                 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                 static_cast<int>(surface.width), static_cast<int>(surface.height),
+                                 window_flags | SDL_WINDOW_VULKAN);
+     if (g_window == nullptr) {
+         std::cerr << "[window] Vulkan window unavailable: " << SDL_GetError() << "\n";
+-        g_window = SDL_CreateWindow("LCSNative - GTA: Liberty City Stories",
++        g_window = SDL_CreateWindow(title,
+                                     SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                     static_cast<int>(surface.width), static_cast<int>(surface.height),
+                                     window_flags);

@@ -579,3 +579,48 @@ says the run covered far less than usual. The only hint is that functions later 
 `calls 0`, which looks like flaky coverage.
 
 Found: 2026-10-11 · host/main.cpp, src/game/adhoc
+
+### The whole game ran at half speed (two vblank waiters, paced per call)
+
+**Symptom.** In `gt_play` the game, its music and its effects were slow. `GT_PERF_LOG=1` showed
+~60 `sceDisplayWaitVblankStart` calls per second, but guest time advancing at **0.50×** real time and
+the audio mix arriving at ~22,050 frames/s instead of 44,100.
+**Cause.** Two GT threads wait for every vblank. The host slept one real vblank period (16.7 ms) on
+each **call**, so each guest vblank cost two real periods. `gt_native` had the same pacing; frame dumps
+looked normal because they count presented images, not time.
+**Fix / workaround.** `throttle_vblank_to_real_time` now ties guest time to the wall clock. The vblank
+a caller waits for is due at `anchor + (its guest time − anchor's guest time)`. The anchor resets
+after a stall longer than 6 vblanks. Result: guest time 1.00× and audio 44.1 kHz. `GT_PAD`'s vblank
+counts are calls, so 120 is about 1 s now, and the pad routes reach the same states in half the wall
+time.
+**Why it isn't obvious.** Every per-call counter looked right: 60 vblanks/s, no skips, 85 % idle.
+Only guest time per wall second showed it.
+
+Found: 2026-10-11 · host/gt_kernel.cpp
+
+### Idle rasterizer threads burned half the CPU
+
+**Symptom.** `gt_play` used about 4.4 cores. On a power-limited laptop (Ryzen 7 5850U) it ran slower
+than the work required.
+**Cause.** lcs-recomp's software-rasterizer row workers spin 262,144 `pause`s before they park. GT
+submits many small parallel jobs, so the 7 workers almost never parked. gprofng put about 60 % of all
+CPU time in the worker loop itself.
+**Fix / workaround.** Patch 0017 makes the spin configurable (`PSPRECOMP_RASTER_SPINS`), and
+`host/main.cpp` defaults it to 2,048. Over 120 s of the race route, CPU went from 528 s to about
+240 s with the same GE wait. On 4 cores / 8 threads, vblank skips went from 8.0/s to 3.5/s. The same
+patch makes the window show 60 fps instead of a fixed 30 (`Timing.FrameRate`).
+**Why it isn't obvious.** The time shows up as "work" in `top`, not as idle or waiting. A big desktop
+CPU hides it completely, because spare cores absorb the spinning.
+
+Found: 2026-10-11 · tools/patches/lcs-recomp
+
+### `tools/setup.sh` refused its own patched tree
+
+**Symptom.** A second `tools/setup.sh` run failed with
+`patch does not apply: …/0002-codegen-trap-nonexistent-vfpu-register.patch`.
+**Cause.** Each patch was tested alone with `git apply --reverse --check`. Once a later patch touches
+the same lines, the reverse check of the earlier one fails.
+**Fix / workaround.** The series is applied as a whole onto a clean checkout of the pinned tree. The
+series hash is kept in `tools/src/lcs-recomp/.gt-patches`, and a run whose hash matches skips the step.
+
+Found: 2026-10-11 · tools/setup.sh

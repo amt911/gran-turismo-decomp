@@ -17,7 +17,7 @@ Paquetes de Arch (los que ya tengas se saltan):
 ```bash
 sudo pacman -S --needed git curl unzip 7zip clang cmake ninja uv pkgconf ffmpeg openssl zlib
 sudo pacman -S --needed sdl2 vulkan-icd-loader glslang   # para jugar en ventana (gt_play)
-sudo pacman -S --needed ppsspp            # para la comparación (paso 6)
+sudo pacman -S --needed ppsspp            # solo para la comparación con el original (paso 6); jugar no lo necesita
 sudo pacman -S --needed jdk21-openjdk     # solo si quieres Ghidra (setup.sh --with-ghidra); vale cualquier JDK >= 21
 ```
 
@@ -27,7 +27,8 @@ volcado los scripts se niegan a seguir.
 ## 1. Herramientas (≈ 10 s; segunda vez ≈ 0,3 s)
 
 ```bash
-tools/setup.sh                 # venv de Python, pspdecrypt, framework lcs-recomp + nuestros parches
+tools/setup.sh                 # venv de Python, pspdecrypt, framework lcs-recomp + nuestros parches,
+                               # fuentes de la PSP (de PPSSPP, fijadas por hash)
 tools/setup.sh --with-ghidra   # además Ghidra 12.1.3 + ghidra-allegrex en tools/ghidra/ (≈ 550 MB)
 ```
 
@@ -99,22 +100,24 @@ magick recomp/frames/frame_001500.ppm logo.png    # o ábrelos con cualquier vis
 juego: se quedan en `recomp/` (ignorado por git), **no se suben**.
 
 Sin ventana no hay mando, pero se pueden simular pulsaciones con `GT_PAD="<vblank>:<BOTÓN>,…"`
-(cada una dura 6 vblanks salvo que pongas `:<frames>`, p. ej. `20000:CROSS:600` mantiene X 10 s;
-60 vblanks ≈ 1 s). Botones: `START SELECT CROSS CIRCLE SQUARE TRIANGLE
+(cada una dura 6 vblanks salvo que pongas `:<frames>`, p. ej. `20000:CROSS:600` mantiene X 5 s).
+Aquí un «vblank» es una llamada del juego a `sceDisplayWaitVblankStart`: GT hace dos por refresco de
+pantalla, así que **120 ≈ 1 s**. Botones: `START SELECT CROSS CIRCLE SQUARE TRIANGLE
 UP DOWN LEFT RIGHT L R`. Por ejemplo, para saltar el vídeo de introducción:
 
 ```bash
 GT_PAD="3300:START" GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 90
 ```
 
-Los textos necesitan las fuentes del firmware de la PSP. Se usan las que instala PPSSPP
-(`/usr/share/ppsspp/assets/flash0/font`); si las tienes en otro sitio: `GT_FONT_DIR=/ruta/a/flash0/font`.
+Los textos necesitan fuentes de la PSP (PGF). `tools/setup.sh` baja las del repositorio de PPSSPP
+(etiqueta v1.20.4, comprobadas con `config/ppsspp_fonts.sha256`) a `tools/src/ppsspp-fonts/` (ignorado
+por git); no hace falta tener PPSSPP instalado. Otras: `GT_FONT_DIR=/ruta/a/flash0/font`.
 
 Las partidas guardadas van a `recomp/savedata` y se borran al arrancar (cada ejecución empieza igual);
 con `GT_SAVEDATA_DIR=/ruta` se conservan. `GT_GE_LOG=<vblank>` vuelca los dibujos de las listas GE de
 ese frame (texturas, transferencias, estados).
 
-Para llegar a una carrera (Single Player → Single Race → coche → pista → salida), unas 7 min:
+Para llegar a una carrera (Single Player → Single Race → coche → pista → salida), unos 3–4 min:
 
 ```bash
 GT_FRAME_DUMP=recomp/frames GT_FRAME_EVERY=200 \
@@ -132,7 +135,8 @@ segundo argumento y, si es texto, la cadena (rutas de fichero, nombres).
 
 `cmake --build build -j8` compila también `build/gt_play` si el sistema tiene SDL2, el loader de
 Vulkan y glslang (las cabeceras de Vulkan las baja `tools/setup.sh`). Es el mismo juego que
-`gt_native`, pero con ventana, teclado/mando y ritmo de 60 fps:
+`gt_native`, pero con ventana (título «Gran Turismo»), teclado/mando y sonido, al ritmo de la PSP.
+Se lanza desde la raíz del repositorio (lee `extracted/`):
 
 ```bash
 build/gt_play
@@ -146,6 +150,9 @@ build/gt_play
   FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
 - `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
+- **¿Va lento?** `GT_PERF_LOG=1 build/gt_play` escribe cada 5 s en la terminal el ritmo real:
+  `guest time 1.00x` es velocidad de PSP; `skipped` son vblanks que el PC no llegó a tiempo de hacer
+  (el juego salta para no ir a cámara lenta) y `GE wait` el tiempo esperando al rasterizador de la GE.
 - Sonido: efectos, motor y música. `GT_AUDIO_DUMP=<dir>` (también en `gt_native`) escribe la mezcla en
   `<dir>/channel_7.wav`.
 - Partidas: se guardan en `build/savedata/` y se cargan al arrancar (`GT_SAVEDATA_DIR` para otra carpeta).

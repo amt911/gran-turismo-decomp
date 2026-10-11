@@ -46,6 +46,7 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <cstdio>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -1820,26 +1821,83 @@ std::uint64_t starvation_tick_microseconds = 1u;
 double wall_clock_limit_seconds = 0.0;
 std::chrono::steady_clock::time_point wall_clock_start;
 
+// GT_PERF_LOG: every 5 s of wall time, how many guest vblanks ran, how many were skipped to catch up
+// with real time, how many frames were presented or dropped, and where the vblank thread waited.
+struct PerfLog {
+    std::chrono::steady_clock::time_point start{};
+    std::uint64_t vblanks{}, skipped{}, dropped{}, virtual_start_us{};
+    double pump_ms{}, sleep_ms{}, pump_max_ms{};
+};
+// Presents run on the GE worker thread.
+std::atomic<std::uint64_t> perf_presented{0u};
+std::atomic<std::uint64_t> perf_present_us{0u};
+std::uint64_t perf_audio_frames = 0u;  // sceAudioOutput2 frames submitted
+std::atomic<std::uint64_t> perf_ge_frames{0u};  // display lists that start a new frame
+std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the GE worker
+PerfLog perf_log;
+bool perf_log_enabled() {
+    static const bool enabled = std::getenv("GT_PERF_LOG") != nullptr;
+    return enabled;
+}
+double milliseconds_since(std::chrono::steady_clock::time_point since) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - since).count();
+}
+void note_present(std::chrono::steady_clock::time_point begin) {
+    perf_presented.fetch_add(1u);
+    perf_present_us.fetch_add(static_cast<std::uint64_t>(milliseconds_since(begin) * 1000.0));
+}
+void perf_log_tick() {
+    const auto now = std::chrono::steady_clock::now();
+    if (perf_log.start == std::chrono::steady_clock::time_point{}) perf_log.start = now;
+    const double seconds = std::chrono::duration<double>(now - perf_log.start).count();
+    if (seconds < 5.0) return;
+    const double presented = static_cast<double>(perf_presented.exchange(0u));
+    const double present_us = static_cast<double>(perf_present_us.exchange(0u));
+    std::fprintf(stderr,
+                 "[perf] %.1f s: vblanks %.1f/s skipped %.1f/s presented %.1f/s dropped %.1f/s | "
+                 "GE frames %.1f/s, present %.2f ms avg, pump %.2f ms avg (max %.1f), vblank sleep %.1f%%, "
+                 "GE wait %.1f%% | audio %.0f Hz | guest time %.2fx\n",
+                 seconds, perf_log.vblanks / seconds, perf_log.skipped / seconds, presented / seconds,
+                 perf_log.dropped / seconds, static_cast<double>(perf_ge_frames.exchange(0u)) / seconds,
+                 presented ? present_us / 1000.0 / presented : 0.0,
+                 perf_log.vblanks ? perf_log.pump_ms / perf_log.vblanks : 0.0, perf_log.pump_max_ms,
+                 100.0 * perf_log.sleep_ms / (seconds * 1000.0),
+                 100.0 * static_cast<double>(perf_ge_wait_us.exchange(0u)) / (seconds * 1e6),
+                 perf_audio_frames / seconds,
+                 static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6));
+    perf_audio_frames = 0u;
+    perf_log = PerfLog{};
+    perf_log.start = now;
+    perf_log.virtual_start_us = virtual_time_us;
+}
+
+// Keeps guest time in step with the wall clock: the vblank the caller is about to wait for is due at
+// anchor + (its guest time - anchor's guest time). Several threads wait on the same vblank (GT has two),
+// so pacing each call by one period instead ran the game at half speed (docs/FINDINGS.md). Returns the
+// vblanks to skip when the host has fallen behind, re-anchoring after a long stall.
 std::uint32_t throttle_vblank_to_real_time() {
     static const bool uncapped = std::getenv("LCS_UNCAPPED") != nullptr;
     if (uncapped) return 0u;
     constexpr std::uint32_t kMaxSkippedVblanks = 6u;
-    static std::chrono::steady_clock::time_point next_vblank{};
-    const auto period = std::chrono::microseconds(kVblankPeriodUs);
+    static std::chrono::steady_clock::time_point anchor_wall{};
+    static std::uint64_t anchor_guest_us = 0u;
     const auto now = std::chrono::steady_clock::now();
-    if (next_vblank == std::chrono::steady_clock::time_point{}) {
-        next_vblank = now + period;
+    const std::uint64_t next_vblank_us = (virtual_time_us / kVblankPeriodUs + 1u) * kVblankPeriodUs;
+    if (anchor_wall == std::chrono::steady_clock::time_point{} || next_vblank_us < anchor_guest_us) {
+        anchor_wall = now;
+        anchor_guest_us = next_vblank_us;
         return 0u;
     }
-    if (now < next_vblank) {
-        precise_sleep_until(next_vblank);
-        next_vblank += period;
+    const auto due = anchor_wall + std::chrono::microseconds(next_vblank_us - anchor_guest_us);
+    if (now < due) {
+        precise_sleep_until(due);
         return 0u;
     }
-    const auto behind = static_cast<std::uint64_t>((now - next_vblank) / period);
-    const auto skipped = static_cast<std::uint32_t>(std::min<std::uint64_t>(behind, kMaxSkippedVblanks));
-    next_vblank = behind > kMaxSkippedVblanks ? now + period : next_vblank + period * (skipped + 1u);
-    return skipped;
+    const auto behind = static_cast<std::uint64_t>((now - due) / std::chrono::microseconds(kVblankPeriodUs));
+    if (behind <= kMaxSkippedVblanks) return static_cast<std::uint32_t>(behind);
+    anchor_wall = now;
+    anchor_guest_us = next_vblank_us + kMaxSkippedVblanks * kVblankPeriodUs;
+    return kMaxSkippedVblanks;
 }
 
 struct GeWorker {
@@ -1903,7 +1961,10 @@ void ge_worker_wait_idle() {
     std::unique_lock lock(ge_worker.mutex);
     if (!ge_worker.started) return;
     if (ge_worker.tasks.empty() && !ge_worker.busy) return;
+    const auto begin = std::chrono::steady_clock::now();
     ge_worker.cv.wait(lock, [] { return ge_worker.tasks.empty() && !ge_worker.busy; });
+    perf_ge_wait_us.fetch_add(static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin).count()));
 }
 
 void ge_worker_stop() {
@@ -1965,6 +2026,7 @@ bool g_ge_list_since_finish = false;
 std::uint32_t g_ge_last_list_address = 0u;
 
 void execute_ge_list_frame(psprecomp::Runtime &rt, std::uint32_t list_address, std::uint64_t vblank) {
+    if (perf_log_enabled() && list_address != g_ge_last_list_address) perf_ge_frames.fetch_add(1u);
     if (g_ge_list_since_finish && list_address != g_ge_last_list_address) {
         // Not the image the window keeps.
         ge_finish_shows_this_frame() = false;
@@ -2510,6 +2572,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
                 for (std::size_t index = 0; index < count; ++index)
                     pcm[index] = static_cast<std::int16_t>(rt.memory().load16(buffer + static_cast<std::uint32_t>(index * 2u)));
                 gt::audio_dump(kOutput2Channel, pcm, true, 44'100u);
+                perf_audio_frames += samples;
                 audio_output_submit(pcm, samples, true, volume, volume, 44'100u, kOutput2Channel, start_us,
                                     virtual_time_us);
             }
@@ -3988,17 +4051,31 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             request.game_width = rt.memory().load32(kGameRenderWidthAddress);
             request.game_height = rt.memory().load32(kGameRenderWidthAddress + 4u);
         }
+        const bool perf = perf_log_enabled();
+        if (perf) ++perf_log.vblanks;
         if (!ge_async_enabled()) {
+            const auto begin = std::chrono::steady_clock::now();
             present_frame(rt, request);
+            if (perf) note_present(begin);
         } else if (ge_worker.pending_presents.load() == 0u) {
             ge_worker.pending_presents.fetch_add(1u);
-            ge_worker_submit([&rt, request] {
+            ge_worker_submit([&rt, request, perf] {
+                const auto begin = std::chrono::steady_clock::now();
                 present_frame(rt, request);
+                if (perf) note_present(begin);
                 ge_worker.pending_presents.fetch_sub(1u);
             });
+        } else if (perf) {
+            ++perf_log.dropped;
         }
 
+        const auto pump_begin = std::chrono::steady_clock::now();
         display_window_pump();
+        if (perf) {
+            const double pump = milliseconds_since(pump_begin);
+            perf_log.pump_ms += pump;
+            perf_log.pump_max_ms = std::max(perf_log.pump_max_ms, pump);
+        }
         gt::pad_script_tick();
         if (display_window_closed()) {
             ge_worker_wait_idle();
@@ -4006,7 +4083,14 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             return;
         }
         audio_output_advance(virtual_time_us);
-        if (const std::uint32_t skipped = throttle_vblank_to_real_time(); skipped != 0u) {
+        const auto sleep_begin = std::chrono::steady_clock::now();
+        const std::uint32_t skipped = throttle_vblank_to_real_time();
+        if (perf) {
+            perf_log.sleep_ms += milliseconds_since(sleep_begin);
+            perf_log.skipped += skipped;
+            perf_log_tick();
+        }
+        if (skipped != 0u) {
             virtual_time_us += static_cast<std::uint64_t>(skipped) * kVblankPeriodUs;
             display_vblank_index += skipped;
         }

@@ -1,0 +1,47 @@
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -293,7 +293,7 @@
+             unsigned spins = 0u;
+             while (generation_.load(std::memory_order_acquire) == seen) {
+                 if (stopping_.load(std::memory_order_acquire)) return;
+-                if (spins++ < kWorkerSpins) {
++                if (spins++ < worker_spins()) {
+                     raster_cpu_relax();
+                     continue;
+                 }
+@@ -316,6 +316,20 @@
+     static constexpr unsigned kChunksPerParticipant = 4u;
+     static constexpr unsigned kWorkerSpins = 262144u;
+ 
++    // PSPRECOMP_RASTER_SPINS: pause iterations an idle worker spins before it parks (default
++    // kWorkerSpins). Spinning idle workers cost whole cores, which a power-limited CPU takes from the
++    // threads doing the work.
++    static unsigned worker_spins() noexcept {
++        static const unsigned spins = [] {
++            const char *text = std::getenv("PSPRECOMP_RASTER_SPINS");
++            if (text == nullptr || *text == '\0') return kWorkerSpins;
++            char *end = nullptr;
++            const unsigned long value = std::strtoul(text, &end, 10);
++            return end != text && *end == '\0' && value <= kWorkerSpins ? static_cast<unsigned>(value) : kWorkerSpins;
++        }();
++        return spins;
++    }
++
+     std::vector<std::thread> workers_;
+     void *body_context_{};
+     BodyInvoke body_invoke_{};
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -496,7 +496,11 @@
+     if (g_closed || g_window == nullptr) return;
+     static auto last_present = std::chrono::steady_clock::time_point{};
+     const auto now = std::chrono::steady_clock::now();
+-    if (now - last_present < std::chrono::milliseconds(33)) return;
++    // One window frame per guest frame at the configured rate (Timing.FrameRate, 30 or 60); the 2 ms
++    // slack keeps a 60 Hz guest from losing frames to timer jitter.
++    const std::uint32_t frame_rate = std::max<std::uint32_t>(lcs_render_configuration().timing.frame_rate, 30u);
++    const auto interval = std::chrono::microseconds(1'000'000u / frame_rate) - std::chrono::milliseconds(2);
++    if (now - last_present < interval) return;
+     last_present = now;
+     if (frame_buffer == 0u || width == 0u || height == 0u || buffer_width == 0u) return;
+     const std::uint32_t stride_bytes = buffer_width * bytes_per_pixel(pixel_format);

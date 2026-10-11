@@ -27,6 +27,7 @@ void gt::frontend_init(const std::filesystem::path &executable_directory) {
     setenv("PSPRECOMP_CONFIG", config.c_str(), 0);
     const std::string saves = (executable_directory / "savedata").string();  // kept between sessions
     setenv("GT_SAVEDATA_DIR", saves.c_str(), 0);
+    setenv("PSPRECOMP_WINDOW_TITLE", "Gran Turismo", 0);  // lcs-recomp's default names LCS (our patch 0016)
     lcs::initialize_lcs_render_configuration(executable_directory);
     for (const std::string &warning : lcs::lcs_render_configuration().warnings)  // lcs-recomp keeps them silent
         std::cerr << "[config] " << warning << "\n";
