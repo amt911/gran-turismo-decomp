@@ -272,6 +272,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       argumento; 49) y de puntero + un acceso a través de él (getters/setters vía `this->ptr`, dos
       setters; 44). Elegidas con un sondeo de llamadas (4.103 funciones del juego se ejecutan en la
       carrera). Sabotajes detectados en todas. **1.409 funciones, 0 discrepancias en las tres rutas.**
+- [x] **Corrección:** desde #50 todas las ejecuciones `--decomp diff` se paraban pronto (una
+      dirección mal copiada en un nativo de la ficha, 0x0893244C en vez de 0x08932448) y aun así salían
+      con 0: lo verificado en #50–#52 cubría solo hasta esa parada. Arreglada la dirección, y
+      `gt_native` sale con **3** si el runtime se para por algo que no sea el límite de tiempo
+      (FINDINGS). Repetidas las tres rutas completas: **1.409 funciones, 0 discrepancias**.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
