@@ -353,6 +353,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       bytes de un objeto, reenvíos… Sabotajes detectados en las 20. Tres más (llamadas a imports del
       kernel) quedan sin registrar: el harness aislado no puede compararlas.
       **1.809 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+29 funciones calientes**: el cálculo de frames por segundo de un objeto (59,94 / g y
+      g / 59,94), una pila de palabras (sacar n), dos constructores base (vtable), un contador de
+      bytes que limpia un campo al llegar a 0, reenvíos con cerrojo (`func_08B34888`/`func_08B34B24`),
+      dos pares locales para `func_08C3F490`… Sabotajes detectados en las 29; una más (import del
+      kernel) queda sin registrar. **1.838 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
