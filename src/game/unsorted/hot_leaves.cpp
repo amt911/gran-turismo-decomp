@@ -6,6 +6,7 @@
 #include "guest_call.hpp"
 
 #include <bit>
+#include <cmath>
 #include <cstdint>
 
 namespace gt::game {
@@ -3616,3 +3617,178 @@ GT_DECOMP(0x0895549Cu, gt::game::func_0895549C, gt::ReturnKind::Float);
 GT_DECOMP(0x08A69D68u, gt::game::func_08A69D68, gt::ReturnKind::Word);
 GT_DECOMP(0x089C46F4u, gt::game::func_089C46F4, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD1C88u, gt::game::func_08AD1C88, gt::ReturnKind::Word);
+
+// --- batch 17 ---
+
+namespace gt::game {
+namespace {
+
+constexpr std::uint32_t kRetainNode = 0x08A69638u;      // (node): takes a reference
+constexpr std::uint32_t kReleaseNode = 0x08A69D3Cu;     // (node): drops a reference
+constexpr std::uint32_t kScaleBy = 0x08D47204u;         // float[3] the scale func_08AF7E0C applies
+constexpr std::uint32_t kApplyScaled = 0x08B57D6Cu;     // (f12, f13, f14)
+constexpr std::uint32_t kByteTable = 0x08CDA288u;       // 256 words, indexed by a byte
+constexpr std::uint32_t kBlendOffset = 0x089559C4u;     // (this) -> f0
+constexpr std::uint32_t kBlendKeys = 0x089551B0u;       // (this) -> the key block
+constexpr std::uint32_t kNextSibling = 0x08968A38u;     // (node) -> the next node or 0
+
+// The FPU's multiply: inf * 0 is the PSP's default NaN (0x7FC00000), not the host's (0xFFC00000).
+float psp_mul(float a, float b) {
+    if ((std::isinf(a) && b == 0.0f) || (std::isinf(b) && a == 0.0f)) return std::bit_cast<float>(0x7FC00000u);
+    return a * b;
+}
+
+// The blends of one class: t = func_089559C4(this) + bias; keys = func_089551B0(this). Returns
+// t * keys[late] + base * (1 - t), with `base` read by `base_of` after the keys.
+template <typename Base>
+float blend(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t late, Base base_of) {
+    const std::uint32_t self = ctx.gpr[4];
+    const float bias = ctx.fpr[12];
+    GuestFrame frame(ctx, 0x20u);
+    const float t = call_guest(rt, ctx, kBlendOffset, {self}, {}).f0 + bias;
+    const std::uint32_t keys = call_guest(rt, ctx, kBlendKeys, {self});
+    const float scaled = psp_mul(t, float_at(rt, keys + late));
+    return scaled + psp_mul(base_of(keys), 1.0f - t);
+}
+
+// Calls `visit(this, arg, node)` for every node of the child list at +0xF4.
+void for_each_child(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t visit) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t arg = ctx.gpr[5];
+    std::uint32_t node = word(rt, self + 0xF4u);
+    if (node == 0u) return;  // v0 untouched, as in the original
+    GuestFrame frame(ctx, 0x10u);
+    while (node != 0u) {
+        (void)call_guest(rt, ctx, visit, {self, arg, node});
+        node = call_guest(rt, ctx, kNextSibling, {node});
+    }
+    ctx.gpr[2] = 0u;
+}
+
+} // namespace
+
+// func_0893EB40(this) -> whether the byte at +0x11 is 3.
+void func_0893EB40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = rt.memory().load8(ctx.gpr[4] + 0x11u) == 3u ? 1u : 0u;
+}
+
+// func_08A6972C(node **to, node *const *from): copies the pointer and takes a reference to it.
+void func_08A6972C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t node = word(rt, ctx.gpr[5]);
+    rt.memory().store32(ctx.gpr[4], node);
+    ctx.gpr[2] = node;
+    if (node != 0u) tail_call(ctx, kRetainNode, {node});
+}
+
+// func_08A6A23C(node **to, node *const *from) -> to: assignment of a counted pointer (retain the new
+// node, release the old one, store) unless to == from.
+void func_08A6A23C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t to = ctx.gpr[4];
+    const std::uint32_t from = ctx.gpr[5];
+    if (to != from) {
+        GuestFrame frame(ctx, 0x10u);
+        if (const std::uint32_t incoming = word(rt, from); incoming != 0u) (void)call_guest(rt, ctx, kRetainNode, {incoming});
+        if (const std::uint32_t outgoing = word(rt, to); outgoing != 0u) (void)call_guest(rt, ctx, kReleaseNode, {outgoing});
+        rt.memory().store32(to, word(rt, from));
+    }
+    ctx.gpr[2] = to;
+}
+
+// func_08AF7E0C(x, y, z): func_08B57D6C with each coordinate multiplied by the global scale.
+void func_08AF7E0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.fpr[14] = psp_mul(float_at(rt, kScaleBy + 0x8u), ctx.fpr[14]);
+    ctx.fpr[12] = psp_mul(float_at(rt, kScaleBy), ctx.fpr[12]);
+    ctx.fpr[13] = psp_mul(float_at(rt, kScaleBy + 0x4u), ctx.fpr[13]);
+    ctx.gpr[2] = kScaleBy & 0xFFFF0000u;
+    ctx.gpr[3] = kScaleBy;
+    tail_call(ctx, kApplyScaled, {});
+}
+
+// func_08B29E40(value) -> the table-driven hash of its four bytes (low first), starting from 0:
+// h = table[(h ^ byte) & 0xFF] ^ (h >> 8), the CRC-32 update step without the initial inversion.
+void func_08B29E40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    std::uint32_t value = ctx.gpr[4];
+    std::uint32_t hash = 0u;
+    for (int i = 0; i < 4; ++i, value >>= 8)
+        hash = word(rt, kByteTable + (((hash ^ value) & 0xFFu) << 2)) ^ (hash >> 8);
+    ctx.gpr[2] = hash;
+}
+
+// func_08A0F514(this): the virtual +0x1B8 when the virtual +0x1AC holds.
+void func_08A0F514(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    std::uint32_t holds;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        holds = call_guest(rt, ctx, word(rt, word(rt, self) + 0x1ACu), {self});
+    }
+    ctx.gpr[2] = holds;
+    if (holds != 0u) tail_call(ctx, word(rt, word(rt, self) + 0x1B8u), {self});
+}
+
+// func_08956184 / func_08956098 / func_0895601C(this, bias): component x / y / z of the blend
+// between the key block's two vectors (+0x0 and +0x1C); the base is read from a second
+// func_089551B0 call, as the original does.
+void func_08956184(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.fpr[0] = blend(rt, ctx, 0x1Cu, [&](std::uint32_t) { return float_at(rt, call_guest(rt, ctx, kBlendKeys, {self})); });
+}
+void func_08956098(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.fpr[0] = blend(rt, ctx, 0x20u, [&](std::uint32_t) { return float_at(rt, call_guest(rt, ctx, kBlendKeys, {self}) + 0x4u); });
+}
+void func_0895601C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.fpr[0] = blend(rt, ctx, 0x24u, [&](std::uint32_t) { return float_at(rt, call_guest(rt, ctx, kBlendKeys, {self}) + 0x8u); });
+}
+
+// func_089562D0 / func_08956268 / func_08956200(this, bias): the same blend from the base vector in
+// the object at +0x8 (+0x704 / +0x700 / +0x6FC) to the key block's +0x3C / +0x38 / +0x34.
+void func_089562D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.fpr[0] = blend(rt, ctx, 0x3Cu, [&](std::uint32_t) { return float_at(rt, word(rt, self + 0x8u) + 0x704u); });
+}
+void func_08956268(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.fpr[0] = blend(rt, ctx, 0x38u, [&](std::uint32_t) { return float_at(rt, word(rt, self + 0x8u) + 0x700u); });
+}
+void func_08956200(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.fpr[0] = blend(rt, ctx, 0x34u, [&](std::uint32_t) { return float_at(rt, word(rt, self + 0x8u) + 0x6FCu); });
+}
+
+// func_088A8B64(this, float out[3]): the three blends of the source at +0xC with the bias at +0x34.
+void func_088A8B64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t out = ctx.gpr[5];
+    if (word(rt, self + 0xCu) == 0u) return;
+    GuestFrame frame(ctx, 0x10u);
+    constexpr std::uint32_t kComponents[] = {0x08956184u, 0x08956098u, 0x0895601Cu};
+    for (std::uint32_t i = 0; i < 3u; ++i) {
+        const float value = call_guest(rt, ctx, kComponents[i], {word(rt, self + 0xCu)}, {float_at(rt, self + 0x34u)}).f0;
+        rt.memory().store32(out + i * 4u, std::bit_cast<std::uint32_t>(value));
+    }
+}
+
+// func_08A00AB0 / func_08A01C30(this, arg): func_08A009CC / func_08A01B7C(this, arg, child) for every
+// child.
+void func_08A00AB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { for_each_child(rt, ctx, 0x08A009CCu); }
+void func_08A01C30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { for_each_child(rt, ctx, 0x08A01B7Cu); }
+
+} // namespace gt::game
+
+GT_DECOMP(0x0893EB40u, gt::game::func_0893EB40, gt::ReturnKind::Word);
+GT_DECOMP(0x08A6972Cu, gt::game::func_08A6972C, gt::ReturnKind::Word);
+GT_DECOMP(0x08A6A23Cu, gt::game::func_08A6A23C, gt::ReturnKind::Word);
+GT_DECOMP(0x08AF7E0Cu, gt::game::func_08AF7E0C, gt::ReturnKind::Word);
+GT_DECOMP(0x08B29E40u, gt::game::func_08B29E40, gt::ReturnKind::Word);
+GT_DECOMP(0x08A0F514u, gt::game::func_08A0F514, gt::ReturnKind::Word);
+GT_DECOMP(0x08956184u, gt::game::func_08956184, gt::ReturnKind::Float);
+GT_DECOMP(0x08956098u, gt::game::func_08956098, gt::ReturnKind::Float);
+GT_DECOMP(0x0895601Cu, gt::game::func_0895601C, gt::ReturnKind::Float);
+GT_DECOMP(0x089562D0u, gt::game::func_089562D0, gt::ReturnKind::Float);
+GT_DECOMP(0x08956268u, gt::game::func_08956268, gt::ReturnKind::Float);
+GT_DECOMP(0x08956200u, gt::game::func_08956200, gt::ReturnKind::Float);
+GT_DECOMP(0x088A8B64u, gt::game::func_088A8B64, gt::ReturnKind::Void);
+GT_DECOMP(0x08A00AB0u, gt::game::func_08A00AB0, gt::ReturnKind::Word);
+GT_DECOMP(0x08A01C30u, gt::game::func_08A01C30, gt::ReturnKind::Word);

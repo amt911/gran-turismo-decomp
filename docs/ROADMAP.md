@@ -335,6 +335,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       virtual y banderas, la tabla de ranuras por fila/columna, copias de vec4 hechas con la VFPU,
       reenvíos a un delegado, el empaquetado y aplicación de un color, un lector de un byte por
       virtual… Sabotajes detectados en las 18. **1.747 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+15 funciones calientes**: el puntero con recuento de referencias (copia y asignación), las
+      mezclas de vectores de una clase (seis componentes, con la multiplicación de la FPU de la PSP:
+      inf × 0 da su NaN), un hash de 4 bytes por tabla, un escalado global antes de una llamada, dos
+      recorridos de hijos… Sabotajes detectados en las 15. **1.762 funciones, 0 discrepancias en las
+      tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
