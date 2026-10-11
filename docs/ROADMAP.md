@@ -367,6 +367,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       defecto (0, 1 o 49), lectores de bytes y floats de un objeto, la cabecera de 13 halfwords
       `{28, 0…}` con `[4] = 1`, un umbral de 0,25… Sabotajes detectados en las 34.
       **1.895 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+36 funciones calientes**: campos big-endian (palabra, halfwords con y sin signo), la
+      comparación de 32 bytes (`func_08B36170(a, b, 32) == 0`), un contador que solo suma si está
+      activo, actualizaciones de objetos globales con guarda, la dirección `1000·i + 332·fila + 0x38`,
+      la lista de tipos que devuelven 0 (1, 3, 6, 9)… Sabotajes detectados en las 36.
+      **1.931 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
