@@ -967,3 +967,182 @@ GT_DECOMP(0x08AAD93Cu, gt::game::func_08AAD93C, gt::ReturnKind::Void);
 GT_DECOMP(0x089DDC94u, gt::game::func_089DDC94, gt::ReturnKind::Word);
 GT_DECOMP(0x088A9A88u, gt::game::func_088A9A88, gt::ReturnKind::Word);
 GT_DECOMP(0x088DA1C8u, gt::game::func_088DA1C8, gt::ReturnKind::Word);
+
+// --- batch 5 ---
+
+namespace gt::game {
+namespace {
+
+constexpr std::uint32_t kComputeState = 0x089868A8u;     // (this) -> word stored at +0x34
+constexpr std::uint32_t kGlobalVec3 = 0x08D47204u;       // a float[3]
+constexpr std::uint32_t kCurrentObject = 0x08D471B8u;    // a global object pointer
+constexpr std::uint32_t kObjectUpdate = 0x08AF8434u;     // (object's first word)
+constexpr std::uint32_t kAvailable = 0x089588F0u;        // (this) -> bool
+constexpr std::uint32_t kDirtyNotify = 0x08AF8EB4u;      // (owner)
+constexpr std::uint32_t kBase2174 = 0x08917940u;         // (object) -> base address
+constexpr std::uint32_t kSlotValue = 0x088DB5D4u;        // (slots, index) -> word
+constexpr std::uint32_t kAngle = 0x0893C54Cu;            // (object) -> angle in radians ($f0)
+constexpr std::uint32_t kInit20 = 0x08897788u;           // (member at +0x20)
+
+// The two 8-byte-point vectors of one class (at +0xEC / +0x104, each doubled by bit 7 / 8 of the
+// word at +0x140): the vector's data pointer.
+std::uint32_t point_data(psprecomp::Runtime &rt, std::uint32_t self, std::uint32_t bit, std::uint32_t base) {
+    const std::uint32_t which = (word(rt, self + 0x140u) >> bit) & 1u;
+    return word(rt, self + which * 12u + base);
+}
+
+} // namespace
+
+// func_08987A74(this): this->+0x34 = func_089868A8(this).
+void func_08987A74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    rt.memory().store32(self + 0x34u, call_guest(rt, ctx, kComputeState, {}));
+}
+
+// func_08AF7DF4(x in $f12, y in $f13, z in $f14): sets the global vector at 0x08D47204.
+void func_08AF7DF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store32(kGlobalVec3 + 0x8u, std::bit_cast<std::uint32_t>(ctx.fpr[14]));
+    rt.memory().store32(kGlobalVec3, std::bit_cast<std::uint32_t>(ctx.fpr[12]));
+    rt.memory().store32(kGlobalVec3 + 0x4u, std::bit_cast<std::uint32_t>(ctx.fpr[13]));
+}
+
+// func_088D4C9C(holder) -> whether the signed byte at +0x4C of the object it points to is non-zero.
+void func_088D4C9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = rt.memory().load8(word(rt, ctx.gpr[4]) + 0x4Cu) != 0u ? 1u : 0u;
+}
+
+// func_08958904(this) -> when func_089588F0(this) holds, whether this->ptr8's byte at +0x780 is set.
+void func_08958904(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t result = 0u;
+    if (call_guest(rt, ctx, kAvailable, {}) != 0u)
+        result = rt.memory().load8(word(rt, self + 0x8u) + 0x780u) != 0u ? 1u : 0u;
+    ctx.gpr[2] = result;
+}
+
+// func_08AF8FF0(this, value): when the signed half at +0x20 differs, stores `value` there and
+// notifies func_08AF8EB4(this->first).
+void func_08AF8FF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const auto current = static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(rt.memory().load16(self + 0x20u))));
+    ctx.gpr[2] = current;
+    if (current == ctx.gpr[5]) return;
+    rt.memory().store16(self + 0x20u, static_cast<std::uint16_t>(ctx.gpr[5]));
+    tail_call(ctx, kDirtyNotify, {word(rt, self)});
+}
+
+// func_089DB0EC / func_089DAF14(this, i, p0 = ($f12, $f13), p1 = ($f14, $f15)): points i and i + 1 of
+// the +0x104 / +0xEC vector = p0, p1.
+void store_point_pair(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t bit, std::uint32_t base) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t first = point_data(rt, self, bit, base) + (ctx.gpr[5] << 3);
+    rt.memory().store32(first + 0x4u, std::bit_cast<std::uint32_t>(ctx.fpr[13]));
+    rt.memory().store32(first, std::bit_cast<std::uint32_t>(ctx.fpr[12]));
+    const std::uint32_t second = point_data(rt, self, bit, base) + ((ctx.gpr[5] + 1u) << 3);
+    rt.memory().store32(second + 0x4u, std::bit_cast<std::uint32_t>(ctx.fpr[15]));
+    rt.memory().store32(second, std::bit_cast<std::uint32_t>(ctx.fpr[14]));
+    ctx.gpr[2] = second;
+}
+void func_089DB0EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_point_pair(rt, ctx, 8u, 0x104u); }
+void func_089DAF14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_point_pair(rt, ctx, 7u, 0xECu); }
+
+// func_089DB078(this, i, x, y, w, h): points i and i + 1 of the +0x104 vector = (x + 0, y + 0) and
+// (x + w, y + h) — a rectangle's corners (the + 0.0f is the original's, kept for -0.0).
+void func_089DB078(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const float x = ctx.fpr[12], y = ctx.fpr[13], w = ctx.fpr[14], h = ctx.fpr[15];
+    const std::uint32_t first = point_data(rt, self, 8u, 0x104u) + (ctx.gpr[5] << 3);
+    rt.memory().store32(first + 0x4u, std::bit_cast<std::uint32_t>(y + 0.0f));
+    rt.memory().store32(first, std::bit_cast<std::uint32_t>(x + 0.0f));
+    ctx.fpr[12] = x + w;
+    ctx.fpr[13] = y + h;
+    ctx.fpr[0] = x + 0.0f;
+    ctx.fpr[1] = y + 0.0f;
+    const std::uint32_t second = point_data(rt, self, 8u, 0x104u) + ((ctx.gpr[5] + 1u) << 3);
+    rt.memory().store32(second + 0x4u, std::bit_cast<std::uint32_t>(ctx.fpr[13]));
+    rt.memory().store32(second, std::bit_cast<std::uint32_t>(ctx.fpr[12]));
+    ctx.gpr[2] = second;
+}
+
+// func_08AF8490(): func_08AF8434(the current object's first word), when there is a current object.
+void func_08AF8490(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t object = word(rt, kCurrentObject);
+    if (object != 0u) tail_call(ctx, kObjectUpdate, {word(rt, object)});
+}
+
+// func_08918B0C(this) -> func_08917940(this->ptr4) + 0x2174, or 0 without ptr4.
+void func_08918B0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t ptr = word(rt, ctx.gpr[4] + 0x4u);
+    std::uint32_t result = 0u;
+    if (ptr != 0u) {
+        GuestFrame frame(ctx, 0x10u);
+        result = call_guest(rt, ctx, kBase2174, {ptr}) + 0x2174u;
+    }
+    ctx.gpr[2] = result;
+}
+
+// func_088E70E4(link) -> func_088DB5D4(link->owner, link->index), or 0 without an owner.
+void func_088E70E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t link = ctx.gpr[4];
+    const std::uint32_t owner = word(rt, link + 0x8u);
+    std::uint32_t result = 0u;
+    if (owner != 0u) {
+        GuestFrame frame(ctx, 0x10u);
+        result = call_guest(rt, ctx, kSlotValue, {owner, word(rt, link + 0x4u)});
+    }
+    ctx.gpr[2] = result;
+}
+
+// func_0894D050(this) -> 1 for mode 2, 2 for mode 3, 0 otherwise (the mode at +0xDC).
+void func_0894D050(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t mode = word(rt, ctx.gpr[4] + 0xDCu);
+    ctx.gpr[2] = mode == 2u ? 1u : mode == 3u ? 2u : 0u;
+}
+
+// func_0894CFB8(this, i) -> &this->array4[i] + 0x14E0.
+void func_0894CFB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[2] = call_guest(rt, ctx, kStride2100Entry, {}) + 0x14E0u;
+}
+
+// func_08898274(this): func_08897788(&this->member20).
+void func_08898274(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[2] = call_guest(rt, ctx, kInit20, {ctx.gpr[4] + 0x20u});
+}
+
+// func_0893C60C(a, b) -> angle(a) - angle(b), wrapped into [-pi, pi) by one turn.
+void func_0893C60C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    constexpr float kPi = std::bit_cast<float>(0x40490FDBu);
+    constexpr float kTwoPi = std::bit_cast<float>(0x40C90FDBu);
+    const std::uint32_t b = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    const float angle_a = call_guest(rt, ctx, kAngle, {}, {}).f0;
+    float difference = angle_a - call_guest(rt, ctx, kAngle, {b}, {}).f0;
+    if (kPi <= difference) {
+        difference = difference - kTwoPi;
+    } else if (difference < -kPi) {
+        difference = difference + kTwoPi;
+    }
+    ctx.fpr[0] = difference;
+}
+
+} // namespace gt::game
+
+GT_DECOMP(0x08987A74u, gt::game::func_08987A74, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF7DF4u, gt::game::func_08AF7DF4, gt::ReturnKind::Void);
+GT_DECOMP(0x088D4C9Cu, gt::game::func_088D4C9C, gt::ReturnKind::Word);
+GT_DECOMP(0x08958904u, gt::game::func_08958904, gt::ReturnKind::Word);
+GT_DECOMP(0x08AF8FF0u, gt::game::func_08AF8FF0, gt::ReturnKind::Void);
+GT_DECOMP(0x089DB0ECu, gt::game::func_089DB0EC, gt::ReturnKind::Void);
+GT_DECOMP(0x089DAF14u, gt::game::func_089DAF14, gt::ReturnKind::Void);
+GT_DECOMP(0x089DB078u, gt::game::func_089DB078, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF8490u, gt::game::func_08AF8490, gt::ReturnKind::Void);
+GT_DECOMP(0x08918B0Cu, gt::game::func_08918B0C, gt::ReturnKind::Word);
+GT_DECOMP(0x088E70E4u, gt::game::func_088E70E4, gt::ReturnKind::Word);
+GT_DECOMP(0x0894D050u, gt::game::func_0894D050, gt::ReturnKind::Word);
+GT_DECOMP(0x0894CFB8u, gt::game::func_0894CFB8, gt::ReturnKind::Word);
+GT_DECOMP(0x08898274u, gt::game::func_08898274, gt::ReturnKind::Void);
+GT_DECOMP(0x0893C60Cu, gt::game::func_0893C60C, gt::ReturnKind::Float);
