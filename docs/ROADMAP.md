@@ -258,9 +258,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       cobertura: lo que sigue es decompilar nativos y funciones a mano.
 - [x] **Nativos de los menús** (concesionario y garaje): `MSpecDB.getCarPrice/getCarName/
       getCarColorName/getCarCatalogMs` (el texto de la ficha: "---", "%d", "%d kg"). Sabotajes
-      detectados. `getCarVariation`, `MListBox.getItemCount`, `MSceneFace.setClearColorBuffer` y
-      `pdistd.IsDebugVersion` salieron iguales en una ejecución pero no se volvieron a alcanzar: sin
-      sabotaje probado, quedan escritos y sin registrar. `loadCarArray/loadCourseMap` leen ficheros (no comparables, registro desactivado con el
+      detectados. (`getCarVariation`, `MListBox.getItemCount`, `setClearColorBuffer` e `IsDebugVersion`
+      parecían no alcanzarse: era la parada temprana de #53; registrados en la entrada de abajo.) `loadCarArray/loadCourseMap` leen ficheros (no comparables, registro desactivado con el
       motivo); `getCarCatalogLength/Height/Width` comparten cuerpo con `Ms` pero ninguna ruta las llama.
       **1.304 funciones, 0 discrepancias en las tres rutas.**
 - [x] **printf de la libc** (`src/libc/printf.cpp`): no es el de newlib; formatea a través de objetos
@@ -277,6 +276,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       con 0: lo verificado en #50–#52 cubría solo hasta esa parada. Arreglada la dirección, y
       `gt_native` sale con **3** si el runtime se para por algo que no sea el límite de tiempo
       (FINDINGS). Repetidas las tres rutas completas: **1.409 funciones, 0 discrepancias**.
+- [x] **Funciones calientes a mano** (`src/game/unsorted/hot_leaves.cpp`, 47): las pequeñas que más se
+      llaman en la carrera según el sondeo — accesores de arrays y de la entrada actual, banderas,
+      el decodificador UTF-8, la reserva alineada que usan las fábricas, un cerrojo anidado sobre
+      `heap_lock`, conversión bits→float [0,1)… Con la parada temprana arreglada, también se registran
+      `getCarVariation`, `getCarCatalogLength/Height/Width`, `MListBox.getItemCount`,
+      `setClearColorBuffer` e `IsDebugVersion`. Sabotajes detectados en todas.
+      **1.463 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
