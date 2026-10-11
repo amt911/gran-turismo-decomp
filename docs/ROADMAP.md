@@ -363,6 +363,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       un constructor con vtable que se registra en su dueño, secuencias de tres llamadas… Sabotajes
       detectados en las 23; cinco más (imports del kernel) quedan sin registrar.
       **1.861 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+34 funciones calientes**: ocho consultas de una clase a su fuente (+0xC) con su valor por
+      defecto (0, 1 o 49), lectores de bytes y floats de un objeto, la cabecera de 13 halfwords
+      `{28, 0…}` con `[4] = 1`, un umbral de 0,25… Sabotajes detectados en las 34.
+      **1.895 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
