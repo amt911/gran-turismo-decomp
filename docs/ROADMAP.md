@@ -312,6 +312,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       su virtual +0x24 y la cadena de padres en +0x38; la usan todas las conversiones de los scripts) y
       un generador aleatorio de 15 bits con las constantes del `rand` de ANSI C. Sabotajes detectados en
       las 23. **1.615 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+27 funciones calientes**: enlaces válidos bajo cerrojo, desapilar de una pila de palabras,
+      la distancia a lo largo de una dirección (|dot|), una matriz 3x3 identidad, asignar con
+      retain/release bajo mutex, conversiones byte→float (/100, ×10)… Sabotajes detectados en las 27.
+      **1.642 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
