@@ -327,6 +327,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       retain/release), un bit por índice (también con índices negativos), un escalado 2D de matriz, la
       mezcla de un float con `func_08B28FCC`… Sabotajes detectados en las 21.
       **1.712 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+17 funciones calientes**: lecturas a través de un enlace (dueño en +8, índice en +4) hacia el
+      cuerpo de su ranura, una pila de holders con marca de nivel máximo, la fábrica de un objeto de
+      0x14 bytes, el par float+bandera de un bloque, accesores por índice con comprobación de rango…
+      Sabotajes detectados en las 17. **1.729 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
