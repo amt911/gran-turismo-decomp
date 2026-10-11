@@ -18,6 +18,10 @@ PATCHES="$REPO/tools/patches/lcs-recomp"
 # matching the installed loader, v1.4.357.
 VKHEADERS_URL=https://github.com/KhronosGroup/Vulkan-Headers.git
 VKHEADERS_REV=354fab82dbd91d2526a41ee4dbfff1012a623798
+# PSP font files (PGF) for the sceLibFont HLE, from PPSSPP's repo (the same files its package installs
+# in /usr/share/ppsspp/assets/flash0/font), tag v1.20.4; hashes in config/ppsspp_fonts.sha256.
+PPSSPP_URL=https://github.com/hrydgard/ppsspp.git
+PPSSPP_REV=3a31057b7e44270b4d5cef8c31b6559d51802a3b
 GHIDRA_URL=https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip
 GHIDRA_SHA256=93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54
 GHIDRA_HOME="$GHIDRA_DIR/ghidra_12.1.3_PUBLIC"
@@ -105,16 +109,19 @@ step "lcs-recomp framework @ ${LCSRECOMP_REV:0:7} + our patches"
 need cmake; need ninja
 fw="$SRC/lcs-recomp"
 checkout "$LCSRECOMP_URL" "$LCSRECOMP_REV" "$fw"
-for patch in "$PATCHES"/*.patch; do
-  [ -e "$patch" ] || continue
-  if git -C "$fw" apply --reverse --check "$patch" 2>/dev/null; then
-    echo "    already applied $(basename "$patch")"
-  elif git -C "$fw" apply --check "$patch" 2>/dev/null; then
-    git -C "$fw" apply "$patch"; echo "    applied $(basename "$patch")"
-  else
-    echo "patch does not apply: $patch (stale tree? rm -rf $fw and rerun)" >&2; exit 1
-  fi
-done
+# The series is applied as a whole onto the pinned tree; a marker holds its hash. (Checking each patch
+# with --reverse stops working once a later patch touches the same lines.)
+series=$(cat "$PATCHES"/*.patch | sha256sum | cut -d' ' -f1)
+if [ "$(cat "$fw/.gt-patches" 2>/dev/null)" = "$series" ]; then
+  echo "    patches up to date"
+else
+  git -C "$fw" checkout --quiet -- .
+  for patch in "$PATCHES"/*.patch; do
+    git -C "$fw" apply "$patch" || { echo "patch does not apply: $patch" >&2; exit 1; }
+    echo "    applied $(basename "$patch")"
+  done
+  echo "$series" > "$fw/.gt-patches"
+fi
 log="$fw/tools-build.log"
 if ! capped sh -c "cmake -S '$fw' -B '$fw/out/tools' -G Ninja -DPSPRECOMP_PROFILE= -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ && cmake --build '$fw/out/tools' -j6 --target psp_analyze psp_recomp psprecomp_tests && '$fw/out/tools/psprecomp_tests'" >"$log" 2>&1; then
   tail -n 20 "$log" >&2; echo "lcs-recomp tools build/tests failed (full log: $log)" >&2; exit 1
@@ -123,6 +130,21 @@ echo "    psp_recomp: $fw/out/tools/psp_recomp"
 
 step "Vulkan-Headers v1.4.357 @ ${VKHEADERS_REV:0:7} (gt_play)"
 checkout "$VKHEADERS_URL" "$VKHEADERS_REV" "$REPO/tools/src/Vulkan-Headers"
+
+step "PSP fonts from PPSSPP v1.20.4 @ ${PPSSPP_REV:0:7} (sceLibFont, no PPSSPP install needed)"
+fonts="$SRC/ppsspp-fonts"
+if [ ! -d "$fonts/.git" ] || [ "$(git -C "$fonts" rev-parse HEAD 2>/dev/null)" != "$PPSSPP_REV" ]; then
+  rm -rf "$fonts"; mkdir -p "$fonts"
+  git -C "$fonts" init --quiet
+  git -C "$fonts" config core.sparseCheckout true
+  echo "assets/flash0/font/" > "$fonts/.git/info/sparse-checkout"
+  git -C "$fonts" fetch --quiet --depth 1 --filter=blob:none "$PPSSPP_URL" "$PPSSPP_REV"
+  git -C "$fonts" checkout --quiet FETCH_HEAD
+else
+  echo "    up to date"
+fi
+(cd "$fonts/assets/flash0/font" && sha256sum --quiet -c "$REPO/config/ppsspp_fonts.sha256") \
+  || { echo "PSP font hashes do not match config/ppsspp_fonts.sha256" >&2; exit 1; }
 
 if [ "$with_ghidra" = 1 ]; then
   step "Ghidra 12.1.3 + ghidra-allegrex v21.4 (repo-local)"

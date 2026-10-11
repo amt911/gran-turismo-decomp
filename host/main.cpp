@@ -97,6 +97,9 @@ std::uint32_t user_arena_start(const psprecomp::Elf32Image &elf) {
 
 int main(int argc, char **argv) {
     const Options options = parse_options(argc, argv);
+    // Idle software-rasterizer workers park after a short spin instead of lcs-recomp's 262,144 pauses:
+    // same frame times, half the CPU, and fewer late vblanks on a power-limited CPU (docs/FINDINGS.md).
+    setenv("PSPRECOMP_RASTER_SPINS", "2048", 0);
     try {
         auto elf = psprecomp::Elf32Image::from_file(options.elf);
         psprecomp::Runtime runtime;

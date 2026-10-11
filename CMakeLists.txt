@@ -86,6 +86,9 @@ add_library(gt_host_objs OBJECT
 )
 target_include_directories(gt_host_objs PRIVATE host "${GT_LCS_HOST_DIR}")
 target_link_libraries(gt_host_objs PRIVATE psprecomp_core PkgConfig::FFMPEG)
+# PSP fonts fetched by tools/setup.sh (never committed): the sceLibFont HLE's default directory.
+target_compile_definitions(gt_host_objs PRIVATE
+    GT_DEFAULT_FONT_DIR="${CMAKE_SOURCE_DIR}/tools/src/ppsspp-fonts/assets/flash0/font")
 
 # gt_native: headless (no window, audio or input; GT_PAD scripts the pad). The differential harness
 # and the boot checks run this one.

@@ -341,6 +341,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Menús e iconos/HUD que faltaban: los sprites se dibujaban antes que los triángulos pendientes
       (parche 0015; FINDINGS). Referencia: PPSSPPSDL en Xvfb.
 - [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS).
+- [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.
+      Dos hilos esperan cada vblank y el ritmo se aplicaba por llamada; ahora se ata el tiempo del
+      juego al reloj (1,00×, audio a 44,1 kHz; `GT_PERF_LOG=1` lo mide). Los hilos ociosos del
+      rasterizador ya no giran en vacío (mitad de CPU, menos saltos en portátiles) y la ventana
+      muestra 60 fps en vez de 30.
+- [x] Ventana titulada «Gran Turismo» (parche 0016) y fuentes de la PSP bajadas por `tools/setup.sh`:
+      jugar ya no necesita PPSSPP instalado.
 - [ ] Probarlo jugando de verdad (el usuario) y ajustar controles.
 
 ## Fase 5 — Más adelante

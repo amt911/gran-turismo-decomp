@@ -1,5 +1,5 @@
 // sceLibFont HLE: GT renders its text atlas at boot from the PSP firmware fonts (PGF). Glyphs come
-// from the user's own PGF files (GT_FONT_DIR, default: PPSSPP's flash0/font), never from the repo.
+// from PGF files outside the repo (GT_FONT_DIR, default: the copy tools/setup.sh fetches from PPSSPP).
 // Font indexes, styles and return values follow what PPSSPP reports for this game; structures as
 // documented by PPSSPP's sceFont.
 
@@ -56,9 +56,14 @@ constexpr std::array<Entry, 18> kFonts{{
     {"kr0.pgf", kSansSerif, kRegular, kKorean, 0x288, "AsiaNHH(512Johab)"},
 }};
 
+// GT_FONT_DIR, else the copy tools/setup.sh fetches (GT_DEFAULT_FONT_DIR, set by CMake), else an
+// installed PPSSPP's.
 std::filesystem::path font_directory() {
-    const char *dir = std::getenv("GT_FONT_DIR");
-    return dir != nullptr ? std::filesystem::path(dir) : std::filesystem::path("/usr/share/ppsspp/assets/flash0/font");
+    if (const char *dir = std::getenv("GT_FONT_DIR")) return dir;
+#ifdef GT_DEFAULT_FONT_DIR
+    if (std::error_code error; std::filesystem::is_directory(GT_DEFAULT_FONT_DIR, error)) return GT_DEFAULT_FONT_DIR;
+#endif
+    return "/usr/share/ppsspp/assets/flash0/font";
 }
 
 // PGF files are parsed once, on first use.

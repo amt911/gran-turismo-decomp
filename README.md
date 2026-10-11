@@ -16,9 +16,9 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   **Single Player → Single Race → elige coche (Peugeot 206 S16 '99) → pista (Apricot Hill Raceway) →
 >   parrilla de salida → carrera en 3D** con el HUD (mapa, posición, vuelta).
 > - **Verlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md) §5 tiene la línea exacta (`GT_PAD=…`,
->   `GT_FRAME_DUMP=recomp/frames`); las imágenes se quedan en tu disco, no se suben. Necesita las
->   fuentes del firmware que trae PPSSPP (`/usr/share/ppsspp/assets/flash0/font`).
-> - **🎮 Ya se puede jugar en ventana:** `build/gt_play` (ventana SDL + Vulkan, teclado o mando, 60 fps)
+>   `GT_FRAME_DUMP=recomp/frames`); las imágenes se quedan en tu disco, no se suben. Las fuentes de la
+>   PSP las baja `tools/setup.sh` (de PPSSPP, fijadas por hash): **no hace falta instalar PPSSPP**.
+> - **🎮 Ya se puede jugar en ventana:** `build/gt_play` (ventana SDL, teclado o mando, a la velocidad de la PSP)
 >   llega igual hasta la carrera. Controles y ajustes: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
 > - **🔊 Con sonido:** efectos y motor (la mezcla SAS) y la **música** (Atrac3+ decodificada desde los
 >   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
@@ -90,14 +90,14 @@ cp "/ruta/Gran Turismo (v2.0) [UCES-01245].iso" game_files/
 
 # 2. Herramientas fijadas, extraer el EBOOT y recompilarlo a C++ (todo queda fuera de git)
 tools/setup.sh
-.venv/bin/python -m tools.extract
+.venv/bin/python -m tools.extract --full     # --full: también GT.VOL, que el juego necesita
 .venv/bin/python -m tools.recomp
 
 # 3. Compilar (≈ 4 min la primera vez; con tope de memoria)
 systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
   sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ && cmake --build build -j8'
 
-# 4. Jugar (ventana, teclado o mando, sonido; partidas en build/savedata/)
+# 4. Jugar desde la raíz del repo (ventana, teclado o mando, sonido; partidas en build/savedata/)
 build/gt_play
 ```
 
