@@ -214,6 +214,7 @@ systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -
   tools/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless ghidra gt -process EBOOT.elf -noanalysis \
   -readOnly -scriptPath tools/ghidra_scripts -postScript ExportFunctions.java $PWD/recomp/analysis/functions.tsv
 .venv/bin/python -m tools.progress
+.venv/bin/python -m tools.progress_map   # docs/progress_map.svg, el mapa del README
 ```
 
 ## Atajo: todo de una vez
