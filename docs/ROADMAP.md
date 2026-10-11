@@ -296,6 +296,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       la búsqueda en una pila bajo un mutex, lecturas con cerrojo, `a &= ~b` y borrado de conjuntos
       de bits, el bucle que llama a un virtual de cada elemento… Sabotajes detectados en las 15.
       **1.543 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+18 funciones calientes**: un búfer circular (avanzar lectura/escritura), una pila de
+      elementos de 16 bytes que llama a un virtual al desapilar, quedarse con la distancia mínima,
+      copiar estado del renderizador global, una tabla acotada… Sabotajes detectados en las 18.
+      **1.561 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

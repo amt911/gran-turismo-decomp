@@ -1365,3 +1365,214 @@ GT_DECOMP(0x08AF26F0u, gt::game::func_08AF26F0, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF2570u, gt::game::func_08AF2570, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2ACDCu, gt::game::func_08B2ACDC, gt::ReturnKind::Word);
 GT_DECOMP(0x08B2A8E0u, gt::game::func_08B2A8E0, gt::ReturnKind::Word);
+
+// --- batch 7 ---
+
+namespace gt::game {
+namespace {
+
+constexpr std::uint32_t kDistanceOf = 0x088C3808u;       // (this, other) -> distance ($f0)
+constexpr std::uint32_t kVtable72F8 = 0x08CD72F8u;
+constexpr std::uint32_t kRecordOf = 0x089277B4u;         // (object) -> record
+constexpr std::uint32_t kDrawWith = 0x08A4D79Cu;         // (renderer, a, 0, 0, 0)
+constexpr std::uint32_t kRenderer = 0x08CF68E8u;         // a global renderer object pointer
+constexpr std::uint32_t kDrawWithExtra = 0x08A4DB18u;    // func_08A4DB18 below
+constexpr std::uint32_t kEntryPlus10 = 0x089A8B20u;      // func_089A8B20 (this) -> &current entry + 0x10
+constexpr std::uint32_t kCanPop = 0x089A8EA8u;           // (this) -> bool
+constexpr std::uint32_t kSmallTable = 0x08C8E8A4u;       // word[9]
+constexpr std::uint32_t kChildBusy = 0x088E77B4u;        // (child) -> word
+constexpr std::uint32_t kSelfBusy = 0x088D9CC4u;         // (this) -> word
+constexpr std::uint32_t kStaticObject = 0x08D689D0u;
+constexpr std::uint32_t kStaticInit = 0x08C19DFCu;       // (object)
+
+} // namespace
+
+// func_08977270(this, i) -> the word i of the array at +0x8C.
+void func_08977270(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = word(rt, (ctx.gpr[5] << 2) + ctx.gpr[4] + 0x8Cu);
+}
+
+// func_088C3858(this, other): keeps the nearest — when func_088C3808(this, other) is below
+// this->ptr24's float at +0x98, stores it there and other's id byte (+0x10) at +0xA0.
+void func_088C3858(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t other = ctx.gpr[5];
+    const std::uint32_t best = word(rt, ctx.gpr[4] + 0x24u);
+    GuestFrame frame(ctx, 0x10u);
+    const float distance = call_guest(rt, ctx, kDistanceOf, {}, {}).f0;
+    if (distance < float_at(rt, best + 0x98u)) {
+        rt.memory().store32(best + 0x98u, std::bit_cast<std::uint32_t>(distance));
+        rt.memory().store8(best + 0xA0u, static_cast<std::uint8_t>(word(rt, other + 0x10u)));
+    }
+}
+
+// func_08AF484C(object): sets its vtable (a base destructor or constructor).
+void func_08AF484C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store32(ctx.gpr[4], kVtable72F8);
+    ctx.gpr[2] = kVtable72F8;
+}
+
+// func_089296BC / func_0892969C(this) -> the float at +0x88 / +0x84 of func_089277B4(this->ptr8).
+void func_089296BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t record = call_guest(rt, ctx, kRecordOf, {word(rt, ctx.gpr[4] + 0x8u)});
+    ctx.gpr[2] = record;
+    ctx.fpr[0] = float_at(rt, record + 0x88u);
+}
+void func_0892969C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t record = call_guest(rt, ctx, kRecordOf, {word(rt, ctx.gpr[4] + 0x8u)});
+    ctx.gpr[2] = record;
+    ctx.fpr[0] = float_at(rt, record + 0x84u);
+}
+
+// func_089099A0(this) -> the u16 that this->ptr10 points to, or 0.
+void func_089099A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t p = word(rt, ctx.gpr[4] + 0x10u);
+    ctx.gpr[2] = p != 0u ? rt.memory().load16(p) : 0u;
+}
+
+// func_08A4DB18(renderer, a, extra): func_08A4D79C(renderer, a, 0, 0, 0) with `extra` in +0x6C
+// for the duration of the call.
+void func_08A4DB18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t renderer = ctx.gpr[4];
+    rt.memory().store32(renderer + 0x6Cu, ctx.gpr[6]);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, kDrawWith, {renderer, ctx.gpr[5], 0u, 0u, 0u});
+    }
+    rt.memory().store32(renderer + 0x6Cu, 0u);
+}
+
+// func_089A9478(this, holder *h): func_08A4DB18(the global renderer, *h, &current entry + 0x10).
+void func_089A9478(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t renderer = word(rt, kRenderer);
+    const std::uint32_t held = word(rt, ctx.gpr[5]);
+    std::uint32_t extra;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        extra = call_guest(rt, ctx, kEntryPlus10, {});
+    }
+    tail_call(ctx, kDrawWithExtra, {renderer, held, extra});
+}
+
+// func_089A8CE0(this) -> whether the flag byte at +0x138 and the word at +0x13C are both set.
+void func_089A8CE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = (rt.memory().load8(ctx.gpr[4] + 0x138u) != 0u && word(rt, ctx.gpr[4] + 0x13Cu) != 0u) ? 1u : 0u;
+}
+
+// func_089A8B38 / func_089A8B50(this) -> the current entry's float at +0 / +4.
+void func_089A8B38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t entry = current_entry(rt, ctx);
+    ctx.gpr[2] = entry;
+    ctx.fpr[0] = float_at(rt, entry);
+}
+void func_089A8B50(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t entry = current_entry(rt, ctx);
+    ctx.gpr[2] = entry;
+    ctx.fpr[0] = float_at(rt, entry + 0x4u);
+}
+
+// func_089A8EB0(this): when func_089A8EA8(this) allows it, pops the stack of 16-byte items
+// (+0x58 items, +0x5C count): calls the virtual at +0x144 with the new top item, or the one at
+// +0x140 when the stack became empty.
+void func_089A8EB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        if (call_guest(rt, ctx, kCanPop, {self}) == 0u) return;
+    }
+    const std::uint32_t count = word(rt, self + 0x5Cu) - 1u;
+    rt.memory().store32(self + 0x5Cu, count);
+    const std::uint32_t vtable = word(rt, self);
+    if (static_cast<std::int32_t>(count) >= 0) {
+        tail_call(ctx, word(rt, vtable + 0x144u), {self, word(rt, self + 0x58u) + (count << 4)});
+    } else {
+        tail_call(ctx, word(rt, vtable + 0x140u), {self});
+    }
+}
+
+// A ring buffer: +4 read, +8 write, +0xC used, +0x18 capacity.
+// func_08B24A8C(ring, n): advances the read position by n (wrapping) and adds n to the used count;
+// func_08B24A60(ring, n): advances the write position by n and subtracts n from it.
+void func_08B24A8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t ring = ctx.gpr[4];
+    const std::uint32_t n = ctx.gpr[5];
+    std::uint32_t position = word(rt, ring + 0x4u) + n;
+    const std::uint32_t capacity = word(rt, ring + 0x18u);
+    if (!(position < capacity)) position -= capacity;
+    const std::uint32_t used = word(rt, ring + 0xCu) + n;
+    rt.memory().store32(ring + 0x4u, position);
+    rt.memory().store32(ring + 0xCu, used);
+    ctx.gpr[2] = position;
+}
+void func_08B24A60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t ring = ctx.gpr[4];
+    const std::uint32_t n = ctx.gpr[5];
+    std::uint32_t position = word(rt, ring + 0x8u) + n;
+    const std::uint32_t capacity = word(rt, ring + 0x18u);
+    if (!(position < capacity)) position -= capacity;
+    const std::uint32_t used = word(rt, ring + 0xCu) - n;
+    rt.memory().store32(ring + 0x8u, position);
+    rt.memory().store32(ring + 0xCu, used);
+    ctx.gpr[2] = position;
+}
+
+// func_08A4CCE8(-, i) -> table[i] for i 0..8, table[4] otherwise.
+void func_08A4CCE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t i = ctx.gpr[5] < 9u ? ctx.gpr[5] : 4u;
+    ctx.gpr[2] = word(rt, kSmallTable + (i << 2));
+}
+
+// func_08983440(this): copies the renderer's floats at +0x34/+0x38 to +0xAC/+0xB0 and clears
+// the renderer's flag 0x2000 (+0x58).
+void func_08983440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t renderer = word(rt, kRenderer);
+    rt.memory().store32(ctx.gpr[4] + 0xACu, word(rt, renderer + 0x34u));
+    rt.memory().store32(ctx.gpr[4] + 0xB0u, word(rt, renderer + 0x38u));
+    const std::uint32_t flags = word(rt, renderer + 0x58u) & ~0x2000u;
+    rt.memory().store32(renderer + 0x58u, flags);
+    ctx.gpr[2] = flags;
+}
+
+// func_088D9CCC(this) -> 1 when it is busy: either flag byte +0x5B6 / +0x5B7, func_088D9CC4(this),
+// or func_088E77B4 of the child at +0x630.
+void func_088D9CCC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t child_busy = 0u;
+    const std::uint32_t child = word(rt, self + 0x630u);
+    if (child != 0u) child_busy = call_guest(rt, ctx, kChildBusy, {child});
+    std::uint32_t busy = 1u;
+    if (rt.memory().load8(self + 0x5B6u) == 0u && rt.memory().load8(self + 0x5B7u) == 0u &&
+        call_guest(rt, ctx, kSelfBusy, {self}) == 0u && child_busy == 0u) {
+        busy = 0u;
+    }
+    ctx.gpr[2] = busy;
+}
+
+// func_08B1A844(): func_08C19DFC(the static object at 0x08D689D0).
+void func_08B1A844(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[2] = call_guest(rt, ctx, kStaticInit, {kStaticObject});
+}
+
+} // namespace gt::game
+
+GT_DECOMP(0x08977270u, gt::game::func_08977270, gt::ReturnKind::Word);
+GT_DECOMP(0x088C3858u, gt::game::func_088C3858, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF484Cu, gt::game::func_08AF484C, gt::ReturnKind::Void);
+GT_DECOMP(0x089296BCu, gt::game::func_089296BC, gt::ReturnKind::Float);
+GT_DECOMP(0x0892969Cu, gt::game::func_0892969C, gt::ReturnKind::Float);
+GT_DECOMP(0x089099A0u, gt::game::func_089099A0, gt::ReturnKind::Word);
+GT_DECOMP(0x08A4DB18u, gt::game::func_08A4DB18, gt::ReturnKind::Void);
+GT_DECOMP(0x089A9478u, gt::game::func_089A9478, gt::ReturnKind::Void);
+GT_DECOMP(0x089A8CE0u, gt::game::func_089A8CE0, gt::ReturnKind::Word);
+GT_DECOMP(0x089A8B38u, gt::game::func_089A8B38, gt::ReturnKind::Float);
+GT_DECOMP(0x089A8B50u, gt::game::func_089A8B50, gt::ReturnKind::Float);
+GT_DECOMP(0x089A8EB0u, gt::game::func_089A8EB0, gt::ReturnKind::Void);
+GT_DECOMP(0x08B24A8Cu, gt::game::func_08B24A8C, gt::ReturnKind::Void);
+GT_DECOMP(0x08B24A60u, gt::game::func_08B24A60, gt::ReturnKind::Void);
+GT_DECOMP(0x08A4CCE8u, gt::game::func_08A4CCE8, gt::ReturnKind::Word);
+GT_DECOMP(0x08983440u, gt::game::func_08983440, gt::ReturnKind::Void);
+GT_DECOMP(0x088D9CCCu, gt::game::func_088D9CCC, gt::ReturnKind::Word);
+GT_DECOMP(0x08B1A844u, gt::game::func_08B1A844, gt::ReturnKind::Void);
