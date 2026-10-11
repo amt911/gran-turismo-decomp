@@ -359,6 +359,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       juego al reloj (1,00×, audio a 44,1 kHz; `GT_PERF_LOG=1` lo mide). Los hilos ociosos del
       rasterizador ya no giran en vacío (mitad de CPU, menos saltos en portátiles) y la ventana
       muestra 60 fps en vez de 30.
+- [x] **Frameskip** (2026-10-11): en CPUs modestas los menús y el sonido seguían lentos porque el
+      ritmo saltaba vblanks y GT avanza por frame. Ahora un retraso corto se recupera sin saltar, y si
+      el PC va tarde no se dibuja ese frame en pantalla (parche 0018). Con 2 núcleos: 121,8 vblanks/s
+      (antes 106) y audio a 44,0 kHz (antes 36,7).
 - [x] Ventana titulada «Gran Turismo» (parche 0016) y fuentes de la PSP bajadas por `tools/setup.sh`:
       jugar ya no necesita PPSSPP instalado.
 - [ ] Probarlo jugando de verdad (el usuario) y ajustar controles.

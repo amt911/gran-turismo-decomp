@@ -23,6 +23,7 @@ generated/
 asm/
 assets/
 build/
+build-*/
 expected/
 linker_scripts/auto/
 undefined_syms_auto.txt

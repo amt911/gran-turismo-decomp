@@ -1833,6 +1833,7 @@ std::atomic<std::uint64_t> perf_presented{0u};
 std::atomic<std::uint64_t> perf_present_us{0u};
 std::uint64_t perf_audio_frames = 0u;  // sceAudioOutput2 frames submitted
 std::atomic<std::uint64_t> perf_ge_frames{0u};  // display lists that start a new frame
+std::atomic<std::uint64_t> perf_frames_skipped{0u};  // of those, drawn with the frameskip on
 std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the GE worker
 PerfLog perf_log;
 bool perf_log_enabled() {
@@ -1855,10 +1856,11 @@ void perf_log_tick() {
     const double present_us = static_cast<double>(perf_present_us.exchange(0u));
     std::fprintf(stderr,
                  "[perf] %.1f s: vblanks %.1f/s skipped %.1f/s presented %.1f/s dropped %.1f/s | "
-                 "GE frames %.1f/s, present %.2f ms avg, pump %.2f ms avg (max %.1f), vblank sleep %.1f%%, "
+                 "GE frames %.1f/s (frameskip %.1f/s), present %.2f ms avg, pump %.2f ms avg (max %.1f), vblank sleep %.1f%%, "
                  "GE wait %.1f%% | audio %.0f Hz | guest time %.2fx\n",
                  seconds, perf_log.vblanks / seconds, perf_log.skipped / seconds, presented / seconds,
                  perf_log.dropped / seconds, static_cast<double>(perf_ge_frames.exchange(0u)) / seconds,
+                 static_cast<double>(perf_frames_skipped.exchange(0u)) / seconds,
                  presented ? present_us / 1000.0 / presented : 0.0,
                  perf_log.vblanks ? perf_log.pump_ms / perf_log.vblanks : 0.0, perf_log.pump_max_ms,
                  100.0 * perf_log.sleep_ms / (seconds * 1000.0),
@@ -1871,6 +1873,9 @@ void perf_log_tick() {
     perf_log.virtual_start_us = virtual_time_us;
 }
 
+// Whether the last vblank wait found the host more than 1 ms late (read by the frameskip).
+bool g_host_late = false;
+
 // Keeps guest time in step with the wall clock: the vblank the caller is about to wait for is due at
 // anchor + (its guest time - anchor's guest time). Several threads wait on the same vblank (GT has two),
 // so pacing each call by one period instead ran the game at half speed (docs/FINDINGS.md). Returns the
@@ -1879,6 +1884,7 @@ std::uint32_t throttle_vblank_to_real_time() {
     static const bool uncapped = std::getenv("LCS_UNCAPPED") != nullptr;
     if (uncapped) return 0u;
     constexpr std::uint32_t kMaxSkippedVblanks = 6u;
+    constexpr std::uint64_t kTolerableLagVblanks = 4u;
     static std::chrono::steady_clock::time_point anchor_wall{};
     static std::uint64_t anchor_guest_us = 0u;
     const auto now = std::chrono::steady_clock::now();
@@ -1889,11 +1895,15 @@ std::uint32_t throttle_vblank_to_real_time() {
         return 0u;
     }
     const auto due = anchor_wall + std::chrono::microseconds(next_vblank_us - anchor_guest_us);
+    g_host_late = now - due > std::chrono::milliseconds(1);
     if (now < due) {
         precise_sleep_until(due);
         return 0u;
     }
     const auto behind = static_cast<std::uint64_t>((now - due) / std::chrono::microseconds(kVblankPeriodUs));
+    // A short lag is caught up by running without sleeping (and, in gt_play, by the frameskip):
+    // skipping vblanks jumps guest time, which GT's frame-locked menus and sound show as slowness.
+    if (behind < kTolerableLagVblanks) return 0u;
     if (behind <= kMaxSkippedVblanks) return static_cast<std::uint32_t>(behind);
     anchor_wall = now;
     anchor_guest_us = next_vblank_us + kMaxSkippedVblanks * kVblankPeriodUs;
@@ -2025,15 +2035,62 @@ void cap_frame_rate(std::uint32_t list_address) {
 bool g_ge_list_since_finish = false;
 std::uint32_t g_ge_last_list_address = 0u;
 
-void execute_ge_list_frame(psprecomp::Runtime &rt, std::uint32_t list_address, std::uint64_t vblank) {
-    if (perf_log_enabled() && list_address != g_ge_last_list_address) perf_ge_frames.fetch_add(1u);
+// GT_FRAMESKIP=1 (gt_play's default): when the host is late, a frame's draws into the screen
+// framebuffers are not rasterized (render-to-texture draws are), so the game and its sound keep the
+// PSP's pace on a slow CPU; the window keeps showing the last complete image. At most
+// kMaxSkippedFrames in a row. Off in gt_native, whose frame dumps must show every frame.
+bool frameskip_enabled() {
+    static const bool enabled = [] {
+        const char *text = std::getenv("GT_FRAMESKIP");
+        return text != nullptr && *text != '\0' && std::strcmp(text, "0") != 0;
+    }();
+    return enabled;
+}
+std::array<std::uint32_t, 2> g_screen_buffers{};  // the last two framebuffers shown (& 0x1FFFF0)
+std::array<std::atomic<bool>, 2> g_screen_stale{};  // drawn by a skipped frame: don't present
+
+void note_screen_buffer(std::uint32_t address) {
+    const std::uint32_t key = address & 0x001FFFF0u;
+    if (key == g_screen_buffers[0] || key == g_screen_buffers[1]) return;
+    g_screen_buffers[1] = g_screen_buffers[0];
+    g_screen_buffers[0] = key;
+    g_screen_stale[0] = false;
+    g_screen_stale[1] = false;
+}
+std::atomic<bool> *screen_staleness(std::uint32_t address) {
+    const std::uint32_t key = address & 0x001FFFF0u;
+    for (std::size_t i = 0; i < g_screen_buffers.size(); ++i)
+        if (g_screen_buffers[i] != 0u && g_screen_buffers[i] == key) return &g_screen_stale[i];
+    return nullptr;
+}
+bool g_skip_frame = false;  // decided at each vblank wait, used by the lists enqueued after it
+bool skip_next_frame() {
+    constexpr unsigned kMaxSkippedFrames = 4u;  // vblank waits: GT makes two per refresh
+    static unsigned in_a_row = 0u;
+    if (!frameskip_enabled() || !g_host_late || in_a_row >= kMaxSkippedFrames) {
+        in_a_row = 0u;
+        return false;
+    }
+    ++in_a_row;
+    return true;
+}
+
+void execute_ge_list_frame(psprecomp::Runtime &rt, std::uint32_t list_address, std::uint64_t vblank,
+                           bool skip_screen_draws = false) {
+    if (perf_log_enabled() && list_address != g_ge_last_list_address) {
+        perf_ge_frames.fetch_add(1u);
+        if (skip_screen_draws) perf_frames_skipped.fetch_add(1u);
+    }
     if (g_ge_list_since_finish && list_address != g_ge_last_list_address) {
         // Not the image the window keeps.
         ge_finish_shows_this_frame() = false;
         (void)ge_gpu_backend_finish_color_frame(vblank);
         ge_finish_shows_this_frame() = true;
     }
+    ge_set_frameskip(skip_screen_draws, g_screen_buffers[0], g_screen_buffers[1]);
     execute_ge_list_rendered(rt.memory(), list_address);
+    ge_set_frameskip(false, 0u, 0u);
+    if (std::atomic<bool> *stale = screen_staleness(rendered_render_target())) *stale = skip_screen_draws;
     g_ge_list_since_finish = true;
     g_ge_last_list_address = list_address;
 }
@@ -2086,7 +2143,8 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
             presented_gpu_frame = true;
         }
     }
-    if (!presented_gpu_frame) {
+    const std::atomic<bool> *stale = screen_staleness(present_buffer);
+    if (!presented_gpu_frame && (stale == nullptr || !stale->load())) {
         gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height);
         display_window_present(rt, present_buffer, present_stride, request.pixel_format,
                                present_width, present_height);
@@ -4022,6 +4080,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             display_state.frame_buffer = address;
+            if (address != 0u) note_screen_buffer(address);
             display_state.buffer_width = stride;
             display_state.pixel_format = format;
             display_state.sync_mode = sync;
@@ -4085,6 +4144,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         audio_output_advance(virtual_time_us);
         const auto sleep_begin = std::chrono::steady_clock::now();
         const std::uint32_t skipped = throttle_vblank_to_real_time();
+        g_skip_frame = skip_next_frame();
         if (perf) {
             perf_log.sleep_ms += milliseconds_since(sleep_begin);
             perf_log.skipped += skipped;
@@ -4127,8 +4187,9 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 list_finished = scan.finished;
                 finish_argument = scan.finish_argument;
                 const std::uint64_t vblank = display_vblank_index;
-                ge_worker_submit([&rt, list_address, vblank] {
-                    execute_ge_list_frame(rt, list_address, vblank);
+                const bool skip = g_skip_frame;
+                ge_worker_submit([&rt, list_address, vblank, skip] {
+                    execute_ge_list_frame(rt, list_address, vblank, skip);
                 });
             } else {
                 lcs_menu_enqueue();

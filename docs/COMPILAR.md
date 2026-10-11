@@ -151,8 +151,13 @@ build/gt_play
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
 - `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
 - **¿Va lento?** `GT_PERF_LOG=1 build/gt_play` escribe cada 5 s en la terminal el ritmo real:
-  `guest time 1.00x` es velocidad de PSP; `skipped` son vblanks que el PC no llegó a tiempo de hacer
-  (el juego salta para no ir a cámara lenta) y `GE wait` el tiempo esperando al rasterizador de la GE.
+  `guest time 1.00x` es velocidad de PSP; `vblanks` debería rondar 120/s (GT espera dos por refresco);
+  `skipped` son vblanks que el PC no llegó a hacer (los menús y el sonido de GT avanzan por frame, así
+  que eso se nota como lentitud); `GE wait` es el tiempo esperando al rasterizador de la GE, y
+  `frameskip` los frames que no se dibujaron para no ir lento.
+- **Frameskip** (activado en `gt_play`; `GT_FRAMESKIP=0` lo quita): si el PC va tarde, no se dibuja
+  en pantalla ese frame (como el frameskip de PPSSPP), pero el juego y el sonido siguen a su ritmo y
+  la ventana mantiene la última imagen completa. Dibujar es casi todo el coste en CPUs modestas.
 - Sonido: efectos, motor y música. `GT_AUDIO_DUMP=<dir>` (también en `gt_native`) escribe la mezcla en
   `<dir>/channel_7.wav`.
 - Partidas: se guardan en `build/savedata/` y se cargan al arrancar (`GT_SAVEDATA_DIR` para otra carpeta).
