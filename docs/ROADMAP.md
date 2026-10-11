@@ -300,6 +300,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       elementos de 16 bytes que llama a un virtual al desapilar, quedarse con la distancia mínima,
       copiar estado del renderizador global, una tabla acotada… Sabotajes detectados en las 18.
       **1.561 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+15 funciones calientes**: más accesos a los slots de 0x2F8 bytes (tipo, flag, kind), lecturas
+      bajo cerrojo, copiar un conjunto de bits, el máximo de dos contadores… Sabotajes detectados en
+      las 15 (script genérico: perturba v0/f0 y s0 en las `Void` y con llamada de cola).
+      **1.576 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
