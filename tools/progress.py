@@ -20,7 +20,7 @@ LOAD_BASE = 0x08804000  # runtime address of ELF vaddr 0 (docs/FACTS.md)
 SDK_DIRS = ("libc", "libm", "libstdcxx", "libgcc", "sdk")
 # Only active registrations (GT_DECOMP, or a GT_DECOMP_<KIND> template-instance registration):
 # one behind `//` is decompiled but not swapped in (not comparable yet).
-_REGISTRATION = re.compile(r"^[ \t]*GT_DECOMP(?:_[A-Z_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]", re.MULTILINE)
+_REGISTRATION = re.compile(r"^[ \t]*GT_DECOMP(?:_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]", re.MULTILINE)
 
 
 def load_functions(path: Path) -> dict[int, int]:

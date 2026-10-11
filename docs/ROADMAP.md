@@ -267,6 +267,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       «sink» de C++. `sprintf/snprintf/vsprintf/vsnprintf`, los sinks de cadena y acotado (init y
       write), la base del sink y el lector de anchura/precisión. Sabotajes detectados en las 12.
       `calloc/realloc` escritos pero ninguna ruta los llama. **1.316 funciones, 0 discrepancias.**
+- [x] **Hojas** (`src/core/leaves.cpp`, `chained.cpp`): funciones de `jr $ra` + una instrucción
+      (constante, dirección de miembro, setters, getters de byte/float, borrar campo, devolver
+      argumento; 49) y de puntero + un acceso a través de él (getters/setters vía `this->ptr`, dos
+      setters; 44). Elegidas con un sondeo de llamadas (4.103 funciones del juego se ejecutan en la
+      carrera). Sabotajes detectados en todas. **1.409 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

@@ -547,3 +547,16 @@ value (reuse first). The slots are `kToBoolSlot` 12, `kToIntSlot` 15, `kToString
 the right slot is called when both slots give the same answer.
 
 Found: 2026-10-10 · src/game/adhoc
+
+### A template name with a digit was invisible
+
+**Symptom.** `GT_DECOMP_RETURN_ARG0(...)` registrations were not counted by `tools.progress`, were
+missing from `decomp_boundaries.txt`, and were not filtered by the candidate scripts. All 30
+candidates stayed registered, including the ones never compared.
+**Cause.** Every registration regex used `GT_DECOMP(_[A-Z_]+)?`, which excludes digits.
+**Fix / workaround.** The progress regex accepts `[A-Z0-9_]`, with a test. The macros were renamed to
+`GT_DECOMP_RETURN_FIRST_ARG` / `_SECOND_ARG`.
+**Why it isn't obvious.** The build compiles and the diff stays green: registration works through the
+C macro, and only the tools that read the source with a regex miss it.
+
+Found: 2026-10-11 · tools
