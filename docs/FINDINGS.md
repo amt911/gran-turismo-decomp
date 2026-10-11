@@ -624,3 +624,24 @@ the same lines, the reverse check of the earlier one fails.
 series hash is kept in `tools/src/lcs-recomp/.gt-patches`, and a run whose hash matches skips the step.
 
 Found: 2026-10-11 · tools/setup.sh
+
+### On a modest CPU the menus and sound still slowed down: vblank catch-up vs. a frame-locked game
+
+**Symptom.** After the real-time pacing fix, a Ryzen 7 5850U laptop in "balanced" mode showed ~40 fps,
+but the menus and the sound still ran slow. In "performance" mode they did not. On 2 cores / 4 threads
+(`taskset`), `GT_PERF_LOG` showed 106 vblank waits/s instead of 120, audio at 36.7 kHz, 16 skipped
+vblanks/s, and the guest blocked on the GE ~58 % of the time.
+**Cause.** When the host fell one vblank behind, the pacing skipped vblanks to keep guest time on the
+clock. GT advances its menus, its animation and its SAS mix per processed frame, so every skipped vblank
+is game time that never runs, and it shows as slowness even though `guest time` reads 1.00×. The
+lateness itself came from the software rasterizer: `sceGeListEnQueue` waits for the previous list.
+Skipping every screen draw cut the CPU time from ~400 s to 45 s over a 120 s route.
+**Fix / workaround.** A lag of up to 4 vblanks is caught up by not sleeping instead of by skipping. In
+`gt_play` a frameskip (`GT_FRAMESKIP`, patch 0018) stops rasterizing draws into the two screen
+framebuffers while the host is more than 1 ms late, for at most 4 waits in a row. Render-to-texture
+draws are kept and vertices still advance the list state. The window keeps the last complete image.
+On 2 cores this gives 121.8 waits/s, 44.0 kHz audio and 0.08 skipped vblanks/s.
+**Why it isn't obvious.** `guest time 1.00x` looks like full speed. The number that matters for GT is
+the vblank waits per second, about 120.
+
+Found: 2026-10-11 · host/gt_kernel.cpp, tools/patches/lcs-recomp

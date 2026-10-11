@@ -1,0 +1,46 @@
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -1849,7 +1849,17 @@
+     return texture_address(commands, 0u);
+ }
+ 
++std::atomic<bool> g_frameskip{false};
++std::atomic<std::uint32_t> g_frameskip_screen_a{0u};
++std::atomic<std::uint32_t> g_frameskip_screen_b{0u};
++
+ bool software_raster_skipped(const std::array<std::uint32_t, 256> &commands) noexcept {
++    if (g_frameskip.load(std::memory_order_relaxed)) {
++        const std::uint32_t target = framebuffer_address(commands) & 0x001FFFF0u;
++        if (target == g_frameskip_screen_a.load(std::memory_order_relaxed) ||
++            target == g_frameskip_screen_b.load(std::memory_order_relaxed))
++            return true;
++    }
+     static const bool skip_everything = [] {
+         const char *value = std::getenv("PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER");
+         if (value != nullptr && *value != '\0') return *value != '0';
+@@ -4868,6 +4878,12 @@
+     return true;
+ }
+ 
++void ge_set_frameskip(bool enabled, std::uint32_t screen_a, std::uint32_t screen_b) noexcept {
++    g_frameskip_screen_a.store(screen_a & 0x001FFFF0u, std::memory_order_relaxed);
++    g_frameskip_screen_b.store(screen_b & 0x001FFFF0u, std::memory_order_relaxed);
++    g_frameskip.store(enabled, std::memory_order_relaxed);
++}
++
+ void flush_ge_deferred_rasterization(psprecomp::GuestMemory &memory) {
+     hw_draw_queue().drain();
+     flush_deferred_batches(memory);
+--- a/lcs/host/ge_renderer.hpp
++++ b/lcs/host/ge_renderer.hpp
+@@ -61,4 +61,9 @@
+ 
+ void flush_ge_deferred_rasterization(psprecomp::GuestMemory &memory);
+ 
++// Host frameskip: while enabled, draws whose target is one of the two screen framebuffers (VRAM
++// offsets, & 0x1FFFF0) are not rasterized; vertices are still decoded, so the list's state advances.
++// Draws into other targets (render-to-texture) are kept.
++void ge_set_frameskip(bool enabled, std::uint32_t screen_a, std::uint32_t screen_b) noexcept;
++
+ }
+\ No newline at end of file
