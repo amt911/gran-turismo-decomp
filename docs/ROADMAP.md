@@ -308,6 +308,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       atrás que rota cinco entradas, el recorrido de una cadena de nodos limpiando un bit, la bandera
       calculada con umbrales de 0.9… Sabotajes detectados en las 16.
       **1.592 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+23 funciones calientes**, entre ellas **`isInstanceOf`** (0x08A76F20: la clase del objeto por
+      su virtual +0x24 y la cadena de padres en +0x38; la usan todas las conversiones de los scripts) y
+      un generador aleatorio de 15 bits con las constantes del `rand` de ANSI C. Sabotajes detectados en
+      las 23. **1.615 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

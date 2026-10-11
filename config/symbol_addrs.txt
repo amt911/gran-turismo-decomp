@@ -1365,3 +1365,4 @@ gt::libc::bsearch = 0x08B77C14; // hand: (key, base, count, size, compare) binar
 gt::libc::memcpy = 0x08B79A88; // hand: src/libc/memcpy.cpp
 gt::libc::memmove = 0x08B79BAC; // hand: src/libc/memmove.cpp
 gt::game::crc32 = 0x08B29E88; // hand: zlib crc32(crc, buf, len) — IEEE table at 0x08CDA288 (0, 0x77073096, ...); src/game/unsorted/hot_leaves.cpp
+gt::game::isInstanceOf = 0x08A76F20; // hand: (object, class) -> bool — class via the object's virtual +0x24, parents via +0x38; every script cast calls it first (src/game/adhoc/as_class.cpp); src/game/unsorted/hot_leaves.cpp
