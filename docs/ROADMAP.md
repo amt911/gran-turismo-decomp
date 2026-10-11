@@ -320,6 +320,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       que se saltan si están desactivados, colas globales, el reloj de 64 bits, lecturas bajo cerrojo,
       dos `madd` que conservan HI… (`func_08AD96A0` escrita, no se alcanza). Sabotajes detectados en las
       30. **1.672 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+19 funciones calientes**: `a |= b` de conjuntos de bits, copias de vec3/vec4 a objetos, un
+      setter con retain/release, la clase de un objeto y su virtual +0x10C, un tope `min(f, +0xFC + 1)`…
+      Sabotajes detectados en las 19. **1.691 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
