@@ -38,6 +38,17 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   `config/symbol_addrs.txt`). Informe: `.venv/bin/python -m tools.progress`.
 > - **Probarlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md). Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Mapa de lo que queda
+
+![Mapa de decompilación](docs/progress_map.svg)
+
+Cada celda son 2 KiB del código del ejecutable (`.text`, de 0x08804028 en adelante, en orden de
+direcciones). Gris = sin decompilar; verde = código del juego decompilado; azul = SDK y librerías
+estáticas de Sony decompiladas (la frontera es aproximada: desde la primera función de la libc). Cuanto
+más intenso, más parte de esos bytes está decompilada y verificada contra el original. Se regenera con
+`.venv/bin/python -m tools.progress_map` (necesita la lista de funciones de Ghidra,
+[`docs/COMPILAR.md`](docs/COMPILAR.md)); solo contiene direcciones y porcentajes.
+
 ## Qué hay y qué no
 
 - **Este repo no contiene datos del juego** — ni ISO, ni ejecutables (cifrados o no), ni assets, ni
