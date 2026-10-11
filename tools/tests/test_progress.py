@@ -76,3 +76,8 @@ def test_decompiled_functions_counts_template_registrations(tmp_path: Path):
 def test_decompiled_functions_counts_single_argument_template_registrations(tmp_path: Path):
     write_src(tmp_path, "core/trivial.cpp", "GT_DECOMP_EMPTY(0x08804028u);\nGT_DECOMP_ZERO(0x088040ACu);\n")
     assert decompiled_functions(tmp_path) == {0x28: "game", 0xAC: "game"}
+
+
+def test_decompiled_functions_counts_template_names_with_digits(tmp_path: Path):
+    write_src(tmp_path, "core/leaves.cpp", "GT_DECOMP_RETURN_ARG0(0x08804028u);\n")
+    assert decompiled_functions(tmp_path) == {0x28: "game"}
