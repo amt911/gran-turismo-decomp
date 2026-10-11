@@ -291,6 +291,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       h->obj->vslot(h->obj, h)`) y +15 funciones calientes a mano (las esquinas de un rectángulo en
       un vector de puntos, la diferencia de ángulos envuelta a [-π, π), un vec3 global…). Sabotajes
       detectados en todas. **1.528 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+15 funciones calientes**: el setter de un bloque de parámetros de sonido (valores int16 con
+      máscaras de cambiado/puesto, entre `enter`/`leave` que llaman a punteros a función globales),
+      la búsqueda en una pila bajo un mutex, lecturas con cerrojo, `a &= ~b` y borrado de conjuntos
+      de bits, el bucle que llama a un virtual de cada elemento… Sabotajes detectados en las 15.
+      **1.543 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
