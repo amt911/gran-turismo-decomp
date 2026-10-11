@@ -304,6 +304,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       bajo cerrojo, copiar un conjunto de bits, el máximo de dos contadores… Sabotajes detectados en
       las 15 (script genérico: perturba v0/f0 y s0 en las `Void` y con llamada de cola).
       **1.576 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+16 funciones calientes**: reinicios de estado (distancias a 1000.0f, ids a 0xFF), una cuenta
+      atrás que rota cinco entradas, el recorrido de una cadena de nodos limpiando un bit, la bandera
+      calculada con umbrales de 0.9… Sabotajes detectados en las 16.
+      **1.592 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
