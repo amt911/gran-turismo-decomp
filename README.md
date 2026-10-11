@@ -40,14 +40,25 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 
 ## Mapa de lo que queda
 
-![Mapa de decompilación](docs/progress_map.svg)
+<!-- progress:start -->
+```text
+FUNCIONES   ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   7.06 %  1638 / 23208
+BYTES       █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   2.05 %  85476 / 4175084
+CON NOMBRE  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   5.25 %  1219 / 23208
+```
+<!-- progress:end -->
 
-Cada celda son 2 KiB del código del ejecutable (`.text`, de 0x08804028 en adelante, en orden de
-direcciones). Gris = sin decompilar; verde = código del juego decompilado; azul = SDK y librerías
-estáticas de Sony decompiladas (la frontera es aproximada: desde la primera función de la libc). Cuanto
-más intenso, más parte de esos bytes está decompilada y verificada contra el original. Se regenera con
-`.venv/bin/python -m tools.progress_map` (necesita la lista de funciones de Ghidra,
-[`docs/COMPILAR.md`](docs/COMPILAR.md)); solo contiene direcciones y porcentajes.
+![Mapa de la decompilación](docs/progress_map.svg)
+
+Cada rectángulo es una función del ejecutable, con área proporcional a sus bytes: verde = decompilada
+a mano, turquesa = decompilada con una plantilla, gris = pendiente. Los grupos son tramos de 256 KiB
+del código del juego por dirección, y aparte el SDK y las librerías de Sony (frontera aproximada).
+Todas las decompiladas están verificadas contra la original con el harness diferencial.
+
+**Versión interactiva** (pasa el ratón por encima para ver nombre, dirección, tamaño y estado, o busca
+una función): [`docs/progress/index.html`](docs/progress/index.html) — ábrela en el navegador tras
+clonar. Se regenera todo (mapa, página y barras) con `.venv/bin/python -m tools.progress_map`; solo
+contiene direcciones, tamaños y nombres propios del proyecto.
 
 ## Qué hay y qué no
 
