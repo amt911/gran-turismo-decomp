@@ -1084,22 +1084,18 @@ GT_DECOMP(0x0883D9E8u, gt::adhoc::game::MSpecDB_getCarCategory, gt::ReturnKind::
 GT_DECOMP(0x0883F948u, gt::adhoc::game::MSpecDB_getCourseCondition, gt::ReturnKind::Void);
 GT_DECOMP(0x08840FA8u, gt::adhoc::game::MSpecDB_isDirt, gt::ReturnKind::Void);
 GT_DECOMP(0x0883D928u, gt::adhoc::game::MSpecDB_getCarPrice, gt::ReturnKind::Void);
-// Reached once in one run (equal), not since: sabotage unproven, so not registered yet.
-// GT_DECOMP(0x0883C2FCu, gt::adhoc::game::MSpecDB_getCarVariation, gt::ReturnKind::Void);
-// Reached once in one run (equal), not since: sabotage unproven, so not registered yet.
-// GT_DECOMP(0x08A4C848u, gt::adhoc::game::pdistd_IsDebugVersion, gt::ReturnKind::Void);
+GT_DECOMP(0x0883C2FCu, gt::adhoc::game::MSpecDB_getCarVariation, gt::ReturnKind::Void);
+GT_DECOMP(0x08A4C848u, gt::adhoc::game::pdistd_IsDebugVersion, gt::ReturnKind::Void);
 // Not comparable: the loader reads files (sceIo), which a harness case can't replay.
 // GT_DECOMP(0x088094DCu, gt::adhoc::game::loadCarArray, gt::ReturnKind::Void);
 // GT_DECOMP(0x08809528u, gt::adhoc::game::loadCourseMap, gt::ReturnKind::Void);
-// Reached once in one run (equal), not since: sabotage unproven, so not registered yet.
-// GT_DECOMP(0x0880C2D4u, gt::adhoc::game::MSceneFace_setClearColorBuffer, gt::ReturnKind::Void);
+GT_DECOMP(0x0880C2D4u, gt::adhoc::game::MSceneFace_setClearColorBuffer, gt::ReturnKind::Void);
 GT_DECOMP(0x0883CE74u, gt::adhoc::game::MSpecDB_getCarCatalogMs, gt::ReturnKind::Void);
 GT_DECOMP(0x0883C0BCu, gt::adhoc::game::MSpecDB_getCarName, gt::ReturnKind::Void);
 GT_DECOMP(0x0883C390u, gt::adhoc::game::MSpecDB_getCarColorName, gt::ReturnKind::Void);
-// Same body as getCarCatalogMs; registered once a route reaches them (none of the three does yet).
-// GT_DECOMP(0x0883CFFCu, gt::adhoc::game::MSpecDB_getCarCatalogLength, gt::ReturnKind::Void);
-// GT_DECOMP(0x0883D184u, gt::adhoc::game::MSpecDB_getCarCatalogHeight, gt::ReturnKind::Void);
-// GT_DECOMP(0x0883D30Cu, gt::adhoc::game::MSpecDB_getCarCatalogWidth, gt::ReturnKind::Void);
+GT_DECOMP(0x0883CFFCu, gt::adhoc::game::MSpecDB_getCarCatalogLength, gt::ReturnKind::Void);
+GT_DECOMP(0x0883D184u, gt::adhoc::game::MSpecDB_getCarCatalogHeight, gt::ReturnKind::Void);
+GT_DECOMP(0x0883D30Cu, gt::adhoc::game::MSpecDB_getCarCatalogWidth, gt::ReturnKind::Void);
 GT_DECOMP(0x08A27F20u, gt::adhoc::game::MProductInformation_GetParentalLevel, gt::ReturnKind::Void);
 GT_DECOMP(0x08A35648u, gt::adhoc::game::MSound_stopMusic, gt::ReturnKind::Void);
 GT_DECOMP(0x08806384u, gt::adhoc::game::InitializeGameRecord, gt::ReturnKind::Void);

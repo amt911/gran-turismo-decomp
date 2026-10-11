@@ -698,5 +698,4 @@ GT_DECOMP(0x089B62BCu, gt::adhoc::ui::MOptionMenu_applyAppend, gt::ReturnKind::V
 GT_DECOMP(0x089BD080u, gt::adhoc::ui::MNode_getNodePath, gt::ReturnKind::Void);
 GT_DECOMP(0x089E3334u, gt::adhoc::ui::MImageFace_getImagePath, gt::ReturnKind::Void);
 GT_DECOMP(0x089E14C4u, gt::adhoc::ui::MImageFace_Texcoord, gt::ReturnKind::Void);
-// Reached once in one run (equal), not since: sabotage unproven, so not registered yet.
-// GT_DECOMP(0x089D0F04u, gt::adhoc::ui::MListBox_getItemCount, gt::ReturnKind::Void);
+GT_DECOMP(0x089D0F04u, gt::adhoc::ui::MListBox_getItemCount, gt::ReturnKind::Void);
