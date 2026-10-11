@@ -348,6 +348,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       través de un holder, la reserva alineada a 16 bytes (`func_08A5BC14`), dos llamadas a imports
       del sistema, un enlace dueño/índice, una condición de tres bytes… Sabotajes detectados en las
       15. **1.789 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+20 funciones calientes**: el recorte de un valor a [0, 1], la suma ponderada x² + k·y², la
+      negación de una mezcla, un entero pasado a float, cuatro lectores de floats y tres escritores de
+      bytes de un objeto, reenvíos… Sabotajes detectados en las 20. Tres más (llamadas a imports del
+      kernel) quedan sin registrar: el harness aislado no puede compararlas.
+      **1.809 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
