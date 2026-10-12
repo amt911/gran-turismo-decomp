@@ -149,6 +149,9 @@ build/gt_play
 - Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` al compilar): escala de la ventana,
   FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
+- **GPU (alta resolución y fluido):** en `build/gt_play.ini` pon `NativeGE=true` en `[Rendering]`;
+  `InternalScale=2` (o 3, 4) sube la resolución interna. Va a velocidad completa en ventana. Diferencias
+  conocidas con el software: reflejos del coche en el concesionario y alguna transición de pantalla.
 - **Gate de la GPU** (en desarrollo): `tools/gpu_gate.sh build recomp/analysis/gpu/run` lanza las tres
   rutas sin ventana pintando con la GPU y con el software a la vez, y compara cada frame
   (`tools/gpu_compare.py`; `GT_GPU_STATS=1` cuenta los modos de blending). Hoy falla: ver ROADMAP.

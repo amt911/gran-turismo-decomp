@@ -15,6 +15,8 @@ phase 2; measured with tools/gpu_gate.sh).
   off, so GT's clear-mode depth clears were lost and its cars failed the depth test).
 - Textures: keyed by content once their signature is known, and re-checked after a block transfer
   writes their bytes (GT copies every text glyph into the same small texture right before drawing it).
+- Present: MAILBOX when the driver has it, also with VSync (FIFO blocked the GE thread ~28 ms per present
+  and GT ran at 30 vblank waits/s instead of 120).
 - GT_GPU_STATS also counts draws per target and textures read from VRAM. Vulkan app name "GTNative".
 --- a/lcs/host/ge_gpu_backend.hpp
 +++ b/lcs/host/ge_gpu_backend.hpp
@@ -442,7 +444,23 @@ phase 2; measured with tools/gpu_gate.sh).
      VkPipelineLayoutCreateInfo layout{};
      layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
      layout.setLayoutCount = 1u;
-@@ -1844,9 +1973,12 @@
+@@ -1568,11 +1697,14 @@
+     return formats[0].format;
+ }
+ 
++// GT patch 0021: the present runs on the thread that executes the GE lists, so FIFO (which blocks until the
++// monitor's vblank, ~28 ms a present measured) made GT fall behind and skip vblanks (30 waits/s instead of
++// 120). VSync uses MAILBOX when the driver has it: no tearing, no blocking. FIFO only as the last resort.
+ VkPresentModeKHR desired_present_mode(const VulkanState &s) noexcept {
+-    if (lcs_render_configuration().display.vsync) return VK_PRESENT_MODE_FIFO_KHR;
+     for (VkPresentModeKHR mode : s.swap_present_modes) {
+         if (mode == VK_PRESENT_MODE_MAILBOX_KHR) return mode;
+     }
++    if (lcs_render_configuration().display.vsync) return VK_PRESENT_MODE_FIFO_KHR;
+     for (VkPresentModeKHR mode : s.swap_present_modes) {
+         if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR) return mode;
+     }
+@@ -1844,9 +1976,12 @@
      scissor.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
      vkCmdSetViewport(s.command, 0u, 1u, &viewport);
      vkCmdSetScissor(s.command, 0u, 1u, &scissor);
@@ -458,7 +476,7 @@ phase 2; measured with tools/gpu_gate.sh).
      vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.present_layout, 0u, 1u, &set, 0u,
                              nullptr);
      vkCmdDraw(s.command, 3u, 1u, 0u, 0u);
-@@ -2127,6 +2259,7 @@
+@@ -2127,6 +2262,7 @@
      s.readback_latched = false;
      for (auto &entry : s.targets) destroy_target(s, entry.second);
      s.targets.clear();
@@ -466,7 +484,7 @@ phase 2; measured with tools/gpu_gate.sh).
      for (auto &entry : s.textures) destroy_image(s, entry.second.gpu);
      s.textures.clear();
      destroy_image(s, s.white.gpu);
-@@ -2320,11 +2453,13 @@
+@@ -2320,11 +2456,13 @@
  
  bool create_backend(VulkanState &s, std::string &error) {
      const InternalResolutionDimensions dims = resolve_internal_resolution(lcs_render_configuration().rendering);
@@ -483,7 +501,7 @@ phase 2; measured with tools/gpu_gate.sh).
      application.apiVersion = VK_API_VERSION_1_0;
      VkInstanceCreateInfo instance_info{};
      instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-@@ -2407,6 +2542,10 @@
+@@ -2407,6 +2545,11 @@
      VkPhysicalDeviceFeatures available_features{};
      vkGetPhysicalDeviceFeatures(s.physical, &available_features);
      VkPhysicalDeviceFeatures enabled_features{};
@@ -491,10 +509,11 @@ phase 2; measured with tools/gpu_gate.sh).
 +        enabled_features.dualSrcBlend = VK_TRUE;
 +        g_dual_source_blend.store(true, std::memory_order_relaxed);
 +    }
++    std::cerr << "[vulkan] dual-source blending " << (available_features.dualSrcBlend ? "on" : "off (2As blends approximate)") << "\n";
      if (available_features.samplerAnisotropy) {
          enabled_features.samplerAnisotropy = VK_TRUE;
          s.sampler_anisotropy = true;
-@@ -2567,8 +2706,8 @@
+@@ -2567,8 +2710,8 @@
      s.report.transfer_buffer_created = true;
      s.report.transfer_memory_mapped = true;
      s.report.upload_capacity_bytes = geometry_size;
@@ -505,7 +524,7 @@ phase 2; measured with tools/gpu_gate.sh).
      s.report.memory_type_index = 0u;
  
      std::vector<std::byte> white(4u, std::byte{0xFF});
-@@ -2679,8 +2818,8 @@
+@@ -2679,8 +2822,8 @@
      s.report.message = rendering.backend == RenderingBackend::DirectX12
          ? "Vulkan GE backend active (Backend=DirectX12 selects Vulkan on Linux)"
          : "Vulkan GE backend active";
@@ -516,7 +535,7 @@ phase 2; measured with tools/gpu_gate.sh).
      error.clear();
      return true;
  }
-@@ -2708,7 +2847,43 @@
+@@ -2708,7 +2851,43 @@
      std::mutex mutex;
      std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::size_t>,
               std::uint64_t> counts;
@@ -560,7 +579,7 @@ phase 2; measured with tools/gpu_gate.sh).
          if (counts.empty()) return;
          std::fprintf(stderr, "[gpu-stats] blend states (eq src dst fixA fixB variant: draws; variant 0 with blend = unsupported)\n");
          for (const auto &[key, count] : counts) {
-@@ -2731,6 +2906,17 @@
+@@ -2731,6 +2910,17 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled) return;
@@ -578,7 +597,7 @@ phase 2; measured with tools/gpu_gate.sh).
      if (BlendStats *stats = blend_stats(); stats != nullptr && draw.blend_enabled && !draw.clear_mode) {
          const std::size_t variant = blend_variant(draw);
          const bool fixed = (draw.blend_source_factor & 0xFu) == 10u || (draw.blend_dest_factor & 0xFu) == 10u;
-@@ -2774,6 +2960,45 @@
+@@ -2774,6 +2964,45 @@
      return true;
  }
  
@@ -624,18 +643,23 @@ phase 2; measured with tools/gpu_gate.sh).
  bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &draw) noexcept {
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
-@@ -2812,7 +3037,9 @@
+@@ -2812,7 +3041,14 @@
      if (!s.enabled || !draw.texture_enabled || draw.texture_width == 0u || draw.texture_height == 0u)
          return false;
      if (find_target(s, draw.texture_address) != nullptr) return false;
 -    const auto found = s.textures.find(texture_key(draw));
++    // GT patch 0023: tiny textures (glyphs, icons the CPU redraws between draws, up to 64x64) are re-checked on every
++    // draw; larger ones once per frame or after a block transfer writes them.
++    const std::uint64_t texels = static_cast<std::uint64_t>(std::max(draw.texture_buffer_width, draw.texture_width)) *
++                                 draw.texture_height;
++    if (texels <= 4096u) return true;
 +    std::uint64_t key = texture_key(draw);
 +    if (const auto content = s.content_keys.find(key); content != s.content_keys.end()) key = content->second;
 +    const auto found = s.textures.find(key);
      return found == s.textures.end() || found->second.signature_epoch != s.frame_epoch;
  }
  
-@@ -2901,6 +3128,18 @@
+@@ -2901,6 +3137,18 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled || triangle_vertices.empty() || triangle_vertices.size() % 3u != 0u) return;
@@ -654,7 +678,7 @@ phase 2; measured with tools/gpu_gate.sh).
      const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
      if (used + triangle_vertices.size() * sizeof(UploadVertex) > kGeometryUploadCapacity) {
          ++s.report.game_vertex_overflows;
-@@ -2936,6 +3175,11 @@
+@@ -2936,6 +3184,11 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled || vertices.empty()) return;
@@ -666,7 +690,7 @@ phase 2; measured with tools/gpu_gate.sh).
      const bool indexed = !triangle_indices.empty();
      const std::size_t emitted = indexed ? triangle_indices.size() : vertices.size();
      if (emitted == 0u || (transform.primitive == 4u ? emitted < 3u : (emitted % 3u) != 0u)) return;
-@@ -3190,8 +3434,8 @@
+@@ -3190,8 +3443,8 @@
          scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
          vkCmdSetScissor(s.command, 0u, 1u, &scissor);
          float blend_constants[4]{};
@@ -677,7 +701,7 @@ phase 2; measured with tools/gpu_gate.sh).
              blend_constants[0] = static_cast<float>(fix & 0xFFu) / 255.0f;
              blend_constants[1] = static_cast<float>((fix >> 8u) & 0xFFu) / 255.0f;
              blend_constants[2] = static_cast<float>((fix >> 16u) & 0xFFu) / 255.0f;
-@@ -3200,6 +3444,7 @@
+@@ -3200,6 +3453,7 @@
          vkCmdSetBlendConstants(s.command, blend_constants);
          VkDescriptorSet sampled_set = s.white.gpu.set;
          bool textured = false;
@@ -685,7 +709,7 @@ phase 2; measured with tools/gpu_gate.sh).
          if (batch.draw.texture_enabled) {
              if (batch.framebuffer_feedback && batch.feedback_address == target->address) {
                  if (snapshot_target(s, *target, error)) {
-@@ -3208,6 +3453,7 @@
+@@ -3208,6 +3462,7 @@
                      if (feedback_set != VK_NULL_HANDLE) {
                          sampled_set = feedback_set;
                          textured = true;
@@ -693,7 +717,7 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                          ++s.report.self_feedback_snapshots;
-@@ -3222,6 +3468,7 @@
+@@ -3222,6 +3477,7 @@
                      if (feedback_set != VK_NULL_HANDLE) {
                          sampled_set = feedback_set;
                          textured = true;
@@ -701,7 +725,7 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                      }
-@@ -3235,6 +3482,12 @@
+@@ -3235,6 +3491,12 @@
              }
          }
          DrawUniforms uniforms = make_uniforms(batch, target->logical_width, target->logical_height, textured);
@@ -714,7 +738,7 @@ phase 2; measured with tools/gpu_gate.sh).
          std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
                          static_cast<std::size_t>(uniform_slot) * s.uniform_align,
                      &uniforms, sizeof(uniforms));
-@@ -3311,7 +3564,7 @@
+@@ -3311,7 +3573,7 @@
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
          }
          std::string present_error;
@@ -723,7 +747,7 @@ phase 2; measured with tools/gpu_gate.sh).
              present_this_frame = true;
          else if (!present_error.empty())
              log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
-@@ -3322,7 +3575,7 @@
+@@ -3322,7 +3584,7 @@
          VkBufferImageCopy copy{};
          copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
          copy.imageSubresource.layerCount = 1u;
@@ -732,7 +756,7 @@ phase 2; measured with tools/gpu_gate.sh).
          vkCmdCopyImageToBuffer(s.command, display->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                 s.readback, 1u, &copy);
          transition_image(s.command, display->color.image, display->color.layout,
-@@ -3377,7 +3630,7 @@
+@@ -3377,7 +3639,7 @@
                  } else {
                      s.pending_readback = publish && display_ready && s.readback_mapped != nullptr;
                      s.pending_readback_bytes = s.pending_readback
@@ -741,7 +765,7 @@ phase 2; measured with tools/gpu_gate.sh).
                      if (publish && !display_ready)
                          log_frame_failure(s, "display target was not drawn", VK_SUCCESS);
                      else if (publish && display_ready && s.swapchain == VK_NULL_HANDLE &&
-@@ -3397,8 +3650,8 @@
+@@ -3397,8 +3659,8 @@
      if (!display_ready) ++s.report.frames_without_displayed_target;
      ++s.report.game_frames;
      s.report.game_frame_vblank = vblank;

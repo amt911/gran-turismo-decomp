@@ -820,3 +820,20 @@ and the counts only show up in `GT_GPU_STATS`.
 
 Found: 2026-10-12 · host/gt_ge_exec.cpp, tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
 
+### A FIFO present on the GE thread halves GT's speed
+
+**Symptom.** With the GPU GE backend in a real window, the race ran at about 52 vblank waits/s (120
+expected), with 38 skipped per second, audio at 17 kHz and `present 28 ms avg` in `GT_PERF_LOG`. Turning VSync
+off brought it to 120/s at once.
+**Cause.** The backend presents from the thread that executes the GE lists, so the game waits on it.
+VSync selected `VK_PRESENT_MODE_FIFO_KHR`, which blocks every present until the monitor's vblank. In
+headless runs the CPU readback plus SDL's software present cost a similar stall, about 30 waits/s.
+**Fix / workaround.** lcs-recomp patch 0021 uses MAILBOX whenever the driver offers it, with VSync on or
+off: no tearing and no blocking. FIFO remains the last resort. Race at ×2 and ×4: 120 waits/s, 0 skipped,
+44.1 kHz.
+**Why it isn't obvious.** The CPU profile shows idle threads, with the game asleep in its vblank pacing
+and the GE worker waiting for work, so nothing looks busy. Only the per-present time gives the stall away.
+Measure performance in a window, not headless.
+
+Found: 2026-10-12 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
+
