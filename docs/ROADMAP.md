@@ -424,6 +424,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Con el **gate rápido** nuevo (`GT_DECOMP_ONLY` + sin límite de tiempo real, ~5 min) y el sabotaje
       de s0 a la entrada, detectado en las 77 a la primera. Tres más (imports del kernel) quedan sin
       registrar. **2.335 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+78 funciones calientes**: las fábricas `new` de los valores de script (reservar + construir),
+      sus destructores, asignaciones a través de un temporal construido, salidas opcionales de
+      halfwords, tres virtuales seguidas, copias de 384 bytes… Gate rápido limpio a la primera,
+      sabotaje detectado en las 78; dos más (imports del kernel) sin registrar.
+      **2.413 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
