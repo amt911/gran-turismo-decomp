@@ -692,3 +692,17 @@ must hold the empty string (0x08D74FDC) beforehand. The original sets it up befo
 every numeric type, and the extra store before the call looks like a register-allocation leftover.
 
 Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
+
+### An XOR sabotage cancels in a function that calls another sabotaged one
+
+**Symptom.** The batch sabotage reported one function undetected (`func_08A635E0`, 11 cases, all equal)
+although its decompiled body is plain C++ like the rest.
+**Cause.** The sabotage flipped s0 with `ctx.gpr[16] ^= 1u` at the entry of every function of the batch.
+`func_08A635E0` is a thin wrapper that calls `func_08A63714` directly as C++, and that function was in the
+same batch, so s0 was flipped twice and came back unchanged.
+**Fix / workaround.** Bump instead of flip (`ctx.gpr[16] += 1u`): nested sabotaged calls add up and never
+cancel. With that, `func_08A635E0` mismatched in 11/11 cases.
+**Why it isn't obvious.** Each sabotage looks independent. The cancellation needs one function of the
+batch to run another one's sabotaged body, as a thin wrapper does.
+
+Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
