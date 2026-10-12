@@ -277,6 +277,7 @@ tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idemp
 # .venv/bin/python -m tools.recomp; cmake --build build -j8   (inside the cgroup)
 # build/gt_native --max-seconds 30 --trace recomp/analysis/gt.trace [--decomp off|on|diff]
 # .venv/bin/python -m tools.trace_compare recomp/analysis/ppsspp.log recomp/analysis/gt.trace
+# tools/gpu_gate.sh build recomp/analysis/gpu/run [SCALE] ["race:600 ..."]   GPU vs software GE gate (gt_play headless)
 # ctest --test-dir build
 # Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):
 systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \

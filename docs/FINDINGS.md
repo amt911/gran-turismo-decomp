@@ -706,3 +706,27 @@ cancel. With that, `func_08A635E0` mismatched in 11/11 cases.
 batch to run another one's sabotaged body, as a thin wrapper does.
 
 Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
+
+### What the Vulkan GE backend draws wrong on GT (phase 1 measurement)
+
+**Symptom.** With `NativeGE=true`, raising the internal resolution looks right in menus, but the GPU gate
+(`tools/gpu_gate.sh`, ×1, pixel equality against the software rasterizer in the same run) passes only
+61/841 race frames, 47/607 dealer frames and 62/637 garage frames.
+**Cause.** Four distinct problems, read from the worst frames' difference images and `GT_GPU_STATS`:
+1. **The 3D scene is not drawn.** In the race the track, sky and cars are black and only the HUD shows;
+   in the dealer the car model is missing. The 2D/through-mode draws work.
+2. **CPU-updated textures are stale.** Dealer text comes out as wrong glyphs ("1 1 1…"): GT rewrites
+   its font atlas in RAM between frames and the backend keeps the old upload.
+3. **Screens composed through a render target are black.** The whole garage page is black on the GPU.
+   The backend never writes its pixels back to guest memory (spec § write-back).
+4. **Three blend states are unsupported** and draw opaque. GT only uses the add equation. `src 2·α /
+   dst 1−2·α` (factors 6/7) is ~40 M draws in a 600 s race, mainly HUD and effects; it makes the
+   unlit digital-speed segments show. `fix 0x808080 / fix 0xFFFFFF` and `fix 0xFFFFFF / 1−α` are rare.
+**Fix / workaround.** Phase 2 (3D geometry, texture invalidation, blending) and phase 3 (write-back) of
+`docs/superpowers/specs/2026-10-12-gpu-ge-backend-design.md`. Until then `gt_play` keeps the software
+rasterizer (`NativeGE=false`).
+**Why it isn't obvious.** The backend renders LCS fine, and GT's menus look right at a glance. Only the
+paired comparison shows that the 3D path and the dynamic textures are missing.
+
+Found: 2026-10-12 · tools/src/lcs-recomp/lcs/host/ge_gpu_backend_vulkan.cpp, tools/gpu_gate.sh
+

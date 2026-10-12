@@ -472,7 +472,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [ ] Audio de los vídeos PSMF.
 - [x] Menús e iconos/HUD que faltaban: los sprites se dibujaban antes que los triángulos pendientes
       (parche 0015; FINDINGS). Referencia: PPSSPPSDL en Xvfb.
-- [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS).
+- [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS). Spec:
+      `docs/superpowers/specs/2026-10-12-gpu-ge-backend-design.md`.
+  - [x] **Fase 1 — medir** (2026-10-12): `tools/gpu_gate.sh` pinta cada frame con la GPU y con el
+        rasterizador por software a la vez (sin ventana) y `tools/gpu_compare.py` los compara; el gate
+        se demostró fallando con un shader saboteado (253/253 frames). Resultado a ×1: pasan 61/841
+        frames de la carrera, 47/607 del concesionario y 62/637 del garaje. Causas (FINDINGS): la
+        escena 3D no se dibuja, texto con la textura de fuentes obsoleta, pantallas compuestas por
+        render-to-texture en negro, y tres modos de blending sin soporte (sobre todo `2·α / 1−2·α`).
+  - [ ] Fase 2 — geometría 3D, texturas actualizadas por la CPU, blending.
+  - [ ] Fase 3 — render-to-texture / escritura de vuelta a la memoria de la PSP.
+  - [ ] Fase 4 — rendimiento a ×1/×2/×4 y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.
       Dos hilos esperan cada vblank y el ritmo se aplicaba por llamada; ahora se ata el tiempo del
       juego al reloj (1,00×, audio a 44,1 kHz; `GT_PERF_LOG=1` lo mide). Los hilos ociosos del
