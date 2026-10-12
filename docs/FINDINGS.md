@@ -707,6 +707,24 @@ batch to run another one's sabotaged body, as a thin wrapper does.
 
 Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
 
+### A callee can read a stale stack slot that holds the original caller's saved s-register
+
+**Symptom.** `func_0894D484` (place car i on the grid) mismatched in every case on one byte of the car's
+state: the original wrote `FC` there in every case, the decompiled version a different byte each time.
+This held even after fixing a real bug, a leftover `a1` from `func_0894CF40`.
+**Cause (inferred, not traced).** The original keeps its `pos` argument (a stack address `0x09FCxxxx`)
+in s1. The deep callee chain `func_08941510` → `func_0894106C` → `func_0893C3E4` copies locals that are
+never written on the path taken. Those locals still hold whatever earlier frames saved there, which in
+the original includes that s1. The decompiled caller keeps `pos` in C++, so the saved s1 at that stack
+address is the harness caller's value, and it differs from run to run.
+**Fix / workaround.** None that stays readable: we would have to reproduce the original's register
+allocation. The function was dropped from batch 53 and added to the candidate skip list.
+**Why it isn't obvious.** The decompiled function's own logic is correct. The divergence comes from
+uninitialised stack two calls down. "Dead stack is ignored" holds for comparison only: a callee can
+still read it and turn it into live memory.
+
+Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
+
 ### What the Vulkan GE backend draws wrong on GT (phase 1 measurement)
 
 **Symptom.** With `NativeGE=true` the GPU gate
