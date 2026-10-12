@@ -748,3 +748,75 @@ paired comparison shows that the 3D path and the dynamic textures are missing.
 
 Found: 2026-10-12 · tools/src/lcs-recomp/lcs/host/ge_gpu_backend_vulkan.cpp, tools/gpu_gate.sh
 
+### Vulkan never writes depth while its depth test is off; the GE does
+
+**Symptom.** With the GPU GE backend, the dealer's 3D car was missing entirely. Turning the depth test
+off made it appear (in the wrong order), and resetting depth to far every frame drew it correctly.
+**Cause.** GT clears its z-buffer with clear-mode draws: full screen, z = 65535, depth *write* on, depth
+*test* off. In Vulkan, `depthWriteEnable` has no effect unless `depthTestEnable` is true, so those clears
+never reached the depth image, and the car's `LEQUAL` pass failed against stale depth. Two smaller
+mismatches made it worse. The PSP has one z-buffer for both framebuffers, while the backend had one depth
+image per target. The backend also cleared depth on its own at the start of each frame.
+**Fix / workaround.** lcs-recomp patch 0021: draws that write depth without testing it use the test with
+`ALWAYS`. One depth image is shared by every target, and depth is never cleared outside the game's own
+draws.
+**Why it isn't obvious.** The draw state looks right in every log (write on, test off), and the same
+state works on the software rasterizer and on OpenGL-style APIs.
+
+Found: 2026-10-12 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
+
+### The GPU backend hands back the previous frame, so a naive gate compares N with N−1
+
+**Symptom.** In the GPU gate, the dealer's turntable car looked shifted or rotated against the software
+frame, and the scrolling news line was offset by a few pixels. Static screens matched.
+**Cause.** `ge_gpu_backend_finish_color_frame` first completes the previous submit, copying its readback
+into `frame_rgba`, and then submits the current frame. The image it returns at present N is frame N−1.
+The software rasterizer's framebuffer at present N is frame N.
+**Fix / workaround.** `gpu_frame_dump` (host/frame_dump.cpp) runs on every present and pairs the GPU
+image with the previous present's software frame. That raised the race from 257 to 299 equal frames out
+of 307. With a window, the backend presents directly, so play is not one frame late.
+**Why it isn't obvious.** Most of GT's screens are static, so the lag only shows on moving ones, and
+there it looks like a transform or skinning bug.
+
+Found: 2026-10-12 · host/frame_dump.cpp
+
+### A render target sampled as a texture must keep a fixed guest-pixel space
+
+**Symptom.** On the GPU, GT's menus came out magnified and cropped (about ×2 vertically), the garage page
+was black, and the 3D scene was hidden behind a black layer with only the HUD visible.
+**Cause.** GT draws its HUD and 2D layer into an offscreen buffer at 0x0CC000 (stride 512). It then draws
+that buffer over the scene as a 512×512 texture with alpha blending, and samples part of it as a 128×128
+texture for the car reflection. lcs-recomp's backend gave every target one image at screen size and
+re-mapped it to each draw's stride and scissor, which only works for a game that draws to the screen.
+Its shader also quantized colour and alpha to the framebuffer format before blending. A 5551 target
+therefore blended with a 1-bit alpha, while reading the target back saw 8-bit alpha instead of the
+packed value the PSP stores. The result was the alpha applied twice, about ×0.69 darker.
+**Fix / workaround.** lcs-recomp patch 0021 makes these changes:
+- Every target covers a fixed 512×512 guest-pixel space at the internal scale, and the display shows its
+  480×272 crop.
+- Sampling a target scales the UVs to the texture's size.
+- The shader blends unquantized values.
+- Reading a target back emulates the 16-bit pack and unpack (`storedFramebufferTexel`).
+**Why it isn't obvious.** LCS, the game the backend was written for, never samples its render targets,
+so none of this was exercised.
+
+Found: 2026-10-12 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
+
+### GT copies every glyph into the same texture right before drawing it
+
+**Symptom.** On the GPU, text came out as one repeated glyph ("1 1 1…" in the dealer, "NNNN" in the
+garage).
+**Cause.** GT uses a block transfer (6×1 to 6×n pixels into 0x08CF6930) to copy a glyph into a small
+texture, draws it, then copies the next glyph to the same address. The backend computed texture
+signatures once per frame and looked textures up by address when it executed the batches at the end of
+the frame. Every glyph draw therefore used the last uploaded content.
+**Fix / workaround.** lcs-recomp patch 0021:
+- Textures are keyed by content once their signature is known (`ge_gpu_backend_finalize_texture_key`).
+- `gt_ge_exec.cpp` reports the bytes a block transfer rewrote (`ge_gpu_backend_note_guest_write`), so
+  the next draw re-checks them.
+- Textures of 32 K texels or fewer are re-checked on every draw.
+**Why it isn't obvious.** Per-frame texture caching works for nearly every game. The transfers are tiny,
+and the counts only show up in `GT_GPU_STATS`.
+
+Found: 2026-10-12 · host/gt_ge_exec.cpp, tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
+
