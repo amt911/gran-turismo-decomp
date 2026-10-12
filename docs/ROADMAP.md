@@ -447,6 +447,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **2.925 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+73 funciones calientes**: lectores de propiedades (el inverso de los visitantes), ajustes de canales de sonido, un hash de texto de 64 bits, una ventana de fundido y operadores de valores.
       **2.998 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+77 funciones calientes**: partes de transformaciones, operadores de división y comparación de valores, recorridos de cadenas y ancestros, una comprobación de rutas absolutas, un parser de enteros con prefijo y una lista de voces libres.
+      **3.075 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
