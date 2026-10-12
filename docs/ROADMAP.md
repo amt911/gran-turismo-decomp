@@ -455,6 +455,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **3.213 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+74 funciones calientes**: proyección de rectángulos GU, lectores de propiedades de texto (con un helper visit_string compartido), comparaciones de cadenas, constructores de copia y destructores, un reset de cámara, curvas y triángulos.
       **3.287 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+69 funciones calientes**: empaquetado de color, búsquedas en curvas, normalización de ángulos, un escritor de longitud variable, lectores de propiedades float y de cadena, destructores de paneles y clases, setters de llamadas de script, reserva alineada, matrices de reflexión, búsquedas en el registro, espaciado de layout, un helper de directorio de ruta y peticiones de voz.
+      **3.356 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
