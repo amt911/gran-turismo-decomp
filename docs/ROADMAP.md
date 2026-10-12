@@ -387,6 +387,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       final de una lista doble, un valor de 64 bits por índice, constructores con vtable, temporales
       construidos y destruidos, un contexto global opcional… Sabotajes detectados en las 37; una más
       (import del kernel) queda sin registrar. **2.038 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+39 funciones calientes**: el paso de `rand()` de la biblioteca C (semilla de 16 bits), un CRC-32
+      que empieza por el byte más significativo, la marca «SGXD» de los bancos de sonido, insertar
+      antes de un nodo en la lista doble, recortar a [mín, máx], constructores con vtable… Sabotajes
+      detectados en las 39; una más (import del kernel) queda sin registrar.
+      **2.077 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
