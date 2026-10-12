@@ -24,7 +24,7 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
 > - **💾 Las partidas se guardan y se cargan** (`gt_play` las conserva en `build/savedata/`).
 > - **Pendiente visible:** el audio de los vídeos; el backend Vulkan de la GE (hoy se dibuja por software).
-> - **Decompilación (Fase 3-4):** 2.114 funciones decompiladas y probadas contra el original con el
+> - **Decompilación (Fase 3-4):** 2.152 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `bsearch`, la familia printf (`sprintf`, `snprintf`, `vsprintf`, `vsnprintf` y sus «sinks»), y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;
 >   scripts: `MUnit` (8), `MRandom.GetValue`, `Object.toInt/toFloat/defined`, `Math.clamp`,
@@ -32,7 +32,7 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   interfaz (`setFocus`, `doCopy`, `pushEvent`, `appendChild`…) y el juego (`MOrganizer`,
 >   `MRaceOperator`, `MSpecDB.getCarCode`, récords…) y, por la ruta de la carrera, `MCarParameter`,
 >   `CarSettings`, `Math.sqrt/abs`, `MSpecDB.isDirt`, `MSound.stopMusic`, menús de opciones,
->   `MCarCollection.hasCar`…), 261 «thunks» de salto (`src/core/thunks.cpp`), 357 funciones triviales de plantilla: vacías, lectores de globales y accesores de miembro (`src/core/trivial.cpp`, `src/core/accessors.cpp`), 138 reenvíos y fábricas de objetos (`src/core/forwarders.cpp`, `src/core/factories.cpp`), 93 constructores, bucles de destrucción y conversiones (`src/core/constructors.cpp`, `src/game/adhoc/try_cast.cpp`) 57 cadenas de llamadas, destructores y listas libres (`src/core/chains.cpp`, `destructors.cpp`, `containers.cpp`) 93 hojas de una o dos instrucciones (`src/core/leaves.cpp`, `chained.cpp`) 13 llamadas virtuales a través de un holder (`src/core/virtuals.cpp`) y 685 funciones pequeñas muy llamadas en la carrera, escritas a mano (`src/game/unsorted/hot_leaves.cpp`: `crc32` de zlib, decodificador UTF-8, reserva alineada, cerrojo anidado, una caché hash de 2048 entradas, un búfer dinámico, accesores…). Todas iguales al
+>   `MCarCollection.hasCar`…), 261 «thunks» de salto (`src/core/thunks.cpp`), 357 funciones triviales de plantilla: vacías, lectores de globales y accesores de miembro (`src/core/trivial.cpp`, `src/core/accessors.cpp`), 138 reenvíos y fábricas de objetos (`src/core/forwarders.cpp`, `src/core/factories.cpp`), 93 constructores, bucles de destrucción y conversiones (`src/core/constructors.cpp`, `src/game/adhoc/try_cast.cpp`) 57 cadenas de llamadas, destructores y listas libres (`src/core/chains.cpp`, `destructors.cpp`, `containers.cpp`) 93 hojas de una o dos instrucciones (`src/core/leaves.cpp`, `chained.cpp`) 13 llamadas virtuales a través de un holder (`src/core/virtuals.cpp`) y 723 funciones pequeñas muy llamadas en la carrera, escritas a mano (`src/game/unsorted/hot_leaves.cpp`: `crc32` de zlib, decodificador UTF-8, reserva alineada, cerrojo anidado, una caché hash de 2048 entradas, un búfer dinámico, accesores…). Todas iguales al
 >   original en tres recorridos (carrera, concesionario y garaje/Theatre; `config/pad_routes/`; 0 discrepancias).
 >   **1.313 funciones ya tienen su nombre real** (los nativos que usan los scripts Adhoc:
 >   `config/symbol_addrs.txt`). Informe: `.venv/bin/python -m tools.progress`.
@@ -42,8 +42,8 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 
 <!-- progress:start -->
 ```text
-FUNCIONES   ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   9.09 %  2110 / 23208
-BYTES       █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   2.50 %  104344 / 4175084
+FUNCIONES   ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   9.26 %  2148 / 23208
+BYTES       █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   2.53 %  105740 / 4175084
 CON NOMBRE  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   5.25 %  1219 / 23208
 ```
 <!-- progress:end -->
