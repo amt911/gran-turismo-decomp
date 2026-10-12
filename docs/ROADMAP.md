@@ -441,6 +441,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **2.748 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+46 funciones calientes**: mezclas por progreso indexadas, destructores que liberan cadenas (contador atómico), una tabla de seno en punto fijo, copias de vectores, refrescos de «handles»… El gate rápido pilló tres fallos (dos v0 heredados y un erase al que faltaban sus argumentos); sabotaje detectado en las 46.
       **2.794 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+58 funciones calientes**: ajustes escalados con límites, refrescos de estado, matrices de cámara y transformación, un Mersenne Twister, un asignador de ids y bloques de arena.
+      **2.852 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
