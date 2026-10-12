@@ -709,7 +709,7 @@ Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
 
 ### What the Vulkan GE backend draws wrong on GT (phase 1 measurement)
 
-**Symptom.** With `NativeGE=true`, raising the internal resolution looks right in menus, but the GPU gate
+**Symptom.** With `NativeGE=true` the GPU gate
 (`tools/gpu_gate.sh`, ×1, pixel equality against the software rasterizer in the same run) passes only
 61/841 race frames, 47/607 dealer frames and 62/637 garage frames.
 **Cause.** Four distinct problems, read from the worst frames' difference images and `GT_GPU_STATS`:
