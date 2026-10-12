@@ -383,6 +383,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       +0x98, poner y quitar bits de un conjunto… Sabotajes detectados en las 33; cuatro más quedan
       sin registrar (una llama a un import del kernel, tres no se llaman en las rutas).
       **2.001 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+37 funciones calientes**: una lista libre de un solo enlace (sacar y devolver nodos), añadir al
+      final de una lista doble, un valor de 64 bits por índice, constructores con vtable, temporales
+      construidos y destruidos, un contexto global opcional… Sabotajes detectados en las 37; una más
+      (import del kernel) queda sin registrar. **2.038 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
