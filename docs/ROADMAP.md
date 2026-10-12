@@ -473,6 +473,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **3.891 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+94 funciones calientes**: constructores de listas globales y recorridos de cadenas, constructores/destructores que fijan vtable, inicializadores de estaticos locales, reenvios bajo lock, inicializadores globales perezosos, busqueda en tabla big-endian, setters de floats, reenvios por tail call
       **3.985 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+93 funciones calientes**: inicializadores de estaticos locales, constructores con base llamada que fijan vtable, consultas de registros, reenvios bajo lock, setters de floats, recorridos de cadenas, accesores de campos y reenvios por tail call
+      **4.078 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
