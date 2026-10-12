@@ -677,3 +677,18 @@ The same applies to v1 and to a tail call's target.
 register-level diff, and only on the paths where the callee skips writing v0.
 
 Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
+
+### A string property's local must start as the empty string
+
+**Symptom.** Decompiled readers of string properties fault inside the visitor (`Guest memory access
+outside PSP RAM/EDRAM` at 0xFFFFFFFF or a small address), on every case.
+**Cause.** Property readers hand the visitor a stack descriptor `{vtable, empty name, -1, &value}`. For an
+int or float the value slot can start uninitialised, because the visitor only stores into it. For a string
+(vtable 0x08CCD9D8) the visitor *assigns* to it, which releases the old representation first, so the slot
+must hold the empty string (0x08D74FDC) beforehand. The original sets it up before the call.
+**Fix / workaround.** Read string properties with `visit_string`, which initialises the slot. Don't use
+`read_property` for strings.
+**Why it isn't obvious.** All property reads share one descriptor layout. The generic helper works for
+every numeric type, and the extra store before the call looks like a register-allocation leftover.
+
+Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
