@@ -418,6 +418,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       más quedan sin registrar (una sin llamadas visibles, otra con imports del kernel). Desde este
       lote: lotes de ~80 y las tres rutas en paralelo (`docs/agents/decomp-workflow.md`).
       **2.258 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+77 funciones calientes** (primer lote de ~80): la tabla de entradas de 1.088 bytes, virtuales
+      de un «holder» con cinco argumentos, constructores que se registran en una lista global,
+      destructores con base, un buffer que copia lo pendiente, setters reflejados en un objeto espejo…
+      Con el **gate rápido** nuevo (`GT_DECOMP_ONLY` + sin límite de tiempo real, ~5 min) y el sabotaje
+      de s0 a la entrada, detectado en las 77 a la primera. Tres más (imports del kernel) quedan sin
+      registrar. **2.335 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

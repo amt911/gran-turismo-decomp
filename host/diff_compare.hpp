@@ -7,6 +7,8 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
+#include <unordered_set>
 #include <vector>
 
 namespace gt {
@@ -37,5 +39,9 @@ enum class ReturnKind { Void, Word, DoubleWord, Float };
 [[nodiscard]] std::optional<std::size_t> first_byte_difference(std::span<const std::uint8_t> a,
                                                                std::span<const std::uint8_t> b,
                                                                std::size_t skip_begin, std::size_t skip_end);
+
+// Hex addresses (with or without 0x, any case) separated by commas or whitespace, as GT_DECOMP_ONLY
+// takes them. nullopt when any token isn't a 32-bit hex number, so a typo can't silently select nothing.
+[[nodiscard]] std::optional<std::unordered_set<std::uint32_t>> parse_address_list(std::string_view text);
 
 } // namespace gt

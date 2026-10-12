@@ -85,4 +85,33 @@ std::optional<std::size_t> first_byte_difference(std::span<const std::uint8_t> a
     return scan(std::min(skip_end, size), size);
 }
 
+std::optional<std::unordered_set<std::uint32_t>> parse_address_list(std::string_view text) {
+    std::unordered_set<std::uint32_t> addresses;
+    const auto separator = [](char c) { return c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+    std::size_t at = 0u;
+    while (at < text.size()) {
+        if (separator(text[at])) {
+            ++at;
+            continue;
+        }
+        std::size_t end = at;
+        while (end < text.size() && !separator(text[end])) ++end;
+        std::string_view token = text.substr(at, end - at);
+        at = end;
+        if (token.size() > 2u && token[0] == '0' && (token[1] == 'x' || token[1] == 'X')) token.remove_prefix(2u);
+        if (token.empty() || token.size() > 8u) return std::nullopt;
+        std::uint32_t value = 0u;
+        for (const char c : token) {
+            unsigned digit;
+            if (c >= '0' && c <= '9') digit = static_cast<unsigned>(c - '0');
+            else if (c >= 'a' && c <= 'f') digit = static_cast<unsigned>(c - 'a' + 10);
+            else if (c >= 'A' && c <= 'F') digit = static_cast<unsigned>(c - 'A' + 10);
+            else return std::nullopt;
+            value = (value << 4u) | digit;
+        }
+        addresses.insert(value);
+    }
+    return addresses;
+}
+
 } // namespace gt

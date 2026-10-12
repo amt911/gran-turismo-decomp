@@ -8,7 +8,10 @@
 #include "diff_compare.hpp"
 #include "psprecomp/common.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
+#include <stdexcept>
 #include <exception>
 #include <optional>
 #include <iostream>
@@ -319,7 +322,21 @@ void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned c
     g_mode = mode;
     g_cases = cases_per_function;
     if (mode == DecompMode::Off) return;
+    // GT_DECOMP_ONLY=0xADDR,0xADDR... installs only those functions; the rest run recompiled. A batch's
+    // gate and sabotage runs compare just the batch, so the game isn't slowed by ~25,000 cases of
+    // functions already proven (docs/agents/decomp-workflow.md). The full gate still runs before a PR.
+    std::optional<std::unordered_set<std::uint32_t>> only;
+    if (const char *text = std::getenv("GT_DECOMP_ONLY"); text != nullptr && *text != '\0') {
+        only = parse_address_list(text);
+        if (!only) throw std::runtime_error(std::string("GT_DECOMP_ONLY: not a list of hex addresses: ") + text);
+        for (const std::uint32_t address : *only) {
+            const bool known = std::any_of(decompiled_functions().begin(), decompiled_functions().end(),
+                                           [&](const DecompiledFunction &f) { return f.address == address; });
+            if (!known) std::cerr << "[decomp] GT_DECOMP_ONLY: " << psprecomp::hex32(address) << " is not registered\n";
+        }
+    }
     for (const auto &function : decompiled_functions()) {
+        if (only && !only->contains(function.address)) continue;
         const auto original = runtime.function_at(function.address);
         if (original == nullptr) {
             std::cerr << "[decomp] " << function.name << ": no recompiled function at "
