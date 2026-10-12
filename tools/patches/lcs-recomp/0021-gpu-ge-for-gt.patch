@@ -7,10 +7,12 @@ phase 2; measured with tools/gpu_gate.sh).
   scale (it used to re-map to each draw's stride/scissor, which broke GT's render-to-texture HUD layer
   0x0CC000); the display shows its logical crop; sampling a target as a texture scales the UVs to the
   texture's size.
+- Framebuffer formats: the shader blends the unquantized colour and alpha (it used to quantize before
+  blending, so a 5551 target blended with a 1-bit alpha); reading a target back as a texture emulates
+  the 16-bit pack/unpack the PSP (and ge_renderer.cpp) store.
 - Textures: keyed by content once their signature is known, and re-checked after a block transfer
   writes their bytes (GT copies every text glyph into the same small texture right before drawing it).
 - GT_GPU_STATS also counts draws per target and textures read from VRAM. Vulkan app name "GTNative".
-
 --- a/lcs/host/ge_gpu_backend.hpp
 +++ b/lcs/host/ge_gpu_backend.hpp
 @@ -330,6 +330,13 @@
@@ -489,10 +491,12 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                      }
-@@ -3235,6 +3414,10 @@
+@@ -3235,6 +3414,12 @@
              }
          }
          DrawUniforms uniforms = make_uniforms(batch, target->logical_width, target->logical_height, textured);
++        if (sampled_target)  // GT patch 0022: read back as the game's texture format packs it
++            uniforms.pixel1[0] |= ((batch.draw.texture_format & 3u) << 8u) | 0x1000u;
 +        if (sampled_target) {  // GT patch 0022: the texture covers its own size of the target's guest space
 +            uniforms.sample_scale[0] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_width)) / kTargetSpace;
 +            uniforms.sample_scale[1] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_height)) / kTargetSpace;
@@ -500,7 +504,7 @@ phase 2; measured with tools/gpu_gate.sh).
          std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
                          static_cast<std::size_t>(uniform_slot) * s.uniform_align,
                      &uniforms, sizeof(uniforms));
-@@ -3311,7 +3494,7 @@
+@@ -3311,7 +3496,7 @@
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
          }
          std::string present_error;
@@ -509,7 +513,7 @@ phase 2; measured with tools/gpu_gate.sh).
              present_this_frame = true;
          else if (!present_error.empty())
              log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
-@@ -3322,7 +3505,7 @@
+@@ -3322,7 +3507,7 @@
          VkBufferImageCopy copy{};
          copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
          copy.imageSubresource.layerCount = 1u;
@@ -518,7 +522,7 @@ phase 2; measured with tools/gpu_gate.sh).
          vkCmdCopyImageToBuffer(s.command, display->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                 s.readback, 1u, &copy);
          transition_image(s.command, display->color.image, display->color.layout,
-@@ -3377,7 +3560,7 @@
+@@ -3377,7 +3562,7 @@
                  } else {
                      s.pending_readback = publish && display_ready && s.readback_mapped != nullptr;
                      s.pending_readback_bytes = s.pending_readback
@@ -527,7 +531,7 @@ phase 2; measured with tools/gpu_gate.sh).
                      if (publish && !display_ready)
                          log_frame_failure(s, "display target was not drawn", VK_SUCCESS);
                      else if (publish && display_ready && s.swapchain == VK_NULL_HANDLE &&
-@@ -3397,8 +3580,8 @@
+@@ -3397,8 +3582,8 @@
      if (!display_ready) ++s.report.frames_without_displayed_target;
      ++s.report.game_frames;
      s.report.game_frame_vblank = vblank;
@@ -568,7 +572,31 @@ phase 2; measured with tools/gpu_gate.sh).
  } u;
  
  layout(set = 0, binding = 1) uniform sampler2D sourceTexture;
-@@ -89,6 +91,15 @@
+@@ -67,6 +69,23 @@
+     return floor(clamp(value, 0.0, 1.0) * levels + 0.5) / levels;
+ }
+ 
++// GT patch 0022: what reading a 16-bit framebuffer back gives (ge_renderer.cpp pack16 then unpack16):
++// the GPU target holds the blended 8-bit value, the PSP the packed one.
++float storedChannel(float value, uint bits) {
++    uint b = uint(floor(clamp(value, 0.0, 1.0) * 255.0 + 0.5)) >> (8u - bits);
++    uint e = bits == 4u ? b * 17u : (b << (8u - bits)) | (b >> (2u * bits - 8u));
++    return float(e) / 255.0;
++}
++
++vec4 storedFramebufferTexel(vec4 texel, uint format) {
++    if (format == 0u) return vec4(storedChannel(texel.r, 5u), storedChannel(texel.g, 6u), storedChannel(texel.b, 5u), 1.0);
++    if (format == 1u) return vec4(storedChannel(texel.r, 5u), storedChannel(texel.g, 5u), storedChannel(texel.b, 5u),
++                                  texel.a >= (127.5 / 255.0) ? 1.0 : 0.0);
++    if (format == 2u) return vec4(storedChannel(texel.r, 4u), storedChannel(texel.g, 4u), storedChannel(texel.b, 4u),
++                                  storedChannel(texel.a, 4u));
++    return texel;
++}
++
+ vec4 quantizeFramebuffer(vec4 color, uint format) {
+     color = clamp(color, 0.0, 1.0);
+     uint kind = format & 3u;
+@@ -89,6 +108,15 @@
      return color;
  }
  
@@ -584,10 +612,19 @@ phase 2; measured with tools/gpu_gate.sh).
  void main() {
      uvec4 textureControl = uvec4(u.pixel0.y & 0xFFu, (u.pixel0.y >> 8u) & 0xFFu,
                                   (u.pixel0.y >> 16u) & 0xFFu, (u.pixel0.y >> 24u) & 0xFFu);
-@@ -113,5 +124,15 @@
+@@ -102,6 +130,7 @@
+     if (textureControl.w != 0u) {
+         float q = abs(vQ) < 1.0e-20 ? 1.0 : vQ;
+         vec4 texel = texture(sourceTexture, vUv / q);
++        if ((u.pixel1.x & 0x1000u) != 0u) texel = storedFramebufferTexel(texel, (u.pixel1.x >> 8u) & 3u);  // GT patch 0022
+         color = applyTextureFunction(color, texel, textureControl, textureEnv);
+     }
+     if (fogControl.w != 0u) {
+@@ -113,5 +142,17 @@
          uint mask = alphaControl.w;
          if (!alphaPass(alphaControl.y, a & mask, alphaControl.z & mask)) discard;
      }
+-    outColor = quantizeFramebuffer(color, u.pixel1.x);
 +    // GT patch 0021: blend factors the fixed-function blend can't express (the GE's min(1, 2As) and
 +    // min(1, 2(1-As))) are computed here: the colour premultiplied by the source factor (blend ONE) and the
 +    // destination factor in the second output (blend SRC1), as ge_renderer.cpp blend_pixel does.
@@ -598,7 +635,9 @@ phase 2; measured with tools/gpu_gate.sh).
 +        outBlendFactor = blendFactor((u.pixel1.y >> 8u) & 0xFu, a, u.pixel1.w);
 +        color *= sourceFactor;
 +    }
-     outColor = quantizeFramebuffer(color, u.pixel1.x);
++    // GT patch 0022: blend with the unquantized colour and alpha, as the GE does; the stored 16-bit value is
++    // emulated when the target is read back as a texture (storedFramebufferTexel).
++    outColor = clamp(color, 0.0, 1.0);  // (a 565 target's alpha is ignored when read back)
  }
 --- a/lcs/host/vulkan/ge.vert
 +++ b/lcs/host/vulkan/ge.vert
