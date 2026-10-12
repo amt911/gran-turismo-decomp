@@ -36022,3 +36022,827 @@ GT_DECOMP(0x08A187BCu, gt::game::func_08A187BC, gt::ReturnKind::Void);
 // so the gate can't check it.
 // GT_DECOMP(0x08A14FF0u, gt::game::func_08A14FF0, gt::ReturnKind::Void);
 GT_DECOMP(0x08A13990u, gt::game::func_08A13990, gt::ReturnKind::Void);
+
+// --- batch 58 ---
+
+namespace gt::game {
+namespace {
+
+// A base-then-vtable constructor body: `base(this)` (given arguments passed through), the vtable, nothing else.
+void base_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t base) {
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, base, {ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+}
+
+// The struct func_08936584 fills from the key {a, b} of the object func_089363FC() returns: `fill` runs the call
+// with a local of `frame_bytes` at the stack top.
+void query_record(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t key_a, std::uint32_t key_b,
+                  const GuestFrame &frame) {
+    const std::uint32_t registry = call_guest(rt, ctx, 0x089363FCu, {});
+    (void)call_guest(rt, ctx, 0x08936584u, {registry, ctx.gpr[5], key_a, key_b, frame.at(0u)});
+}
+
+// Stores the float argument ($f12) at `address`.
+void store_float_arg(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t address) {
+    rt.memory().store32(address, std::bit_cast<std::uint32_t>(ctx.fpr[12]));
+}
+
+std::uint32_t load_unaligned32(psprecomp::Runtime &rt, std::uint32_t address) {
+    return rt.memory().load8(address) | (rt.memory().load8(address + 1u) << 8) | (rt.memory().load8(address + 2u) << 16) |
+           (rt.memory().load8(address + 3u) << 24);
+}
+void store_unaligned32(psprecomp::Runtime &rt, std::uint32_t address, std::uint32_t value) {
+    for (std::uint32_t k = 0u; k < 4u; ++k) rt.memory().store8(address + k, (value >> (8u * k)) & 255u);
+}
+
+} // namespace
+
+// Function-local statics (func_08A9212C() stored in a word, static_init_store).
+void func_08A0C924(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF602Cu); }
+void func_08A0C4C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF6010u); }
+void func_08A0C06C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5FF4u); }
+void func_08A0B9C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5FD8u); }
+void func_08A06E20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5E44u); }
+void func_089FEE08(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5C44u); }
+void func_089FDF8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5BD8u); }
+void func_089FD940(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5BBCu); }
+void func_089F786C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5AB0u); }
+void func_089F5A9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF59C8u); }
+void func_089F5448(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF59ACu); }
+void func_089F16F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF58ECu); }
+void func_089F0BFC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF58C0u); }
+void func_089E4D24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF564Cu); }
+void func_089D5B3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF51C4u); }
+void func_089D5464(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF51A8u); }
+void func_089D5004(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF518Cu); }
+void func_089D4CAC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF5170u); }
+void func_089CC8A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF4F8Cu); }
+void func_089C410C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF4E78u); }
+void func_089C40AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF4E90u); }
+void func_089C35FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF4E40u); }
+void func_089B9E6C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF4CB8u); }
+void func_089A88C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF49D4u); }
+void func_0899C21C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF46E0u); }
+void func_08977228(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF4060u); }
+void func_08965424(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08CF3A4Cu); }
+
+// func_089CE914(this, x): under the lock 0x08CF5134 (func_08B344E0 / func_08B3457C): func_089CE820(this, x).
+void func_089CE914(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08B344E0u, {0x08CF5134u});
+        (void)call_guest(rt, ctx, 0x089CE820u, {self, x});
+    }
+    tail_call(ctx, 0x08B3457Cu, {0x08CF5134u});
+}
+
+// func_089CCA00(this, _, other) -> 1; func_0897006C(...) first, and +0x1C0 = 1 when the virtual +0x118 of other
+// returns this.
+void func_089CCA00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], other = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, 0x0897006Cu, {self, ctx.gpr[5], other, ctx.gpr[7]});
+    if (call_guest(rt, ctx, method_of(rt, other, 280u), {other}) == self) rt.memory().store32(self + 448u, 1u);
+    ctx.gpr[2] = 1u;
+}
+
+// func_089CAE40(this): func_08A02244(this), then func_08BEF1A8 (twice) / func_08C01DFC (twice) on the members +0x12C,
+// +0x138, +0x144, +0x150 with (member, its first word, its second word); the last is a tail call.
+void func_089CAE40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08A02244u, {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+        for (const std::uint32_t member : {300u, 312u})
+            (void)call_guest(rt, ctx, 0x08BEF1A8u, {self + member, word(rt, self + member), word(rt, self + member + 4u)});
+        (void)call_guest(rt, ctx, 0x08C01DFCu, {self + 324u, word(rt, self + 324u), word(rt, self + 328u)});
+    }
+    tail_call(ctx, 0x08C01DFCu, {self + 336u, word(rt, self + 336u), word(rt, self + 340u)});
+}
+
+// func_089C6844(x) -> a new 608-byte object (func_08A5BC20(608, 4)) constructed by func_089C4590(object, x).
+void func_089C6844(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t x = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t object = call_guest(rt, ctx, 0x08A5BC20u, {608u, 4u});
+    (void)call_guest(rt, ctx, 0x089C4590u, {object, x});
+    ctx.gpr[2] = object;
+}
+
+// func_089C4CC4(this, x): func_08B7C830(this + 0x60, x, 32) (tail call).
+void func_089C4CC4(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    tail_call(ctx, 0x08B7C830u, {ctx.gpr[4] + 96u, ctx.gpr[5], 32u});
+}
+
+// func_089C41BC(this): func_08978950(this), +0x26C = func_08B212B4(0), then func_08B221B4(this + 0x208, this + 0x240)
+// (tail call).
+void func_089C41BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08978950u, {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+        rt.memory().store32(self + 620u, call_guest(rt, ctx, 0x08B212B4u, {0u}));
+    }
+    tail_call(ctx, 0x08B221B4u, {self + 520u, self + 576u});
+}
+
+// func_089B8C18(this, x): func_089B8BB4(this, x, node) for each node of the chain (next at +0x54) from the pointer +0xC.
+void func_089B8C18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
+    std::uint32_t node = word(rt, self + 12u);
+    GuestFrame frame(ctx, 0x10u);
+    while (node != 0u) {
+        const std::uint32_t next = word(rt, node + 84u);
+        (void)call_guest(rt, ctx, 0x089B8BB4u, {self, x, node});
+        node = next;
+    }
+}
+
+// func_089B4DD8(this): vtables +0x0 = 0x08CCB198, +0x38 = 0x08CCB3D4, the holder +0x22C released (func_08A5B9EC),
+// func_089E2430(this), then func_08A5BC54(this, 576, 4) (tail call).
+void func_089B4DD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    rt.memory().store32(self, 0x08CCB198u);
+    rt.memory().store32(self + 56u, 0x08CCB3D4u);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08A5B9ECu, {self + 556u});
+        (void)call_guest(rt, ctx, 0x089E2430u, {self});
+    }
+    tail_call(ctx, 0x08A5BC54u, {self, 576u, 4u});
+}
+
+// func_089A94B8(this, v): the 4 words +0xA0.. copied from v unless v is that very block.
+void func_089A94B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t block = ctx.gpr[4] + 160u, source = ctx.gpr[5];
+    if (block == source) return;
+    const std::uint32_t w3 = word(rt, source + 12u), w0 = word(rt, source), w1 = word(rt, source + 4u), w2 = word(rt, source + 8u);
+    rt.memory().store32(block, w0);
+    rt.memory().store32(block + 12u, w3);
+    rt.memory().store32(block + 4u, w1);
+    rt.memory().store32(block + 8u, w2);
+}
+
+// func_089A7644(this, x): a new 60-byte object (func_08A5BC20(60, 4)) constructed by func_089A6D70(object, x), handed in
+// a local holder to func_08A76AB4(this, &holder).
+void func_089A7644(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    const std::uint32_t object = call_guest(rt, ctx, 0x08A5BC20u, {60u, 4u});
+    (void)call_guest(rt, ctx, 0x089A6D70u, {object, x});
+    rt.memory().store32(frame.at(0u), object);
+    (void)call_guest(rt, ctx, 0x08A76AB4u, {self, frame.at(0u)});
+}
+
+// func_08999F94(this): func_08A02218(this), then func_08999CB4(this, 0) (tail call).
+void func_08999F94(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08A02218u, {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    }
+    tail_call(ctx, 0x08999CB4u, {self, 0u});
+}
+
+// func_08994E10(this): vtables +0x0 = 0x08CC8EC0, +0x38 = 0x08CC9118, the holders +0x11C and +0x118 released
+// (func_08A5B9EC), func_08A0298C(this), then func_08A5BC54(this, 288, 4) (tail call).
+void func_08994E10(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    rt.memory().store32(self, 0x08CC8EC0u);
+    rt.memory().store32(self + 56u, 0x08CC9118u);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08A5B9ECu, {self + 284u});
+        (void)call_guest(rt, ctx, 0x08A5B9ECu, {self + 280u});
+        (void)call_guest(rt, ctx, 0x08A0298Cu, {self});
+    }
+    tail_call(ctx, 0x08A5BC54u, {self, 288u, 4u});
+}
+
+// func_08963D70() -> the old value of the counter 0x08CF3664, which is incremented.
+void func_08963D70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = word(rt, 0x08CF3664u);
+    ctx.gpr[4] = ctx.gpr[2] + 1u;
+    rt.memory().store32(0x08CF3664u, ctx.gpr[4]);
+}
+
+// func_08958BE4(this): +0x5C = -11, +0x28 = +0x24 = 0, the 12 words from +0x2C cleared.
+void func_08958BE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    rt.memory().store32(self + 92u, 0xFFFFFFF5u);
+    rt.memory().store32(self + 40u, 0u);
+    rt.memory().store32(self + 36u, 0u);
+    for (std::uint32_t k = 0u; k < 12u; ++k) rt.memory().store32(self + 44u + 4u * k, 0u);
+}
+
+// func_0894F158(): the 10 floats from 0x08CF2F2C = func_0894F130(50), (45), ..., (5) (the float results).
+void func_0894F158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t slot = 0x08CF2F2Cu;
+    for (std::uint32_t n = 50u; n != 0u; n -= 5u, slot += 4u) {
+        const GuestResult result = call_guest(rt, ctx, 0x0894F130u, {n}, {});
+        rt.memory().store32(slot, std::bit_cast<std::uint32_t>(result.f0));
+    }
+}
+
+// func_0894CCC4(this): vtable 0x08CC6818, members cleared, func_0895E63C(this + 0x64), func_08946698(this + 0xE0), byte
+// +0xC = 1, +0xDC = +0x8 = +0x20 = 0.
+void func_0894CCC4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    rt.memory().store32(self, 0x08CC6818u);
+    for (const std::uint32_t offset : {4u, 16u, 20u, 24u, 28u}) rt.memory().store32(self + offset, 0u);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x0895E63Cu, {self + 100u});
+        (void)call_guest(rt, ctx, 0x08946698u, {self + 224u});
+    }
+    rt.memory().store8(self + 12u, 1u);
+    rt.memory().store32(self + 220u, 0u);
+    rt.memory().store32(self + 8u, 0u);
+    rt.memory().store32(self + 32u, 0u);
+}
+
+// func_089378D4(this, _, x): func_08936944(this, func_0893641C()), then func_089377C4(this, x) (tail call).
+void func_089378D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[6];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        const std::uint32_t value = call_guest(rt, ctx, 0x0893641Cu, {});
+        (void)call_guest(rt, ctx, 0x08936944u, {self, value});
+    }
+    tail_call(ctx, 0x089377C4u, {self, x});
+}
+
+// func_08936DBC(): the global 0x08CF298C = a new 940-byte object (func_08B62344) constructed by func_08936D20.
+void func_08936DBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t object = call_guest(rt, ctx, 0x08B62344u, {940u});
+    (void)call_guest(rt, ctx, 0x08936D20u, {object});
+    rt.memory().store32(0x08CF298Cu, object);
+}
+
+// Constants: func_08936410 -> 0x08CA21A8, func_08936408 -> 2817.
+void func_08936410(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 0x08CA21A8u; }
+void func_08936408(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 2817u; }
+
+// Queries of the record func_08936584 fills from a key {a, b} stored in the object: func_08932AEC (key +0x28, the half
+// +0xC), func_08932944 (key +0x38, whether the byte +0xF is 1), func_08932890 (key +0x38, the byte +0x10), func_089325E0
+// (key +0x40, whether the byte +0x23 is 1, 3 or 4).
+void func_08932AEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x30u);
+    query_record(rt, ctx, word(rt, self + 40u), word(rt, self + 44u), frame);
+    ctx.gpr[2] = rt.memory().load16(frame.at(12u));
+}
+void func_08932944(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x30u);
+    query_record(rt, ctx, word(rt, self + 56u), word(rt, self + 60u), frame);
+    ctx.gpr[2] = rt.memory().load8(frame.at(15u)) == 1u ? 1u : 0u;
+}
+void func_08932890(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x30u);
+    query_record(rt, ctx, word(rt, self + 56u), word(rt, self + 60u), frame);
+    ctx.gpr[2] = rt.memory().load8(frame.at(16u));
+}
+void func_089325E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x40u);
+    query_record(rt, ctx, word(rt, self + 64u), word(rt, self + 68u), frame);
+    const std::uint32_t kind = rt.memory().load8(frame.at(35u));
+    ctx.gpr[2] = (kind == 1u || kind == 3u || kind == 4u) ? 1u : 0u;
+}
+
+// func_08931090(...): func_08931044(0, ...) (tail call).
+void func_08931090(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08931044u, {0u}); }
+
+// func_08930EBC(a, b, p, q) / func_08930E68(a, p, q) -> 1 and *p, *q = the bytes +0x13 / +0x14 of the record
+// func_08930B60 / func_08930C0C fills, when it returns non-zero; else 0.
+void func_08930EBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t first = ctx.gpr[6], second = ctx.gpr[7];
+    GuestFrame frame(ctx, 0x30u);
+    ctx.gpr[2] = 0u;
+    if (call_guest(rt, ctx, 0x08930B60u, {ctx.gpr[4], ctx.gpr[5], frame.at(0u), second}) == 0u) return;
+    const std::uint32_t a = rt.memory().load8(frame.at(19u)), b = rt.memory().load8(frame.at(20u));
+    rt.memory().store32(first, a);
+    rt.memory().store32(second, b);
+    ctx.gpr[2] = 1u;
+}
+void func_08930E68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t first = ctx.gpr[5], second = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x30u);
+    ctx.gpr[2] = 0u;
+    if (call_guest(rt, ctx, 0x08930C0Cu, {ctx.gpr[4], frame.at(0u), second, ctx.gpr[7]}) == 0u) return;
+    const std::uint32_t a = rt.memory().load8(frame.at(19u)), b = rt.memory().load8(frame.at(20u));
+    rt.memory().store32(first, a);
+    rt.memory().store32(second, b);
+    ctx.gpr[2] = 1u;
+}
+
+// func_08930D98 / func_0893067C(a, b) -> the byte +0x15 of the record func_08930D20 / func_089305CC(a, b, &record) fills.
+void func_08930D98(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x30u);
+    (void)call_guest(rt, ctx, 0x08930D20u, {ctx.gpr[4], ctx.gpr[5], frame.at(0u), ctx.gpr[7]});
+    ctx.gpr[2] = rt.memory().load8(frame.at(21u));
+}
+void func_0893067C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x30u);
+    (void)call_guest(rt, ctx, 0x089305CCu, {ctx.gpr[4], ctx.gpr[5], frame.at(0u), ctx.gpr[7]});
+    ctx.gpr[2] = rt.memory().load8(frame.at(21u));
+}
+
+// func_08930308(key): func_089364AC(func_089363FC(), key, 35) (tail call).
+void func_08930308(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t key = ctx.gpr[4];
+    std::uint32_t registry;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        registry = call_guest(rt, ctx, 0x089363FCu, {});
+    }
+    tail_call(ctx, 0x089364ACu, {registry, key, 35u});
+}
+
+// func_089300C0(x) -> x (v1 = 0).
+void func_089300C0(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = ctx.gpr[4];
+    ctx.gpr[3] = 0u;
+}
+
+// func_0892C8B8(x): func_08B20968(0x08CF2958, x) (tail call).
+void func_0892C8B8(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08B20968u, {0x08CF2958u, ctx.gpr[4]}); }
+
+// func_0892BAA8(this, other, a, b): func_0892BA30(this, a, b), func_08B221B4(other, this), func_0892B74C(the object
+// +0x260 + 0x78), then +0x90 = +0x94 = 0 on that object.
+void func_0892BAA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], other = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, 0x0892BA30u, {self, ctx.gpr[6], ctx.gpr[7]});
+    (void)call_guest(rt, ctx, 0x08B221B4u, {other, self});
+    (void)call_guest(rt, ctx, 0x0892B74Cu, {word(rt, self + 608u) + 120u});
+    const std::uint32_t object = word(rt, self + 608u);
+    rt.memory().store32(object + 144u, 0u);
+    rt.memory().store32(object + 148u, 0u);
+}
+
+// func_08927550(this, a, b): unless the byte +0x1FCF is set: +0x1FB8 = a, func_08927148(this, a), the virtual +0x18 of
+// the object +0x1FA4 with b, and the byte +0x1FC5 = 1.
+void func_08927550(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], a = ctx.gpr[5], b = ctx.gpr[6];
+    if (rt.memory().load8(self + 8143u) != 0u) return;
+    rt.memory().store32(self + 8120u, a);
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, 0x08927148u, {self, a, b, ctx.gpr[7]});
+    const std::uint32_t object = word(rt, self + 8100u);
+    (void)call_guest(rt, ctx, method_of(rt, object, 24u), {object, b});
+    rt.memory().store8(self + 8133u, 1u);
+}
+
+// func_089273F0(this): func_089260D8 on each of the 13 objects +0x1F70..
+void func_089273F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    for (std::uint32_t k = 0u; k < 13u; ++k) (void)call_guest(rt, ctx, 0x089260D8u, {word(rt, self + 8048u + 4u * k)});
+}
+
+// func_089272EC(this, ...): func_08925B70(this + 0x1FD4, ...) (tail call).
+void func_089272EC(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08925B70u, {ctx.gpr[4] + 8148u}); }
+
+// func_08922B98(this, a, b): func_08925FE4(this, a), vtable 0x08CC5EA0, func_08926398(this + 0xC), +0x8 = b, then
+// func_08926488(this + 0xC, 0x08CDDD20, 1) (tail call).
+void func_08922B98(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], b = ctx.gpr[6];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08925FE4u, {self, ctx.gpr[5], b, ctx.gpr[7]});
+        rt.memory().store32(self, 0x08CC5EA0u);
+        (void)call_guest(rt, ctx, 0x08926398u, {self + 12u});
+    }
+    rt.memory().store32(self + 8u, b);
+    tail_call(ctx, 0x08926488u, {self + 12u, 0x08CDDD20u, 1u});
+}
+
+// func_08922B04(this): func_0892025C(this), vtable 0x08CC5F80.
+void func_08922B04(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    base_call(rt, ctx, 0x0892025Cu);
+    rt.memory().store32(ctx.gpr[4], 0x08CC5F80u);
+}
+
+// func_089211D4(this, a, b): func_08925FE4(this, a), vtable 0x08CC5F20, +0x8 = b, func_089211A0(this) (tail call).
+void func_089211D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], b = ctx.gpr[6];
+    base_call(rt, ctx, 0x08925FE4u);
+    rt.memory().store32(self, 0x08CC5F20u);
+    rt.memory().store32(self + 8u, b);
+    tail_call(ctx, 0x089211A0u, {self});
+}
+
+// func_0891FEF0(this): func_08926C2C(this), +0x248 = -1.
+void func_0891FEF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    base_call(rt, ctx, 0x08926C2Cu);
+    rt.memory().store32(ctx.gpr[4] + 584u, 0xFFFFFFFFu);
+}
+
+// func_0891FD28(this, a, b): func_08925FE4(this, a), +0x8 = b, vtable 0x08CC5FA0.
+void func_0891FD28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], b = ctx.gpr[6];
+    base_call(rt, ctx, 0x08925FE4u);
+    rt.memory().store32(self + 8u, b);
+    rt.memory().store32(self, 0x08CC5FA0u);
+}
+
+// func_0891FCD8(this, a, b, c): func_08925FE4(this, a), +0x8 = c, vtable 0x08CC5FE0, +0xC = b.
+void func_0891FCD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], b = ctx.gpr[6], c = ctx.gpr[7];
+    base_call(rt, ctx, 0x08925FE4u);
+    rt.memory().store32(self + 8u, c);
+    rt.memory().store32(self, 0x08CC5FE0u);
+    rt.memory().store32(self + 12u, b);
+}
+
+// func_0891C840(this): func_08926C2C(this), then the members +0x1F8..+0x23F set (+0x210 = 1.0, the rest 0).
+void func_0891C840(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    base_call(rt, ctx, 0x08926C2Cu);
+    rt.memory().store32(self + 512u, 0u);
+    rt.memory().store32(self + 508u, 0u);
+    rt.memory().store32(self + 524u, 0u);
+    rt.memory().store32(self + 520u, 0u);
+    rt.memory().store32(self + 536u, 0x3F800000u);
+    rt.memory().store32(self + 532u, 0u);
+    for (const std::uint32_t offset : {504u, 516u, 572u, 528u, 568u}) rt.memory().store32(self + offset, 0u);
+}
+
+// func_0891C768(this, v): the virtual +0x44(this), then +0x230 = v, +0x224 = -1, +0x218 = +0x21C = +0x228 = 0, byte
+// +0x22C = 0.
+void func_0891C768(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], v = ctx.gpr[5];
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, method_of(rt, self, 68u), {self, v});
+    }
+    rt.memory().store32(self + 560u, v);
+    rt.memory().store32(self + 548u, 0xFFFFFFFFu);
+    rt.memory().store32(self + 536u, 0u);
+    rt.memory().store32(self + 540u, 0u);
+    rt.memory().store32(self + 552u, 0u);
+    rt.memory().store8(self + 556u, 0u);
+}
+
+// func_0891C724(this): func_08926C2C(this), +0x224 = -1, byte +0x22C = 0, +0x218 = +0x21C = +0x228 = 0.
+void func_0891C724(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    base_call(rt, ctx, 0x08926C2Cu);
+    rt.memory().store32(self + 548u, 0xFFFFFFFFu);
+    rt.memory().store8(self + 556u, 0u);
+    rt.memory().store32(self + 536u, 0u);
+    rt.memory().store32(self + 540u, 0u);
+    rt.memory().store32(self + 552u, 0u);
+}
+
+// Constructors with base func_08926D60: func_0891C614 (vtable 0x08CC5D18, +0x1FC = +0x1E0 = 0), func_0891A484 (vtable
+// 0x08CC5B98).
+void func_0891C614(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    base_call(rt, ctx, 0x08926D60u);
+    rt.memory().store32(self, 0x08CC5D18u);
+    rt.memory().store32(self + 508u, 0u);
+    rt.memory().store32(self + 480u, 0u);
+}
+void func_0891A484(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    base_call(rt, ctx, 0x08926D60u);
+    rt.memory().store32(ctx.gpr[4], 0x08CC5B98u);
+}
+
+// func_0891C4D8 / func_0891C428(this): func_08926D60(this), vtable 0x08CC5BF0 / 0x08CC5C48, +0x1F8 = a new 240-byte object
+// (func_08B62344) constructed by func_0891C35C; the second also +0x1FC = 0 and func_0891A6BC(this) (tail call).
+void func_0891C4D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    base_call(rt, ctx, 0x08926D60u);
+    rt.memory().store32(self, 0x08CC5BF0u);
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t object = call_guest(rt, ctx, 0x08B62344u, {240u});
+    (void)call_guest(rt, ctx, 0x0891C35Cu, {object});
+    rt.memory().store32(self + 504u, object);
+}
+void func_0891C428(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    base_call(rt, ctx, 0x08926D60u);
+    rt.memory().store32(self, 0x08CC5C48u);
+    std::uint32_t object;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        object = call_guest(rt, ctx, 0x08B62344u, {240u});
+        (void)call_guest(rt, ctx, 0x0891C35Cu, {object});
+    }
+    rt.memory().store32(self + 504u, object);
+    rt.memory().store32(self + 508u, 0u);
+    tail_call(ctx, 0x0891A6BCu, {self});
+}
+
+// func_0891A508(this): func_08926C2C(this), +0xA8 = 10.0.
+void func_0891A508(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    base_call(rt, ctx, 0x08926C2Cu);
+    rt.memory().store32(ctx.gpr[4] + 168u, 0x41200000u);
+}
+
+// func_08918F30(this): func_08926D60(this), vtable 0x08CC5B40, func_08918EF4(this) (tail call).
+void func_08918F30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    base_call(rt, ctx, 0x08926D60u);
+    rt.memory().store32(ctx.gpr[4], 0x08CC5B40u);
+    tail_call(ctx, 0x08918EF4u, {ctx.gpr[4]});
+}
+
+// func_08917F54(this, v): +0x10 = v; the byte +0x2180 of the object +0x8 = whether v is positive.
+void func_08917F54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store32(ctx.gpr[4] + 16u, ctx.gpr[5]);
+    rt.memory().store8(word(rt, ctx.gpr[4] + 8u) + 8576u, static_cast<std::int32_t>(ctx.gpr[5]) > 0 ? 1u : 0u);
+}
+
+// func_08917EE4(this): func_089271E8(the object +0x8, this), func_08927350(object, 0, 0x08CDDAD0), func_08927350(object, 1,
+// 0x08CDDAF8), then the byte +0x2180 of the object = 1.
+void func_08917EE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, 0x089271E8u, {word(rt, self + 8u), self});
+    (void)call_guest(rt, ctx, 0x08927350u, {word(rt, self + 8u), 0u, 0x08CDDAD0u});
+    (void)call_guest(rt, ctx, 0x08927350u, {word(rt, self + 8u), 1u, 0x08CDDAF8u});
+    rt.memory().store8(word(rt, self + 8u) + 8576u, 1u);
+}
+
+// func_08917E44(this, x): func_089272EC(the object +0x8, 0, x) (tail call).
+void func_08917E44(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    tail_call(ctx, 0x089272ECu, {word(rt, ctx.gpr[4] + 8u), 0u, ctx.gpr[5]});
+}
+
+// func_08917AB0(this): the byte +0x204C of the object +0xC = 1.
+void func_08917AB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store8(word(rt, ctx.gpr[4] + 12u) + 8268u, 1u);
+}
+
+// func_08917918(this) -> the word +0x74 of func_08927E44(the object +0xC).
+void func_08917918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[2] = word(rt, call_guest(rt, ctx, 0x08927E44u, {word(rt, ctx.gpr[4] + 12u)}) + 116u);
+}
+
+// func_089178D0(this): func_089273F0(the object +0x8), then +0x14 = 1 when func_08917890(this) is non-zero, else +0x10.
+void func_089178D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_guest(rt, ctx, 0x089273F0u, {word(rt, self + 8u)});
+    const std::uint32_t result = call_guest(rt, ctx, 0x08917890u, {self});
+    rt.memory().store32(self + 20u, result != 0u ? 1u : word(rt, self + 16u));
+}
+
+// func_08916188 / func_08916194(...): func_08916124 / func_0891612C(0x08CF205C, ...) (tail call).
+void func_08916188(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08916124u, {0x08CF205Cu}); }
+void func_08916194(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x0891612Cu, {0x08CF205Cu}); }
+
+// Float setters ($f12 stored in a global): func_08910C54 (0x08CDD898), func_08910C3C (0x08CDD894), func_08910C24
+// (0x08CDD89C), func_08910C0C (0x08CDD8A0).
+void func_08910C54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_float_arg(rt, ctx, 0x08CDD898u); }
+void func_08910C3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_float_arg(rt, ctx, 0x08CDD894u); }
+void func_08910C24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_float_arg(rt, ctx, 0x08CDD89Cu); }
+void func_08910C0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_float_arg(rt, ctx, 0x08CDD8A0u); }
+
+// func_0890FA6C(this): byte +0x1 = 1, +0x4 = 1.0, bytes +0x0 = +0x2 = 0, func_08AB8B80(this + 8) and (this + 0x18),
+// bytes +0x29 = +0x28 = -1, byte +0x2A = 0, +0x2C = 0, then func_0890F878(this) (tail call).
+void func_0890FA6C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    rt.memory().store8(self + 1u, 1u);
+    rt.memory().store32(self + 4u, 0x3F800000u);
+    rt.memory().store8(self, 0u);
+    rt.memory().store8(self + 2u, 0u);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08AB8B80u, {self + 8u});
+        (void)call_guest(rt, ctx, 0x08AB8B80u, {self + 24u});
+    }
+    rt.memory().store8(self + 41u, 0xFFu);
+    rt.memory().store8(self + 40u, 0xFFu);
+    rt.memory().store8(self + 42u, 0u);
+    rt.memory().store32(self + 44u, 0u);
+    tail_call(ctx, 0x0890F878u, {self});
+}
+
+// func_0890F1B0(this): +0x8 = +0x0 = +0x4 = 0.
+void func_0890F1B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store32(ctx.gpr[4] + 8u, 0u);
+    rt.memory().store32(ctx.gpr[4], 0u);
+    rt.memory().store32(ctx.gpr[4] + 4u, 0u);
+}
+
+// func_0890B5A0(this): func_0890B56C(this), then func_0890B3D8(this) (tail call).
+void func_0890B5A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x0890B56Cu, {ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    }
+    tail_call(ctx, 0x0890B3D8u, {ctx.gpr[4]});
+}
+
+// func_08906378(this): the byte +0x158 of the object +0x0 = 1.
+void func_08906378(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store8(word(rt, ctx.gpr[4]) + 344u, 1u);
+}
+
+// func_08900148(this): +0x41C = -1.0.
+void func_08900148(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { rt.memory().store32(ctx.gpr[4] + 1052u, 0xBF800000u); }
+
+// func_088FE6A0 / func_088FE3A4(this) -> the word +0x64 / +0x68 of the object +0x48 of the object +0x20 of the object
+// +0x0 (reading from address 0x64 / 0x68 without one).
+void func_088FE6A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t owner = word(rt, word(rt, ctx.gpr[4]) + 32u);
+    const std::uint32_t inner = owner == 0u ? 0u : word(rt, owner + 72u);
+    ctx.gpr[3] = inner;
+    ctx.gpr[2] = word(rt, inner + 100u);
+}
+void func_088FE3A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t owner = word(rt, word(rt, ctx.gpr[4]) + 32u);
+    const std::uint32_t inner = owner == 0u ? 0u : word(rt, owner + 72u);
+    ctx.gpr[3] = inner;
+    ctx.gpr[2] = word(rt, inner + 104u);
+}
+
+// func_088FE2FC(this) -> the word +0x34 of the object +0x0.
+void func_088FE2FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[3] = word(rt, ctx.gpr[4]);
+    ctx.gpr[2] = word(rt, ctx.gpr[3] + 52u);
+}
+
+// func_088FE2B4(this): byte +0xC = func_088FE2A4(this), byte +0x8 = 0.
+void func_088FE2B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t value = call_guest(rt, ctx, 0x088FE2A4u, {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    rt.memory().store8(self + 12u, value);
+    rt.memory().store8(self + 8u, 0u);
+}
+
+// func_088FE2AC(this) -> the byte +0xA.
+void func_088FE2AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = rt.memory().load8(ctx.gpr[4] + 10u); }
+
+// func_088FDF8C(this): +0x4 = +0x0 = 0.
+void func_088FDF8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store32(ctx.gpr[4] + 4u, 0u);
+    rt.memory().store32(ctx.gpr[4], 0u);
+}
+
+// func_088FB578(entry, delta): the pointer +0x4 += delta when set.
+void func_088FB578(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t value = word(rt, ctx.gpr[4] + 4u);
+    ctx.gpr[5] += value;
+    if (value != 0u) rt.memory().store32(ctx.gpr[4] + 4u, ctx.gpr[5]);
+}
+
+// func_088F946C(this): vtable 0x08CC3EC8, then func_088F89AC(this) (tail call).
+void func_088F946C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store32(ctx.gpr[4], 0x08CC3EC8u);
+    rt.memory().store32(ctx.gpr[4] + 44u, 0u);
+    tail_call(ctx, 0x088F89ACu, {ctx.gpr[4]});
+}
+
+// func_088F89AC(this): +0x2C = 0; for i in 0..3: the words +4+8i and +8+8i cleared, the bytes +0x24+i and +0x28+i = -1.
+void func_088F89AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    rt.memory().store32(self + 44u, 0u);
+    for (std::uint32_t i = 0u; i < 4u; ++i) {
+        rt.memory().store32(self + 4u + 8u * i, 0u);
+        rt.memory().store32(self + 8u + 8u * i, 0u);
+        rt.memory().store8(self + 36u + i, 0xFFu);
+        rt.memory().store8(self + 40u + i, 0xFFu);
+    }
+}
+
+// func_088F93EC(this, out): two (unaligned) words +0x24 and +0x28 copied to out and out + 4.
+void func_088F93EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], out = ctx.gpr[5];
+    const std::uint32_t first = load_unaligned32(rt, self + 36u);
+    store_unaligned32(rt, out, first);
+    const std::uint32_t second = load_unaligned32(rt, self + 40u);
+    store_unaligned32(rt, out + 4u, second);
+}
+
+} // namespace gt::game
+
+GT_DECOMP(0x08A0C924u, gt::game::func_08A0C924, gt::ReturnKind::Word);
+GT_DECOMP(0x08A0C4C8u, gt::game::func_08A0C4C8, gt::ReturnKind::Word);
+GT_DECOMP(0x08A0C06Cu, gt::game::func_08A0C06C, gt::ReturnKind::Word);
+GT_DECOMP(0x08A0B9C4u, gt::game::func_08A0B9C4, gt::ReturnKind::Word);
+GT_DECOMP(0x08A06E20u, gt::game::func_08A06E20, gt::ReturnKind::Word);
+GT_DECOMP(0x089FEE08u, gt::game::func_089FEE08, gt::ReturnKind::Word);
+GT_DECOMP(0x089FDF8Cu, gt::game::func_089FDF8C, gt::ReturnKind::Word);
+GT_DECOMP(0x089FD940u, gt::game::func_089FD940, gt::ReturnKind::Word);
+GT_DECOMP(0x089F786Cu, gt::game::func_089F786C, gt::ReturnKind::Word);
+GT_DECOMP(0x089F5A9Cu, gt::game::func_089F5A9C, gt::ReturnKind::Word);
+GT_DECOMP(0x089F5448u, gt::game::func_089F5448, gt::ReturnKind::Word);
+GT_DECOMP(0x089F16F4u, gt::game::func_089F16F4, gt::ReturnKind::Word);
+GT_DECOMP(0x089F0BFCu, gt::game::func_089F0BFC, gt::ReturnKind::Word);
+GT_DECOMP(0x089E4D24u, gt::game::func_089E4D24, gt::ReturnKind::Word);
+GT_DECOMP(0x089D5B3Cu, gt::game::func_089D5B3C, gt::ReturnKind::Word);
+GT_DECOMP(0x089D5464u, gt::game::func_089D5464, gt::ReturnKind::Word);
+GT_DECOMP(0x089D5004u, gt::game::func_089D5004, gt::ReturnKind::Word);
+GT_DECOMP(0x089D4CACu, gt::game::func_089D4CAC, gt::ReturnKind::Word);
+GT_DECOMP(0x089CC8A4u, gt::game::func_089CC8A4, gt::ReturnKind::Word);
+GT_DECOMP(0x089C410Cu, gt::game::func_089C410C, gt::ReturnKind::Word);
+GT_DECOMP(0x089C40ACu, gt::game::func_089C40AC, gt::ReturnKind::Word);
+GT_DECOMP(0x089C35FCu, gt::game::func_089C35FC, gt::ReturnKind::Word);
+GT_DECOMP(0x089B9E6Cu, gt::game::func_089B9E6C, gt::ReturnKind::Word);
+GT_DECOMP(0x089A88C4u, gt::game::func_089A88C4, gt::ReturnKind::Word);
+GT_DECOMP(0x0899C21Cu, gt::game::func_0899C21C, gt::ReturnKind::Word);
+GT_DECOMP(0x08977228u, gt::game::func_08977228, gt::ReturnKind::Word);
+GT_DECOMP(0x08965424u, gt::game::func_08965424, gt::ReturnKind::Word);
+GT_DECOMP(0x089CE914u, gt::game::func_089CE914, gt::ReturnKind::Void);
+GT_DECOMP(0x089CCA00u, gt::game::func_089CCA00, gt::ReturnKind::Word);
+GT_DECOMP(0x089CAE40u, gt::game::func_089CAE40, gt::ReturnKind::Void);
+// func_089C6844 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x089C6844u, gt::game::func_089C6844, gt::ReturnKind::Word);
+GT_DECOMP(0x089C4CC4u, gt::game::func_089C4CC4, gt::ReturnKind::Void);
+GT_DECOMP(0x089C41BCu, gt::game::func_089C41BC, gt::ReturnKind::Void);
+// func_089B8C18 reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x089B8C18u, gt::game::func_089B8C18, gt::ReturnKind::Void);
+GT_DECOMP(0x089B4DD8u, gt::game::func_089B4DD8, gt::ReturnKind::Void);
+// func_089A94B8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x089A94B8u, gt::game::func_089A94B8, gt::ReturnKind::Void);
+GT_DECOMP(0x089A7644u, gt::game::func_089A7644, gt::ReturnKind::Void);
+GT_DECOMP(0x08999F94u, gt::game::func_08999F94, gt::ReturnKind::Void);
+GT_DECOMP(0x08994E10u, gt::game::func_08994E10, gt::ReturnKind::Void);
+GT_DECOMP(0x08963D70u, gt::game::func_08963D70, gt::ReturnKind::Word);
+GT_DECOMP(0x08958BE4u, gt::game::func_08958BE4, gt::ReturnKind::Void);
+GT_DECOMP(0x0894F158u, gt::game::func_0894F158, gt::ReturnKind::Void);
+GT_DECOMP(0x0894CCC4u, gt::game::func_0894CCC4, gt::ReturnKind::Void);
+// func_089378D4 reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x089378D4u, gt::game::func_089378D4, gt::ReturnKind::Void);
+GT_DECOMP(0x08936DBCu, gt::game::func_08936DBC, gt::ReturnKind::Void);
+GT_DECOMP(0x08936410u, gt::game::func_08936410, gt::ReturnKind::Word);
+GT_DECOMP(0x08936408u, gt::game::func_08936408, gt::ReturnKind::Word);
+GT_DECOMP(0x08932AECu, gt::game::func_08932AEC, gt::ReturnKind::Word);
+GT_DECOMP(0x08932944u, gt::game::func_08932944, gt::ReturnKind::Word);
+GT_DECOMP(0x08932890u, gt::game::func_08932890, gt::ReturnKind::Word);
+GT_DECOMP(0x089325E0u, gt::game::func_089325E0, gt::ReturnKind::Word);
+GT_DECOMP(0x08931090u, gt::game::func_08931090, gt::ReturnKind::Void);
+GT_DECOMP(0x08930EBCu, gt::game::func_08930EBC, gt::ReturnKind::Word);
+GT_DECOMP(0x08930E68u, gt::game::func_08930E68, gt::ReturnKind::Word);
+GT_DECOMP(0x08930D98u, gt::game::func_08930D98, gt::ReturnKind::Word);
+GT_DECOMP(0x0893067Cu, gt::game::func_0893067C, gt::ReturnKind::Word);
+GT_DECOMP(0x08930308u, gt::game::func_08930308, gt::ReturnKind::Void);
+GT_DECOMP(0x089300C0u, gt::game::func_089300C0, gt::ReturnKind::Word);
+GT_DECOMP(0x0892C8B8u, gt::game::func_0892C8B8, gt::ReturnKind::Void);
+GT_DECOMP(0x0892BAA8u, gt::game::func_0892BAA8, gt::ReturnKind::Void);
+GT_DECOMP(0x08927550u, gt::game::func_08927550, gt::ReturnKind::Void);
+// func_089273F0 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x089273F0u, gt::game::func_089273F0, gt::ReturnKind::Void);
+// func_089272EC is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x089272ECu, gt::game::func_089272EC, gt::ReturnKind::Void);
+GT_DECOMP(0x08922B98u, gt::game::func_08922B98, gt::ReturnKind::Void);
+GT_DECOMP(0x08922B04u, gt::game::func_08922B04, gt::ReturnKind::Void);
+GT_DECOMP(0x089211D4u, gt::game::func_089211D4, gt::ReturnKind::Void);
+// func_0891FEF0 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x0891FEF0u, gt::game::func_0891FEF0, gt::ReturnKind::Void);
+GT_DECOMP(0x0891FD28u, gt::game::func_0891FD28, gt::ReturnKind::Void);
+GT_DECOMP(0x0891FCD8u, gt::game::func_0891FCD8, gt::ReturnKind::Void);
+// func_0891C840 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x0891C840u, gt::game::func_0891C840, gt::ReturnKind::Void);
+// func_0891C768 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x0891C768u, gt::game::func_0891C768, gt::ReturnKind::Void);
+// func_0891C724 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x0891C724u, gt::game::func_0891C724, gt::ReturnKind::Void);
+GT_DECOMP(0x0891C614u, gt::game::func_0891C614, gt::ReturnKind::Void);
+GT_DECOMP(0x0891A484u, gt::game::func_0891A484, gt::ReturnKind::Void);
+GT_DECOMP(0x0891C4D8u, gt::game::func_0891C4D8, gt::ReturnKind::Void);
+GT_DECOMP(0x0891C428u, gt::game::func_0891C428, gt::ReturnKind::Void);
+// func_0891A508 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x0891A508u, gt::game::func_0891A508, gt::ReturnKind::Void);
+GT_DECOMP(0x08918F30u, gt::game::func_08918F30, gt::ReturnKind::Void);
+GT_DECOMP(0x08917F54u, gt::game::func_08917F54, gt::ReturnKind::Void);
+GT_DECOMP(0x08917EE4u, gt::game::func_08917EE4, gt::ReturnKind::Void);
+GT_DECOMP(0x08917E44u, gt::game::func_08917E44, gt::ReturnKind::Void);
+GT_DECOMP(0x08917AB0u, gt::game::func_08917AB0, gt::ReturnKind::Void);
+// func_08917918 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
+// GT_DECOMP(0x08917918u, gt::game::func_08917918, gt::ReturnKind::Word);
+GT_DECOMP(0x089178D0u, gt::game::func_089178D0, gt::ReturnKind::Void);
+GT_DECOMP(0x08916188u, gt::game::func_08916188, gt::ReturnKind::Void);
+GT_DECOMP(0x08916194u, gt::game::func_08916194, gt::ReturnKind::Void);
+GT_DECOMP(0x08910C54u, gt::game::func_08910C54, gt::ReturnKind::Void);
+GT_DECOMP(0x08910C3Cu, gt::game::func_08910C3C, gt::ReturnKind::Void);
+GT_DECOMP(0x08910C24u, gt::game::func_08910C24, gt::ReturnKind::Void);
+GT_DECOMP(0x08910C0Cu, gt::game::func_08910C0C, gt::ReturnKind::Void);
+GT_DECOMP(0x0890FA6Cu, gt::game::func_0890FA6C, gt::ReturnKind::Void);
+GT_DECOMP(0x0890F1B0u, gt::game::func_0890F1B0, gt::ReturnKind::Void);
+GT_DECOMP(0x0890B5A0u, gt::game::func_0890B5A0, gt::ReturnKind::Void);
+GT_DECOMP(0x08906378u, gt::game::func_08906378, gt::ReturnKind::Void);
+GT_DECOMP(0x08900148u, gt::game::func_08900148, gt::ReturnKind::Void);
+GT_DECOMP(0x088FE6A0u, gt::game::func_088FE6A0, gt::ReturnKind::Word);
+GT_DECOMP(0x088FE3A4u, gt::game::func_088FE3A4, gt::ReturnKind::Word);
+GT_DECOMP(0x088FE2FCu, gt::game::func_088FE2FC, gt::ReturnKind::Word);
+GT_DECOMP(0x088FE2B4u, gt::game::func_088FE2B4, gt::ReturnKind::Void);
+GT_DECOMP(0x088FE2ACu, gt::game::func_088FE2AC, gt::ReturnKind::Word);
+GT_DECOMP(0x088FDF8Cu, gt::game::func_088FDF8C, gt::ReturnKind::Void);
+GT_DECOMP(0x088FB578u, gt::game::func_088FB578, gt::ReturnKind::Void);
+GT_DECOMP(0x088F946Cu, gt::game::func_088F946C, gt::ReturnKind::Void);
+GT_DECOMP(0x088F89ACu, gt::game::func_088F89AC, gt::ReturnKind::Void);
+GT_DECOMP(0x088F93ECu, gt::game::func_088F93EC, gt::ReturnKind::Void);
