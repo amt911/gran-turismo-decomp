@@ -486,9 +486,15 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         frames de la carrera, 47/607 del concesionario y 62/637 del garaje. Causas (FINDINGS): la
         escena 3D no se dibuja, texto con la textura de fuentes obsoleta, pantallas compuestas por
         render-to-texture en negro, y tres modos de blending sin soporte (sobre todo `2·α / 1−2·α`).
-  - [ ] Fase 2 — geometría 3D, texturas actualizadas por la CPU, blending.
-  - [ ] Fase 3 — render-to-texture / escritura de vuelta a la memoria de la PSP.
-  - [ ] Fase 4 — rendimiento a ×1/×2/×4 y `NativeGE=true` por defecto.
+  - [x] **Fase 2 — GT se dibuja en la GPU** (2026-10-12): blending general (como el software), destinos
+        en espacio de píxeles de la PSP (capa del HUD `0x0CC000` compuesta bien), z-buffer compartido y
+        escrituras de profundidad sin test (el coche del concesionario), texturas por contenido (el texto,
+        copiado glifo a glifo con block transfers). Gate ×1 (150 s/ruta): carrera 298/307, garaje 272/290,
+        concesionario 183/288 frames iguales (eran 61, 62 y 47 en la fase 1).
+  - [x] **Rendimiento** (2026-10-12): el present en FIFO bloqueaba ~28 ms el hilo de la GE; con MAILBOX la
+        carrera va a 120 vblanks/s, 0 saltados, audio a 44,1 kHz, a ×2 y ×4 en ventana (el software da 102).
+  - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
+        pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.
       Dos hilos esperan cada vblank y el ritmo se aplicaba por llamada; ahora se ata el tiempo del
       juego al reloj (1,00×, audio a 44,1 kHz; `GT_PERF_LOG=1` lo mide). Los hilos ociosos del

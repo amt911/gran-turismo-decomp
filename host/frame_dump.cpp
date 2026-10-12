@@ -78,22 +78,41 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
 }
 
 // GT_GPU_DUMP=<dir> (+ GT_FRAME_EVERY): for the GPU gate (tools/gpu_gate.sh). Every Nth frame the GPU
-// backend finished, soft_NNNNNN.ppm (the software rasterizer's guest framebuffer — run with
-// PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER=0 so it keeps drawing) and gpu_NNNNNN.ppm (the backend's frame,
-// box-downsampled to the same size) from the same frame. An empty `gpu_rgba` writes the soft image only,
-// so tools/gpu_compare.py reports the GPU frame as missing. Game output: keep it out of git.
+// backend finished, gpu_NNNNNN.ppm (the backend's frame, box-downsampled to the display size) and
+// soft_NNNNNN.ppm (the software rasterizer's guest framebuffer for the SAME frame — run with
+// PSPRECOMP_GE_GPU_DUAL=1, lcs-recomp patch 0020, so it keeps drawing). The backend hands back a frame
+// one present late (it completes the previous submit, then submits the current one), so the software
+// image is kept for one call and paired with the next GPU frame. An empty `gpu_rgba` (a frame the GPU never
+// drew, `gpu_ready` false while the frame is new — `not_new` false) writes the software image alone, which tools/gpu_compare.py reports as missing. Game output:
+// keep it out of git.
 void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_rgba, std::uint32_t gpu_width,
                     std::uint32_t gpu_height, std::uint32_t frame_buffer, std::uint32_t buffer_width,
-                    std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height) {
+                    std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height, bool gpu_ready,
+                    bool not_new) {
     static const char *dump_dir = std::getenv("GT_GPU_DUMP");
     static std::uint64_t frames = 0u;
-    if (dump_dir == nullptr || (frames++ % dump_every()) != 0u) return;
-    const std::vector<std::uint8_t> soft = guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height);
-    if (soft.empty()) return;
-    std::filesystem::create_directories(dump_dir);
-    (void)write_rgb_ppm(numbered(dump_dir, "soft", frames - 1u), soft, width, height);
-    const std::vector<std::uint8_t> gpu = downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, width, height);
-    if (!gpu.empty()) (void)write_rgb_ppm(numbered(dump_dir, "gpu", frames - 1u), gpu, width, height);
+    static std::vector<std::uint8_t> previous_soft;
+    static std::uint32_t previous_width = 0u, previous_height = 0u;
+    if (dump_dir == nullptr) return;
+    std::vector<std::uint8_t> soft = guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height);
+    // Called on every present; frames the GPU finished (or should have, and didn't) are counted.
+    const bool counted = gpu_ready || !not_new;
+    const bool dump = counted && (frames++ % dump_every()) == 0u;
+    if (dump) {
+        std::filesystem::create_directories(dump_dir);
+        if (!gpu_ready || gpu_rgba.empty()) {
+            if (!soft.empty()) (void)write_rgb_ppm(numbered(dump_dir, "soft", frames - 1u), soft, width, height);
+        } else if (!previous_soft.empty()) {
+            const std::vector<std::uint8_t> gpu =
+                downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, previous_width, previous_height);
+            (void)write_rgb_ppm(numbered(dump_dir, "soft", frames - 1u), previous_soft, previous_width, previous_height);
+            if (!gpu.empty())
+                (void)write_rgb_ppm(numbered(dump_dir, "gpu", frames - 1u), gpu, previous_width, previous_height);
+        }
+    }
+    previous_soft = std::move(soft);
+    previous_width = width;
+    previous_height = height;
 }
 
 } // namespace gt

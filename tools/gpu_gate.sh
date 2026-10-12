@@ -33,7 +33,7 @@ for entry in $routes; do
   rm -rf "${out:?}/$route" "${out:?}/$route-diff"
   flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G \
     -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$ini" \
-    PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER=0 GT_FRAMESKIP=0 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
+    PSPRECOMP_GE_GPU_DUAL=1 GT_FRAMESKIP=0 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
     GT_FRAME_EVERY="${GT_FRAME_EVERY:-30}" timeout $((seconds + 300)) "$build/gt_play" --max-seconds "$seconds" \
     > "$out/$route.log" 2>&1
   rc=$?

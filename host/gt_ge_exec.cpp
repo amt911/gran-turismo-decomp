@@ -19,10 +19,16 @@
 
 #include "lcs_ge_exec.hpp"
 
+#include "ge_gpu_backend.hpp"
 #include "ge_renderer.hpp"
 #include "lcs_menu.hpp"
 
 #include <array>
+#include <cstdlib>
+#include <cstdio>
+#include <tuple>
+#include <mutex>
+#include <map>
 #include <span>
 #include <string>
 
@@ -42,6 +48,28 @@ std::uint32_t ge_finish_arg = 0u;
 // the address; bits 16-23 of the *BW command are the high byte, bits 0-15 the buffer width in
 // pixels), TRXPOS/TRXDPOS the corners, TRXSIZE the size minus one, TRXKICK bit 0 = 32-bit pixels.
 // GT copies every text glyph into a small texture this way right before drawing it.
+// GT_GPU_STATS=1: block transfers per (source, destination, size), printed at exit, to see which
+// framebuffer copies the GPU backend misses (it never sees these memory copies).
+void note_block_transfer_stats(std::uint32_t source, std::uint32_t destination, std::uint32_t width,
+                               std::uint32_t height, std::uint32_t bytes_per_pixel) {
+    static const bool enabled = [] { const char *v = std::getenv("GT_GPU_STATS"); return v != nullptr && *v != '0'; }();
+    if (!enabled) return;
+    struct Stats {
+        std::mutex mutex;
+        std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t>, std::uint64_t> counts;
+        ~Stats() {
+            for (const auto &[key, count] : counts) {
+                const auto &[from, to, w, h, bpp] = key;
+                std::fprintf(stderr, "[gpu-stats] transfer %08X -> %08X %ux%u %ubpp: %llu\n", from, to, w, h, bpp * 8u,
+                             static_cast<unsigned long long>(count));
+            }
+        }
+    };
+    static Stats stats;
+    std::lock_guard<std::mutex> guard(stats.mutex);
+    ++stats.counts[{source, destination, width, height, bytes_per_pixel}];
+}
+
 void execute_block_transfer(psprecomp::GuestMemory &memory, std::uint32_t kick) {
     const auto full = [](std::uint32_t low, std::uint32_t width_command) {
         return (((width_command >> 16u) & 0xFFu) << 24u | (low & 0x00FFFFFFu)) & 0x0FFFFFFFu;
@@ -55,6 +83,7 @@ void execute_block_transfer(psprecomp::GuestMemory &memory, std::uint32_t kick) 
     const std::uint32_t width = (ge_commands[0xEEu] & 0x3FFu) + 1u;
     const std::uint32_t height = ((ge_commands[0xEEu] >> 10u) & 0x3FFu) + 1u;
     const std::uint32_t bytes_per_pixel = (kick & 1u) != 0u ? 4u : 2u;
+    note_block_transfer_stats(source, destination, width, height, bytes_per_pixel);
     std::array<std::uint8_t, 1024u * 4u> row{};
     for (std::uint32_t y = 0; y < height; ++y) {
         const std::uint32_t from = source + ((sy + y) * source_width + sx) * bytes_per_pixel;
@@ -64,6 +93,10 @@ void execute_block_transfer(psprecomp::GuestMemory &memory, std::uint32_t kick) 
         memory.copy_out(from, std::span<std::uint8_t>(row.data(), length));
         memory.copy_in(to, std::span<const std::uint8_t>(row.data(), length));
     }
+    // The GPU backend caches textures per frame: tell it which bytes this copy rewrote (GT copies each
+    // text glyph into the same small texture right before drawing it).
+    lcs::ge_gpu_backend_note_guest_write(destination + (dy * destination_width + dx) * bytes_per_pixel,
+                                         ((height - 1u) * destination_width + width) * bytes_per_pixel);
 }
 
 constexpr std::uint32_t kMaxCommands = 2'000'000u;
