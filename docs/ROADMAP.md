@@ -459,6 +459,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **3.356 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+66 funciones calientes**: liberación de shared_ptr, visitas a items, enganche de componentes, redimensionado de vectores de pares, pasos de ajustes, asignación de valores hechos por script, y un sabotaje que suma a s0 en vez de invertirlo (no se anula en llamadas anidadas)
       **3.422 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+55 funciones calientes**: pasadas de dibujo de menús, bisección de curvas, escalado de agarre, desgaste y temperatura de neumáticos, carga aerodinámica, telemetría, sincronización de cuerpos físicos, lectores de propiedades por palabra clave, construcción de paquetes, coste de caminos en rejilla, copias y destructores de paneles, rutas de nodos, un hash de cadenas de 64 bits.
+      **3.477 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
