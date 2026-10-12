@@ -431,6 +431,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **2.413 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+76 funciones calientes**: difusiones a los «listeners», lecturas y llamadas bajo mutex, miembros reiniciados con un valor nuevo, actualizaciones de flags, destructores… Gate rápido limpio, sabotaje detectado en las 76; tres se saltaron (tabla de saltos, argumentos desconocidos) y una más (imports del kernel) queda sin registrar.
       **2.489 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+66 funciones calientes**: comprobación de una marca de tiempo de 64 bits, setters protegidos, lecturas «vivas» bajo mutex, vectores de palabras, una búsqueda binaria, destructores… Gate rápido limpio, sabotaje detectado en las 66 (se saltaron las de VFPU, tablas de saltos y argumentos desconocidos).
+      **2.555 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
