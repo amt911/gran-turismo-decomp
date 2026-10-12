@@ -84,6 +84,15 @@ int main() {
         b.ram[0x30] = 0x22u;  // first byte after the range is live again
         check(mentions(gt::first_difference(a, b), "08000030"), "bytes right after the range still count");
     }
+    {
+        const auto list = gt::parse_address_list("0x08AD408C, 08ab94c4\n0x089FB918");
+        check(list.has_value() && list->size() == 3u, "comma, space and newline separate addresses");
+        check(list.has_value() && list->contains(0x08AB94C4u), "addresses without 0x are hex, any case");
+        check(!gt::parse_address_list("0x08AD408C,banana").has_value(), "a bad token rejects the whole list");
+        check(!gt::parse_address_list("0x108AD408C").has_value(), "more than 32 bits is rejected");
+        const auto empty = gt::parse_address_list(" , ");
+        check(empty.has_value() && empty->empty(), "separators alone give an empty list");
+    }
     if (failures == 0) std::puts("diff_compare_test: all passed");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
