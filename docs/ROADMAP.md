@@ -372,6 +372,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       activo, actualizaciones de objetos globales con guarda, la dirección `1000·i + 332·fila + 0x38`,
       la lista de tipos que devuelven 0 (1, 3, 6, 9)… Sabotajes detectados en las 36.
       **1.931 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+37 funciones calientes**: los bits de estilo de una clase, el modo de dos bits en +0x60 (fijar
+      y actuar según él), una mezcla en punto fijo 1.15, un predicado de orden por float, la escala ×60,
+      un byte pasado a float, varias secuencias de llamadas… Sabotajes detectados en las 37; una más
+      queda sin registrar porque el harness nunca ve una llamada suya en las rutas.
+      **1.968 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
