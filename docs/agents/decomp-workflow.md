@@ -58,24 +58,29 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 
 - **Batch size: ~80 functions** (60–100). Fewer wastes gate time; many more makes a red gate slow to
   bisect. One branch `decomp/hot-leaves-N`, one PR per batch.
-- **The three routes run in parallel**, in one memory scope (each `gt_native --decomp diff` is
-  ~290 MB, so the three fit the 6 GB ceiling easily): race 600 s, dealer 300 s, garage 310 s, each
+- **Two gates.** The routes always run in parallel, in one memory scope (each `gt_native --decomp
+  diff` is ~290 MB): race, dealer, garage, each
   `GT_PAD=$(grep -v '^#' config/pad_routes/<route>.pad) build/gt_native --max-seconds <s> --decomp diff`.
-  Wall time per gate ≈ the race route, not the sum.
+  - **Fast gate (while iterating on a batch):** `GT_DECOMP_ONLY=<the batch's addresses, comma-separated>
+    LCS_UNCAPPED=1`, routes at race 200 s, dealer 100 s, garage 105 s — ~5 min with the build. With
+    only the batch installed the game isn't slowed by the other ~2,000 functions' cases, and a 200 s
+    uncapped race compares the same batch functions with the same case count as the full 600 s run
+    (measured 2026-10-12).
+  - **Full gate (once, before the PR):** every function, real time, race 600 s, dealer 300 s, garage
+    310 s — ~11 min. It is the regression check for everything already landed.
 - **Per batch, in order:**
   1. Write the batch from the asm / generated code as a *reading aid* (never copied); check that no
      `func_X`, `kX` constant or helper name already exists in the file.
-  2. Gate run: 0 mismatches on all three routes.
+  2. Fast gate: 0 mismatches on all three routes.
   3. **Unregister what the gate can't see**, with a comment saying why (the `GT_DECOMP` line stays,
      commented out): `compared 0` with `calls 0` (only reached from inside its generated unit) or
      everything `not comparable` (reaches kernel imports an isolated run can't replay).
-  4. **Sabotage run**: break every registered function of the batch at the end of its body — Float →
-     `f0 += 1`, Word → `v0 ^= 1`, Void or tail call → `s0 ^= 1` (also for tail calls hidden in a
-     helper) — and run the gate again. Every function must show `mismatched > 0`. A function that
-     stays green had its sabotage on a path the routes never take (an early return): move the
-     sabotage onto that path and rerun just to see it fail. Never land a function whose sabotage
-     was never detected.
-  5. Restore, update README counts + ROADMAP, regenerate the progress map, commit
+  4. **Sabotage, fast gate**: flip s0 (`ctx.gpr[16] ^= 1u;`) as the **first** statement of every
+     registered function of the batch. s0 is callee-saved and always compared, and a flip at entry
+     survives early returns, guest calls and tail calls — sabotaging the return value at the end
+     missed functions whose routes only took an early return, and tail callees overwrite v0. Every
+     function must show `mismatched > 0`; never land one whose sabotage was not detected.
+  5. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.

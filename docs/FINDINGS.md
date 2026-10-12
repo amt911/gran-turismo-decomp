@@ -645,3 +645,19 @@ On 2 cores this gives 121.8 waits/s, 44.0 kHz audio and 0.08 skipped vblanks/s.
 the vblank waits per second, about 120.
 
 Found: 2026-10-11 · host/gt_kernel.cpp, tools/patches/lcs-recomp
+
+### The diff gate is slow because of the harness, not the game
+
+**Symptom.** Each `--decomp diff` route took its whole wall time (race 600 s), and `LCS_UNCAPPED=1`
+(no real-time pacing) barely helped.
+**Cause.** With every decompiled function installed, the harness snapshots and restores 32 MiB of RAM
+several times per compared case, about 25,000 cases on the race route. The game then runs at ~0.7×
+real time on average, so there is no pacing left for `LCS_UNCAPPED` to remove.
+**Fix / workaround.** `GT_DECOMP_ONLY=0xADDR,...` installs only the listed functions. With one batch
+installed the game runs at 1.0× capped and 1.4× uncapped. A 200 s uncapped race compares the same
+batch functions with the same case count as the full 600 s run. Iterate on a batch with that, and run
+the full gate once before the PR (`docs/agents/decomp-workflow.md` § Working in batches).
+**Why it isn't obvious.** Each case looks cheap. The cost only shows as the guest-time factor in
+`GT_PERF_LOG`, which never reaches 1.0× in a full diff run.
+
+Found: 2026-10-12 · host/diff_harness.cpp
