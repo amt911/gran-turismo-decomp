@@ -435,8 +435,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **2.555 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+70 funciones calientes**: objetos nuevos entregados a un «wrapper», setters de campos protegidos, la velocidad en km/h (3,6 × la longitud del vector), consultas a los «listeners», destructores… Gate rápido limpio, sabotaje detectado en las 70.
       **2.625 funciones, 0 discrepancias en las tres rutas** (gate completo).
-- [x] **+68 funciones calientes**: estáticos locales con guarda (), mezclas por progreso, un valor que se acerca a su objetivo con límite de velocidad, búsquedas de entradas por índice, objetos nuevos envueltos… Gate rápido limpio a la primera, sabotaje detectado en las 68.
+- [x] **+68 funciones calientes**: estáticos locales con guarda (__cxa_guard), mezclas por progreso, un valor que se acerca a su objetivo con límite de velocidad, búsquedas de entradas por índice, objetos nuevos envueltos… Gate rápido limpio a la primera, sabotaje detectado en las 68.
       **2.693 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+55 funciones calientes**: estáticos con constructor en línea, búsqueda en un conjunto de bits, los estados de render 2D, un suavizado de tres pasos, las clases base del árbol de visualización… El gate rápido pilló dos fallos (una constante float y un v0 heredado del llamado, documentado en FINDINGS); sabotaje detectado en las 55.
+      **2.748 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

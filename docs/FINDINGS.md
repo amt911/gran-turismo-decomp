@@ -661,3 +661,19 @@ the full gate once before the PR (`docs/agents/decomp-workflow.md` § Working in
 `GT_PERF_LOG`, which never reaches 1.0× in a full diff run.
 
 Found: 2026-10-12 · host/diff_harness.cpp
+
+### A callee that leaves v0 alone returns the caller's v0
+
+**Symptom.** A decompiled function mismatches only in v0. The original returns a value its own code
+never computes: -1 in `func_0892FBE0`, `index << 6` in `func_08AD1A3C`, `this` in `func_08A77FF8`.
+**Cause.** Some callees are void and never write v0, so the original returns whatever v0 held when
+it made the call. That is often a temporary the compiler left there, such as a constant loaded for a
+store or an address computation. `call_guest` starts the callee from the decompiled caller's context,
+so the callee inherits a different v0.
+**Fix / workaround.** Before the call, set `ctx.gpr[2]` to the value the original has in v0 at that
+point, read from the generated code, and comment why. Then use the call's result as the return value.
+The same applies to v1 and to a tail call's target.
+**Why it isn't obvious.** The C++ looks complete. The leftover value only shows up in the
+register-level diff, and only on the paths where the callee skips writing v0.
+
+Found: 2026-10-12 · src/game/unsorted/hot_leaves.cpp
