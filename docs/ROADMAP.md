@@ -411,6 +411,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       campo big-endian escrito, una llamada a través de un puntero global, constructores… Sabotajes
       detectados en las 34; dos más quedan sin registrar porque el harness no las ve llamadas.
       **2.220 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+38 funciones calientes**: constructores con su vtable, un objeto temporal construido y
+      usado, cuatro floats guardados y reenviados, lecturas negadas (0, -y, -x), un halfword con signo
+      convertido a float, entradas de 0x2F8 bytes de una tabla, «el segundo objeto, si no el primero»…
+      Sabotajes detectados en las 38 (una de ellas solo en su salida temprana, sabotaje dirigido); dos
+      más quedan sin registrar (una sin llamadas visibles, otra con imports del kernel). Desde este
+      lote: lotes de ~80 y las tres rutas en paralelo (`docs/agents/decomp-workflow.md`).
+      **2.258 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

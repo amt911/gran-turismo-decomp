@@ -94,6 +94,8 @@ A rule is edited in its document, not here and there at once — except for its 
 - **Decomp workflow** → [docs/agents/decomp-workflow.md](docs/agents/decomp-workflow.md), before
   decompiling. A function is *done* only when its differential test passes against the recompiled
   original and the game still boots to the reference state; recompiler output is never "decompiled".
+  Functions land in **batches of ~80**, gate routes run in parallel, every batch gets a sabotage run
+  (§ Working in batches).
 - **Toolchain** → [docs/agents/toolchain.md](docs/agents/toolchain.md), before installing or calling a
   tool. Every tool pinned (version or commit) and fetched by `tools/setup.sh`, never vendored; compilers
   never committed.
