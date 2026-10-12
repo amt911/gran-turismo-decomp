@@ -76,6 +76,7 @@ add_library(gt_host_objs OBJECT
     host/atrac_decoder.cpp
     host/audio_dump.cpp
     host/frame_dump.cpp
+    host/image_ppm.cpp
     host/pad_script.cpp
     ${GT_DECOMP_SOURCES}
     host/gt_kernel.cpp
@@ -166,6 +167,9 @@ enable_testing()
 add_executable(host_tests host/tests/diff_compare_test.cpp host/diff_compare.cpp)
 target_include_directories(host_tests PRIVATE host)
 add_test(NAME diff_compare COMMAND host_tests)
+add_executable(image_ppm_tests host/tests/image_ppm_test.cpp host/image_ppm.cpp)
+target_include_directories(image_ppm_tests PRIVATE host)
+add_test(NAME image_ppm COMMAND image_ppm_tests)
 add_executable(psmf_tests host/tests/psmf_test.cpp host/psmf.cpp)
 target_include_directories(psmf_tests PRIVATE host)
 add_test(NAME psmf COMMAND psmf_tests)

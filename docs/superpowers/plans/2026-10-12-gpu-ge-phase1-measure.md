@@ -133,3 +133,15 @@ This phase adds three pieces:
 ## After Phase 1
 
 Phases 2–4 (blending and LCS shortcuts, write-back, speed and default) get their own plan written from this report. The spec's list of fixes is a hypothesis, and the report decides which ones are real and in what order.
+
+## Rulings during execution
+
+- **Task 3:** the correctness gate compares at `InternalScale=1`. At ×2 the downsampled GPU frame
+  anti-aliases every edge (text, sprite borders) that the software path draws hard. A smoke run's
+  legal-notice frame differed in 12 % of its pixels with identical content. That is an artefact of the
+  scale, not a rendering error. ×2–×4 are used for the performance numbers and for visual checks, not for
+  pixel equality. Cost if wrong: a scale-specific bug (e.g. a scissor not scaled) escapes the gate, so
+  phase 4 adds one ×2 run whose block count (missing elements) must stay 0.
+- **Task 3:** `host/tests/image_ppm_test.cpp` first used an `initializer_list` inside a conditional in a
+  range-for. The backing array dies at the end of the full-expression, so it passed at -O0 and failed at
+  -O3. The test was fixed; the implementation was unchanged.

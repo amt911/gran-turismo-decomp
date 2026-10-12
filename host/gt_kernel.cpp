@@ -2137,6 +2137,10 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
     } else if ((gpu_frame_ready || holding_gpu_frame) && ge_gpu_backend_active()) {
         const GeGpuBackendReport gpu = ge_gpu_backend_report();
         const std::span<const std::byte> rgba = ge_gpu_backend_game_frame_rgba();
+        // The GPU gate pairs only frames the backend just finished (a held frame is older than VRAM).
+        if (gpu_frame_ready)
+            gt::gpu_frame_dump(rt, rgba, gpu.offscreen_width, gpu.offscreen_height, present_buffer, present_stride,
+                               request.pixel_format, present_width, present_height);
         if (!rgba.empty()) {
             display_window_present_rgba(rgba, gpu.offscreen_width, gpu.offscreen_height);
             ge_gpu_backend_mark_window_presented();
@@ -2144,6 +2148,9 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
         }
     }
     const std::atomic<bool> *stale = screen_staleness(present_buffer);
+    if (!gpu_frame_ready && !holding_gpu_frame && ge_gpu_backend_active() && (stale == nullptr || !stale->load()))
+        gt::gpu_frame_dump(rt, {}, 0u, 0u, present_buffer, present_stride, request.pixel_format, present_width,
+                           present_height);  // a frame the GPU never drew: reported missing by the gate
     if (!presented_gpu_frame && (stale == nullptr || !stale->load())) {
         gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height);
         display_window_present(rt, present_buffer, present_stride, request.pixel_format,
