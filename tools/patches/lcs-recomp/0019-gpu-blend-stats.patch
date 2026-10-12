@@ -1,0 +1,62 @@
+GT patch 0019: GT_GPU_STATS=1 counts draws per GE blend state in the Vulkan backend and marks the ones
+blend_variant() cannot express (drawn opaque). Diagnostic for the GPU gate (docs/superpowers/plans/
+2026-10-12-gpu-ge-phase1-measure.md, Task 4). No effect unless the variable is set.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -7,6 +7,9 @@
+ #include "lcs_runtime_log.hpp"
+ #include "vulkan/ge_spv.hpp"
+ 
++#include <cstdio>
++#include <tuple>
++#include <map>
+ #include <vulkan/vulkan.h>
+ 
+ #include <SDL.h>
+@@ -2697,10 +2700,45 @@
+ bool ge_gpu_backend_transfer_ready() noexcept { return state().enabled; }
+ bool ge_gpu_backend_graphics_ready() noexcept { return state().enabled; }
+ 
++namespace {
++
++// GT_GPU_STATS=1 (GT patch 0019): count draws per blend state and say which ones blend_variant() cannot
++// express (they draw opaque). Printed at exit; used to classify what the GPU gate reports.
++struct BlendStats {
++    std::mutex mutex;
++    std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::size_t>,
++             std::uint64_t> counts;
++    ~BlendStats() {
++        if (counts.empty()) return;
++        std::fprintf(stderr, "[gpu-stats] blend states (eq src dst fixA fixB variant: draws; variant 0 with blend = unsupported)\n");
++        for (const auto &[key, count] : counts) {
++            const auto &[eq, src, dst, fix_a, fix_b, variant] = key;
++            std::fprintf(stderr, "[gpu-stats] eq %u src %2u dst %2u fixA %06X fixB %06X variant %zu%s: %llu\n", eq, src, dst,
++                         fix_a, fix_b, variant, variant == 0u ? " UNSUPPORTED" : "", static_cast<unsigned long long>(count));
++        }
++    }
++};
++
++BlendStats *blend_stats() {
++    static const bool enabled = [] { const char *v = std::getenv("GT_GPU_STATS"); return v != nullptr && *v != '0'; }();
++    static BlendStats stats;
++    return enabled ? &stats : nullptr;
++}
++
++} // namespace
++
+ void ge_gpu_backend_record_draw(const GeGpuDrawDescriptor &draw) noexcept {
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled) return;
++    if (BlendStats *stats = blend_stats(); stats != nullptr && draw.blend_enabled && !draw.clear_mode) {
++        const std::size_t variant = blend_variant(draw);
++        const bool fixed = (draw.blend_source_factor & 0xFu) == 10u || (draw.blend_dest_factor & 0xFu) == 10u;
++        std::lock_guard<std::mutex> stats_guard(stats->mutex);
++        ++stats->counts[{draw.blend_equation & 7u, draw.blend_source_factor & 0xFu, draw.blend_dest_factor & 0xFu,
++                         fixed ? draw.blend_fix_source & 0x00FFFFFFu : 0u, fixed ? draw.blend_fix_dest & 0x00FFFFFFu : 0u,
++                         variant}];
++    }
+     ++s.report.draw_calls;
+     s.report.vertices += draw.vertex_count;
+     if (draw.texture_enabled) ++s.report.textured_draw_calls;

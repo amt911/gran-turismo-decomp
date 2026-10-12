@@ -149,6 +149,9 @@ build/gt_play
 - Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` al compilar): escala de la ventana,
   FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
+- **Gate de la GPU** (en desarrollo): `tools/gpu_gate.sh build recomp/analysis/gpu/run` lanza las tres
+  rutas sin ventana pintando con la GPU y con el software a la vez, y compara cada frame
+  (`tools/gpu_compare.py`; `GT_GPU_STATS=1` cuenta los modos de blending). Hoy falla: ver ROADMAP.
 - `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
 - **¿Va lento?** `GT_PERF_LOG=1 build/gt_play` escribe cada 5 s en la terminal el ritmo real:
   `guest time 1.00x` es velocidad de PSP; `vblanks` debería rondar 120/s (GT espera dos por refresco);
