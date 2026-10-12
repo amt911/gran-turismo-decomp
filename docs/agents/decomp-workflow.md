@@ -75,11 +75,13 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   3. **Unregister what the gate can't see**, with a comment saying why (the `GT_DECOMP` line stays,
      commented out): `compared 0` with `calls 0` (only reached from inside its generated unit) or
      everything `not comparable` (reaches kernel imports an isolated run can't replay).
-  4. **Sabotage, fast gate**: flip s0 (`ctx.gpr[16] ^= 1u;`) as the **first** statement of every
-     registered function of the batch. s0 is callee-saved and always compared, and a flip at entry
+  4. **Sabotage, fast gate**: bump s0 (`ctx.gpr[16] += 1u;`) as the **first** statement of every
+     registered function of the batch. s0 is callee-saved and always compared, and a bump at entry
      survives early returns, guest calls and tail calls — sabotaging the return value at the end
-     missed functions whose routes only took an early return, and tail callees overwrite v0. Every
-     function must show `mismatched > 0`; never land one whose sabotage was not detected.
+     missed functions whose routes only took an early return, and tail callees overwrite v0. Add,
+     don't XOR: a function that calls another sabotaged one directly would flip s0 twice and pass
+     (FINDINGS). Every function must show `mismatched > 0`; never land one whose sabotage was not
+     detected.
   5. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
