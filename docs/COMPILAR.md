@@ -149,9 +149,15 @@ build/gt_play
 - Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` al compilar): escala de la ventana,
   FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
-- **GPU (alta resolución y fluido):** en `build/gt_play.ini` pon `NativeGE=true` en `[Rendering]`;
-  `InternalScale=2` (o 3, 4) sube la resolución interna. Va a velocidad completa en ventana. Diferencias
-  conocidas con el software: reflejos del coche en el concesionario y alguna transición de pantalla.
+- **GPU (alta resolución y fluido):** en `build/gt_play.ini` pon `NativeGE=true` en `[Rendering]`. Con
+  `InternalResolutionMode=Window` (el valor por defecto) la resolución interna sigue a la ventana: el
+  menor múltiplo entero de 480x272 que la cubre (1080p: x4), también al redimensionar o en pantalla
+  completa; la terminal escribe `[vulkan] internal resolution ...` en cada cambio. En GPUs modestas
+  (móvil, Raspberry Pi) baja `MaxInternalScale` (2 = 960x544). `[window] ... presenter=vulkan` confirma
+  que dibuja la GPU. Diferencias conocidas con el software: reflejos del coche en el concesionario y
+  alguna transición de pantalla.
+- **Ritmo de frames:** `GT_PRESENT_TRACE=1` escribe al salir un histograma del tiempo entre frames
+  nuevos, en tiempo del juego (`guest`) y real (`host`); a 60 fps la barra alta debe estar en 15-18 ms.
 - **Gate de la GPU** (en desarrollo): `tools/gpu_gate.sh build recomp/analysis/gpu/run` lanza las tres
   rutas sin ventana pintando con la GPU y con el software a la vez, y compara cada frame
   (`tools/gpu_compare.py`; `GT_GPU_STATS=1` cuenta los modos de blending). Hoy falla: ver ROADMAP.

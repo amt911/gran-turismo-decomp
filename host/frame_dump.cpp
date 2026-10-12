@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <vector>
 
 namespace gt {
@@ -88,31 +89,33 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
 void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_rgba, std::uint32_t gpu_width,
                     std::uint32_t gpu_height, std::uint32_t frame_buffer, std::uint32_t buffer_width,
                     std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height, bool gpu_ready,
-                    bool not_new) {
+                    std::uint64_t vblank, std::uint64_t gpu_vblank) {
     static const char *dump_dir = std::getenv("GT_GPU_DUMP");
     static std::uint64_t frames = 0u;
-    static std::vector<std::uint8_t> previous_soft;
-    static std::uint32_t previous_width = 0u, previous_height = 0u;
-    if (dump_dir == nullptr) return;
-    std::vector<std::uint8_t> soft = guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height);
-    // Called on every present; frames the GPU finished (or should have, and didn't) are counted.
-    const bool counted = gpu_ready || !not_new;
-    const bool dump = counted && (frames++ % dump_every()) == 0u;
-    if (dump) {
-        std::filesystem::create_directories(dump_dir);
-        if (!gpu_ready || gpu_rgba.empty()) {
-            if (!soft.empty()) (void)write_rgb_ppm(numbered(dump_dir, "soft", frames - 1u), soft, width, height);
-        } else if (!previous_soft.empty()) {
-            const std::vector<std::uint8_t> gpu =
-                downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, previous_width, previous_height);
-            (void)write_rgb_ppm(numbered(dump_dir, "soft", frames - 1u), previous_soft, previous_width, previous_height);
-            if (!gpu.empty())
-                (void)write_rgb_ppm(numbered(dump_dir, "gpu", frames - 1u), gpu, previous_width, previous_height);
+    struct Captured {
+        std::vector<std::uint8_t> soft;
+        std::uint32_t width{}, height{};
+        std::uint64_t number{};
+    };
+    static std::map<std::uint64_t, Captured> pending;  // software frames waiting for their GPU twin, by vblank
+    if (dump_dir == nullptr || !gpu_ready) return;
+    // Called on every present that closes a GPU frame (the game flipped). The software framebuffer shown
+    // now is that frame; the GPU image arrives a present or more later (readback), tagged with the vblank
+    // it was closed at, and is paired with the software frame kept for that vblank.
+    if ((frames++ % dump_every()) == 0u)
+        pending[vblank] = {guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height), width,
+                           height, frames - 1u};
+    if (!gpu_rgba.empty()) {
+        if (const auto twin = pending.find(gpu_vblank); twin != pending.end()) {
+            const Captured &c = twin->second;
+            std::filesystem::create_directories(dump_dir);
+            (void)write_rgb_ppm(numbered(dump_dir, "soft", c.number), c.soft, c.width, c.height);
+            const std::vector<std::uint8_t> gpu = downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, c.width, c.height);
+            if (!gpu.empty()) (void)write_rgb_ppm(numbered(dump_dir, "gpu", c.number), gpu, c.width, c.height);
         }
+        pending.erase(pending.begin(), pending.upper_bound(gpu_vblank));  // older ones will never come
     }
-    previous_soft = std::move(soft);
-    previous_width = width;
-    previous_height = height;
+    while (pending.size() > 8u) pending.erase(pending.begin());
 }
 
 } // namespace gt

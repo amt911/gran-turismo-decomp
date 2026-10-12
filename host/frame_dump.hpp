@@ -17,6 +17,6 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
 void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_rgba, std::uint32_t gpu_width,
                     std::uint32_t gpu_height, std::uint32_t frame_buffer, std::uint32_t buffer_width,
                     std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height, bool gpu_ready,
-                    bool not_new);
+                    std::uint64_t vblank, std::uint64_t gpu_vblank);
 
 } // namespace gt

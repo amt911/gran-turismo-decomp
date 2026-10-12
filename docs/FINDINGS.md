@@ -837,3 +837,116 @@ Measure performance in a window, not headless.
 
 Found: 2026-10-12 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
 
+
+### Without MAILBOX, a FIFO present still stalls the GE thread
+
+**Symptom.** On X11 with NVIDIA (FIFO and IMMEDIATE only) the stall above came back even after the
+MAILBOX fix. SDL2 picks x11 unless told otherwise.
+**Cause.** `vkAcquireNextImageKHR` waits up to 1 s for a free image. Under FIFO no image is free until
+the monitor's next vblank.
+**Fix / workaround.** lcs-recomp patch 0021: under FIFO the acquire does not wait. When no image is
+free, that frame is not shown (`present_skipped_no_image`) and the game carries on. It looks like
+MAILBOX, without tearing, on any platform where only FIFO is guaranteed (Android, X11, older Mesa).
+**Why it isn't obvious.** FIFO is the one mode Vulkan guarantees, so it looks like the safe default.
+
+Found: 2026-10-13 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
+
+### GT waits for vblank from two threads: presenting on every wait made the pacing uneven
+
+**Symptom.** With `GT_PRESENT_TRACE=1`, the guest time between new frames had 6 % of intervals
+under 8 ms, and the host time was spread from 8 to 30 ms. The game ran at 60 fps, but it looked jerky.
+**Cause.** The HLE treated each `sceDisplayWaitVblankStart*` call as a vblank and presented on each
+one: 120 presents/s for 60 fps. A flip between the two threads' waits reached the window a few ms
+after the previous frame. The present was also queued when the game thread *reached* the wait, which
+varies with each frame's CPU work, not at the vblank instant. With the GPU, a present without a flip
+also closed a half-drawn frame.
+**Fix / workaround.** `host/gt_kernel.cpp`:
+- The window is updated once per guest vblank period (`virtual_time_us / kVblankPeriodUs`), like the
+  PSP latching its frame buffer.
+- The present runs after the real-time vblank sleep, not before it.
+- With the GPU, a frame is closed only after `sceDisplaySetFrameBuf` (`g_display_flips`).
+
+Measured result: guest intervals are 100 % in 15–18 ms, and host intervals 96 % (was 68 %).
+**Why it isn't obvious.** Guest time ran at 1.00×, with 60 frames/s and 0 skipped, so every counter
+was fine. Only a histogram of the intervals shows it.
+
+Found: 2026-10-13 · host/gt_kernel.cpp
+
+### The intro movie's sound never played: GT streams PSMF from memory
+
+**Symptom.** The intro video played without sound.
+**Cause.** `sceMpegAtracDecode` decoded audio only from the movie's file (`source_path`). GT reads its
+movies out of GT.VOL and feeds them through the sceMpeg ring buffer, so there is no file and the HLE
+wrote silence. The video worked because `MovieDecoder` already decoded from the ring buffer.
+**Fix / workaround.** The same ring-buffer packets are demuxed for private stream 1 (`demux_audio_packet`,
+dropping PSMF's 4-byte substream header). `Atrac3pFramer` then splits the ATRAC3plus frames (sync `0F D0`,
+8-byte header, size measured between the first two syncs), and `AtracFrameDecoder` decodes one frame
+(2048 stereo samples) per `sceMpegAtracDecode`.
+**Why it isn't obvious.** The HLE comes from LCS, whose movies are plain files, and it returns success
+with zeroed PCM, so nothing logs an error.
+
+Found: 2026-10-13 · host/ps_demux.cpp, host/gt_kernel.cpp
+
+### Two host-side costs dominated the CPU, not the game
+
+**Symptom.** The game ran at full speed on the GPU, but it used far more CPU than its recompiled code
+needs. That matters for phones and small boards.
+**Cause.** Measured with gperftools (`LD_PRELOAD=libprofiler.so CPUPROFILE=...`, parsed with nm
+because pprof is not installed):
+- 35 % went to the rasterizer's draw-preparation workers spinning idle (`HwDrawQueue`, 2000 spins
+  per wakeup, 4 threads on a 24-core box).
+- 23 % went to `ge_gpu_backend_note_guest_write`, which walked every cached texture under a mutex on
+  each block transfer. GT copies glyphs one transfer at a time, and the content-keyed cache holds
+  thousands of textures.
+- The recompiled game itself was about 15 %.
+
+**Fix / workaround.** lcs-recomp patch 0021:
+- No worker threads by default (`PSPRECOMP_GE_DECODE_THREADS` still opts in). The GE thread alone
+  measured the same GE wait.
+- Guest writes stamp 64 KiB pages with a running clock. A texture is re-checked when one of its pages
+  carries a newer stamp, at O(pages) per write.
+- Uploaded textures drop their CPU copy.
+
+For 60 s of a race: 17.9 → 7.6 CPU-seconds, and GE wait 43 % → 7 %.
+**Why it isn't obvious.** `GT_PERF_LOG` showed "GE wait" but not why. Both costs are host
+bookkeeping that grows with core count and cache size, not with what the game draws.
+
+Found: 2026-10-13 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
+
+### The GPU gate is flaky in the dealer route's intro (frames ~1320–1560)
+
+**Symptom.** The same build passes the dealer route 100 % in one run and fails 3–12 frames between
+1320 and 1560 in the next. `main` behaves the same: 106/106 in one run, 6 failures in the next.
+**Cause.** Not fully known yet. Ruled out:
+- The pairing. `gpu_frame_dump` assumed a fixed one-frame readback lag; each GPU image now carries
+  the vblank it was closed at (`game_frame_rgba_vblank`).
+- A stale texture or lag. With `GT_FRAME_EVERY=2`, every failing GPU frame matches its *own* software
+  frame best, not a neighbour.
+- Reporting the MPEG HLE's picture writes (`ge_gpu_backend_note_guest_write`), and folding the write
+  stamp into the texture key. Neither changed the failures; the second added new ones at 2220–2400 and
+  was reverted.
+
+What is left: a real rendering difference that depends on timing. The worst frames show purple light
+where the software rasterizer shows white, which suggests a CLUT or a render-to-texture read at a
+different moment.
+**Fix / workaround.** None yet. Compare the gate's dealer counts across two runs before calling a
+change a regression.
+**Why it isn't obvious.** One run per build looks like a regression or a fix. Only repeated runs, and
+the same check on `main`, show it is noise.
+
+Found: 2026-10-13 · host/frame_dump.cpp, tools/gpu_gate.sh
+
+### "Pixelated" GPU output: the internal resolution did not follow the window
+
+**Symptom.** With `NativeGE=true` the picture still looked pixelated after maximizing or going
+fullscreen.
+**Cause.** The internal resolution was fixed at start: a scale, or the desktop size. A window
+enlarged later was upscaled from that picture.
+**Fix / workaround.** lcs-recomp patch 0021 adds `InternalResolutionMode=Window`, now the default in
+`config/gt_play.ini`. The PSP picture is rendered at the smallest whole scale that covers the window's
+drawable pixels (`uniform_internal_resolution`), with `MaxInternalScale` as a cap for weak GPUs. Between
+frames, when the window changes size, the render targets are rebuilt at the new size. The terminal
+prints `[vulkan] internal resolution WxH` on each change.
+**Why it isn't obvious.** A capture of a 960×544 window looks sharp. Only a resize shows the problem.
+
+Found: 2026-10-13 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch, config/gt_play.ini
