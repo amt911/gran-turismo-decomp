@@ -10,6 +10,9 @@ phase 2; measured with tools/gpu_gate.sh).
 - Framebuffer formats: the shader blends the unquantized colour and alpha (it used to quantize before
   blending, so a 5551 target blended with a 1-bit alpha); reading a target back as a texture emulates
   the 16-bit pack/unpack the PSP (and ge_renderer.cpp) store.
+- Depth: one depth image shared by every target (the PSP has one zbp), never cleared behind the game's
+  back; draws that write depth without testing it test ALWAYS (Vulkan never writes depth with its test
+  off, so GT's clear-mode depth clears were lost and its cars failed the depth test).
 - Textures: keyed by content once their signature is known, and re-checked after a block transfer
   writes their bytes (GT copies every text glyph into the same small texture right before drawing it).
 - GT_GPU_STATS also counts draws per target and textures read from VRAM. Vulkan app name "GTNative".
@@ -58,7 +61,7 @@ phase 2; measured with tools/gpu_gate.sh).
  static_assert(offsetof(DrawUniforms, control) == 112u);
  static_assert(offsetof(DrawUniforms, pixel0) == 160u);
  
-@@ -181,6 +184,11 @@
+@@ -181,6 +184,18 @@
      std::uint32_t uniform_align{kUniformAlign};
      std::uint32_t target_width{kReferenceWidth};
      std::uint32_t target_height{kReferenceHeight};
@@ -67,10 +70,17 @@ phase 2; measured with tools/gpu_gate.sh).
 +    float pixel_scale_x{1.0f};
 +    float pixel_scale_y{1.0f};
 +    std::unordered_map<std::uint64_t, std::uint64_t> content_keys;  // GT patch 0023: address key -> content key
++    // GT patch 0022: one depth buffer for every target, like the PSP's single zbp (GT clears depth while
++    // drawing one framebuffer and tests against it in the other). Never cleared behind the game's back.
++    VkImage shared_depth{};
++    VkDeviceMemory shared_depth_memory{};
++    VkImageView shared_depth_view{};
++    VkImageLayout shared_depth_layout{VK_IMAGE_LAYOUT_UNDEFINED};
++    bool shared_depth_initialized{};
      std::uint32_t display_framebuffer{};
      std::uint32_t display_logical_width{kReferenceWidth};
      std::uint32_t display_logical_height{kReferenceHeight};
-@@ -587,13 +595,23 @@
+@@ -587,57 +602,71 @@
      return found == s.targets.end() ? nullptr : &found->second;
  }
  
@@ -96,7 +106,92 @@ phase 2; measured with tools/gpu_gate.sh).
      if (!create_image(s, target.color, s.target_width, s.target_height, 1u,
                        VK_FORMAT_R8G8B8A8_UNORM,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-@@ -666,12 +684,9 @@
+                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                       VK_IMAGE_ASPECT_COLOR_BIT, error))
+         return false;
+-    VkImageCreateInfo depth_info{};
+-    depth_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+-    depth_info.imageType = VK_IMAGE_TYPE_2D;
+-    depth_info.format = VK_FORMAT_D32_SFLOAT;
+-    depth_info.extent = {s.target_width, s.target_height, 1u};
+-    depth_info.mipLevels = 1u;
+-    depth_info.arrayLayers = 1u;
+-    depth_info.samples = VK_SAMPLE_COUNT_1_BIT;
+-    depth_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+-    depth_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+-    if (vkCreateImage(s.device, &depth_info, nullptr, &target.depth) != VK_SUCCESS) {
+-        error = "vkCreateImage(depth) failed";
+-        return false;
+-    }
+-    VkMemoryRequirements requirements{};
+-    vkGetImageMemoryRequirements(s.device, target.depth, &requirements);
+-    VkMemoryAllocateInfo alloc{};
+-    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+-    alloc.allocationSize = requirements.size;
+-    alloc.memoryTypeIndex = find_memory_type(s, requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+-    if (alloc.memoryTypeIndex == 0xFFFFFFFFu ||
+-        vkAllocateMemory(s.device, &alloc, nullptr, &target.depth_memory) != VK_SUCCESS ||
+-        vkBindImageMemory(s.device, target.depth, target.depth_memory, 0) != VK_SUCCESS) {
+-        error = "Vulkan depth allocation failed";
+-        return false;
+-    }
+-    VkImageViewCreateInfo view{};
+-    view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+-    view.image = target.depth;
+-    view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+-    view.format = VK_FORMAT_D32_SFLOAT;
+-    view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+-    view.subresourceRange.levelCount = 1u;
+-    view.subresourceRange.layerCount = 1u;
+-    if (vkCreateImageView(s.device, &view, nullptr, &target.depth_view) != VK_SUCCESS) {
+-        error = "vkCreateImageView(depth) failed";
+-        return false;
++    if (s.shared_depth == VK_NULL_HANDLE) {
++        VkImageCreateInfo depth_info{};
++        depth_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
++        depth_info.imageType = VK_IMAGE_TYPE_2D;
++        depth_info.format = VK_FORMAT_D32_SFLOAT;
++        depth_info.extent = {s.target_width, s.target_height, 1u};
++        depth_info.mipLevels = 1u;
++        depth_info.arrayLayers = 1u;
++        depth_info.samples = VK_SAMPLE_COUNT_1_BIT;
++        depth_info.tiling = VK_IMAGE_TILING_OPTIMAL;
++        depth_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
++        if (vkCreateImage(s.device, &depth_info, nullptr, &s.shared_depth) != VK_SUCCESS) {
++            error = "vkCreateImage(depth) failed";
++            return false;
++        }
++        VkMemoryRequirements requirements{};
++        vkGetImageMemoryRequirements(s.device, s.shared_depth, &requirements);
++        VkMemoryAllocateInfo alloc{};
++        alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
++        alloc.allocationSize = requirements.size;
++        alloc.memoryTypeIndex = find_memory_type(s, requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++        if (alloc.memoryTypeIndex == 0xFFFFFFFFu ||
++            vkAllocateMemory(s.device, &alloc, nullptr, &s.shared_depth_memory) != VK_SUCCESS ||
++            vkBindImageMemory(s.device, s.shared_depth, s.shared_depth_memory, 0) != VK_SUCCESS) {
++            error = "Vulkan depth allocation failed";
++            return false;
++        }
++        VkImageViewCreateInfo view{};
++        view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
++        view.image = s.shared_depth;
++        view.viewType = VK_IMAGE_VIEW_TYPE_2D;
++        view.format = VK_FORMAT_D32_SFLOAT;
++        view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
++        view.subresourceRange.levelCount = 1u;
++        view.subresourceRange.layerCount = 1u;
++        if (vkCreateImageView(s.device, &view, nullptr, &s.shared_depth_view) != VK_SUCCESS) {
++            error = "vkCreateImageView(depth) failed";
++            return false;
++        }
+     }
++    target.depth = s.shared_depth;
++    target.depth_view = s.shared_depth_view;
+     VkImageView attachments[]{target.color.view, target.depth_view};
+     VkFramebufferCreateInfo framebuffer{};
+     framebuffer.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+@@ -666,12 +695,9 @@
      return true;
  }
  
@@ -112,7 +207,7 @@ phase 2; measured with tools/gpu_gate.sh).
  
  UploadVertex make_upload_vertex(const GeGpuVertex &source) noexcept {
      return {source.x, source.y, source.z, source.w, source.rgba, source.u, source.v,
-@@ -706,6 +721,8 @@
+@@ -706,6 +732,8 @@
      return {a[0] * sa + b[0] * sb, a[1] * sa + b[1] * sb, a[2] * sa + b[2] * sb, a[3] * sa + b[3] * sb};
  }
  
@@ -121,7 +216,7 @@ phase 2; measured with tools/gpu_gate.sh).
  DrawUniforms make_uniforms(const Batch &batch, std::uint32_t logical_width, std::uint32_t logical_height,
                             bool sampled) noexcept {
      DrawUniforms constants{};
-@@ -767,6 +784,10 @@
+@@ -767,6 +795,10 @@
      constants.pixel0[3] = (draw.fog_color & 0x00FFFFFFu) |
                            (static_cast<std::uint32_t>(draw.fog_enabled ? 0xFFu : 0u) << 24u);
      constants.pixel1[0] = draw.framebuffer_format & 3u;
@@ -132,7 +227,7 @@ phase 2; measured with tools/gpu_gate.sh).
      return constants;
  }
  
-@@ -791,6 +812,103 @@
+@@ -791,6 +823,103 @@
      return 0u;
  }
  
@@ -236,7 +331,7 @@ phase 2; measured with tools/gpu_gate.sh).
  VkColorComponentFlags color_write_mask(const GeGpuDrawDescriptor &draw) noexcept {
      VkColorComponentFlags mask = 0;
      for (std::uint32_t channel = 0u; channel < 4u; ++channel) {
-@@ -818,7 +936,7 @@
+@@ -818,7 +947,7 @@
      std::uint64_t key = static_cast<std::uint64_t>(draw.depth_test_enabled ? 1u : 0u);
      key |= static_cast<std::uint64_t>(draw.depth_write_enabled ? 1u : 0u) << 1u;
      key |= static_cast<std::uint64_t>(draw.depth_function & 7u) << 2u;
@@ -245,7 +340,15 @@ phase 2; measured with tools/gpu_gate.sh).
      key |= static_cast<std::uint64_t>(color_write_mask(draw) & 0xFu) << 8u;
      key |= static_cast<std::uint64_t>(strip ? 1u : 0u) << 16u;
      key |= static_cast<std::uint64_t>(cull ? 1u : 0u) << 17u;
-@@ -879,26 +997,14 @@
+@@ -874,31 +1003,21 @@
+     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+     VkPipelineDepthStencilStateCreateInfo depth{};
+     depth.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+-    depth.depthTestEnable = draw.depth_test_enabled ? VK_TRUE : VK_FALSE;
++    // GT patch 0021: Vulkan never writes depth while its depth test is off; the GE does (GT clears depth
++    // with clear-mode draws that write z without testing it). Write-only draws test ALWAYS instead.
++    depth.depthTestEnable = (draw.depth_test_enabled || draw.depth_write_enabled) ? VK_TRUE : VK_FALSE;
+     depth.depthWriteEnable = draw.depth_write_enabled ? VK_TRUE : VK_FALSE;
      depth.depthCompareOp = draw.depth_test_enabled ? depth_compare(draw.depth_function) : VK_COMPARE_OP_ALWAYS;
      VkPipelineColorBlendAttachmentState blend{};
      blend.colorWriteMask = color_write_mask(draw);
@@ -280,7 +383,7 @@ phase 2; measured with tools/gpu_gate.sh).
      VkPipelineColorBlendStateCreateInfo blending{};
      blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
      blending.attachmentCount = 1u;
-@@ -932,7 +1038,7 @@
+@@ -932,7 +1051,7 @@
      s.report.unique_pipeline_keys = s.pipelines.size();
      s.report.graphics_pipeline_created = true;
      if (draw.depth_test_enabled) ++s.report.depth_pipeline_variants_created;
@@ -289,7 +392,48 @@ phase 2; measured with tools/gpu_gate.sh).
      return pipeline;
  }
  
-@@ -1422,7 +1528,7 @@
+@@ -971,11 +1090,13 @@
+     const bool first_this_frame = target.last_render_epoch != s.frame_epoch;
+     if (first_ever || (first_this_frame && target.address == s.display_framebuffer))
+         clear_image(s.command, target.color.image, target.color.layout, false);
+-    if (first_this_frame)
+-        clear_image(s.command, target.depth, target.depth_layout, true);
++    if (!s.shared_depth_initialized) {
++        clear_image(s.command, s.shared_depth, s.shared_depth_layout, true);
++        s.shared_depth_initialized = true;
++    }
+     transition_image(s.command, target.color.image, target.color.layout,
+                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
+-    transition_image(s.command, target.depth, target.depth_layout,
++    transition_image(s.command, s.shared_depth, s.shared_depth_layout,
+                      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT, 1u);
+     VkClearValue clears[2]{};
+     clears[0].color.float32[3] = 1.0f;
+@@ -1109,11 +1230,19 @@
+     return true;
+ }
+ 
++void destroy_shared_depth(VulkanState &s) noexcept {  // GT patch 0022
++    if (s.shared_depth_view) vkDestroyImageView(s.device, s.shared_depth_view, nullptr);
++    if (s.shared_depth) vkDestroyImage(s.device, s.shared_depth, nullptr);
++    if (s.shared_depth_memory) vkFreeMemory(s.device, s.shared_depth_memory, nullptr);
++    s.shared_depth_view = VK_NULL_HANDLE;
++    s.shared_depth = VK_NULL_HANDLE;
++    s.shared_depth_memory = VK_NULL_HANDLE;
++    s.shared_depth_layout = VK_IMAGE_LAYOUT_UNDEFINED;
++    s.shared_depth_initialized = false;
++}
++
+ void destroy_target(VulkanState &s, Target &target) noexcept {
+-    if (target.framebuffer) vkDestroyFramebuffer(s.device, target.framebuffer, nullptr);
+-    if (target.depth_view) vkDestroyImageView(s.device, target.depth_view, nullptr);
+-    if (target.depth) vkDestroyImage(s.device, target.depth, nullptr);
+-    if (target.depth_memory) vkFreeMemory(s.device, target.depth_memory, nullptr);
++    if (target.framebuffer) vkDestroyFramebuffer(s.device, target.framebuffer, nullptr);  // depth is shared
+     destroy_image(s, target.color);
+     destroy_image(s, target.snapshot);
+     target.framebuffer = VK_NULL_HANDLE;
+@@ -1422,7 +1551,7 @@
      }
      VkPushConstantRange range{};
      range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -298,7 +442,7 @@ phase 2; measured with tools/gpu_gate.sh).
      VkPipelineLayoutCreateInfo layout{};
      layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
      layout.setLayoutCount = 1u;
-@@ -1844,9 +1950,12 @@
+@@ -1844,9 +1973,12 @@
      scissor.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
      vkCmdSetViewport(s.command, 0u, 1u, &viewport);
      vkCmdSetScissor(s.command, 0u, 1u, &scissor);
@@ -314,7 +458,15 @@ phase 2; measured with tools/gpu_gate.sh).
      vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.present_layout, 0u, 1u, &set, 0u,
                              nullptr);
      vkCmdDraw(s.command, 3u, 1u, 0u, 0u);
-@@ -2320,11 +2429,13 @@
+@@ -2127,6 +2259,7 @@
+     s.readback_latched = false;
+     for (auto &entry : s.targets) destroy_target(s, entry.second);
+     s.targets.clear();
++    destroy_shared_depth(s);  // GT patch 0022
+     for (auto &entry : s.textures) destroy_image(s, entry.second.gpu);
+     s.textures.clear();
+     destroy_image(s, s.white.gpu);
+@@ -2320,11 +2453,13 @@
  
  bool create_backend(VulkanState &s, std::string &error) {
      const InternalResolutionDimensions dims = resolve_internal_resolution(lcs_render_configuration().rendering);
@@ -331,7 +483,7 @@ phase 2; measured with tools/gpu_gate.sh).
      application.apiVersion = VK_API_VERSION_1_0;
      VkInstanceCreateInfo instance_info{};
      instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-@@ -2407,6 +2518,10 @@
+@@ -2407,6 +2542,10 @@
      VkPhysicalDeviceFeatures available_features{};
      vkGetPhysicalDeviceFeatures(s.physical, &available_features);
      VkPhysicalDeviceFeatures enabled_features{};
@@ -342,7 +494,7 @@ phase 2; measured with tools/gpu_gate.sh).
      if (available_features.samplerAnisotropy) {
          enabled_features.samplerAnisotropy = VK_TRUE;
          s.sampler_anisotropy = true;
-@@ -2567,8 +2682,8 @@
+@@ -2567,8 +2706,8 @@
      s.report.transfer_buffer_created = true;
      s.report.transfer_memory_mapped = true;
      s.report.upload_capacity_bytes = geometry_size;
@@ -353,7 +505,7 @@ phase 2; measured with tools/gpu_gate.sh).
      s.report.memory_type_index = 0u;
  
      std::vector<std::byte> white(4u, std::byte{0xFF});
-@@ -2679,8 +2794,8 @@
+@@ -2679,8 +2818,8 @@
      s.report.message = rendering.backend == RenderingBackend::DirectX12
          ? "Vulkan GE backend active (Backend=DirectX12 selects Vulkan on Linux)"
          : "Vulkan GE backend active";
@@ -364,13 +516,37 @@ phase 2; measured with tools/gpu_gate.sh).
      error.clear();
      return true;
  }
-@@ -2708,7 +2823,19 @@
+@@ -2708,7 +2847,43 @@
      std::mutex mutex;
      std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::size_t>,
               std::uint64_t> counts;
 +    std::map<std::tuple<bool, std::uint32_t, std::uint32_t, bool>, std::uint64_t> targets;  // through, fb, stride, depth test
 +    std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t>, std::uint64_t> vram_textures;
++    std::map<std::tuple<bool, std::uint32_t, bool, bool>, std::uint64_t> depth_states;
++    std::map<std::tuple<int, int, int, bool>, std::uint64_t> viewports;  // scale_z, center_z, depth func, depth clip
++    std::map<std::tuple<int, int>, std::uint64_t> clear_z;  // min, max through z of depth clears
++    std::map<std::tuple<std::uint32_t, int, int, int, int, bool>, std::uint64_t> clear_rects;
      ~BlendStats() {
++        for (const auto &[key, count] : viewports) {
++            const auto &[scale, center, function, clip] = key;
++            std::fprintf(stderr, "[gpu-stats] hw depth scale_z %d center_z %d func %d clip %d: %llu draws\n", scale, center,
++                         function, clip, static_cast<unsigned long long>(count));
++        }
++        for (const auto &[key, count] : clear_rects) {
++            const auto &[target, x0, y0, x1, y1, through] = key;
++            std::fprintf(stderr, "[gpu-stats] depth clear into %06X (%d,%d)-(%d,%d) through %d: %llu\n", target, x0, y0, x1, y1,
++                         through, static_cast<unsigned long long>(count));
++        }
++        for (const auto &[key, count] : clear_z) {
++            const auto &[low, high] = key;
++            std::fprintf(stderr, "[gpu-stats] depth clear z %d..%d: %llu draws\n", low, high,
++                         static_cast<unsigned long long>(count));
++        }
++        for (const auto &[key, count] : depth_states) {
++            const auto &[test, function, write, hw] = key;
++            std::fprintf(stderr, "[gpu-stats] depth test %d func %u write %d clear-depth %d: %llu draws\n", test, function, write, hw,
++                         static_cast<unsigned long long>(count));
++        }
 +        for (const auto &[key, count] : vram_textures) {
 +            const auto &[texture, w, h, target] = key;
 +            std::fprintf(stderr, "[gpu-stats] VRAM texture %06X %ux%u drawn into %06X: %llu draws\n", texture, w, h, target,
@@ -384,14 +560,17 @@ phase 2; measured with tools/gpu_gate.sh).
          if (counts.empty()) return;
          std::fprintf(stderr, "[gpu-stats] blend states (eq src dst fixA fixB variant: draws; variant 0 with blend = unsupported)\n");
          for (const auto &[key, count] : counts) {
-@@ -2731,6 +2858,14 @@
+@@ -2731,6 +2906,17 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled) return;
-+    if (BlendStats *stats = blend_stats(); stats != nullptr && !draw.clear_mode) {
++    if (BlendStats *stats = blend_stats(); stats != nullptr) {
 +        std::lock_guard<std::mutex> stats_guard(stats->mutex);
-+        ++stats->targets[{draw.through, draw.framebuffer_address & 0x001FFFF0u, draw.framebuffer_stride,
-+                          draw.depth_test_enabled}];
++        if (!draw.clear_mode)
++            ++stats->targets[{draw.through, draw.framebuffer_address & 0x001FFFF0u, draw.framebuffer_stride,
++                              draw.depth_test_enabled}];
++        ++stats->depth_states[{draw.depth_test_enabled, draw.depth_function & 7u, draw.depth_write_enabled,
++                               draw.clear_mode && draw.clear_depth}];
 +        if (draw.texture_enabled && (draw.texture_address & 0x0F000000u) == 0x04000000u)
 +            ++stats->vram_textures[{draw.texture_address & 0x001FFFF0u, draw.texture_width, draw.texture_height,
 +                                    draw.framebuffer_address & 0x001FFFF0u}];
@@ -399,7 +578,7 @@ phase 2; measured with tools/gpu_gate.sh).
      if (BlendStats *stats = blend_stats(); stats != nullptr && draw.blend_enabled && !draw.clear_mode) {
          const std::size_t variant = blend_variant(draw);
          const bool fixed = (draw.blend_source_factor & 0xFu) == 10u || (draw.blend_dest_factor & 0xFu) == 10u;
-@@ -2774,6 +2909,45 @@
+@@ -2774,6 +2960,45 @@
      return true;
  }
  
@@ -445,7 +624,7 @@ phase 2; measured with tools/gpu_gate.sh).
  bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &draw) noexcept {
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
-@@ -2812,7 +2986,9 @@
+@@ -2812,7 +3037,9 @@
      if (!s.enabled || !draw.texture_enabled || draw.texture_width == 0u || draw.texture_height == 0u)
          return false;
      if (find_target(s, draw.texture_address) != nullptr) return false;
@@ -456,7 +635,38 @@ phase 2; measured with tools/gpu_gate.sh).
      return found == s.textures.end() || found->second.signature_epoch != s.frame_epoch;
  }
  
-@@ -3190,8 +3366,8 @@
+@@ -2901,6 +3128,18 @@
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled || triangle_vertices.empty() || triangle_vertices.size() % 3u != 0u) return;
++    if (BlendStats *stats = blend_stats(); stats != nullptr && draw.clear_mode && draw.clear_depth) {
++        float low = 1.0e30f, high = -1.0e30f;
++        for (const GeGpuVertex &v : triangle_vertices) { low = std::min(low, v.z); high = std::max(high, v.z); }
++        std::lock_guard<std::mutex> stats_guard(stats->mutex);
++        float x0 = 1.0e30f, x1 = -1.0e30f, y0 = 1.0e30f, y1 = -1.0e30f;
++        for (const GeGpuVertex &v : triangle_vertices) {
++            x0 = std::min(x0, v.x); x1 = std::max(x1, v.x); y0 = std::min(y0, v.y); y1 = std::max(y1, v.y);
++        }
++        ++stats->clear_z[{static_cast<int>(low), static_cast<int>(high)}];
++        ++stats->clear_rects[{draw.framebuffer_address & 0x001FFFF0u, static_cast<int>(x0), static_cast<int>(y0),
++                              static_cast<int>(x1), static_cast<int>(y1), draw.through}];
++    }
+     const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
+     if (used + triangle_vertices.size() * sizeof(UploadVertex) > kGeometryUploadCapacity) {
+         ++s.report.game_vertex_overflows;
+@@ -2936,6 +3175,11 @@
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled || vertices.empty()) return;
++    if (BlendStats *stats = blend_stats(); stats != nullptr && draw.depth_test_enabled) {
++        std::lock_guard<std::mutex> stats_guard(stats->mutex);
++        ++stats->viewports[{static_cast<int>(transform.viewport_scale_z), static_cast<int>(transform.viewport_center_z),
++                            static_cast<int>(draw.depth_function & 7u), transform.depth_clip_enabled}];
++    }
+     const bool indexed = !triangle_indices.empty();
+     const std::size_t emitted = indexed ? triangle_indices.size() : vertices.size();
+     if (emitted == 0u || (transform.primitive == 4u ? emitted < 3u : (emitted % 3u) != 0u)) return;
+@@ -3190,8 +3434,8 @@
          scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
          vkCmdSetScissor(s.command, 0u, 1u, &scissor);
          float blend_constants[4]{};
@@ -467,7 +677,7 @@ phase 2; measured with tools/gpu_gate.sh).
              blend_constants[0] = static_cast<float>(fix & 0xFFu) / 255.0f;
              blend_constants[1] = static_cast<float>((fix >> 8u) & 0xFFu) / 255.0f;
              blend_constants[2] = static_cast<float>((fix >> 16u) & 0xFFu) / 255.0f;
-@@ -3200,6 +3376,7 @@
+@@ -3200,6 +3444,7 @@
          vkCmdSetBlendConstants(s.command, blend_constants);
          VkDescriptorSet sampled_set = s.white.gpu.set;
          bool textured = false;
@@ -475,7 +685,7 @@ phase 2; measured with tools/gpu_gate.sh).
          if (batch.draw.texture_enabled) {
              if (batch.framebuffer_feedback && batch.feedback_address == target->address) {
                  if (snapshot_target(s, *target, error)) {
-@@ -3208,6 +3385,7 @@
+@@ -3208,6 +3453,7 @@
                      if (feedback_set != VK_NULL_HANDLE) {
                          sampled_set = feedback_set;
                          textured = true;
@@ -483,7 +693,7 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                          ++s.report.self_feedback_snapshots;
-@@ -3222,6 +3400,7 @@
+@@ -3222,6 +3468,7 @@
                      if (feedback_set != VK_NULL_HANDLE) {
                          sampled_set = feedback_set;
                          textured = true;
@@ -491,7 +701,7 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                      }
-@@ -3235,6 +3414,12 @@
+@@ -3235,6 +3482,12 @@
              }
          }
          DrawUniforms uniforms = make_uniforms(batch, target->logical_width, target->logical_height, textured);
@@ -504,7 +714,7 @@ phase 2; measured with tools/gpu_gate.sh).
          std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
                          static_cast<std::size_t>(uniform_slot) * s.uniform_align,
                      &uniforms, sizeof(uniforms));
-@@ -3311,7 +3496,7 @@
+@@ -3311,7 +3564,7 @@
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
          }
          std::string present_error;
@@ -513,7 +723,7 @@ phase 2; measured with tools/gpu_gate.sh).
              present_this_frame = true;
          else if (!present_error.empty())
              log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
-@@ -3322,7 +3507,7 @@
+@@ -3322,7 +3575,7 @@
          VkBufferImageCopy copy{};
          copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
          copy.imageSubresource.layerCount = 1u;
@@ -522,7 +732,7 @@ phase 2; measured with tools/gpu_gate.sh).
          vkCmdCopyImageToBuffer(s.command, display->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                 s.readback, 1u, &copy);
          transition_image(s.command, display->color.image, display->color.layout,
-@@ -3377,7 +3562,7 @@
+@@ -3377,7 +3630,7 @@
                  } else {
                      s.pending_readback = publish && display_ready && s.readback_mapped != nullptr;
                      s.pending_readback_bytes = s.pending_readback
@@ -531,7 +741,7 @@ phase 2; measured with tools/gpu_gate.sh).
                      if (publish && !display_ready)
                          log_frame_failure(s, "display target was not drawn", VK_SUCCESS);
                      else if (publish && display_ready && s.swapchain == VK_NULL_HANDLE &&
-@@ -3397,8 +3582,8 @@
+@@ -3397,8 +3650,8 @@
      if (!display_ready) ++s.report.frames_without_displayed_target;
      ++s.report.game_frames;
      s.report.game_frame_vblank = vblank;
