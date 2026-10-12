@@ -465,6 +465,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **3.548 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+90 funciones calientes**: pasos de respuesta y telemetría del coche, comprobaciones de huecos de coche, puntos de trayectoria, modos de cambio, pools de cuerpos, listas circulares, ajustes booleanos y en coma flotante, destructores y copias de paneles, registro de nombres, pasos de vuelta, tamaños de sonido, banderas bajo cerrojo, ajuste de ángulos.
       **3.638 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+66 funciones calientes**: ayudantes de fuentes y glifos, eventos de widgets, reinicios de feedback y boost del coche, fuerzas de neumáticos, setters de cadenas y ajustes, tamaños de layout, barras de scroll, asignación de shared_ptr y filtros de sonido
+      **3.704 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
