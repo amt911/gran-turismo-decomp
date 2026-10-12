@@ -483,7 +483,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `config/gt_play.ini`. Spec: `docs/superpowers/specs/2026-10-10-playable-window-design.md`.
 - [x] Sonido: la mezcla de GT sale por `sceAudioOutput2` (antes se descartaba) y la música Atrac3+ se
       decodifica desde los datos que el juego entrega en su búfer (FFmpeg atrac3p, trama a trama).
-- [ ] Audio de los vídeos PSMF.
+- [x] Audio de los vídeos PSMF (2026-10-13): GT los lee de GT.VOL por el ring buffer de sceMpeg; el
+      ATRAC3plus se saca de esos mismos paquetes (FINDINGS).
 - [x] Menús e iconos/HUD que faltaban: los sprites se dibujaban antes que los triángulos pendientes
       (parche 0015; FINDINGS). Referencia: PPSSPPSDL en Xvfb.
 - [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS). Spec:
@@ -501,6 +502,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         concesionario 183/288 frames iguales (eran 61, 62 y 47 en la fase 1).
   - [x] **Rendimiento** (2026-10-12): el present en FIFO bloqueaba ~28 ms el hilo de la GE; con MAILBOX la
         carrera va a 120 vblanks/s, 0 saltados, audio a 44,1 kHz, a ×2 y ×4 en ventana (el software da 102).
+  - [x] **Fluidez, resolución y CPU** (2026-10-13): un frame por vblank como la PSP y presentado en el
+        instante del vblank (100 % de intervalos en 15-18 ms de juego, 96 % en tiempo real); FIFO sin
+        bloquear (X11, Android); resolución interna que sigue a la ventana (`InternalResolutionMode=Window`,
+        `MaxInternalScale`); CPU de 17,9 a 7,6 s por minuto de carrera (hilos del rasterizador que giraban
+        en vacío y un recorrido de todas las texturas en cada block transfer). Gate ×1 150 s: carrera
+        287/292, garaje 274/290, concesionario 167/290 (el concesionario varía entre ejecuciones también en
+        `main`: FINDINGS).
   - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
         pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.

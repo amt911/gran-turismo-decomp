@@ -39,6 +39,7 @@
 #include "kernel_replay_state.hpp"
 #include "ge_trace.hpp"
 #include "movie_decoder.hpp"
+#include "ps_demux.hpp"
 
 #include "psprecomp/common.hpp"
 
@@ -439,7 +440,27 @@ struct MpegContextState {
     // GT: no file to decode from (see source_path), so pictures are decoded from the packets the
     // game puts in the ring buffer.
     std::unique_ptr<gt::MovieDecoder> movie;
+    // ... and the sound from the same packets: their ATRAC3plus stream, decoded one frame per
+    // sceMpegAtracDecode.
+    gt::Atrac3pFramer movie_audio;
+    gt::AtracFrameDecoder movie_atrac;
 };
+
+// One ATRAC3plus frame of the movie in the ring buffer (GT) as 16-bit stereo PCM: 2048 samples, the
+// 8192 bytes sceMpegAtracDecode writes. Returns the bytes decoded, 0 while no frame is queued.
+std::size_t decode_movie_audio(MpegContextState &mpeg, std::span<std::uint8_t> pcm) {
+    std::vector<std::uint8_t> frame;
+    if (!mpeg.movie_audio.next(frame)) return 0u;
+    if (!mpeg.movie_atrac.is_open()) {
+        const auto block_align = static_cast<std::uint32_t>(mpeg.movie_audio.frame_size() -
+                                                            gt::Atrac3pFramer::kHeaderSize);
+        if (!mpeg.movie_atrac.open(2u, 44100u, block_align)) return 0u;  // PSMF audio: 44.1 kHz stereo
+    }
+    const std::vector<std::int16_t> samples = mpeg.movie_atrac.decode(frame);
+    const std::size_t bytes = std::min(pcm.size(), samples.size() * sizeof(std::int16_t));
+    std::memcpy(pcm.data(), samples.data(), bytes);
+    return bytes;
+}
 
 std::uint32_t read_be32(std::span<const std::uint8_t> bytes, std::size_t offset) {
     return (static_cast<std::uint32_t>(bytes[offset]) << 24u) |
@@ -1629,6 +1650,9 @@ void lcs_callback_return(psprecomp::Runtime &runtime, psprecomp::AllegrexContext
                     for (std::uint32_t i = 0; i < count; ++i) {
                         memory.copy_out(first + i * 2048u, packet);
                         state.movie->push_packet(packet);
+                        std::vector<std::uint8_t> audio;
+                        gt::demux_audio_packet(packet, audio);
+                        state.movie_audio.push(audio);
                     }
                 }
             }
@@ -2033,6 +2057,11 @@ void cap_frame_rate(std::uint32_t list_address) {
 }
 
 bool g_ge_list_since_finish = false;
+
+// sceDisplaySetFrameBuf calls so far. The PSP shows a new picture only when the game flips its framebuffer;
+// GT has two threads waiting for vblank, and closing the GPU frame on every wait presented half-drawn frames
+// (16 % of frames less than 15 ms of guest time apart — judder on every platform).
+std::atomic<std::uint64_t> g_display_flips{0u};
 std::uint32_t g_ge_last_list_address = 0u;
 
 // GT_FRAMESKIP=1 (gt_play's default): when the host is late, a frame's draws into the screen
@@ -2095,6 +2124,42 @@ void execute_ge_list_frame(psprecomp::Runtime &rt, std::uint32_t list_address, s
     g_ge_last_list_address = list_address;
 }
 
+// GT_PRESENT_TRACE=1: histogram (printed at exit) of the time between consecutive new frames handed to the
+// window — the frame pacing a player sees. A smooth 30 fps game shows one tall bar near 33 ms.
+void note_present_interval(bool new_frame) {
+    static const bool enabled = std::getenv("GT_PRESENT_TRACE") != nullptr;
+    if (!enabled || !new_frame) return;
+    struct Histogram {
+        const char *name;
+        std::array<std::uint64_t, 12> buckets{};  // <8, <12, <15, <18, <22, <30, <36, <45, <60, <90, <150, more ms
+        ~Histogram() {
+            static constexpr const char *labels[] = {"<8", "8-12", "12-15", "15-18", "18-22", "22-30", "30-36",
+                                                     "36-45", "45-60", "60-90", "90-150", ">=150"};
+            std::fprintf(stderr, "[present] %s intervals between new frames (ms):", name);
+            for (std::size_t i = 0; i < buckets.size(); ++i) std::fprintf(stderr, " %s:%llu", labels[i],
+                                                                          static_cast<unsigned long long>(buckets[i]));
+            std::fprintf(stderr, "\n");
+        }
+    };
+    static Histogram histogram{"host"};
+    static Histogram guest_histogram{"guest"};  // the same intervals in guest (PSP) time: the game's own pacing
+    static std::chrono::steady_clock::time_point last{};
+    static std::uint64_t last_guest_us = 0u;
+    const auto now = std::chrono::steady_clock::now();
+    static constexpr double edges[] = {8, 12, 15, 18, 22, 30, 36, 45, 60, 90, 150};
+    const auto add = [](Histogram &h, double ms) {
+        std::size_t bucket = 0;
+        while (bucket < 11 && ms >= edges[bucket]) ++bucket;
+        ++h.buckets[bucket];
+    };
+    if (last != std::chrono::steady_clock::time_point{}) {
+        add(histogram, std::chrono::duration<double, std::milli>(now - last).count());
+        add(guest_histogram, static_cast<double>(virtual_time_us - last_guest_us) / 1000.0);
+    }
+    last = now;
+    last_guest_us = virtual_time_us;
+}
+
 void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
     std::uint32_t present_buffer = request.display_buffer;
     std::uint32_t present_stride = request.display_stride;
@@ -2115,18 +2180,29 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
     }
     ge_gpu_backend_set_display_framebuffer(present_buffer, present_width, present_height);
     fps_overlay_render_frame(present_buffer, present_width, present_height);
-    const bool gpu_frame_ready = ge_gpu_backend_finish_color_frame(request.vblank);
-    g_ge_list_since_finish = false;
+    // With the GPU drawing, a frame is closed and presented only once the game has flipped since the last
+    // one (see g_display_flips); until then the window keeps the last complete frame.
+    static std::uint64_t finished_flips = 0u;
+    const std::uint64_t flips = g_display_flips.load(std::memory_order_acquire);
+    const bool flipped = flips != finished_flips;
+    const bool gpu_active = ge_gpu_backend_active();
+    const bool gpu_frame_ready = (!gpu_active || flipped) && ge_gpu_backend_finish_color_frame(request.vblank);
+    if (flipped) finished_flips = flips;
+    if (gpu_active && !flipped) g_ge_list_since_finish = true;  // the open frame keeps its draws
+    else g_ge_list_since_finish = false;
     static std::uint64_t vblanks_since_gpu_frame = 0u;
     static bool holding_gpu_frame = false;
+    // Hold the last GPU frame while the game draws the next one (GT draws at 30 fps in places: up to ~4
+    // vblank waits between flips); only a long stall (loading, ~1 s) falls back to the guest framebuffer.
     if (gpu_frame_ready) {
         holding_gpu_frame = true;
         vblanks_since_gpu_frame = 0u;
-    } else if (holding_gpu_frame && ++vblanks_since_gpu_frame > 4u) {
+    } else if (holding_gpu_frame && ++vblanks_since_gpu_frame > 120u) {
         holding_gpu_frame = false;
     }
 
     bool presented_gpu_frame = false;
+    note_present_interval(gpu_frame_ready);  // GT_PRESENT_TRACE=1: frame pacing histogram
     if (ge_gpu_backend_presents_directly()) {
         const bool show_guest = !gpu_frame_ready && !holding_gpu_frame &&
                                 ge_gpu_backend_guest_present_available();
@@ -2149,7 +2225,7 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
         gt::gpu_frame_dump(rt, gpu_frame_ready ? ge_gpu_backend_game_frame_rgba() : std::span<const std::byte>{},
                            gpu.offscreen_width, gpu.offscreen_height, present_buffer, present_stride,
                            request.pixel_format, present_width, present_height, gpu_frame_ready,
-                           holding_gpu_frame || (stale != nullptr && stale->load()));
+                           request.vblank, gpu.game_frame_rgba_vblank);
     }
     if (!presented_gpu_frame && (stale == nullptr || !stale->load())) {
         gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height);
@@ -4087,6 +4163,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             display_state.frame_buffer = address;
+            g_display_flips.fetch_add(1u, std::memory_order_release);  // a finished frame: present_frame
             if (address != 0u) note_screen_buffer(address);
             display_state.buffer_width = stride;
             display_state.pixel_format = format;
@@ -4119,7 +4196,31 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         }
         const bool perf = perf_log_enabled();
         if (perf) ++perf_log.vblanks;
-        if (!ge_async_enabled()) {
+        // GT waits for vblank from two threads, so this runs twice per vblank. The PSP latches the frame
+        // buffer once per vblank: present only on the first wait of each guest vblank period, or a flip
+        // between the two waits reaches the window a few ms after the previous frame (uneven pacing).
+        static std::uint64_t presented_period = ~std::uint64_t{0};
+        const std::uint64_t period = virtual_time_us / kVblankPeriodUs;
+        const bool new_period = period != presented_period;
+        presented_period = period;
+        // Wait for the vblank in real time first, then present: the window gets frames at the vblank
+        // instant, not whenever the game thread got here (which varies with the frame's CPU work).
+        audio_output_advance(virtual_time_us);
+        const auto sleep_begin = std::chrono::steady_clock::now();
+        const std::uint32_t skipped = throttle_vblank_to_real_time();
+        g_skip_frame = skip_next_frame();
+        if (perf) {
+            perf_log.sleep_ms += milliseconds_since(sleep_begin);
+            perf_log.skipped += skipped;
+            perf_log_tick();
+        }
+        if (skipped != 0u) {
+            virtual_time_us += static_cast<std::uint64_t>(skipped) * kVblankPeriodUs;
+            display_vblank_index += skipped;
+        }
+        if (!new_period) {
+            // same vblank as the previous wait: the window already shows what this vblank latched
+        } else if (!ge_async_enabled()) {
             const auto begin = std::chrono::steady_clock::now();
             present_frame(rt, request);
             if (perf) note_present(begin);
@@ -4147,19 +4248,6 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             ge_worker_wait_idle();
             rt.stop("Display window closed");
             return;
-        }
-        audio_output_advance(virtual_time_us);
-        const auto sleep_begin = std::chrono::steady_clock::now();
-        const std::uint32_t skipped = throttle_vblank_to_real_time();
-        g_skip_frame = skip_next_frame();
-        if (perf) {
-            perf_log.sleep_ms += milliseconds_since(sleep_begin);
-            perf_log.skipped += skipped;
-            perf_log_tick();
-        }
-        if (skipped != 0u) {
-            virtual_time_us += static_cast<std::uint64_t>(skipped) * kVblankPeriodUs;
-            display_vblank_index += skipped;
         }
         const std::uint32_t vblank_delay = static_cast<std::uint32_t>(
             (virtual_time_us / kVblankPeriodUs + 1u) * kVblankPeriodUs - virtual_time_us);
@@ -5261,6 +5349,9 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                     for (std::uint32_t y = 0u; y < rows; ++y)
                         rt.memory().copy_in(destination + static_cast<std::uint32_t>(y * destination_stride),
                                             std::span<const std::uint8_t>(frame.data() + y * width * 4u, row_bytes));
+                    // The game draws the picture as a texture: the GPU backend must re-read it.
+                    ge_gpu_backend_note_guest_write(destination,
+                                                    static_cast<std::uint32_t>(rows * destination_stride));
                 } else if (mpeg_log_enabled()) {
                     std::cerr << "[mpeg] no picture yet (" << (mpeg.movie ? mpeg.movie->queued_packets() : 0u)
                               << " packets queued)\n";
@@ -5279,6 +5370,8 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                     destination + static_cast<std::uint32_t>(y * destination_stride),
                     std::span<const std::uint8_t>(frame.data() + y * source_stride, source_stride));
             }
+            ge_gpu_backend_note_guest_write(destination,
+                                            static_cast<std::uint32_t>(header.height * destination_stride));
             rt.memory().store32(status_pointer, 1u);
             set_success(ctx);
         });
@@ -5355,7 +5448,8 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 (void)mpeg.audio.open(mpeg.source_path);
             }
             std::array<std::uint8_t, 8192u> pcm{};
-            const std::size_t decoded = mpeg.audio.is_open() ? mpeg.audio.read(pcm) : 0u;
+            std::size_t decoded = mpeg.audio.is_open() ? mpeg.audio.read(pcm) : 0u;
+            if (mpeg.source_path.empty()) decoded = decode_movie_audio(mpeg, pcm);
             if (decoded == 0u) rt.memory().zero(output, 8192u);
             else rt.memory().copy_in(output, std::span<const std::uint8_t>(pcm.data(), pcm.size()));
             set_success(ctx);

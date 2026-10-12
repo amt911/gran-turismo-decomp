@@ -3,6 +3,7 @@
 #include "ps_demux.hpp"
 
 #include <cstdio>
+#include <span>
 #include <vector>
 
 namespace {
@@ -80,6 +81,56 @@ int main() {
         std::vector<std::uint8_t> video;
         gt::demux_video_packet(garbage, 0xE0u, video);
         check(video.empty(), "a packet without start codes yields nothing");
+    }
+    {
+        std::vector<std::uint8_t> packet;
+        pack_header(packet, 1u);
+        pes(packet, 0xE0u, {}, {0x01, 0x02});                                 // video: ignored
+        pes(packet, 0xBDu, {0x21, 0x00, 0x01, 0x00, 0x01}, {0x00, 0xFF, 0x00, 0x01, 0x0F, 0xD0, 0x28});
+        pes(packet, 0xBDu, {}, {0x00, 0xFF, 0x00, 0x01, 0xAA});
+        packet.resize(2048u, 0xFFu);
+        std::vector<std::uint8_t> audio{0x99};
+        gt::demux_audio_packet(packet, audio);
+        const std::vector<std::uint8_t> expected{0x99, 0x0F, 0xD0, 0x28, 0xAA};
+        check(audio == expected, "private stream 1 payloads without their 4-byte substream header, appended");
+    }
+    {
+        std::vector<std::uint8_t> packet;
+        pack_header(packet, 0u);
+        pes(packet, 0xBDu, {}, {0x00, 0xFF, 0x00});  // shorter than the substream header
+        std::vector<std::uint8_t> audio;
+        gt::demux_audio_packet(packet, audio);
+        check(audio.empty(), "a private stream packet without payload after its substream header yields nothing");
+    }
+    {
+        // Three frames of 12 bytes: 8-byte header starting 0F D0, then 4 payload bytes.
+        const auto frame = [](std::uint8_t tag) {
+            return std::vector<std::uint8_t>{0x0F, 0xD0, 0x28, 0x01, 0, 0, 0, 0, tag, tag, tag, tag};
+        };
+        gt::Atrac3pFramer framer;
+        std::vector<std::uint8_t> stream{0x55, 0x66};  // junk before the first sync
+        for (std::uint8_t tag : {1, 2, 3}) {
+            const auto f = frame(tag);
+            stream.insert(stream.end(), f.begin(), f.end());
+        }
+        std::vector<std::uint8_t> payload;
+        framer.push(std::span<const std::uint8_t>(stream).first(10u));
+        check(!framer.next(payload), "no frame before the frame size is known (needs two syncs)");
+        framer.push(std::span<const std::uint8_t>(stream).subspan(10u));
+        check(framer.frame_size() == 12u, "frame size is the distance between the first two syncs");
+        check(framer.next(payload) && payload == std::vector<std::uint8_t>({1, 1, 1, 1}), "first frame payload");
+        check(framer.next(payload) && payload == std::vector<std::uint8_t>({2, 2, 2, 2}), "second frame payload");
+        check(framer.next(payload) && payload == std::vector<std::uint8_t>({3, 3, 3, 3}),
+              "the last complete frame is given out");
+        check(!framer.next(payload), "nothing past the queued bytes");
+        const auto f4 = frame(4);
+        std::vector<std::uint8_t> resync{0x77};  // a lost byte: the framer looks for the next sync
+        resync.insert(resync.end(), f4.begin(), f4.end());
+        framer.push(resync);
+        check(framer.next(payload) && payload == std::vector<std::uint8_t>({4, 4, 4, 4}),
+              "after bytes that are not a sync, the next sync starts the frame");
+        framer.reset();
+        check(framer.frame_size() == 0u && !framer.next(payload), "reset forgets queued bytes and the frame size");
     }
     if (failures == 0) std::puts("ps_demux: all tests passed");
     return failures == 0 ? 0 : 1;

@@ -17,10 +17,33 @@ phase 2; measured with tools/gpu_gate.sh).
   writes their bytes (GT copies every text glyph into the same small texture right before drawing it).
 - Present: MAILBOX when the driver has it, also with VSync (FIFO blocked the GE thread ~28 ms per present
   and GT ran at 30 vblank waits/s instead of 120).
+- Present under FIFO (the only mode Vulkan guarantees): the acquire never waits; with no free image the
+  frame is skipped, so the GE thread never blocks on the monitor.
+- InternalResolutionMode=Window (gt_play's default): the smallest whole scale of 480x272 that covers the
+  window, capped by MaxInternalScale, followed live on resize/fullscreen (targets rebuilt between frames).
+- CPU cost: no rasterizer worker threads by default (they spun idle: 2.4x the CPU for the same speed);
+  guest writes stamp 64 KiB pages instead of walking every cached texture; uploaded textures drop their
+  CPU copy. Each GPU image carries the vblank it was closed at (the GPU gate pairs by it).
 - GT_GPU_STATS also counts draws per target and textures read from VRAM. Vulkan app name "GTNative".
 --- a/lcs/host/ge_gpu_backend.hpp
 +++ b/lcs/host/ge_gpu_backend.hpp
-@@ -330,6 +330,13 @@
+@@ -181,6 +181,7 @@
+     std::uint64_t transfer_submissions{};
+     std::uint64_t transfer_bytes{};
+     std::uint64_t perf_wait_for_frame_calls{};
++    std::uint64_t present_skipped_no_image{};  // GT patch 0021: FIFO frames not shown instead of waiting
+     std::uint64_t perf_wait_for_frame_ns{};
+     std::uint64_t perf_upload_flush_wait_calls{};
+     std::uint64_t perf_upload_flush_wait_ns{};
+@@ -215,6 +216,7 @@
+     std::uint64_t game_frame_changed_pixels{};
+     std::uint64_t game_frame_checksum{};
+     std::uint64_t game_frame_vblank{};
++    std::uint64_t game_frame_rgba_vblank{};  // GT patch 0021: the vblank whose frame game_frame_rgba holds
+     std::uint64_t texture_decode_requests{};
+     std::uint64_t texture_cache_hits{};
+     std::uint64_t decoded_texture_uploads{};
+@@ -330,6 +332,13 @@
      const GeGpuDrawDescriptor &draw,
      std::span<const GeGpuVertex> vertices) noexcept;
  
@@ -63,12 +86,47 @@ phase 2; measured with tools/gpu_gate.sh).
  static_assert(offsetof(DrawUniforms, control) == 112u);
  static_assert(offsetof(DrawUniforms, pixel0) == 160u);
  
-@@ -181,6 +184,18 @@
+@@ -121,6 +124,9 @@
+     bool created{};
+ };
+ 
++constexpr std::uint32_t kGuestPageShift = 16u;
++constexpr std::size_t kGuestPages = (0x0FFFFFFFu >> kGuestPageShift) + 1u;
++
+ struct Texture {
+     GeGpuDrawDescriptor descriptor{};
+     GpuImage gpu{};
+@@ -128,6 +134,7 @@
+     std::uint32_t mip_levels{1u};
+     bool dirty{};
+     std::uint64_t signature_epoch{};
++    std::uint64_t checked_write_clock{};  // VulkanState::write_clock when its bytes were last checked
+     std::uint64_t last_used_epoch{};
+ };
+ 
+@@ -171,16 +178,34 @@
+     float max_sampler_anisotropy{1.0f};
+     float max_sampler_lod_bias{2.0f};
+     std::unordered_map<std::uint64_t, Texture> textures{};
++    // Guest writes the GE did not draw (block transfers, decoded video), stamped per 64 KiB page with a clock:
++    // a texture whose pages carry a stamp newer than its last check is re-checked, without walking
++    // every cached texture on each write.
++    std::uint64_t write_clock{};
++    std::vector<std::uint64_t> page_write_stamp = std::vector<std::uint64_t>(kGuestPages, 0u);
+     std::unordered_map<std::uint32_t, Target> targets{};
+     std::vector<Staging> staging;
+     std::vector<UploadVertex> vertices;
+     std::vector<std::uint32_t> indices;
+     std::vector<Batch> batches;
+     std::vector<std::byte> frame_rgba;
+-    std::vector<std::byte> last_texture_rgba;
      std::uint32_t uniform_align{kUniformAlign};
      std::uint32_t target_width{kReferenceWidth};
      std::uint32_t target_height{kReferenceHeight};
 +    // GT patch 0022: every target is the same guest-pixel space (kTargetSpace x kTargetSpace) at the
 +    // internal-resolution scale; the shown picture is the display's logical size cropped from its corner.
++    std::uint32_t internal_width{kReferenceWidth};
++    std::uint32_t internal_height{kReferenceHeight};
 +    float pixel_scale_x{1.0f};
 +    float pixel_scale_y{1.0f};
 +    std::unordered_map<std::uint64_t, std::uint64_t> content_keys;  // GT patch 0023: address key -> content key
@@ -82,7 +140,16 @@ phase 2; measured with tools/gpu_gate.sh).
      std::uint32_t display_framebuffer{};
      std::uint32_t display_logical_width{kReferenceWidth};
      std::uint32_t display_logical_height{kReferenceHeight};
-@@ -587,57 +602,71 @@
+@@ -191,6 +216,8 @@
+     // Previous submit still owns the command buffer, geometry, and readback.
+     bool submit_pending{};
+     bool pending_readback{};
++    std::uint64_t pending_readback_vblank{};  // GT patch 0021: the frame the readback belongs to ...
++    std::uint64_t frame_rgba_vblank{};        // ... and the one frame_rgba holds
+     std::size_t pending_readback_bytes{};
+     // Copied pixels the present finish has not shown yet.
+     bool readback_latched{};
+@@ -587,57 +614,71 @@
      return found == s.targets.end() ? nullptr : &found->second;
  }
  
@@ -193,7 +260,7 @@ phase 2; measured with tools/gpu_gate.sh).
      VkImageView attachments[]{target.color.view, target.depth_view};
      VkFramebufferCreateInfo framebuffer{};
      framebuffer.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-@@ -666,12 +695,9 @@
+@@ -666,12 +707,9 @@
      return true;
  }
  
@@ -209,7 +276,7 @@ phase 2; measured with tools/gpu_gate.sh).
  
  UploadVertex make_upload_vertex(const GeGpuVertex &source) noexcept {
      return {source.x, source.y, source.z, source.w, source.rgba, source.u, source.v,
-@@ -706,6 +732,8 @@
+@@ -706,6 +744,8 @@
      return {a[0] * sa + b[0] * sb, a[1] * sa + b[1] * sb, a[2] * sa + b[2] * sb, a[3] * sa + b[3] * sb};
  }
  
@@ -218,7 +285,7 @@ phase 2; measured with tools/gpu_gate.sh).
  DrawUniforms make_uniforms(const Batch &batch, std::uint32_t logical_width, std::uint32_t logical_height,
                             bool sampled) noexcept {
      DrawUniforms constants{};
-@@ -767,6 +795,10 @@
+@@ -767,6 +807,10 @@
      constants.pixel0[3] = (draw.fog_color & 0x00FFFFFFu) |
                            (static_cast<std::uint32_t>(draw.fog_enabled ? 0xFFu : 0u) << 24u);
      constants.pixel1[0] = draw.framebuffer_format & 3u;
@@ -229,7 +296,7 @@ phase 2; measured with tools/gpu_gate.sh).
      return constants;
  }
  
-@@ -791,6 +823,103 @@
+@@ -791,6 +835,103 @@
      return 0u;
  }
  
@@ -333,7 +400,7 @@ phase 2; measured with tools/gpu_gate.sh).
  VkColorComponentFlags color_write_mask(const GeGpuDrawDescriptor &draw) noexcept {
      VkColorComponentFlags mask = 0;
      for (std::uint32_t channel = 0u; channel < 4u; ++channel) {
-@@ -818,7 +947,7 @@
+@@ -818,7 +959,7 @@
      std::uint64_t key = static_cast<std::uint64_t>(draw.depth_test_enabled ? 1u : 0u);
      key |= static_cast<std::uint64_t>(draw.depth_write_enabled ? 1u : 0u) << 1u;
      key |= static_cast<std::uint64_t>(draw.depth_function & 7u) << 2u;
@@ -342,7 +409,7 @@ phase 2; measured with tools/gpu_gate.sh).
      key |= static_cast<std::uint64_t>(color_write_mask(draw) & 0xFu) << 8u;
      key |= static_cast<std::uint64_t>(strip ? 1u : 0u) << 16u;
      key |= static_cast<std::uint64_t>(cull ? 1u : 0u) << 17u;
-@@ -874,31 +1003,21 @@
+@@ -874,31 +1015,21 @@
      multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
      VkPipelineDepthStencilStateCreateInfo depth{};
      depth.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -385,7 +452,7 @@ phase 2; measured with tools/gpu_gate.sh).
      VkPipelineColorBlendStateCreateInfo blending{};
      blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
      blending.attachmentCount = 1u;
-@@ -932,7 +1051,7 @@
+@@ -932,7 +1063,7 @@
      s.report.unique_pipeline_keys = s.pipelines.size();
      s.report.graphics_pipeline_created = true;
      if (draw.depth_test_enabled) ++s.report.depth_pipeline_variants_created;
@@ -394,7 +461,7 @@ phase 2; measured with tools/gpu_gate.sh).
      return pipeline;
  }
  
-@@ -971,11 +1090,13 @@
+@@ -971,11 +1102,13 @@
      const bool first_this_frame = target.last_render_epoch != s.frame_epoch;
      if (first_ever || (first_this_frame && target.address == s.display_framebuffer))
          clear_image(s.command, target.color.image, target.color.layout, false);
@@ -411,7 +478,26 @@ phase 2; measured with tools/gpu_gate.sh).
                       VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT, 1u);
      VkClearValue clears[2]{};
      clears[0].color.float32[3] = 1.0f;
-@@ -1109,11 +1230,19 @@
+@@ -1083,6 +1216,7 @@
+     ++s.report.texture_image_uploads;
+     s.report.texture_image_upload_bytes += texture.rgba8.size();
+     s.report.uploaded_mip_levels += texture.mip_levels;
++    std::vector<std::byte>().swap(texture.rgba8);  // GT patch 0021: the GPU image is the copy now
+     return true;
+ }
+ 
+@@ -1100,20 +1234,28 @@
+     texture.gpu.height = height;
+     texture.dirty = true;
+     texture.signature_epoch = s.frame_epoch;
++    texture.checked_write_clock = s.write_clock;
+     texture.last_used_epoch = s.frame_epoch;
+-    s.last_texture_rgba = texture.rgba8;
+     if (draw.texture_format <= 10u) s.report.base_texture_formats_active = true;
+     ++s.report.decoded_texture_uploads;
+-    s.report.decoded_texture_bytes += s.last_texture_rgba.size();
++    s.report.decoded_texture_bytes += texture.rgba8.size();
+     s.report.unique_texture_keys = s.textures.size();
      return true;
  }
  
@@ -435,7 +521,7 @@ phase 2; measured with tools/gpu_gate.sh).
      destroy_image(s, target.color);
      destroy_image(s, target.snapshot);
      target.framebuffer = VK_NULL_HANDLE;
-@@ -1422,7 +1551,7 @@
+@@ -1422,7 +1564,7 @@
      }
      VkPushConstantRange range{};
      range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -444,7 +530,7 @@ phase 2; measured with tools/gpu_gate.sh).
      VkPipelineLayoutCreateInfo layout{};
      layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
      layout.setLayoutCount = 1u;
-@@ -1568,11 +1697,14 @@
+@@ -1568,11 +1710,14 @@
      return formats[0].format;
  }
  
@@ -460,7 +546,7 @@ phase 2; measured with tools/gpu_gate.sh).
      for (VkPresentModeKHR mode : s.swap_present_modes) {
          if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR) return mode;
      }
-@@ -1844,9 +1976,12 @@
+@@ -1844,9 +1989,12 @@
      scissor.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
      vkCmdSetViewport(s.command, 0u, 1u, &viewport);
      vkCmdSetScissor(s.command, 0u, 1u, &scissor);
@@ -476,7 +562,43 @@ phase 2; measured with tools/gpu_gate.sh).
      vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.present_layout, 0u, 1u, &set, 0u,
                              nullptr);
      vkCmdDraw(s.command, 3u, 1u, 0u, 0u);
-@@ -2127,6 +2262,7 @@
+@@ -1886,15 +2034,25 @@
+     vkCmdEndRenderPass(s.command);
+ }
+ 
++// GT patch 0021: presenting runs on the thread that executes the GE lists. Under FIFO (the only VSync mode
++// NVIDIA offers on X11, which SDL2 uses by default) a blocking acquire stalled GT ~12 ms per frame and its
++// frameskip kicked in. Under FIFO the acquire doesn't wait: with no free image the frame is not shown
++// (an empty `error`) and the game carries on, which presents like MAILBOX, without tearing.
+ bool acquire_swap_image(VulkanState &s, std::uint32_t &index, std::string &error) {
+-    VkResult result = vkAcquireNextImageKHR(s.device, s.swapchain, 1000000000ull, s.acquire_semaphore,
++    const std::uint64_t timeout = s.swap_present_mode == VK_PRESENT_MODE_FIFO_KHR ? 0ull : 1000000000ull;
++    VkResult result = vkAcquireNextImageKHR(s.device, s.swapchain, timeout, s.acquire_semaphore,
+                                             VK_NULL_HANDLE, &index);
+     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+         s.swapchain_dirty = true;
+         if (!ensure_swapchain(s, error)) return false;
+-        result = vkAcquireNextImageKHR(s.device, s.swapchain, 1000000000ull, s.acquire_semaphore,
++        result = vkAcquireNextImageKHR(s.device, s.swapchain, timeout, s.acquire_semaphore,
+                                        VK_NULL_HANDLE, &index);
+     }
++    if (result == VK_TIMEOUT || result == VK_NOT_READY) {
++        ++s.report.present_skipped_no_image;
++        error.clear();
++        return false;
++    }
+     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+         error = "vkAcquireNextImageKHR failed";
+         return false;
+@@ -2017,6 +2175,7 @@
+     if (s.pending_readback && s.readback_mapped != nullptr && s.pending_readback_bytes != 0u) {
+         s.frame_rgba.resize(s.pending_readback_bytes);
+         std::memcpy(s.frame_rgba.data(), s.readback_mapped, s.pending_readback_bytes);
++        s.frame_rgba_vblank = s.pending_readback_vblank;
+         copied = true;
+         s.readback_latched = true;
+     }
+@@ -2127,6 +2286,7 @@
      s.readback_latched = false;
      for (auto &entry : s.targets) destroy_target(s, entry.second);
      s.targets.clear();
@@ -484,16 +606,26 @@ phase 2; measured with tools/gpu_gate.sh).
      for (auto &entry : s.textures) destroy_image(s, entry.second.gpu);
      s.textures.clear();
      destroy_image(s, s.white.gpu);
-@@ -2320,11 +2456,13 @@
+@@ -2318,13 +2478,22 @@
+     return true;
+ }
  
- bool create_backend(VulkanState &s, std::string &error) {
-     const InternalResolutionDimensions dims = resolve_internal_resolution(lcs_render_configuration().rendering);
--    s.target_width = std::max<std::uint32_t>(1u, dims.width);
--    s.target_height = std::max<std::uint32_t>(1u, dims.height);
++void set_internal_resolution(VulkanState &s, InternalResolutionDimensions dims) {
++    s.internal_width = dims.width;
++    s.internal_height = dims.height;
 +    s.pixel_scale_x = static_cast<float>(std::max<std::uint32_t>(1u, dims.width)) / static_cast<float>(kReferenceWidth);
 +    s.pixel_scale_y = static_cast<float>(std::max<std::uint32_t>(1u, dims.height)) / static_cast<float>(kReferenceHeight);
 +    s.target_width = static_cast<std::uint32_t>(std::lround(kTargetSpace * s.pixel_scale_x));   // GT patch 0022
 +    s.target_height = static_cast<std::uint32_t>(std::lround(kTargetSpace * s.pixel_scale_y));
++    std::cerr << "[vulkan] internal resolution " << dims.width << "x" << dims.height << " (render targets "
++              << s.target_width << "x" << s.target_height << ")\n";
++}
++
+ bool create_backend(VulkanState &s, std::string &error) {
+-    const InternalResolutionDimensions dims = resolve_internal_resolution(lcs_render_configuration().rendering);
+-    s.target_width = std::max<std::uint32_t>(1u, dims.width);
+-    s.target_height = std::max<std::uint32_t>(1u, dims.height);
++    set_internal_resolution(s, resolve_internal_resolution(lcs_render_configuration().rendering));
      VkApplicationInfo application{};
      application.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 -    application.pApplicationName = "LCSNative";
@@ -501,7 +633,7 @@ phase 2; measured with tools/gpu_gate.sh).
      application.apiVersion = VK_API_VERSION_1_0;
      VkInstanceCreateInfo instance_info{};
      instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-@@ -2407,6 +2545,11 @@
+@@ -2407,6 +2576,11 @@
      VkPhysicalDeviceFeatures available_features{};
      vkGetPhysicalDeviceFeatures(s.physical, &available_features);
      VkPhysicalDeviceFeatures enabled_features{};
@@ -513,7 +645,7 @@ phase 2; measured with tools/gpu_gate.sh).
      if (available_features.samplerAnisotropy) {
          enabled_features.samplerAnisotropy = VK_TRUE;
          s.sampler_anisotropy = true;
-@@ -2567,8 +2710,8 @@
+@@ -2567,8 +2741,8 @@
      s.report.transfer_buffer_created = true;
      s.report.transfer_memory_mapped = true;
      s.report.upload_capacity_bytes = geometry_size;
@@ -524,7 +656,7 @@ phase 2; measured with tools/gpu_gate.sh).
      s.report.memory_type_index = 0u;
  
      std::vector<std::byte> white(4u, std::byte{0xFF});
-@@ -2679,8 +2822,8 @@
+@@ -2679,8 +2853,8 @@
      s.report.message = rendering.backend == RenderingBackend::DirectX12
          ? "Vulkan GE backend active (Backend=DirectX12 selects Vulkan on Linux)"
          : "Vulkan GE backend active";
@@ -535,7 +667,7 @@ phase 2; measured with tools/gpu_gate.sh).
      error.clear();
      return true;
  }
-@@ -2708,7 +2851,43 @@
+@@ -2708,7 +2882,43 @@
      std::mutex mutex;
      std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::size_t>,
               std::uint64_t> counts;
@@ -579,7 +711,7 @@ phase 2; measured with tools/gpu_gate.sh).
          if (counts.empty()) return;
          std::fprintf(stderr, "[gpu-stats] blend states (eq src dst fixA fixB variant: draws; variant 0 with blend = unsupported)\n");
          for (const auto &[key, count] : counts) {
-@@ -2731,6 +2910,17 @@
+@@ -2731,6 +2941,17 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled) return;
@@ -597,10 +729,45 @@ phase 2; measured with tools/gpu_gate.sh).
      if (BlendStats *stats = blend_stats(); stats != nullptr && draw.blend_enabled && !draw.clear_mode) {
          const std::size_t variant = blend_variant(draw);
          const bool fixed = (draw.blend_source_factor & 0xFu) == 10u || (draw.blend_dest_factor & 0xFu) == 10u;
-@@ -2774,6 +2964,45 @@
+@@ -2774,6 +2995,70 @@
      return true;
  }
  
++namespace {
++
++// Bytes of guest memory a texture's base level reads.
++std::uint64_t texture_bytes(const GeGpuDrawDescriptor &d) noexcept {
++    const std::uint32_t width = std::max(d.texture_buffer_width, d.texture_width);
++    std::uint64_t size = static_cast<std::uint64_t>(width) * std::max(1u, d.texture_height);
++    switch (d.texture_format) {
++    case 3u: case 7u: return size * 4u;
++    case 4u: return (size + 1u) / 2u;
++    case 5u: return size;
++    case 8u: return size / 2u;          // DXT1: 4 bits per pixel
++    case 9u: case 10u: return size;     // DXT3/5: 8 bits per pixel
++    default: return size * 2u;
++    }
++}
++
++// The newest write stamp on the pages a texture reads (0: none reported since start).
++std::uint64_t newest_write(const VulkanState &s, const GeGpuDrawDescriptor &d) noexcept {
++    const std::uint64_t begin = d.texture_address & 0x0FFFFFFFu;
++    const std::uint64_t last = std::min<std::uint64_t>(begin + std::max<std::uint64_t>(1u, texture_bytes(d)) - 1u,
++                                                       0x0FFFFFFFu);
++    std::uint64_t newest = 0u;
++    for (std::uint64_t page = begin >> kGuestPageShift; page <= last >> kGuestPageShift; ++page)
++        newest = std::max(newest, s.page_write_stamp[page]);
++    return newest;
++}
++
++// Whether a reported write touched the texture after it was last checked.
++bool written_since_check(const VulkanState &s, const Texture &texture) noexcept {
++    return texture.checked_write_clock != s.write_clock &&
++           newest_write(s, texture.descriptor) > texture.checked_write_clock;
++}
++
++} // namespace
++
 +void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &draw) noexcept {
 +    if (!draw.texture_enabled || draw.texture_cache_key_hint == 0u) return;
 +    VulkanState &s = state();
@@ -618,36 +785,35 @@ phase 2; measured with tools/gpu_gate.sh).
 +    draw.texture_image_key_hint = key;
 +}
 +
++
 +void ge_gpu_backend_note_guest_write(std::uint32_t address, std::uint32_t bytes) noexcept {
 +    VulkanState &s = state();
 +    std::lock_guard<std::recursive_mutex> guard(s.mutex);
 +    if (!s.enabled || bytes == 0u) return;
-+    const std::uint64_t begin = address & 0x0FFFFFFFu, end = begin + bytes;
-+    for (auto &[key, texture] : s.textures) {
-+        const GeGpuDrawDescriptor &d = texture.descriptor;
-+        const std::uint32_t width = std::max(d.texture_buffer_width, d.texture_width);
-+        std::uint64_t size = static_cast<std::uint64_t>(width) * std::max(1u, d.texture_height);
-+        switch (d.texture_format) {
-+        case 3u: case 7u: size *= 4u; break;
-+        case 4u: size = (size + 1u) / 2u; break;
-+        case 5u: break;
-+        case 8u: size /= 2u; break;   // DXT1: 4 bits per pixel
-+        case 9u: case 10u: break;      // DXT3/5: 8 bits per pixel
-+        default: size *= 2u; break;
-+        }
-+        const std::uint64_t start = d.texture_address & 0x0FFFFFFFu;
-+        if (start < end && begin < start + size) texture.signature_epoch = 0u;  // recheck on next use
-+    }
++    const std::uint64_t begin = address & 0x0FFFFFFFu;
++    const std::uint64_t last = std::min<std::uint64_t>(begin + bytes - 1u, 0x0FFFFFFFu);
++    ++s.write_clock;
++    for (std::uint64_t page = begin >> kGuestPageShift; page <= last >> kGuestPageShift; ++page)
++        s.page_write_stamp[page] = s.write_clock;
 +}
 +
  bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &draw) noexcept {
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
-@@ -2812,7 +3041,14 @@
+@@ -2787,6 +3072,7 @@
+     const auto found = s.textures.find(texture_key(draw));
+     if (found == s.textures.end()) return true;
+     found->second.signature_epoch = s.frame_epoch;
++    found->second.checked_write_clock = s.write_clock;
+     found->second.last_used_epoch = s.frame_epoch;
+     if (draw.texture_content_signature != 0u &&
+         found->second.descriptor.texture_content_signature != draw.texture_content_signature)
+@@ -2812,8 +3098,16 @@
      if (!s.enabled || !draw.texture_enabled || draw.texture_width == 0u || draw.texture_height == 0u)
          return false;
      if (find_target(s, draw.texture_address) != nullptr) return false;
 -    const auto found = s.textures.find(texture_key(draw));
+-    return found == s.textures.end() || found->second.signature_epoch != s.frame_epoch;
 +    // GT patch 0023: tiny textures (glyphs, icons the CPU redraws between draws, up to 64x64) are re-checked on every
 +    // draw; larger ones once per frame or after a block transfer writes them.
 +    const std::uint64_t texels = static_cast<std::uint64_t>(std::max(draw.texture_buffer_width, draw.texture_width)) *
@@ -656,10 +822,25 @@ phase 2; measured with tools/gpu_gate.sh).
 +    std::uint64_t key = texture_key(draw);
 +    if (const auto content = s.content_keys.find(key); content != s.content_keys.end()) key = content->second;
 +    const auto found = s.textures.find(key);
-     return found == s.textures.end() || found->second.signature_epoch != s.frame_epoch;
++    return found == s.textures.end() || found->second.signature_epoch != s.frame_epoch ||
++           written_since_check(s, found->second);
  }
  
-@@ -2901,6 +3137,18 @@
+ bool ge_gpu_backend_is_framebuffer_feedback_texture(const GeGpuDrawDescriptor &draw) noexcept {
+@@ -2891,9 +3185,9 @@
+ bool ge_gpu_backend_copy_last_texture_rgba(std::span<std::byte> destination) noexcept {
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+-    if (s.last_texture_rgba.empty() || destination.size() < s.last_texture_rgba.size()) return false;
+-    std::memcpy(destination.data(), s.last_texture_rgba.data(), s.last_texture_rgba.size());
+-    return true;
++    (void)s;
++    (void)destination;
++    return false;  // GT patch 0021: no longer kept — it cost a copy of every texture decoded (no caller)
+ }
+ 
+ void ge_gpu_backend_accumulate_color_triangles(const GeGpuDrawDescriptor &draw,
+@@ -2901,6 +3195,18 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled || triangle_vertices.empty() || triangle_vertices.size() % 3u != 0u) return;
@@ -678,7 +859,7 @@ phase 2; measured with tools/gpu_gate.sh).
      const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
      if (used + triangle_vertices.size() * sizeof(UploadVertex) > kGeometryUploadCapacity) {
          ++s.report.game_vertex_overflows;
-@@ -2936,6 +3184,11 @@
+@@ -2936,6 +3242,11 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      if (!s.enabled || vertices.empty()) return;
@@ -690,7 +871,48 @@ phase 2; measured with tools/gpu_gate.sh).
      const bool indexed = !triangle_indices.empty();
      const std::size_t emitted = indexed ? triangle_indices.size() : vertices.size();
      if (emitted == 0u || (transform.primitive == 4u ? emitted < 3u : (emitted % 3u) != 0u)) return;
-@@ -3190,8 +3443,8 @@
+@@ -3083,6 +3394,32 @@
+     height = s.display_logical_height;
+ }
+ 
++namespace {
++
++// GT patch 0021: InternalResolutionMode=Window renders at the smallest whole scale that covers the
++// window's drawable pixels (capped by MaxInternalScale), and follows it when the window is resized or
++// goes fullscreen. Between frames, with the GPU idle, the render targets and the shared depth buffer
++// are dropped; the next draws create them again at the new size (the window keeps the last frame).
++void follow_window_resolution(VulkanState &s) {
++    const RenderingConfiguration &rendering = lcs_render_configuration().rendering;
++    if (rendering.internal_resolution_mode != InternalResolutionMode::Window || s.swapchain == VK_NULL_HANDLE)
++        return;
++    std::uint32_t width = 0u;
++    std::uint32_t height = 0u;
++    if (!window_pixels(s.window, width, height)) return;
++    const InternalResolutionDimensions dims =
++        uniform_internal_resolution(width, height, rendering.max_internal_scale);
++    if (dims.width == s.internal_width && dims.height == s.internal_height) return;
++    vkDeviceWaitIdle(s.device);
++    for (auto &entry : s.targets) destroy_target(s, entry.second);
++    s.targets.clear();
++    destroy_shared_depth(s);
++    s.shared_depth_layout = VK_IMAGE_LAYOUT_UNDEFINED;
++    set_internal_resolution(s, dims);
++}
++
++} // namespace
++
+ bool ge_gpu_backend_finish_color_frame(std::uint64_t vblank) noexcept {
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+@@ -3107,6 +3444,7 @@
+         ++s.frame_epoch;
+         return shown();
+     }
++    follow_window_resolution(s);
+     std::string error;
+     const std::size_t vertex_bytes = s.vertices.size() * sizeof(UploadVertex);
+     const std::size_t index_bytes = s.indices.size() * sizeof(std::uint32_t);
+@@ -3190,8 +3528,8 @@
          scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
          vkCmdSetScissor(s.command, 0u, 1u, &scissor);
          float blend_constants[4]{};
@@ -701,7 +923,7 @@ phase 2; measured with tools/gpu_gate.sh).
              blend_constants[0] = static_cast<float>(fix & 0xFFu) / 255.0f;
              blend_constants[1] = static_cast<float>((fix >> 8u) & 0xFFu) / 255.0f;
              blend_constants[2] = static_cast<float>((fix >> 16u) & 0xFFu) / 255.0f;
-@@ -3200,6 +3453,7 @@
+@@ -3200,6 +3538,7 @@
          vkCmdSetBlendConstants(s.command, blend_constants);
          VkDescriptorSet sampled_set = s.white.gpu.set;
          bool textured = false;
@@ -709,7 +931,7 @@ phase 2; measured with tools/gpu_gate.sh).
          if (batch.draw.texture_enabled) {
              if (batch.framebuffer_feedback && batch.feedback_address == target->address) {
                  if (snapshot_target(s, *target, error)) {
-@@ -3208,6 +3462,7 @@
+@@ -3208,6 +3547,7 @@
                      if (feedback_set != VK_NULL_HANDLE) {
                          sampled_set = feedback_set;
                          textured = true;
@@ -717,7 +939,7 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                          ++s.report.self_feedback_snapshots;
-@@ -3222,6 +3477,7 @@
+@@ -3222,6 +3562,7 @@
                      if (feedback_set != VK_NULL_HANDLE) {
                          sampled_set = feedback_set;
                          textured = true;
@@ -725,7 +947,7 @@ phase 2; measured with tools/gpu_gate.sh).
                          ++s.report.vram_feedback_refreshes;
                          ++s.report.gpu_feedback_draws;
                      }
-@@ -3235,6 +3491,12 @@
+@@ -3235,6 +3576,12 @@
              }
          }
          DrawUniforms uniforms = make_uniforms(batch, target->logical_width, target->logical_height, textured);
@@ -738,7 +960,7 @@ phase 2; measured with tools/gpu_gate.sh).
          std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
                          static_cast<std::size_t>(uniform_slot) * s.uniform_align,
                      &uniforms, sizeof(uniforms));
-@@ -3311,7 +3573,7 @@
+@@ -3311,7 +3658,7 @@
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
          }
          std::string present_error;
@@ -747,7 +969,7 @@ phase 2; measured with tools/gpu_gate.sh).
              present_this_frame = true;
          else if (!present_error.empty())
              log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
-@@ -3322,7 +3584,7 @@
+@@ -3322,7 +3669,7 @@
          VkBufferImageCopy copy{};
          copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
          copy.imageSubresource.layerCount = 1u;
@@ -756,21 +978,23 @@ phase 2; measured with tools/gpu_gate.sh).
          vkCmdCopyImageToBuffer(s.command, display->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                 s.readback, 1u, &copy);
          transition_image(s.command, display->color.image, display->color.layout,
-@@ -3377,7 +3639,7 @@
+@@ -3377,7 +3724,8 @@
                  } else {
                      s.pending_readback = publish && display_ready && s.readback_mapped != nullptr;
                      s.pending_readback_bytes = s.pending_readback
 -                        ? static_cast<std::size_t>(s.target_width) * s.target_height * 4u : 0u;
 +                        ? static_cast<std::size_t>(crop_width(s)) * crop_height(s) * 4u : 0u;
++                    s.pending_readback_vblank = vblank;
                      if (publish && !display_ready)
                          log_frame_failure(s, "display target was not drawn", VK_SUCCESS);
                      else if (publish && display_ready && s.swapchain == VK_NULL_HANDLE &&
-@@ -3397,8 +3659,8 @@
+@@ -3397,8 +3745,9 @@
      if (!display_ready) ++s.report.frames_without_displayed_target;
      ++s.report.game_frames;
      s.report.game_frame_vblank = vblank;
 -    s.report.offscreen_width = s.target_width;
 -    s.report.offscreen_height = s.target_height;
++    s.report.game_frame_rgba_vblank = s.frame_rgba_vblank;
 +    s.report.offscreen_width = crop_width(s);   // GT patch 0022: the shown crop
 +    s.report.offscreen_height = crop_height(s);
      const bool show = shown();
@@ -778,7 +1002,22 @@ phase 2; measured with tools/gpu_gate.sh).
      s.report.presented_framebuffer_target = display_ready ? s.display_framebuffer : 0u;
 --- a/lcs/host/ge_renderer.cpp
 +++ b/lcs/host/ge_renderer.cpp
-@@ -4310,6 +4310,7 @@
+@@ -4076,11 +4076,9 @@
+             const unsigned long value = std::strtoul(text, nullptr, 10);
+             return static_cast<unsigned>(std::min<unsigned long>(value, 8ul));
+         }
+-        const unsigned hardware = std::thread::hardware_concurrency();
+-        if (hardware >= 12u) return 4u;
+-        if (hardware >= 8u) return 3u;
+-        if (hardware >= 6u) return 2u;
+-        if (hardware >= 4u) return 1u;
++        // GT patch 0021: none by default. Measured on GT (60 s of a race, Vulkan GE): the GE thread
++        // prepares its draws as fast alone (same GE wait) and the workers' idle spinning cost 2.4x the
++        // process CPU time — a waste on battery-powered and small devices.
+         return 0u;
+     }
+ 
+@@ -4310,6 +4308,7 @@
              }
              gpu_draw.texture_content_signature = any_signature ? signature : 0u;
          }
@@ -786,6 +1025,118 @@ phase 2; measured with tools/gpu_gate.sh).
          ge_gpu_backend_record_draw(gpu_draw);
          if (!gpu_draw.clear_mode && primitive >= 3u && primitive <= 6u)
              fps_overlay_observe_draw(gpu_draw, count);
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -33,6 +33,7 @@
+     {InternalResolutionMode::Scale, 7u, "3360x1904"},
+     {InternalResolutionMode::Scale, 8u, "3840x2176 ~2160p"},
+     {InternalResolutionMode::Desktop, 2u, "Desktop"},
++    {InternalResolutionMode::Window, 2u, "Window (auto)"},  // GT patch 0021
+ };
+ 
+ constexpr float kDistances[] = {1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 4.0f};
+@@ -62,7 +63,8 @@
+     for (int index = 0; index < static_cast<int>(std::size(kResolutions)); ++index) {
+         const ResolutionChoice &choice = kResolutions[index];
+         if (choice.mode != rendering.internal_resolution_mode) continue;
+-        if (choice.mode == InternalResolutionMode::Desktop || choice.scale == rendering.internal_scale)
++        if (choice.mode == InternalResolutionMode::Desktop || choice.mode == InternalResolutionMode::Window ||
++            choice.scale == rendering.internal_scale)
+             return index;
+     }
+     return -1;
+@@ -94,6 +96,8 @@
+         std::snprintf(text, text_size, "%ux%u", rendering.internal_width, rendering.internal_height);
+     else if (rendering.internal_resolution_mode == InternalResolutionMode::Desktop)
+         std::snprintf(text, text_size, "Desktop");
++    else if (rendering.internal_resolution_mode == InternalResolutionMode::Window)
++        std::snprintf(text, text_size, "Window (auto)");
+     else
+         std::snprintf(text, text_size, "Custom");
+ }
+--- a/lcs/host/lcs_render_config.cpp
++++ b/lcs/host/lcs_render_config.cpp
+@@ -218,9 +218,16 @@
+             config.rendering.internal_resolution_mode = InternalResolutionMode::Custom;
+         else if (mode == "desktop" || mode == "native" || mode == "monitor")
+             config.rendering.internal_resolution_mode = InternalResolutionMode::Desktop;
++        else if (mode == "window" || mode == "auto")
++            config.rendering.internal_resolution_mode = InternalResolutionMode::Window;
+         else
+             warning(config, line,
+-                    "Rendering.InternalResolutionMode expects PSP, Scale, Custom or Desktop");
++                    "Rendering.InternalResolutionMode expects PSP, Scale, Custom, Desktop or Window");
++        return;
++    }
++    if (key == "maxinternalscale") {
++        if (!parse_u32(value, 1u, 8u, config.rendering.max_internal_scale))
++            warning(config, line, "Rendering.MaxInternalScale must be between 1 and 8");
+         return;
+     }
+     if (key == "internalscale" || key == "scale") {
+@@ -596,11 +603,15 @@
+     case InternalResolutionMode::Custom:
+         return {std::clamp(configuration.internal_width, 480u, 16384u),
+                 std::clamp(configuration.internal_height, 272u, 16384u)};
+-    case InternalResolutionMode::Desktop: {
++    case InternalResolutionMode::Desktop:
++    case InternalResolutionMode::Window: {
++        // GT patch 0022: one uniform scale, the smallest that covers the desktop, so a maximized or
++        // fullscreen window is never upscaled from a smaller picture. Window mode starts here too and
++        // then follows the window (ge_gpu_backend_vulkan.cpp, follow_window_resolution).
+         std::uint32_t width = 0u;
+         std::uint32_t height = 0u;
+         if (query_desktop_pixels(width, height))
+-            return {std::clamp(width, 480u, 16384u), std::clamp(height, 272u, 16384u)};
++            return uniform_internal_resolution(width, height, configuration.max_internal_scale);
+         return {std::clamp(configuration.internal_width, 480u, 16384u),
+                 std::clamp(configuration.internal_height, 272u, 16384u)};
+     }
+@@ -745,6 +756,7 @@
+     case InternalResolutionMode::Scale: return "Scale";
+     case InternalResolutionMode::Custom: return "Custom";
+     case InternalResolutionMode::Desktop: return "Desktop";
++    case InternalResolutionMode::Window: return "Window";
+     }
+     return "Unknown";
+ }
+--- a/lcs/host/lcs_render_config.hpp
++++ b/lcs/host/lcs_render_config.hpp
+@@ -31,6 +31,7 @@
+     Scale,
+     Custom,
+     Desktop,
++    Window,  // GT patch 0021: follows the window's drawable size while it runs (resize, fullscreen)
+ };
+ 
+ enum class RenderingBackend : std::uint8_t {
+@@ -97,6 +98,7 @@
+     RenderingBackend backend{RenderingBackend::DirectX12};
+     InternalResolutionMode internal_resolution_mode{InternalResolutionMode::PspNative};
+     std::uint32_t internal_scale{2u};
++    std::uint32_t max_internal_scale{8u};  // GT patch 0021: the Desktop/Window cap, for weak GPUs
+     std::uint32_t internal_width{960u};
+     std::uint32_t internal_height{544u};
+     std::uint32_t anisotropic_filtering{1u};
+@@ -112,6 +114,18 @@
+     bool smaa{false};
+ };
+ 
++// GT patch 0021: the PSP picture times the smallest whole scale that covers a width x height surface,
++// between x1 and `max_scale` (at most x8). Whole scales keep every PSP pixel the same size.
++[[nodiscard]] constexpr InternalResolutionDimensions uniform_internal_resolution(
++    std::uint32_t width, std::uint32_t height, std::uint32_t max_scale) noexcept {
++    std::uint32_t scale = (width + 479u) / 480u;
++    if ((height + 271u) / 272u > scale) scale = (height + 271u) / 272u;
++    const std::uint32_t cap = max_scale < 1u ? 1u : (max_scale > 8u ? 8u : max_scale);
++    if (scale > cap) scale = cap;
++    if (scale < 1u) scale = 1u;
++    return {480u * scale, 272u * scale};
++}
++
+ [[nodiscard]] InternalResolutionDimensions resolve_internal_resolution(
+     const RenderingConfiguration &configuration) noexcept;
+ 
 --- a/lcs/host/vulkan/ge.frag
 +++ b/lcs/host/vulkan/ge.frag
 @@ -3,7 +3,8 @@
