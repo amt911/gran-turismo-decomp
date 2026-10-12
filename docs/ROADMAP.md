@@ -463,6 +463,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **3.477 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+71 funciones calientes**: lectores de propiedades de ruta y por palabra clave, ajustes de opciones en coma flotante, la luz de cambio de marcha, modos de cambio, fábricas de objetos de carrera y de holders, constructores y destructores de lectores de texto, registros de manejadores, utilidades de rutas y extensiones, registro de nombres, tamaños de textura.
       **3.548 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+90 funciones calientes**: pasos de respuesta y telemetría del coche, comprobaciones de huecos de coche, puntos de trayectoria, modos de cambio, pools de cuerpos, listas circulares, ajustes booleanos y en coma flotante, destructores y copias de paneles, registro de nombres, pasos de vuelta, tamaños de sonido, banderas bajo cerrojo, ajuste de ángulos.
+      **3.638 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
