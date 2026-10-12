@@ -79,7 +79,7 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
 
 // GT_GPU_DUMP=<dir> (+ GT_FRAME_EVERY): for the GPU gate (tools/gpu_gate.sh). Every Nth frame the GPU
 // backend finished, soft_NNNNNN.ppm (the software rasterizer's guest framebuffer — run with
-// PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER=0 so it keeps drawing) and gpu_NNNNNN.ppm (the backend's frame,
+// PSPRECOMP_GE_GPU_DUAL=1, lcs-recomp patch 0020, so it keeps drawing) and gpu_NNNNNN.ppm (the backend's frame,
 // box-downsampled to the same size) from the same frame. An empty `gpu_rgba` writes the soft image only,
 // so tools/gpu_compare.py reports the GPU frame as missing. Game output: keep it out of git.
 void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_rgba, std::uint32_t gpu_width,

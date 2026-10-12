@@ -1,0 +1,638 @@
+GT patch 0021: make lcs-recomp's Vulkan GE backend draw GT (docs/superpowers/specs/2026-10-12-gpu-ge-backend-design.md,
+phase 2; measured with tools/gpu_gate.sh).
+
+- Blending: every GE equation and factor, the way ge_renderer.cpp blend_pixel does (all four channels
+  with the same factors); min(1, 2As) / min(1, 2(1-As)) computed in the shader with dual-source blending.
+- Targets: every render target covers a fixed 512x512 guest-pixel space at the internal-resolution
+  scale (it used to re-map to each draw's stride/scissor, which broke GT's render-to-texture HUD layer
+  0x0CC000); the display shows its logical crop; sampling a target as a texture scales the UVs to the
+  texture's size.
+- Textures: keyed by content once their signature is known, and re-checked after a block transfer
+  writes their bytes (GT copies every text glyph into the same small texture right before drawing it).
+- GT_GPU_STATS also counts draws per target and textures read from VRAM. Vulkan app name "GTNative".
+
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -330,6 +330,13 @@
+     const GeGpuDrawDescriptor &draw,
+     std::span<const GeGpuVertex> vertices) noexcept;
+ 
++// GT patch 0023: guest memory [address, address + bytes) was written outside a GE draw (a block
++// transfer); textures read from it are re-checked on their next draw, even within the same frame.
++void ge_gpu_backend_note_guest_write(std::uint32_t address, std::uint32_t bytes) noexcept;
++// GT patch 0023: after the content signature is known, key the texture by its content, so draws of the
++// same address with different bytes in one frame each keep their own image.
++void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &draw) noexcept;
++
+ [[nodiscard]] bool ge_gpu_backend_texture_needed(
+     const GeGpuDrawDescriptor &draw) noexcept;
+ 
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -7,6 +7,7 @@
+ #include "lcs_runtime_log.hpp"
+ #include "vulkan/ge_spv.hpp"
+ 
++#include <atomic>
+ #include <cstdio>
+ #include <tuple>
+ #include <map>
+@@ -30,6 +31,7 @@
+ namespace {
+ 
+ constexpr std::uint32_t kReferenceWidth = 480u;
++constexpr std::uint32_t kTargetSpace = 512u;  // GT patch 0022: guest pixels a target covers per axis
+ constexpr std::uint32_t kReferenceHeight = 272u;
+ constexpr std::size_t kGeometryUploadCapacity = 64u * 1024u * 1024u;
+ constexpr std::uint32_t kMaxDescriptorSets = 4096u;
+@@ -62,8 +64,9 @@
+     float color_add[4]{};
+     std::uint32_t pixel0[4]{};
+     std::uint32_t pixel1[4]{};
++    float sample_scale[4]{1.0f, 1.0f, 0.0f, 0.0f};  // GT patch 0022: texture uv -> render-target uv
+ };
+-static_assert(sizeof(DrawUniforms) == 192u);
++static_assert(sizeof(DrawUniforms) == 208u);
+ static_assert(offsetof(DrawUniforms, control) == 112u);
+ static_assert(offsetof(DrawUniforms, pixel0) == 160u);
+ 
+@@ -181,6 +184,11 @@
+     std::uint32_t uniform_align{kUniformAlign};
+     std::uint32_t target_width{kReferenceWidth};
+     std::uint32_t target_height{kReferenceHeight};
++    // GT patch 0022: every target is the same guest-pixel space (kTargetSpace x kTargetSpace) at the
++    // internal-resolution scale; the shown picture is the display's logical size cropped from its corner.
++    float pixel_scale_x{1.0f};
++    float pixel_scale_y{1.0f};
++    std::unordered_map<std::uint64_t, std::uint64_t> content_keys;  // GT patch 0023: address key -> content key
+     std::uint32_t display_framebuffer{};
+     std::uint32_t display_logical_width{kReferenceWidth};
+     std::uint32_t display_logical_height{kReferenceHeight};
+@@ -587,13 +595,23 @@
+     return found == s.targets.end() ? nullptr : &found->second;
+ }
+ 
++// GT patch 0022: the shown part of the display target, in image pixels.
++std::uint32_t crop_width(const VulkanState &s) noexcept {
++    return std::max<std::uint32_t>(1u, std::min(s.target_width, static_cast<std::uint32_t>(
++        std::lround(static_cast<float>(s.display_logical_width) * s.pixel_scale_x))));
++}
++std::uint32_t crop_height(const VulkanState &s) noexcept {
++    return std::max<std::uint32_t>(1u, std::min(s.target_height, static_cast<std::uint32_t>(
++        std::lround(static_cast<float>(s.display_logical_height) * s.pixel_scale_y))));
++}
++
+ bool ensure_target(VulkanState &s, std::uint32_t address, std::string &error) {
+     address &= 0x001FFFF0u;
+     if (find_target(s, address) != nullptr) return true;
+     Target target{};
+     target.address = address;
+-    target.logical_width = kReferenceWidth;
+-    target.logical_height = kReferenceHeight;
++    target.logical_width = kTargetSpace;   // GT patch 0022
++    target.logical_height = kTargetSpace;
+     if (!create_image(s, target.color, s.target_width, s.target_height, 1u,
+                       VK_FORMAT_R8G8B8A8_UNORM,
+                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+@@ -666,12 +684,9 @@
+     return true;
+ }
+ 
+-void note_logical_size(VulkanState &s, std::uint32_t address, std::uint32_t width, std::uint32_t height) {
+-    Target *target = find_target(s, address);
+-    if (target == nullptr) return;
+-    if (width != 0u) target->logical_width = width;
+-    if (height != 0u) target->logical_height = height;
+-}
++// GT patch 0022: targets keep their fixed guest-pixel space; a draw's stride or scissor no longer
++// re-maps what was already drawn (LCS only ever drew to the screen, GT samples its render targets).
++void note_logical_size(VulkanState &, std::uint32_t, std::uint32_t, std::uint32_t) {}
+ 
+ UploadVertex make_upload_vertex(const GeGpuVertex &source) noexcept {
+     return {source.x, source.y, source.z, source.w, source.rgba, source.u, source.v,
+@@ -706,6 +721,8 @@
+     return {a[0] * sa + b[0] * sb, a[1] * sa + b[1] * sb, a[2] * sa + b[2] * sb, a[3] * sa + b[3] * sb};
+ }
+ 
++std::array<std::uint32_t, 3> shader_blend_uniforms(const GeGpuDrawDescriptor &draw) noexcept;  // GT patch 0021
++
+ DrawUniforms make_uniforms(const Batch &batch, std::uint32_t logical_width, std::uint32_t logical_height,
+                            bool sampled) noexcept {
+     DrawUniforms constants{};
+@@ -767,6 +784,10 @@
+     constants.pixel0[3] = (draw.fog_color & 0x00FFFFFFu) |
+                           (static_cast<std::uint32_t>(draw.fog_enabled ? 0xFFu : 0u) << 24u);
+     constants.pixel1[0] = draw.framebuffer_format & 3u;
++    const std::array<std::uint32_t, 3> shader_blend = shader_blend_uniforms(draw);  // GT patch 0021
++    constants.pixel1[1] = shader_blend[0];
++    constants.pixel1[2] = shader_blend[1];
++    constants.pixel1[3] = shader_blend[2];
+     return constants;
+ }
+ 
+@@ -791,6 +812,103 @@
+     return 0u;
+ }
+ 
++// GT patch 0021: the GE blend state mapped to Vulkan in general, the way the software rasterizer
++// (ge_renderer.cpp blend_pixel, the verified reference) blends: all four channels with the same factors.
++// Factors (GE): src 0 Cd, 1 1-Cd; dst 0 Cs, 1 1-Cs; both 2 As, 3 1-As, 4 Ad, 5 1-Ad, 6 min(1, 2As),
++// 7 min(1, 2(1-As)), 8 min(1, 2Ad), 9 min(1, 2(1-Ad)), 10 fixed colour (alpha 1). Equations: 0 add, 1 sub,
++// 2 reverse sub, 3 min, 4 max, 5 abs (no Vulkan op: drawn as add).
++// Factors 6/7 have no Vulkan equivalent: when both factors only depend on the source alpha or are fixed
++// (2, 3, 6, 7, 10) the shader computes them — the colour premultiplied by the source factor (blend ONE)
++// and the destination factor in the second output (dual-source blend, SRC1). 8/9 are drawn as 4/5.
++// A fixed colour is ZERO or ONE when black or white, else the blend constant; when both sides need a
++// different constant the destination falls back to ONE_MINUS_CONSTANT (exact only for complements).
++struct GeneralBlend {
++    bool enable{};
++    VkBlendFactor src{VK_BLEND_FACTOR_ONE};
++    VkBlendFactor dst{VK_BLEND_FACTOR_ZERO};
++    VkBlendOp op{VK_BLEND_OP_ADD};
++    std::uint32_t constant{};  // 0x00BBGGRR
++    bool shader_factors{};     // premultiplied source + SRC1 destination factor
++};
++
++bool source_alpha_only(std::uint32_t code) noexcept {
++    code &= 0xFu;
++    return code == 2u || code == 3u || code == 6u || code == 7u || code == 10u;
++}
++
++std::atomic<bool> g_dual_source_blend{false};  // set when the device enables dualSrcBlend
++bool dual_source_supported() { return g_dual_source_blend.load(std::memory_order_relaxed); }
++
++GeneralBlend general_blend(const GeGpuDrawDescriptor &draw) noexcept {
++    GeneralBlend blend;
++    if (!draw.blend_enabled || draw.clear_mode) return blend;
++    blend.enable = true;
++    const std::uint32_t eq = draw.blend_equation & 7u;
++    blend.op = eq == 1u ? VK_BLEND_OP_SUBTRACT : eq == 2u ? VK_BLEND_OP_REVERSE_SUBTRACT
++             : eq == 3u ? VK_BLEND_OP_MIN : eq == 4u ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
++    const std::uint32_t source = draw.blend_source_factor & 0xFu, dest = draw.blend_dest_factor & 0xFu;
++    const bool doubled = source == 6u || source == 7u || dest == 6u || dest == 7u;
++    if (doubled && source_alpha_only(source) && source_alpha_only(dest) && eq <= 2u && dual_source_supported()) {
++        blend.shader_factors = true;
++        blend.src = VK_BLEND_FACTOR_ONE;
++        blend.dst = VK_BLEND_FACTOR_SRC1_COLOR;
++        return blend;
++    }
++    bool constant_used = false;
++    const auto factor = [&](std::uint32_t code, bool is_source, std::uint32_t fix) {
++        switch (code & 0xFu) {
++        case 0u: return is_source ? VK_BLEND_FACTOR_DST_COLOR : VK_BLEND_FACTOR_SRC_COLOR;
++        case 1u: return is_source ? VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR : VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
++        case 2u: case 6u: return VK_BLEND_FACTOR_SRC_ALPHA;
++        case 3u: case 7u: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
++        case 4u: case 8u: return VK_BLEND_FACTOR_DST_ALPHA;
++        case 5u: case 9u: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
++        default: break;
++        }
++        fix &= 0x00FFFFFFu;
++        if (fix == 0u) return VK_BLEND_FACTOR_ZERO;
++        if (fix == 0x00FFFFFFu) return VK_BLEND_FACTOR_ONE;
++        if (!constant_used) {
++            constant_used = true;
++            blend.constant = fix;
++            return VK_BLEND_FACTOR_CONSTANT_COLOR;
++        }
++        return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
++    };
++    blend.src = factor(source, true, draw.blend_fix_source);
++    blend.dst = factor(dest, false, draw.blend_fix_dest);
++    return blend;
++}
++
++// The alpha channel blends with the colour factors' alpha counterparts (as the software path does).
++VkBlendFactor alpha_counterpart(VkBlendFactor factor) noexcept {
++    switch (factor) {
++    case VK_BLEND_FACTOR_SRC_COLOR: return VK_BLEND_FACTOR_SRC_ALPHA;
++    case VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
++    case VK_BLEND_FACTOR_DST_COLOR: return VK_BLEND_FACTOR_DST_ALPHA;
++    case VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
++    case VK_BLEND_FACTOR_CONSTANT_COLOR: return VK_BLEND_FACTOR_CONSTANT_ALPHA;
++    case VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
++    case VK_BLEND_FACTOR_SRC1_COLOR: return VK_BLEND_FACTOR_SRC1_ALPHA;
++    default: return factor;
++    }
++}
++
++std::uint64_t general_blend_key(const GeneralBlend &blend) noexcept {
++    if (!blend.enable) return 0u;
++    return 1u | (static_cast<std::uint64_t>(blend.src) << 1u) | (static_cast<std::uint64_t>(blend.dst) << 6u) |
++           (static_cast<std::uint64_t>(blend.op) << 11u);
++}
++
++// The shader's view of the blend (DrawUniforms pixel1.y/z/w): bit 0 shader factors, bits 4-7 the source
++// factor code, bits 8-11 the destination code; z/w the fixed colours.
++std::array<std::uint32_t, 3> shader_blend_uniforms(const GeGpuDrawDescriptor &draw) noexcept {
++    if (!general_blend(draw).shader_factors) return {0u, 0u, 0u};
++    return {1u | ((draw.blend_source_factor & 0xFu) << 4u) | ((draw.blend_dest_factor & 0xFu) << 8u),
++            draw.blend_fix_source & 0x00FFFFFFu, draw.blend_fix_dest & 0x00FFFFFFu};
++}
++
++
+ VkColorComponentFlags color_write_mask(const GeGpuDrawDescriptor &draw) noexcept {
+     VkColorComponentFlags mask = 0;
+     for (std::uint32_t channel = 0u; channel < 4u; ++channel) {
+@@ -818,7 +936,7 @@
+     std::uint64_t key = static_cast<std::uint64_t>(draw.depth_test_enabled ? 1u : 0u);
+     key |= static_cast<std::uint64_t>(draw.depth_write_enabled ? 1u : 0u) << 1u;
+     key |= static_cast<std::uint64_t>(draw.depth_function & 7u) << 2u;
+-    key |= static_cast<std::uint64_t>(blend_variant(draw) & 7u) << 5u;
++    key |= general_blend_key(general_blend(draw)) << 20u;
+     key |= static_cast<std::uint64_t>(color_write_mask(draw) & 0xFu) << 8u;
+     key |= static_cast<std::uint64_t>(strip ? 1u : 0u) << 16u;
+     key |= static_cast<std::uint64_t>(cull ? 1u : 0u) << 17u;
+@@ -879,26 +997,14 @@
+     depth.depthCompareOp = draw.depth_test_enabled ? depth_compare(draw.depth_function) : VK_COMPARE_OP_ALWAYS;
+     VkPipelineColorBlendAttachmentState blend{};
+     blend.colorWriteMask = color_write_mask(draw);
+-    const std::size_t variant = blend_variant(draw);
+-    blend.blendEnable = (variant != 0u && variant != 2u) ? VK_TRUE : VK_FALSE;
+-    blend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+-    blend.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+-    blend.colorBlendOp = VK_BLEND_OP_ADD;
+-    blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+-    blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+-    blend.alphaBlendOp = VK_BLEND_OP_ADD;
+-    if (variant == 1u) {
+-        blend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+-        blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+-        blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+-    } else if (variant == 3u || variant == 5u) {
+-        blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+-        blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+-        if (variant == 5u) blend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+-    } else if (variant == 4u) {
+-        blend.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_COLOR;
+-        blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+-    }
++    const GeneralBlend general = general_blend(draw);
++    blend.blendEnable = general.enable ? VK_TRUE : VK_FALSE;
++    blend.srcColorBlendFactor = general.src;
++    blend.dstColorBlendFactor = general.dst;
++    blend.colorBlendOp = general.op;
++    blend.srcAlphaBlendFactor = alpha_counterpart(general.src);
++    blend.dstAlphaBlendFactor = alpha_counterpart(general.dst);
++    blend.alphaBlendOp = general.op;
+     VkPipelineColorBlendStateCreateInfo blending{};
+     blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+     blending.attachmentCount = 1u;
+@@ -932,7 +1038,7 @@
+     s.report.unique_pipeline_keys = s.pipelines.size();
+     s.report.graphics_pipeline_created = true;
+     if (draw.depth_test_enabled) ++s.report.depth_pipeline_variants_created;
+-    if (variant != 0u) ++s.report.blend_pipeline_variants_created;
++    if (general.enable) ++s.report.blend_pipeline_variants_created;
+     return pipeline;
+ }
+ 
+@@ -1422,7 +1528,7 @@
+     }
+     VkPushConstantRange range{};
+     range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-    range.size = 4u;
++    range.size = 16u;  // GT patch 0022: opaque flag + source uv scale
+     VkPipelineLayoutCreateInfo layout{};
+     layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+     layout.setLayoutCount = 1u;
+@@ -1844,9 +1950,12 @@
+     scissor.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
+     vkCmdSetViewport(s.command, 0u, 1u, &viewport);
+     vkCmdSetScissor(s.command, 0u, 1u, &scissor);
+-    const std::uint32_t opaque_flag = opaque ? 1u : 0u;
+-    vkCmdPushConstants(s.command, s.present_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0u, sizeof(opaque_flag),
+-                       &opaque_flag);
++    struct { std::uint32_t opaque; float pad; float uv_scale[2]; } push{opaque ? 1u : 0u, 0.0f, {1.0f, 1.0f}};
++    if (opaque) {  // GT patch 0022: the game layer shows only the display crop of the target
++        push.uv_scale[0] = static_cast<float>(crop_width(s)) / static_cast<float>(s.target_width);
++        push.uv_scale[1] = static_cast<float>(crop_height(s)) / static_cast<float>(s.target_height);
++    }
++    vkCmdPushConstants(s.command, s.present_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0u, sizeof(push), &push);
+     vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.present_layout, 0u, 1u, &set, 0u,
+                             nullptr);
+     vkCmdDraw(s.command, 3u, 1u, 0u, 0u);
+@@ -2320,11 +2429,13 @@
+ 
+ bool create_backend(VulkanState &s, std::string &error) {
+     const InternalResolutionDimensions dims = resolve_internal_resolution(lcs_render_configuration().rendering);
+-    s.target_width = std::max<std::uint32_t>(1u, dims.width);
+-    s.target_height = std::max<std::uint32_t>(1u, dims.height);
++    s.pixel_scale_x = static_cast<float>(std::max<std::uint32_t>(1u, dims.width)) / static_cast<float>(kReferenceWidth);
++    s.pixel_scale_y = static_cast<float>(std::max<std::uint32_t>(1u, dims.height)) / static_cast<float>(kReferenceHeight);
++    s.target_width = static_cast<std::uint32_t>(std::lround(kTargetSpace * s.pixel_scale_x));   // GT patch 0022
++    s.target_height = static_cast<std::uint32_t>(std::lround(kTargetSpace * s.pixel_scale_y));
+     VkApplicationInfo application{};
+     application.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+-    application.pApplicationName = "LCSNative";
++    application.pApplicationName = "GTNative";  // GT patch 0022
+     application.apiVersion = VK_API_VERSION_1_0;
+     VkInstanceCreateInfo instance_info{};
+     instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+@@ -2407,6 +2518,10 @@
+     VkPhysicalDeviceFeatures available_features{};
+     vkGetPhysicalDeviceFeatures(s.physical, &available_features);
+     VkPhysicalDeviceFeatures enabled_features{};
++    if (available_features.dualSrcBlend) {  // GT patch 0021: the GE's doubled-alpha blend factors
++        enabled_features.dualSrcBlend = VK_TRUE;
++        g_dual_source_blend.store(true, std::memory_order_relaxed);
++    }
+     if (available_features.samplerAnisotropy) {
+         enabled_features.samplerAnisotropy = VK_TRUE;
+         s.sampler_anisotropy = true;
+@@ -2567,8 +2682,8 @@
+     s.report.transfer_buffer_created = true;
+     s.report.transfer_memory_mapped = true;
+     s.report.upload_capacity_bytes = geometry_size;
+-    s.report.offscreen_width = s.target_width;
+-    s.report.offscreen_height = s.target_height;
++    s.report.offscreen_width = crop_width(s);   // GT patch 0022: the shown crop
++    s.report.offscreen_height = crop_height(s);
+     s.report.memory_type_index = 0u;
+ 
+     std::vector<std::byte> white(4u, std::byte{0xFF});
+@@ -2679,8 +2794,8 @@
+     s.report.message = rendering.backend == RenderingBackend::DirectX12
+         ? "Vulkan GE backend active (Backend=DirectX12 selects Vulkan on Linux)"
+         : "Vulkan GE backend active";
+-    s.report.offscreen_width = s.target_width;
+-    s.report.offscreen_height = s.target_height;
++    s.report.offscreen_width = crop_width(s);   // GT patch 0022: the shown crop
++    s.report.offscreen_height = crop_height(s);
+     error.clear();
+     return true;
+ }
+@@ -2708,7 +2823,19 @@
+     std::mutex mutex;
+     std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::size_t>,
+              std::uint64_t> counts;
++    std::map<std::tuple<bool, std::uint32_t, std::uint32_t, bool>, std::uint64_t> targets;  // through, fb, stride, depth test
++    std::map<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t>, std::uint64_t> vram_textures;
+     ~BlendStats() {
++        for (const auto &[key, count] : vram_textures) {
++            const auto &[texture, w, h, target] = key;
++            std::fprintf(stderr, "[gpu-stats] VRAM texture %06X %ux%u drawn into %06X: %llu draws\n", texture, w, h, target,
++                         static_cast<unsigned long long>(count));
++        }
++        for (const auto &[key, count] : targets) {
++            const auto &[through, target, stride, depth] = key;
++            std::fprintf(stderr, "[gpu-stats] target %06X stride %u %s%s: %llu draws\n", target, stride,
++                         through ? "2D" : "3D", depth ? " depth" : "", static_cast<unsigned long long>(count));
++        }
+         if (counts.empty()) return;
+         std::fprintf(stderr, "[gpu-stats] blend states (eq src dst fixA fixB variant: draws; variant 0 with blend = unsupported)\n");
+         for (const auto &[key, count] : counts) {
+@@ -2731,6 +2858,14 @@
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled) return;
++    if (BlendStats *stats = blend_stats(); stats != nullptr && !draw.clear_mode) {
++        std::lock_guard<std::mutex> stats_guard(stats->mutex);
++        ++stats->targets[{draw.through, draw.framebuffer_address & 0x001FFFF0u, draw.framebuffer_stride,
++                          draw.depth_test_enabled}];
++        if (draw.texture_enabled && (draw.texture_address & 0x0F000000u) == 0x04000000u)
++            ++stats->vram_textures[{draw.texture_address & 0x001FFFF0u, draw.texture_width, draw.texture_height,
++                                    draw.framebuffer_address & 0x001FFFF0u}];
++    }
+     if (BlendStats *stats = blend_stats(); stats != nullptr && draw.blend_enabled && !draw.clear_mode) {
+         const std::size_t variant = blend_variant(draw);
+         const bool fixed = (draw.blend_source_factor & 0xFu) == 10u || (draw.blend_dest_factor & 0xFu) == 10u;
+@@ -2774,6 +2909,45 @@
+     return true;
+ }
+ 
++void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &draw) noexcept {
++    if (!draw.texture_enabled || draw.texture_cache_key_hint == 0u) return;
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    if (!s.enabled) return;
++    const std::uint64_t address_key = draw.texture_cache_key_hint;
++    std::uint64_t key = address_key;
++    if (draw.texture_content_signature != 0u) {
++        key = hash_mix(address_key, draw.texture_content_signature);
++        s.content_keys[address_key] = key;
++    } else if (const auto content = s.content_keys.find(address_key); content != s.content_keys.end()) {
++        key = content->second;
++    }
++    draw.texture_cache_key_hint = key;
++    draw.texture_image_key_hint = key;
++}
++
++void ge_gpu_backend_note_guest_write(std::uint32_t address, std::uint32_t bytes) noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    if (!s.enabled || bytes == 0u) return;
++    const std::uint64_t begin = address & 0x0FFFFFFFu, end = begin + bytes;
++    for (auto &[key, texture] : s.textures) {
++        const GeGpuDrawDescriptor &d = texture.descriptor;
++        const std::uint32_t width = std::max(d.texture_buffer_width, d.texture_width);
++        std::uint64_t size = static_cast<std::uint64_t>(width) * std::max(1u, d.texture_height);
++        switch (d.texture_format) {
++        case 3u: case 7u: size *= 4u; break;
++        case 4u: size = (size + 1u) / 2u; break;
++        case 5u: break;
++        case 8u: size /= 2u; break;   // DXT1: 4 bits per pixel
++        case 9u: case 10u: break;      // DXT3/5: 8 bits per pixel
++        default: size *= 2u; break;
++        }
++        const std::uint64_t start = d.texture_address & 0x0FFFFFFFu;
++        if (start < end && begin < start + size) texture.signature_epoch = 0u;  // recheck on next use
++    }
++}
++
+ bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &draw) noexcept {
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+@@ -2812,7 +2986,9 @@
+     if (!s.enabled || !draw.texture_enabled || draw.texture_width == 0u || draw.texture_height == 0u)
+         return false;
+     if (find_target(s, draw.texture_address) != nullptr) return false;
+-    const auto found = s.textures.find(texture_key(draw));
++    std::uint64_t key = texture_key(draw);
++    if (const auto content = s.content_keys.find(key); content != s.content_keys.end()) key = content->second;
++    const auto found = s.textures.find(key);
+     return found == s.textures.end() || found->second.signature_epoch != s.frame_epoch;
+ }
+ 
+@@ -3190,8 +3366,8 @@
+         scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
+         vkCmdSetScissor(s.command, 0u, 1u, &scissor);
+         float blend_constants[4]{};
+-        if (blend_variant(batch.draw) == 4u) {
+-            const std::uint32_t fix = batch.draw.blend_fix_source & 0x00FFFFFFu;
++        if (const GeneralBlend general = general_blend(batch.draw); general.constant != 0u) {
++            const std::uint32_t fix = general.constant;
+             blend_constants[0] = static_cast<float>(fix & 0xFFu) / 255.0f;
+             blend_constants[1] = static_cast<float>((fix >> 8u) & 0xFFu) / 255.0f;
+             blend_constants[2] = static_cast<float>((fix >> 16u) & 0xFFu) / 255.0f;
+@@ -3200,6 +3376,7 @@
+         vkCmdSetBlendConstants(s.command, blend_constants);
+         VkDescriptorSet sampled_set = s.white.gpu.set;
+         bool textured = false;
++        bool sampled_target = false;  // GT patch 0022
+         if (batch.draw.texture_enabled) {
+             if (batch.framebuffer_feedback && batch.feedback_address == target->address) {
+                 if (snapshot_target(s, *target, error)) {
+@@ -3208,6 +3385,7 @@
+                     if (feedback_set != VK_NULL_HANDLE) {
+                         sampled_set = feedback_set;
+                         textured = true;
++                        sampled_target = true;
+                         ++s.report.vram_feedback_refreshes;
+                         ++s.report.gpu_feedback_draws;
+                         ++s.report.self_feedback_snapshots;
+@@ -3222,6 +3400,7 @@
+                     if (feedback_set != VK_NULL_HANDLE) {
+                         sampled_set = feedback_set;
+                         textured = true;
++                        sampled_target = true;
+                         ++s.report.vram_feedback_refreshes;
+                         ++s.report.gpu_feedback_draws;
+                     }
+@@ -3235,6 +3414,10 @@
+             }
+         }
+         DrawUniforms uniforms = make_uniforms(batch, target->logical_width, target->logical_height, textured);
++        if (sampled_target) {  // GT patch 0022: the texture covers its own size of the target's guest space
++            uniforms.sample_scale[0] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_width)) / kTargetSpace;
++            uniforms.sample_scale[1] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_height)) / kTargetSpace;
++        }
+         std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
+                         static_cast<std::size_t>(uniform_slot) * s.uniform_align,
+                     &uniforms, sizeof(uniforms));
+@@ -3311,7 +3494,7 @@
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
+         }
+         std::string present_error;
+-        if (record_swapchain_present(s, display->color.view, s.target_width, s.target_height, present_error))
++        if (record_swapchain_present(s, display->color.view, crop_width(s), crop_height(s), present_error))
+             present_this_frame = true;
+         else if (!present_error.empty())
+             log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
+@@ -3322,7 +3505,7 @@
+         VkBufferImageCopy copy{};
+         copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+         copy.imageSubresource.layerCount = 1u;
+-        copy.imageExtent = {s.target_width, s.target_height, 1u};
++        copy.imageExtent = {crop_width(s), crop_height(s), 1u};  // GT patch 0022
+         vkCmdCopyImageToBuffer(s.command, display->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                s.readback, 1u, &copy);
+         transition_image(s.command, display->color.image, display->color.layout,
+@@ -3377,7 +3560,7 @@
+                 } else {
+                     s.pending_readback = publish && display_ready && s.readback_mapped != nullptr;
+                     s.pending_readback_bytes = s.pending_readback
+-                        ? static_cast<std::size_t>(s.target_width) * s.target_height * 4u : 0u;
++                        ? static_cast<std::size_t>(crop_width(s)) * crop_height(s) * 4u : 0u;
+                     if (publish && !display_ready)
+                         log_frame_failure(s, "display target was not drawn", VK_SUCCESS);
+                     else if (publish && display_ready && s.swapchain == VK_NULL_HANDLE &&
+@@ -3397,8 +3580,8 @@
+     if (!display_ready) ++s.report.frames_without_displayed_target;
+     ++s.report.game_frames;
+     s.report.game_frame_vblank = vblank;
+-    s.report.offscreen_width = s.target_width;
+-    s.report.offscreen_height = s.target_height;
++    s.report.offscreen_width = crop_width(s);   // GT patch 0022: the shown crop
++    s.report.offscreen_height = crop_height(s);
+     const bool show = shown();
+     s.report.game_frame_readback_bytes = show && !presented_now ? s.frame_rgba.size() : 0u;
+     s.report.presented_framebuffer_target = display_ready ? s.display_framebuffer : 0u;
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4310,6 +4310,7 @@
+             }
+             gpu_draw.texture_content_signature = any_signature ? signature : 0u;
+         }
++        ge_gpu_backend_finalize_texture_key(gpu_draw);  // GT patch 0023
+         ge_gpu_backend_record_draw(gpu_draw);
+         if (!gpu_draw.clear_mode && primitive >= 3u && primitive <= 6u)
+             fps_overlay_observe_draw(gpu_draw, count);
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -3,7 +3,8 @@
+ layout(location = 1) in vec2 vUv;
+ layout(location = 2) in float vQ;
+ layout(location = 3) in float vFog;
+-layout(location = 0) out vec4 outColor;
++layout(location = 0, index = 0) out vec4 outColor;
++layout(location = 0, index = 1) out vec4 outBlendFactor;  // GT patch 0021: dual-source destination factor
+ 
+ layout(std140, set = 0, binding = 0) uniform DrawUniforms {
+     vec4 row0;
+@@ -18,6 +19,7 @@
+     vec4 colorAdd;
+     uvec4 pixel0;
+     uvec4 pixel1;
++    vec4 sampleScale;
+ } u;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D sourceTexture;
+@@ -89,6 +91,15 @@
+     return color;
+ }
+ 
++vec4 blendFactor(uint code, float a, uint fixedColor) {
++    if (code == 2u) return vec4(a);
++    if (code == 3u) return vec4(1.0 - a);
++    if (code == 6u) return vec4(min(1.0, 2.0 * a));
++    if (code == 7u) return vec4(min(1.0, 2.0 * (1.0 - a)));
++    return vec4(float(fixedColor & 0xFFu), float((fixedColor >> 8u) & 0xFFu),
++                float((fixedColor >> 16u) & 0xFFu), 255.0) / 255.0;  // 10: fixed colour, alpha 1
++}
++
+ void main() {
+     uvec4 textureControl = uvec4(u.pixel0.y & 0xFFu, (u.pixel0.y >> 8u) & 0xFFu,
+                                  (u.pixel0.y >> 16u) & 0xFFu, (u.pixel0.y >> 24u) & 0xFFu);
+@@ -113,5 +124,15 @@
+         uint mask = alphaControl.w;
+         if (!alphaPass(alphaControl.y, a & mask, alphaControl.z & mask)) discard;
+     }
++    // GT patch 0021: blend factors the fixed-function blend can't express (the GE's min(1, 2As) and
++    // min(1, 2(1-As))) are computed here: the colour premultiplied by the source factor (blend ONE) and the
++    // destination factor in the second output (blend SRC1), as ge_renderer.cpp blend_pixel does.
++    outBlendFactor = vec4(0.0);
++    if ((u.pixel1.y & 1u) != 0u) {
++        float a = clamp(color.a, 0.0, 1.0);
++        vec4 sourceFactor = blendFactor((u.pixel1.y >> 4u) & 0xFu, a, u.pixel1.z);
++        outBlendFactor = blendFactor((u.pixel1.y >> 8u) & 0xFu, a, u.pixel1.w);
++        color *= sourceFactor;
++    }
+     outColor = quantizeFramebuffer(color, u.pixel1.x);
+ }
+--- a/lcs/host/vulkan/ge.vert
++++ b/lcs/host/vulkan/ge.vert
+@@ -24,6 +24,7 @@
+     vec4 colorAdd;
+     uvec4 pixel0;
+     uvec4 pixel1;
++    vec4 sampleScale;  // GT patch 0022: render-target textures cover their own size of the target
+ } u;
+ 
+ void main() {
+@@ -63,7 +64,7 @@
+     position.y = -position.y;
+     gl_Position = position;
+     vColor = color;
+-    vUv = uv;
++    vUv = uv * u.sampleScale.xy;
+     vQ = inQ;
+     vFog = fog;
+ }
+--- a/lcs/host/vulkan/present.frag
++++ b/lcs/host/vulkan/present.frag
+@@ -2,11 +2,13 @@
+ layout(set = 0, binding = 0) uniform sampler2D image;
+ layout(push_constant) uniform PresentPush {
+     uint opaque;
++    float pad;
++    vec2 uvScale;  // GT patch 0022: the shown crop of the target
+ } push;
+ layout(location = 0) in vec2 uv;
+ layout(location = 0) out vec4 color;
+ 
+ void main() {
+-    vec4 texel = texture(image, uv);
++    vec4 texel = texture(image, uv * (push.uvScale.x == 0.0 ? vec2(1.0) : push.uvScale));
+     color = push.opaque != 0u ? vec4(texel.rgb, 1.0) : texel;
+ }

@@ -1,0 +1,81 @@
+GT patch 0020: PSPRECOMP_GE_GPU_DUAL=1 draws every GE primitive twice, GPU-only (the path gt_play uses,
+hardware transform included) and then software-only into guest VRAM, so the GPU gate compares the real
+GPU path with the verified software one. The older PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER=0 dual mode
+fed the GPU the software-prepared triangles instead (no hardware transform).
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -1853,7 +1853,15 @@
+ std::atomic<std::uint32_t> g_frameskip_screen_a{0u};
+ std::atomic<std::uint32_t> g_frameskip_screen_b{0u};
+ 
++// GT patch 0020: PSPRECOMP_GE_GPU_DUAL=1 draws every primitive twice — first exactly as the GPU-only
++// path would (software skipped, hardware transform eligible), then software-only into guest VRAM — so
++// the GPU gate (tools/gpu_gate.sh) compares the path gt_play really uses with the verified software one.
++enum class DualPass { None, GpuOnly, SoftwareOnly };
++thread_local DualPass g_dual_pass = DualPass::None;
++
+ bool software_raster_skipped(const std::array<std::uint32_t, 256> &commands) noexcept {
++    if (g_dual_pass == DualPass::GpuOnly) return true;
++    if (g_dual_pass == DualPass::SoftwareOnly) return false;
+     if (g_frameskip.load(std::memory_order_relaxed)) {
+         const std::uint32_t target = framebuffer_address(commands) & 0x001FFFF0u;
+         if (target == g_frameskip_screen_a.load(std::memory_order_relaxed) ||
+@@ -4133,7 +4141,7 @@
+ 
+ }  // namespace
+ 
+-bool render_ge_primitive(psprecomp::GuestMemory &memory,
++bool render_ge_primitive_pass(psprecomp::GuestMemory &memory,
+                          const std::array<std::uint32_t, 256> &commands,
+                          const GeTransformState &transform,
+                          std::uint32_t vertex_address,
+@@ -4160,7 +4168,7 @@
+         queue.pending() && (framebuffer_address(commands) & 0x001FFFF0u) != queue.last_target())
+         queue.drain();
+ 
+-    const bool gpu_backend_enabled = ge_gpu_backend_active();
++    const bool gpu_backend_enabled = ge_gpu_backend_active() && g_dual_pass != DualPass::SoftwareOnly;
+     GeGpuDrawDescriptor gpu_draw{};
+     {
+     if (gpu_backend_enabled) {
+@@ -4878,6 +4886,39 @@
+     return true;
+ }
+ 
++bool render_ge_primitive(psprecomp::GuestMemory &memory,
++                         const std::array<std::uint32_t, 256> &commands,
++                         const GeTransformState &transform,
++                         std::uint32_t vertex_address,
++                         std::uint32_t index_address,
++                         std::uint32_t primitive_data,
++                         GeRenderStats &stats,
++                         std::string &error,
++                         std::uint32_t logical_primitive_count,
++                         std::uint64_t draw_state_revision,
++                         std::uint64_t camera_state_revision,
++                         std::uint64_t lighting_state_revision) {
++    static const bool dual = [] {
++        const char *value = std::getenv("PSPRECOMP_GE_GPU_DUAL");
++        return value != nullptr && *value != '\0' && *value != '0';
++    }();
++    if (!dual || !ge_gpu_backend_active())
++        return render_ge_primitive_pass(memory, commands, transform, vertex_address, index_address, primitive_data,
++                                        stats, error, logical_primitive_count, draw_state_revision,
++                                        camera_state_revision, lighting_state_revision);
++    g_dual_pass = DualPass::GpuOnly;
++    const bool gpu_ok = render_ge_primitive_pass(memory, commands, transform, vertex_address, index_address,
++                                                 primitive_data, stats, error, logical_primitive_count,
++                                                 draw_state_revision, camera_state_revision, lighting_state_revision);
++    g_dual_pass = DualPass::SoftwareOnly;
++    // The software pass must not reuse the GPU pass's per-revision caches: revision 0 disables them.
++    const bool software_ok = gpu_ok &&
++        render_ge_primitive_pass(memory, commands, transform, vertex_address, index_address, primitive_data, stats,
++                                 error, logical_primitive_count, 0u, 0u, 0u);
++    g_dual_pass = DualPass::None;
++    return software_ok;
++}
++
+ void ge_set_frameskip(bool enabled, std::uint32_t screen_a, std::uint32_t screen_b) noexcept {
+     g_frameskip_screen_a.store(screen_a & 0x001FFFF0u, std::memory_order_relaxed);
+     g_frameskip_screen_b.store(screen_b & 0x001FFFF0u, std::memory_order_relaxed);
