@@ -401,6 +401,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       flag apuntado, la tabla de bytes indexada con límites (0 < i < 7), un objeto bajo cerrojo, virtuales
       a través de un holder, constructores… Sabotajes detectados en las 38; una más queda sin registrar
       porque el harness no la ve llamada en las rutas. **2.152 funciones, 0 discrepancias en las tres rutas.**
+- [x] **+34 funciones calientes**: desenlazar un nodo de la lista doble, la tabla de cadenas indexada
+      (desplazamientos tras la cuenta), una consulta con un búfer local de 128 bytes, una segunda pila
+      global de nodos, el tope a 50 de un byte, un retardo de cuatro pasos, constructores…
+      Sabotajes detectados en las 34; tres más (imports del kernel) quedan sin registrar.
+      **2.186 funciones, 0 discrepancias en las tres rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
