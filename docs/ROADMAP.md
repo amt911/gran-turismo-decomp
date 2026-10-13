@@ -477,6 +477,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **4.078 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+165 funciones calientes**: reenvios por getter de singleton (accesor de estatico con guarda y tail call con el objeto), inicializadores de estaticos locales, setters y lectores de campos big-endian, constructores de listas globales y vtables, reenvios a miembros de objetos, accesores pequenos y reenvios por tail call
       **4.243 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+80 funciones calientes**: ayudantes de punteros inteligentes (crear un holder, comprobar nulo, asignar y liberar), reenvios bajo lock, envoltorios de reservar y construir, destructores con par de miembros, setters de propiedades float, bucles sobre arrays de objetos y constructores con base llamada
+      **4.323 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
