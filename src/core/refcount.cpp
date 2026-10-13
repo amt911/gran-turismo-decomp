@@ -62,6 +62,7 @@ void object_retain(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 
 void object_release(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = ctx.gpr[4];
+    ctx.gpr[2] = 1u;  // the ll/sc success flag the original leaves in v0 (callers read it)
     if (bump(rt, object, kStrong, ~0u) != 1u) return;
     (void)call_guest(rt, ctx, virtual_function(rt, object, kDisposeSlot), {object});
     tail_call(ctx, kReleaseWeak, {object});  // the original's `j` into the weak release
@@ -70,6 +71,7 @@ void object_release(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // The last weak release deletes the object: a tail call to its virtual delete.
 void object_release_weak(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = ctx.gpr[4];
+    ctx.gpr[2] = 1u;  // the ll/sc success flag the original leaves in v0 (callers read it)
     if (bump(rt, object, kWeak, ~0u) == 1u && object != 0u)
         tail_call(ctx, virtual_function(rt, object, kDeleteSlot), {object});
 }
@@ -87,23 +89,28 @@ void holder_reset(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = ctx.gpr[5];
     if (object != 0u) retain(rt, object);
     const std::uint32_t previous = rt.memory().load32(holder);
-    if (previous != 0u) release(rt, ctx, previous);
+    ctx.gpr[2] = previous;  // v0 ends as the previous object, or as the strong release's 1
+    if (previous != 0u) {
+        release(rt, ctx, previous);
+        ctx.gpr[2] = 1u;
+    }
     rt.memory().store32(holder, object);
 }
 
 // holder_destroy(holder *h): releases the held object, if any (the word itself is left as is).
 void holder_destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = rt.memory().load32(ctx.gpr[4]);
+    ctx.gpr[2] = object;  // v0 holds the object when the tail call starts
     if (object != 0u) tail_call(ctx, kRelease, {object});
 }
 
 } // namespace gt::core
 
-GT_DECOMP(0x08A5B930u, gt::core::object_release_weak, gt::ReturnKind::Void);
-GT_DECOMP(0x08A5B970u, gt::core::object_release, gt::ReturnKind::Void);
-GT_DECOMP(0x08A5B9ECu, gt::core::holder_destroy, gt::ReturnKind::Void);
+GT_DECOMP(0x08A5B930u, gt::core::object_release_weak, gt::ReturnKind::Word);
+GT_DECOMP(0x08A5B970u, gt::core::object_release, gt::ReturnKind::Word);
+GT_DECOMP(0x08A5B9ECu, gt::core::holder_destroy, gt::ReturnKind::Word);
 GT_DECOMP(0x08A5BA08u, gt::core::object_retain_weak, gt::ReturnKind::Void);
 GT_DECOMP(0x08A5BA28u, gt::core::object_retain, gt::ReturnKind::Void);
 GT_DECOMP(0x08A5BA78u, gt::core::holder_copy, gt::ReturnKind::Void);
 GT_DECOMP(0x08A5BAB8u, gt::core::holder_copy, gt::ReturnKind::Void);
-GT_DECOMP(0x08A5BAD8u, gt::core::holder_reset, gt::ReturnKind::Void);
+GT_DECOMP(0x08A5BAD8u, gt::core::holder_reset, gt::ReturnKind::Word);

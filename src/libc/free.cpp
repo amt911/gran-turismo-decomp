@@ -74,9 +74,9 @@ void free(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             (void)call_guest(rt, ctx, kFreePage, {kHeap, memory.load32(table_out), static_cast<std::uint32_t>(index)});
         }
     }
-    (void)call_guest(rt, ctx, kUnlock, {kLockObject});
+    ctx.gpr[2] = call_guest(rt, ctx, kUnlock, {kLockObject});  // callers see the unlock's result in v0
 }
 
 } // namespace gt::libc
 
-GT_DECOMP(0x08B35254u, gt::libc::free, gt::ReturnKind::Void);
+GT_DECOMP(0x08B35254u, gt::libc::free, gt::ReturnKind::Word);

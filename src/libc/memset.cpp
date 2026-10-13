@@ -30,4 +30,6 @@ void memset(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::libc
 
+// Registered Word, not DoubleWord: contract_audit lists v1 because the caller at 0x08B2FCF0 starts with an lwl/lwr pair
+// into v1, and the scan counts the lwl's merge as a read. The pair loads all four bytes, so v1 is never read (false positive).
 GT_DECOMP(0x08B36018u, gt::libc::memset, gt::ReturnKind::Word);
