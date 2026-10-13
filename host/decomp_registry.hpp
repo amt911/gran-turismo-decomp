@@ -37,13 +37,17 @@ struct DecompiledFunction {
     const char *name;
     DecompiledFn fn;
     ReturnKind returns;
+    // Runs decompiled inside other decompiled functions' cases too (host/diff_harness.cpp), so it is verified
+    // through its callers. Only for functions whose whole return contract is right — every register a caller
+    // reads after the call (v0 of a "Void" one included) — or a caller's case mismatches for nothing it did.
+    bool nested = false;
 };
 
 std::vector<DecompiledFunction> &decompiled_functions();
 
 struct DecompRegistrar {
-    DecompRegistrar(std::uint32_t address, const char *name, DecompiledFn fn, ReturnKind returns) {
-        decompiled_functions().push_back({address, name, fn, returns});
+    DecompRegistrar(std::uint32_t address, const char *name, DecompiledFn fn, ReturnKind returns, bool nested = false) {
+        decompiled_functions().push_back({address, name, fn, returns, nested});
     }
 };
 
@@ -53,3 +57,6 @@ struct DecompRegistrar {
 #define GT_DECOMP_CAT(a, b) GT_DECOMP_CAT_(a, b)
 #define GT_DECOMP(address, fn, returns) \
     static const ::gt::DecompRegistrar GT_DECOMP_CAT(gt_decomp_registrar_, __LINE__){(address), #fn, &fn, (returns)}
+// The same, with its return contract audited: it also runs decompiled when nested in another case (see `nested`).
+#define GT_DECOMP_NESTED(address, fn, returns) \
+    static const ::gt::DecompRegistrar GT_DECOMP_CAT(gt_decomp_registrar_, __LINE__){(address), #fn, &fn, (returns), true}

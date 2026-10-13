@@ -343,8 +343,8 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         // tree is compared against the whole original one.
         const auto decompiled = g_entries.find(ctx.pc);
         const auto fn = decompiled == g_entries.end() ? rt.function_at(ctx.pc)
-                        : g_phase == ImportPhase::Replaying ? &trampoline
-                                                            : decompiled->second.original;
+                        : g_phase == ImportPhase::Replaying && decompiled->second.info.nested ? &trampoline
+                                                                                             : decompiled->second.original;
         if (fn == nullptr) {
             g_last_stop = "no function at " + psprecomp::hex32(ctx.pc);
             return false;
@@ -395,7 +395,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
     if (g_in_case) {
-        if (g_phase != ImportPhase::Replaying) {
+        if (g_phase != ImportPhase::Replaying || !entry.info.nested) {
             entry.original(rt, ctx);
             return;
         }
