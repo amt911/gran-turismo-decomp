@@ -69,7 +69,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   - **Full gate (once, before the PR):** every function, real time, race 600 s, dealer 300 s, garage
     310 s — ~11 min. It is the regression check for everything already landed.
 - **The tool:** `.venv/bin/python -m tools.decomp_gate fast TAG --only <addresses or @file>`, `full TAG`,
-  `sabotage TAG --file <source> --only ...` (bumps s0 in the listed functions, runs the fast gate,
+  `sabotage TAG --file <source> --only ...` (bumps s0 and a RAM word in the listed functions, runs the fast gate,
   restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).
   It takes the shared heavy-job lock and the memory cgroup itself. Tooling the workflow needs lives in
   `tools/`, never only in a session's scratch directory (a reboot wiped those once, mid-PR).
@@ -91,8 +91,9 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   3. **Unregister what the gate can't see**, with a comment saying why (the `GT_DECOMP` line stays,
      commented out): `compared 0` and `nested in 0 equal` (reached neither directly nor through a decompiled caller) or
      everything `not comparable` (reaches imports that block or switch threads; see below).
-  4. **Sabotage, fast gate**: bump s0 (`ctx.gpr[16] += 1u;`) as the **first** statement of every
-     registered function of the batch. s0 is callee-saved and always compared, and a bump at entry
+  4. **Sabotage, fast gate** (`tools.decomp_gate sabotage`): bump s0 (`ctx.gpr[16] += 1u;`) and a
+     kernel-region RAM word (`SABOTAGE_WORD`; a caller restoring s0 erases the s0 bump of a function
+     reached only nested — FINDINGS) as the **first** statement of every registered function of the batch. s0 is callee-saved and always compared, and a bump at entry
      survives early returns, guest calls and tail calls — sabotaging the return value at the end
      missed functions whose routes only took an early return, and tail callees overwrite v0. Add,
      don't XOR: a function that calls another sabotaged one directly would flip s0 twice and pass

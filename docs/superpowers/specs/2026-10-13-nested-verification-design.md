@@ -22,6 +22,8 @@ functions and adding the buy route compared only 8 of them.
    it was the **only sabotaged function** in some mismatching case. Functions left ambiguous (a parent
    and its callee always mismatching together) are re-sabotaged in further rounds, choosing per round
    functions that never shared a mismatching case (up to 4 rounds).
+4. **Sabotage that survives callers.** The sabotage also bumps a kernel-region RAM word: a caller that
+   saves and restores s0 erases an s0 bump in a function reached only nested (FINDINGS).
 
 **Verified, restated.** Reached (compared > 0, or nested in > 0 equal cases) with 0 mismatches in the
 fast or full gate, **and** a sabotage pinned on it by the tool.

@@ -65,11 +65,15 @@ void untouched(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { }
 """
 
 
-def test_sabotage_bumps_s0_at_the_entry_of_each_named_function():
+def test_sabotage_bumps_s0_and_a_kernel_ram_word_at_the_entry_of_each_named_function():
     out, missing = gate.sabotage(SOURCE, ["func_088D4C9C", "window_max"])
     assert missing == []
-    assert "void func_088D4C9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; ctx.gpr[2]" in out
-    assert "void window_max(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u;\n" in out
+    bump = "ctx.gpr[16] += 1u; {0}.memory().store32(0x08000F00u, {0}.memory().load32(0x08000F00u) + 1u);"
+    assert ("void func_088D4C9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { " + bump.format("rt") +
+            " ctx.gpr[2]") in out
+    # an unnamed runtime parameter gets a name for the memory bump
+    assert ("void window_max(psprecomp::Runtime &sabotage_rt, psprecomp::AllegrexContext &ctx) { " +
+            bump.format("sabotage_rt") + "\n") in out
     assert "void untouched(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { }" in out
 
 

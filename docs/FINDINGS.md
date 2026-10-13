@@ -983,3 +983,18 @@ race, 24881 before).
 nothing was compared.
 
 Found: 2026-10-13 · host/diff_harness.cpp
+
+## An s0 sabotage is invisible in a function reached only nested
+
+**Symptom.** With nested callees running decompiled, a sabotage (s0 += 1 at entry) of
+`race_operator::set_organizer` went undetected, although the function ran inside an equal case.
+**Cause.** s0 is callee-saved: the decompiled caller saves it on entry and restores it before it returns,
+erasing the bump, and the saved copy sits in the stack window below the case's entry sp, which the
+comparison ignores. A top-level case sees the bump because no caller restores it inside the case.
+**Fix / workaround.** `tools.decomp_gate sabotage` also bumps a guest word in the kernel region
+(`SABOTAGE_WORD`, 0x08000F00): the whole RAM is compared and GT's user-mode code never touches it, so the
+bump survives any caller.
+**Why it isn't obvious.** The function did run (nested in 1 equal case) — the sabotage was there and the
+gate stayed green.
+
+Found: 2026-10-13 · tools/decomp_gate.py

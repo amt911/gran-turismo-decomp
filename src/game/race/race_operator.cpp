@@ -341,14 +341,13 @@ RACE_OPERATOR(0x08824E88u, MRaceOperator_setOrganizer, Void);
 RACE_OPERATOR(0x08824CB0u, MRaceOperator_clear, Void);
 // Not comparable yet (waits on the UMD drive: sceUmdWaitDriveStat): MRaceOperator_checkIn (0x08825AE8).
 // Not comparable yet (creates threads: sceKernelCreateThread): MRaceOperator_allocateResource (0x08825B74).
-// Not registered: calls 0 in the fast and full gates. The pad routes reach them only inside their (decompiled)
-// callers' own harness cases, where nested calls run the recompiled originals, so nothing verifies them; they
-// run as the recompiled originals.
-// RACE_OPERATOR(0x0885BB9Cu, set_organizer, Void);
-// RACE_OPERATOR(0x0885C188u, get_account_car_parameter, Void);
-// RACE_OPERATOR(0x0885C228u, get_account_driver_parameter, Void);
-// RACE_OPERATOR(0x0885C35Cu, is_theater, Word);
-// RACE_OPERATOR(0x0885D4CCu, func_0885D4CC, Word);
+// Reached only inside their decompiled callers' cases: verified there since nested callees run decompiled in
+// a case's decompiled run (2026-10-13; nested in 2-4 equal cases, 0 mismatches, sabotage pinned on each).
+RACE_OPERATOR(0x0885BB9Cu, set_organizer, Void);
+RACE_OPERATOR(0x0885C188u, get_account_car_parameter, Void);
+RACE_OPERATOR(0x0885C228u, get_account_driver_parameter, Void);
+RACE_OPERATOR(0x0885C35Cu, is_theater, Word);
+RACE_OPERATOR(0x0885D4CCu, func_0885D4CC, Word);
 // RACE_OPERATOR(0x0885BBB0u, set_window_max, Void);
 RACE_OPERATOR(0x0885BBBCu, window_max, Word);
 // RACE_OPERATOR(0x0885BBC8u, set_personal_id, Void);

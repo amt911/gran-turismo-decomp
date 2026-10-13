@@ -241,10 +241,12 @@ CAR_COLLECTION(0x0881AA44u, func_0881AA44, Word);
 CAR_COLLECTION(0x0881D7F0u, MCarCollection_getMyAllCarCount, Void);
 CAR_COLLECTION(0x0881D674u, MCarCollection_getCarCount, Void);
 CAR_COLLECTION(0x0881AEA4u, has_favorite, Word);
-// Not registered: compared 0 in every fast, dense and full run (the pad routes never call them on their own, and the
-// harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
-// CAR_COLLECTION(0x0881A840u, func_0881A840, Word);
-// CAR_COLLECTION(0x0881A8F0u, func_0881A8F0, Word);
+// Verified through nested verification (2026-10-13): compared directly (9 and 3 cases) once the whole
+// subsystem was installed, 0 mismatches, sabotage pinned on each.
+CAR_COLLECTION(0x0881A840u, func_0881A840, Word);
+CAR_COLLECTION(0x0881A8F0u, func_0881A8F0, Word);
+// Not registered: compared 0 in every fast, dense and full run (the pad routes never call them on their own,
+// directly or through a decompiled caller), so nothing could verify them; they run as the recompiled originals.
 // CAR_COLLECTION(0x0881A9CCu, get_flg, Word);
 // CAR_COLLECTION(0x0881AF28u, get_favorite_size, Word);
 // CAR_COLLECTION(0x0881AF30u, get_car_count_favorite, Word);

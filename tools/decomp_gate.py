@@ -3,7 +3,7 @@
 Usage (from the repository root):
   .venv/bin/python -m tools.decomp_gate fast TAG --only 0xADDR,0xADDR...|@file   # listed functions, uncapped
   .venv/bin/python -m tools.decomp_gate full TAG                                 # everything, real time
-  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ...  # s0 bump, fast gate, restore
+  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ... [--also ...]  # s0 bump, fast gate
   .venv/bin/python -m tools.decomp_gate report TAG                               # re-read a run's logs
 
 `fast` and `full` regenerate the recompiled code (tools.recomp: registrations are boundaries), build, and
@@ -159,13 +159,26 @@ def summarize(total: dict[int, Stats]) -> Summary:
                    never_compared=sum(1 for s in total.values() if not reached(s)))
 
 
+# A guest word in the kernel region (0x08000000-0x087FFFFF): compared by every case (the whole RAM is), never
+# touched by GT's user-mode code under the HLE kernel, so a bump there survives any caller.
+SABOTAGE_WORD = 0x08000F00
+
+
 def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
-    """Inserts `ctx.gpr[16] += 1u;` as the first statement of each named function; returns the names not found."""
+    """Inserts, as the first statement of each named function, a bump of s0 and of SABOTAGE_WORD; returns the
+    names not found. s0 alone isn't enough for a function reached only nested: a caller that saves and restores
+    s0 erases the bump (measured 2026-10-13); a RAM word survives it."""
     missing = []
     for name in names:
         pattern = re.compile(r"^(void " + re.escape(name) +
-                             r"\(psprecomp::Runtime &\w*, psprecomp::AllegrexContext &ctx\) \{)", re.MULTILINE)
-        source, count = pattern.subn(r"\1 ctx.gpr[16] += 1u;", source, count=1)
+                             r"\(psprecomp::Runtime &)(\w*)(, psprecomp::AllegrexContext &ctx\) \{)", re.MULTILINE)
+
+        def bump(match: re.Match) -> str:
+            rt = match[2] or "sabotage_rt"
+            return (f"{match[1]}{rt}{match[3]} ctx.gpr[16] += 1u; {rt}.memory().store32(0x{SABOTAGE_WORD:08X}u, "
+                    f"{rt}.memory().load32(0x{SABOTAGE_WORD:08X}u) + 1u);")
+
+        source, count = pattern.subn(bump, source, count=1)
         if count == 0:
             missing.append(name)
     return source, missing
@@ -388,12 +401,15 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  
     return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists()))
 
 
-def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no cover - edits, runs, restores
+def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - edits, runs, restores
+                  also: Sequence[int] = ()) -> int:
+    """Sabotages `only`; `also` is installed too (their callers or callees) without being sabotaged."""
+    installed = sorted(set(only) | set(also))
     targets = set(only)
     seen: set[tuple[int, frozenset[int]]] = set()
     found: set[int] = set()
     for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
-        cases = _sabotage_round(f"{tag}s{round_number}", file, only, targets)
+        cases = _sabotage_round(f"{tag}s{round_number}", file, installed, targets)
         if cases is None:
             print("sabotage: the sabotaged build did not run")
             return 2
@@ -422,6 +438,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     sab.add_argument("tag")
     sab.add_argument("--file", type=Path, required=True)
     sab.add_argument("--only", required=True)
+    sab.add_argument("--also", default="", help="installed but not sabotaged (e.g. the decompiled callers of "
+                                                "functions reached only nested)")
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -430,7 +448,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "full":
         return _run_gate("full", args.tag, None)
     if args.command == "sabotage":
-        return _sabotage_run(args.tag, args.file, parse_only(args.only))
+        return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else ())
     return _report(args.tag)
 
 
