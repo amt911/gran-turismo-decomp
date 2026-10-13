@@ -38399,19 +38399,8 @@ void func_08B26B74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08B25968u, {self});
 }
 
-// func_0881D7F0(this) / func_0881DCA8(this): a holder made by func_0881BD98 (func_08A5BB7C(message) when null), v = func_0881B068(object),
-// released; a local from func_08A85B1C(&local, v's +0x8) / func_0881DB64(&local, v) assigned to this and released.
-void func_0881D7F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, 0x0881BD98u, {frame.at(4u)});
-    const std::uint32_t object = word(rt, frame.at(4u));
-    report_if_null(rt, ctx, object, 0x08C98F48u);
-    const std::uint32_t value = call_guest(rt, ctx, 0x0881B068u, {object});
-    (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(4u)});
-    (void)call_guest(rt, ctx, 0x08A85B1Cu, {frame.at(0u), word(rt, value + 8u)});
-    assign_and_release(rt, ctx, self, frame.at(0u));
-}
+// func_0881DCA8(this) — like car_collection::MCarCollection_getMyAllCarCount (0x0881D7F0): a holder made by func_0881BD98 (func_08A5BB7C(message) when null), v = func_0881B068(object),
+// released; a local from func_0881DB64(&local, v) assigned to this and released.
 void func_0881DCA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x20u);
@@ -38673,7 +38662,6 @@ GT_DECOMP(0x08836014u, gt::game::func_08836014, gt::ReturnKind::Void);
 GT_DECOMP(0x0883609Cu, gt::game::func_0883609C, gt::ReturnKind::Void);
 GT_DECOMP(0x08B17AFCu, gt::game::func_08B17AFC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B26B74u, gt::game::func_08B26B74, gt::ReturnKind::Void);
-GT_DECOMP(0x0881D7F0u, gt::game::func_0881D7F0, gt::ReturnKind::Void);
 GT_DECOMP(0x0881DCA8u, gt::game::func_0881DCA8, gt::ReturnKind::Void);
 GT_DECOMP(0x08825848u, gt::game::func_08825848, gt::ReturnKind::Void);
 GT_DECOMP(0x088C4FFCu, gt::game::func_088C4FFC, gt::ReturnKind::Word);
