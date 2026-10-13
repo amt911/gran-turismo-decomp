@@ -27,7 +27,8 @@ struct CarSpecRecord : guest::Layout {
     GT_FIELD(std::uint8_t, unk_13, 0x13);           // read with unk_14 by 0x08930EBC
     GT_FIELD(std::uint8_t, unk_14, 0x14);
     GT_FIELD(std::uint8_t, category, 0x15);         // MSpecDB::getCarCategory -> 0x08930D98
-    GT_FIELD(std::uint8_t, unk_16, 0x16);           // MSpecDB::canRun's test of the car (0x0892C810)
+    GT_FIELD(std::uint8_t, unk_16, 0x16);           // MSpecDB::canRun (0x0892C810) passes it to 0x08937A60, a
+                                                    // membership test against the set at 0x08C9C4F8
 };
 
 // The record a course code resolves to (28 bytes: 0x089305CC copies seven words).

@@ -250,6 +250,8 @@ the line says otherwise.
   year `+0x0C`, category `+0x15`), a course record 28 bytes (condition `+0x14`, max entry `+0x15`); the
   maker table has 96 entries and the tuner table 114 (`getMakerSize` / `getTunerSize` store them). *(verified:
   the engine functions the natives call, `src/game/specdb/spec_db.cpp`)*
-- **The diff harness replays nested guest calls**: a decompiled function called only from another
-  decompiled function is not verified by its parent's cases (a value sabotage of such an engine function went
-  undetected); only its own direct cases count, so a new function with none stays unregistered. *(verified: sabotage of `get_car_price`)*
+- **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
+  exercised by its decompiled parent's cases (a value sabotage of such an engine function went
+  undetected). A child gets its own cases when the routes reach it outside the parent's cases (the
+  parent runs unsampled and reaches the child's trampoline); a child reached only inside sampled parent
+  calls, or never, has none, and stays unregistered. *(verified: sabotage of `get_car_price`)*

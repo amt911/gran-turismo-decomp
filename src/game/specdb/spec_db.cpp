@@ -437,8 +437,6 @@ SPEC_DB(0x0883C390u, MSpecDB_getCarColorName, Void);
 SPEC_DB(0x0883CFFCu, MSpecDB_getCarCatalogLength, Void);
 SPEC_DB(0x0883D184u, MSpecDB_getCarCatalogHeight, Void);
 SPEC_DB(0x0883D30Cu, MSpecDB_getCarCatalogWidth, Void);
-SPEC_DB(0x08930D98u, get_car_category, Word);
-SPEC_DB(0x08931090u, get_car_label_count, Word);
 // Not registered yet: the three pad routes never call these (compared 0, calls 0), so the gate can't
 // check them; they run as the recompiled originals until a route reaches them.
 // SPEC_DB(0x089300B0u, course_code_32_to_64, Word);
@@ -454,11 +452,15 @@ SPEC_DB(0x08931090u, get_car_label_count, Word);
 // SPEC_DB(0x08840D00u, MSpecDB_extractID, Void);
 // SPEC_DB(0x0883DA48u, MSpecDB_CarCode32ToCarCode64, Void);
 // SPEC_DB(0x0883E924u, MSpecDB_CourseCode32ToCourseCode64, Void);
-// Not registered either: only ever reached from the natives above (compared 0 on their own: the harness
-// replays nested calls, so it can't check them), they run as the recompiled originals.
+// Not registered either: only ever reached inside the natives' own cases, where the harness runs nested
+// calls as the recompiled originals (compared 0 on their own), so they run as the recompiled originals.
 // SPEC_DB(0x08930B60u, func_08930B60, Word);
 // SPEC_DB(0x08930D20u, func_08930D20, Word);
 // SPEC_DB(0x089305CCu, func_089305CC, Word);
 // SPEC_DB(0x08930E08u, get_car_price, Word);
+// Unregistered after review (PR #129): calls 0 on all three routes in the full gate, so nothing verified
+// them (get_car_category was rewritten when it moved here from hot_leaves.cpp).
+// SPEC_DB(0x08930D98u, get_car_category, Word);
+// SPEC_DB(0x08931090u, get_car_label_count, Word);
 #undef SPEC_DB
 } // namespace spec_db_registrations
