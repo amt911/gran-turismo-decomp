@@ -152,7 +152,7 @@ race.race_type() = 3;   // big-endian store at address + 4
 - New decompiled code that belongs to a named subsystem uses layouts. Old offset code
   (`word(rt, x + 0x30)`) is rewritten when it moves into a subsystem, not before.
 
-## Naming a subsystem — the recipe (first done: RaceParameter)
+## Naming a subsystem — the recipe (done: RaceParameter, CarParameter)
 
 1. **Find the evidence.** GT registers each Adhoc script class's methods (`0x08B87108`) and
    attributes (`0x08B878E8`) with their names: dump the name → handler table from the registration

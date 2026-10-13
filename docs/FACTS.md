@@ -238,3 +238,9 @@ the line says otherwise.
   *(verified: generated code of unit 0008 plus the ELF strings; table in `config/symbol_addrs.txt`)*
 - The engine-side RaceParameter is big-endian (be16/be32 fields), consistent with `MRaceParameter::pack`
   sending it online. *(verified: the getters' byte swaps, `src/game/race/race_parameter.cpp`)*
+- MCarParameter (initializer `0x08854EB4`): 11 attributes and 40 methods. The script object's first word
+  points to the engine handle (`0x08854678`), the handle's first word to the data, and the data holds
+  **three 384-byte car blocks from `+0x38`**, one selected by the signed byte at `+0x08`; the per-car
+  accessors (quicktune_*, color, car code) all index with it. A spec struct hangs off `+0x4C8`
+  (weight, power, torque, PP). *(verified: the engine accessors the handlers call,
+  `src/game/car/car_parameter.cpp`, `include/gt/game/car_parameter.hpp`)*

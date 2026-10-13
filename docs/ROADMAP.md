@@ -499,6 +499,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (`race_type`, `endless`, `disable_collision`, `launch_speed`…, sacados del registro de atributos de
       los scripts Adhoc) en `src/game/race/race_parameter.cpp`; receta en el workflow para los siguientes
       (CarParameter, SpecDB, Calendar).
+- [x] **Segundo subsistema con nombres: CarParameter** (2026-10-13): `include/gt/game/car_parameter.hpp`
+      (datos con tres bloques de coche de 384 bytes y la estructura de especificaciones) y
+      `src/game/car/car_parameter.cpp`: los accesores del motor llevan el nombre del atributo o método
+      de MCarParameter que los llama (`team_id`, `quicktune_tcs`, `color`, `getPP`…). 21 registrados con
+      gate; el resto escrito pero sin registrar porque las rutas nunca lo llaman.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
