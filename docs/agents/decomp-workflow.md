@@ -59,10 +59,10 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 - **Batch size: ~80 functions** (60–100). Fewer wastes gate time; many more makes a red gate slow to
   bisect. One branch `decomp/hot-leaves-N`, one PR per batch.
 - **Two gates.** The routes always run in parallel, in one memory scope (each `gt_native --decomp
-  diff` is ~290 MB): race, dealer, garage, each
+  diff` is ~290 MB): race, dealer, garage, buy, each
   `GT_PAD=$(grep -v '^#' config/pad_routes/<route>.pad) build/gt_native --max-seconds <s> --decomp diff`.
   - **Fast gate (while iterating on a batch):** `GT_DECOMP_ONLY=<the batch's addresses, comma-separated>
-    LCS_UNCAPPED=1`, routes at race 200 s, dealer 100 s, garage 105 s — ~5 min with the build. With
+    LCS_UNCAPPED=1`, routes at race 200 s, dealer 100 s, garage 103 s, buy 110 s — ~5 min with the build. With
     only the batch installed the game isn't slowed by the other ~2,000 functions' cases, and a 200 s
     uncapped race compares the same batch functions with the same case count as the full 600 s run
     (measured 2026-10-12).
@@ -82,7 +82,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 - **Per batch, in order:**
   1. Write the batch from the asm / generated code as a *reading aid* (never copied); check that no
      `func_X`, `kX` constant or helper name already exists in the file.
-  2. Fast gate: 0 mismatches on all three routes.
+  2. Fast gate: 0 mismatches on all the routes.
   3. **Unregister what the gate can't see**, with a comment saying why (the `GT_DECOMP` line stays,
      commented out): `compared 0` with `calls 0` (only reached from inside its generated unit) or
      everything `not comparable` (reaches imports that block or switch threads; see below).

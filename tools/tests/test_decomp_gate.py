@@ -99,7 +99,7 @@ def test_parse_only_accepts_hex_lists_and_files(tmp_path: Path):
 
 def test_route_commands_are_capped_and_parallel():
     command = gate.route_shell(Path("build/gt_native"), "fast", "t1", Path("recomp/analysis"))
-    assert "race" in command and "dealer" in command and "garage" in command and "wait" in command
+    assert all(route in command for route in ("race", "dealer", "garage", "buy")) and "wait" in command
     assert "--max-seconds 200" in command and "--decomp diff" in command
     full = gate.route_shell(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
     assert "--max-seconds 600" in full and "--max-seconds 310" in full
