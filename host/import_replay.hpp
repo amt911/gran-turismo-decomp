@@ -26,7 +26,7 @@ using RegisterChanges = std::vector<std::pair<unsigned, std::uint32_t>>;  // ind
 
 struct ImportRecord {
     std::uint32_t stub{};
-    unsigned arity{};                     // argument registers the import reads (a0-a3, t0-t3)
+    std::uint8_t arg_mask{};              // argument registers the import reads: bit i = a0-a3, t0-t3
     std::array<std::uint32_t, 8> args{};  // as the original passed them
     RegisterChanges gprs;                 // what the HLE changed
     RegisterChanges fprs;                 // (raw float bits)
@@ -44,11 +44,11 @@ void apply_ram(std::span<std::uint8_t> ram, std::uint32_t base, const std::vecto
 RegisterChanges changed_registers(std::span<const std::uint32_t, 32> before, std::span<const std::uint32_t, 32> after);
 void apply_registers(std::span<std::uint32_t, 32> registers, const RegisterChanges &changes);
 
-// The kernel replay state `current` with each field the import changed (before -> after) set to its
-// result; fields it left alone keep `current`'s value, so the replay doesn't hide the decompiled run's own
-// kernel changes from the final comparison.
-KernelReplayState apply_kernel_delta(KernelReplayState current, const KernelReplayState &before,
-                                     const KernelReplayState &after);
+// Applies to `current` what the import changed between `before` and `after`: a field or a map entry
+// (uid -> value) it changed takes its result; everything else keeps `current`'s value, so the final
+// comparison still sees the decompiled run's own kernel changes. False (a conflict) when something the
+// import changed holds a third value in `current` — neither before nor after: replaying would hide it.
+bool apply_kernel_delta(KernelReplayState &current, const KernelReplayState &before, const KernelReplayState &after);
 
 class ImportLog {
 public:
@@ -61,7 +61,7 @@ public:
     void append(ImportRecord record);
     std::size_t size() const noexcept { return records_.size(); }
 
-    // The next record, if this call (stub and its first `arity` arguments) is the one it recorded.
+    // The next record, if this call (stub and the arguments in its mask) is the one it recorded.
     Match next(std::uint32_t stub, const std::array<std::uint32_t, 8> &args);
     // A description of the first record the replay never reached, if any.
     std::optional<std::string> leftover() const;

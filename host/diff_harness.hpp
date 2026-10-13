@@ -23,14 +23,14 @@ bool parse_decomp_mode(std::string_view text, DecompMode &mode);
 //   both runs of a case. A thread switch still makes the case not comparable.
 // - recordable: it never switches threads; it runs once, in the original's run, and its effect
 //   (registers, guest RAM, kernel replay state) is recorded and applied in the decompiled run, which must
-//   make the same calls with the same first `arity` arguments (host/import_replay.hpp).
+//   make the same calls with the same arguments (`arg_mask`) (host/import_replay.hpp).
 // - neither: the run stops before it and the case is not comparable.
 struct ImportStub {
     std::uint32_t address{};
     std::string name;
     bool replay_safe{};
     bool recordable{};
-    unsigned arity{};
+    std::uint8_t arg_mask{};  // argument registers it reads: bit i = a0-a3, t0-t3
 };
 void set_imports(std::vector<ImportStub> stubs);
 

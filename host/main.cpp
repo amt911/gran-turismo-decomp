@@ -140,24 +140,25 @@ int main(int argc, char **argv) {
         };
         // NIDs the harness records in the original's run and replays in the decompiled run (gt::ImportStub,
         // docs/superpowers/specs/2026-10-13-import-record-replay-design.md): their HLE never switches PSP
-        // threads. Value: how many argument registers the import reads.
-        static const std::unordered_map<std::uint32_t, unsigned> kRecordableNids{
-            {0x8EF08FCEu, 2u},  // sceUmdWaitDriveStat(stat): returns at once (lcs_profile.cpp)
-            {0x446D8DE6u, 6u},  // sceKernelCreateThread(name, entry, prio, stack, attr, opt): no switch until Start
-            {0x293B45B8u, 0u},  // sceKernelGetThreadId
-            {0xEA748E31u, 2u},  // sceKernelChangeCurrentThreadAttr(clear, set)
-            {0xFDB5BFE9u, 0u},  // scePowerGetCpuClockFrequencyInt: 333
-            {0x090CCB3Fu, 1u},  // sceKernelPowerTick(type)
-            {0xE175EF66u, 0u},  // sceSasGetOutputmode
-            {0x099EF33Cu, 3u},  // sceFontFindOptimumFont(lib, style, error)
-            {0xA1336091u, 1u},  // sceNpDrmSetLicenseeKey(key)
-            {0x17C1684Eu, 2u},  // sceKernelReferThreadStatus(uid, info): writes the info struct
-            {0xD59EAD2Fu, 1u},  // sceKernelWakeupThread(uid): refused in a case when it would preempt
-            {0x9ACE131Eu, 0u},  // sceKernelSleepThread: only when a pending wakeup returns it at once,
-            {0x82826F70u, 0u},  // sceKernelSleepThreadCB  otherwise refused in a case (gt_kernel.cpp)
-            {0x109F50BCu, 3u},  // sceIoOpen(path, flags, mode): synchronous host open
-            {0x27EB27B8u, 5u},  // sceIoLseek(fd, -, offset lo, offset hi, whence): synchronous
-            {0xF475845Du, 3u},  // sceKernelStartThread(uid, size, args): refused in a case when it would preempt
+        // threads. Value: the argument registers the import reads (bit i = a0-a3, t0-t3; EABI puts a
+        // 64-bit argument in an even pair, leaving a padding register unread).
+        static const std::unordered_map<std::uint32_t, std::uint8_t> kRecordableNids{
+            {0x8EF08FCEu, 0x01u},  // sceUmdWaitDriveStat(stat): returns at once
+            {0x446D8DE6u, 0x3Fu},  // sceKernelCreateThread(name, entry, prio, stack, attr, opt): no switch until Start
+            {0x293B45B8u, 0x00u},  // sceKernelGetThreadId
+            {0xEA748E31u, 0x03u},  // sceKernelChangeCurrentThreadAttr(clear, set)
+            {0xFDB5BFE9u, 0x00u},  // scePowerGetCpuClockFrequencyInt: 333
+            {0x090CCB3Fu, 0x01u},  // sceKernelPowerTick(type)
+            {0xE175EF66u, 0x00u},  // sceSasGetOutputmode
+            {0x099EF33Cu, 0x07u},  // sceFontFindOptimumFont(lib, style, error)
+            {0xA1336091u, 0x01u},  // sceNpDrmSetLicenseeKey(key)
+            {0x17C1684Eu, 0x03u},  // sceKernelReferThreadStatus(uid, info): writes the info struct
+            {0xD59EAD2Fu, 0x01u},  // sceKernelWakeupThread(uid): refused in a case when it would preempt
+            {0x9ACE131Eu, 0x00u},  // sceKernelSleepThread: only when a pending wakeup returns it at once,
+            {0x82826F70u, 0x00u},  // sceKernelSleepThreadCB  otherwise refused in a case (gt_kernel.cpp)
+            {0x109F50BCu, 0x07u},  // sceIoOpen(path, flags, mode): synchronous host open
+            {0x27EB27B8u, 0x1Du},  // sceIoLseek(fd, -, offset lo, offset hi, whence): a1 is padding
+            {0xF475845Du, 0x07u},  // sceKernelStartThread(uid, size, args): refused in a case when it would preempt
         };
         std::vector<gt::ImportStub> import_stubs;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
@@ -169,7 +170,7 @@ int main(int argc, char **argv) {
             stub.replay_safe = kReplaySafeNids.contains(import.nid);
             if (const auto recordable = kRecordableNids.find(import.nid); recordable != kRecordableNids.end()) {
                 stub.recordable = true;
-                stub.arity = recordable->second;
+                stub.arg_mask = recordable->second;
             }
             import_stubs.push_back(std::move(stub));
         }

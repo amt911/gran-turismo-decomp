@@ -86,16 +86,26 @@ std::uint64_t g_imports = 0u;
 // so an abort can resume just before it. While the decompiled run replays: recordable imports are
 // matched against the record and its effect applied instead of running the HLE again.
 enum class ImportPhase { Live, Recording, Replaying };
+// Sets the gate's phase for one run of a case; back to Live however the run ends (exceptions too).
+struct PhaseScope {
+    explicit PhaseScope(ImportPhase phase);
+    ~PhaseScope();
+    PhaseScope(const PhaseScope &) = delete;
+    PhaseScope &operator=(const PhaseScope &) = delete;
+};
 struct Gate {
     ImportStub info;
     psprecomp::Runtime::RecompiledFunction original{};
 };
 std::unordered_map<std::uint32_t, Gate> g_gates;
 ImportPhase g_phase = ImportPhase::Live;
+PhaseScope::PhaseScope(ImportPhase phase) { g_phase = phase; }
+PhaseScope::~PhaseScope() { g_phase = ImportPhase::Live; }
 ImportLog g_log;
 constexpr std::size_t kMaxRecordsPerCase = 64u;  // each record costs two RAM snapshots
 std::optional<psprecomp::AllegrexContext> g_before_import;  // the last non-recorded import's registers
 std::map<std::string, std::uint64_t> g_skips_by_import;    // not-comparable cases per blocking import
+std::uint64_t g_unsampled_no_sentinel = 0u;                 // sampled calls run unchecked: pool empty
 const bool g_trace = std::getenv("GT_DECOMP_TRACE") != nullptr;  // logs records and live continuations
 
 struct ReplayMismatch : std::runtime_error {
@@ -172,7 +182,7 @@ void record_import(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, cons
     g_before_import = ctx;  // where to resume live if the kernel refuses the call in isolation
     ImportRecord record;
     record.stub = gate.info.address;
-    record.arity = gate.info.arity;
+    record.arg_mask = gate.info.arg_mask;
     record.args = argument_registers(ctx);
     record.kernel_before = save_kernel_replay_state();
     const psprecomp::AllegrexContext before = ctx;
@@ -192,6 +202,16 @@ void record_import(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, cons
     auto ram_after = snapshot_ram(rt);
     record.gprs = changed_registers(before.gpr, ctx.gpr);
     record.fprs = changed_registers(fpr_bits(before), fpr_bits(ctx));
+    // The results always, even when the original's register already held the same value: the
+    // decompiled run's stale value there may differ.
+    const auto force = [](RegisterChanges &changes, unsigned index, std::uint32_t value) {
+        if (std::none_of(changes.begin(), changes.end(), [&](const auto &c) { return c.first == index; }))
+            changes.emplace_back(index, value);
+    };
+    force(record.gprs, 2u, ctx.gpr[2]);
+    force(record.gprs, 3u, ctx.gpr[3]);
+    force(record.fprs, 0u, ctx.fpr_bits(0));
+    g_before_import.reset();  // it ran: an abort later resumes after it, not before
     record.ram = ram_changes(ram_before, ram_after, kRamBase);
     record.kernel_after = save_kernel_replay_state();
     recycle(std::move(ram_before));
@@ -213,7 +233,10 @@ void replay_import(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, cons
     apply_registers(fprs, record.fprs);
     for (unsigned r = 0u; r < 32u; ++r) ctx.set_fpr_bits(r, fprs[r]);
     for (const RamRun &run : record.ram) rt.memory().copy_in(run.address, run.bytes);
-    restore_kernel_replay_state(apply_kernel_delta(save_kernel_replay_state(), record.kernel_before, record.kernel_after));
+    KernelReplayState kernel = save_kernel_replay_state();
+    if (!apply_kernel_delta(kernel, record.kernel_before, record.kernel_after))
+        throw ReplayMismatch(gate.info.name + ": kernel state the import changes differs from the original's");
+    restore_kernel_replay_state(kernel);
     ctx.pc = ctx.gpr[31];  // the stub returns to its caller
 }
 
@@ -238,6 +261,7 @@ void import_gate(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             return;
         }
         gate->original(rt, ctx);
+        if (!kernel_isolation_broken()) g_before_import.reset();
         return;
     case ImportPhase::Replaying:
         if (gate->info.recordable) {
@@ -363,6 +387,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const bool sampled = call < kFirstCases || call == entry.next_sample || entry.info.address == dense;
     if (sampled && call >= kFirstCases) entry.next_sample = next_sample_after(call);
     if (call + 1u == kFirstCases) entry.next_sample = next_sample_after(call);
+    if (sampled && entry.compared + entry.skipped < g_cases && g_free_sentinels.empty()) ++g_unsampled_no_sentinel;
     if (!sampled || entry.compared + entry.skipped >= g_cases || g_free_sentinels.empty()) {  // not sampled / budget spent: run as recompiled
         entry.original(rt, ctx);
         return;
@@ -386,10 +411,9 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     g_before_import.reset();
     {
         InCase in_case;
-        g_phase = ImportPhase::Recording;
+        PhaseScope recording(ImportPhase::Recording);
         original_ran = run_original_isolated(rt, original_ctx, entry);
         original_refused = kernel_isolation_broken();
-        g_phase = ImportPhase::Live;
     }
     if (!original_ran) {
         ++entry.skipped;
@@ -413,10 +437,15 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             sentinel_back.keep = true;
             return;
         }
+        if (g_last_stop.rfind("import inside", 0) == 0) {  // an import ran outside the gate: can't re-run
+            rt.stop(std::string("diff harness: ") + entry.info.name + ": " + g_last_stop +
+                    " ran an import without its gate; the case can neither be re-run nor continued");
+            return;
+        }
         restore_ram(rt, entry_ram);
         restore_kernel_replay_state(allocator_before);
         recycle(std::move(entry_ram));
-        entry.original(rt, ctx);  // no HLE ran yet: replay the call normally
+        entry.original(rt, ctx);  // no recordable import ran yet: replay the call normally
         return;
     }
     original_ctx.gpr[31] = entry_ctx.gpr[31];
@@ -432,13 +461,18 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::string replay_error;
     try {
         InCase in_case;
-        g_phase = ImportPhase::Replaying;
+        PhaseScope replaying(ImportPhase::Replaying);
         run_decompiled(entry, rt, decompiled_ctx);
         if (kernel_isolation_broken()) g_last_stop = std::string("kernel isolation (") + kernel_isolation_reason() + ")";
         decompiled_ran = !kernel_isolation_broken() &&
                          (decompiled_ctx.pc == g_sentinel || run_to_sentinel(rt, decompiled_ctx));
         if (decompiled_ran) {
             if (const auto leftover = g_log.leftover()) replay_error = *leftover;
+        } else if (g_last_stop.rfind("import stub", 0) == 0) {
+            // the original never reached that import (its run would have stopped there): a difference
+            replay_error = "the decompiled run called " + g_last_stop.substr(std::string("import stub ").size()) +
+                           ", which the original's run didn't";
+            decompiled_ran = true;
         }
     } catch (const ReplayMismatch &error) {  // a different import call than the original's
         replay_error = error.what();
@@ -447,7 +481,6 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         decompiled_fault = error.what();
         decompiled_ran = true;
     }
-    g_phase = ImportPhase::Live;
     if (!decompiled_ran) {
         ++entry.skipped;
         // the decompiled run (or its tail target) left what the harness can replay: keep the original's
@@ -577,6 +610,9 @@ int decomp_report() {
         if (entry.mismatched != 0u) status = 2;
         if (entry.compared == 0u) std::cerr << "[decomp]   warning: never compared in this run\n";
     }
+    if (g_unsampled_no_sentinel != 0u)
+        std::cerr << "[decomp] warning: " << g_unsampled_no_sentinel
+                  << " sampled calls ran unchecked: every sentinel return address was held by a live continuation\n";
     for (const auto &[stop, count] : g_skips_by_import)
         std::cerr << "[decomp] not comparable, stopped at " << stop << ": " << count << " cases\n";
     return status;

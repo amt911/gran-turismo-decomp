@@ -90,6 +90,14 @@ the end counts not-comparable cases per import, so the next NID to make recordab
   its argument registers; if the decompiled run wrote different bytes there before the call, the
   final RAM comparison catches it only if those bytes survive to the end. Pointed-to input data can be
   added to a record later for specific NIDs.
+- **Known limit (writes):** the RAM effect is a diff, so bytes an HLE rewrites with the value the
+  original already had there are not in the record. If the decompiled run had different bytes there,
+  the replay leaves them, and the result is a false mismatch, never a hidden difference. Registers
+  don't have this problem: v0, v1 and f0 are always recorded.
+- **Known limit (host threads):** a write by a host thread (audio, async I/O) during the recorded call
+  would be recorded with it. The window is one HLE call, and GE lists are idle during a case.
+- **Kernel state merged per field and per uid entry** (`apply_kernel_delta`): a third value in
+  something the import changed is reported as a mismatch rather than overwritten (review of PR #123).
 - **Continuation over restore.** It removes the double-execution hazard and saves a full re-run of
   the call; the sampling slot is the only new shared state.
 

@@ -15,11 +15,22 @@ std::string hex(std::uint32_t value) {
     return text;
 }
 
-std::string describe(std::uint32_t stub, unsigned arity, const std::array<std::uint32_t, 8> &args) {
+std::string describe(std::uint32_t stub, std::uint8_t mask, const std::array<std::uint32_t, 8> &args) {
     static constexpr const char *names[] = {"a0", "a1", "a2", "a3", "t0", "t1", "t2", "t3"};
     std::string text = "stub " + hex(stub) + "(";
-    for (unsigned i = 0u; i < arity && i < args.size(); ++i) text += (i ? " " : "") + std::string(names[i]) + "=" + hex(args[i]);
+    bool first = true;
+    for (unsigned i = 0u; i < args.size(); ++i) {
+        if ((mask & (1u << i)) == 0u) continue;
+        text += (first ? "" : " ") + std::string(names[i]) + "=" + hex(args[i]);
+        first = false;
+    }
     return text + ")";
+}
+
+bool same_masked(const std::array<std::uint32_t, 8> &a, const std::array<std::uint32_t, 8> &b, std::uint8_t mask) {
+    for (unsigned i = 0u; i < a.size(); ++i)
+        if ((mask & (1u << i)) != 0u && a[i] != b[i]) return false;
+    return true;
 }
 
 } // namespace
@@ -69,20 +80,62 @@ void apply_registers(std::span<std::uint32_t, 32> registers, const RegisterChang
         if (index < 32u) registers[index] = value;
 }
 
-KernelReplayState apply_kernel_delta(KernelReplayState current, const KernelReplayState &before,
-                                     const KernelReplayState &after) {
-    const auto take = [](auto &field, const auto &was, const auto &now) {
-        if (was != now) field = now;
+namespace {
+
+// A plain field: taken when the import changed it and `current` still holds either end.
+template <typename T>
+bool merge_field(T &current, const T &before, const T &after) {
+    if (before == after) return true;
+    if (current != before && current != after) return false;
+    current = after;
+    return true;
+}
+
+// A uid -> value map stored as a vector of pairs: merged entry by entry.
+template <typename K, typename V>
+bool merge_map(std::vector<std::pair<K, V>> &current, const std::vector<std::pair<K, V>> &before,
+               const std::vector<std::pair<K, V>> &after) {
+    const auto find = [](const auto &map, const K &key) -> const V * {
+        for (const auto &[k, v] : map)
+            if (k == key) return &v;
+        return nullptr;
     };
-    take(current.blocks, before.blocks, after.blocks);
-    take(current.free_ranges, before.free_ranges, after.free_ranges);
-    take(current.next_address, before.next_address, after.next_address);
-    take(current.next_stack_top, before.next_stack_top, after.next_stack_top);
-    take(current.next_uid, before.next_uid, after.next_uid);
-    take(current.thread_priorities, before.thread_priorities, after.thread_priorities);
-    take(current.next_lwmutex_uid, before.next_lwmutex_uid, after.next_lwmutex_uid);
-    take(current.mutexes, before.mutexes, after.mutexes);
-    return current;
+    const auto erase = [](auto &map, const K &key) {
+        map.erase(std::remove_if(map.begin(), map.end(), [&](const auto &entry) { return entry.first == key; }),
+                  map.end());
+    };
+    bool ok = true;
+    for (const auto &[key, value] : after) {  // added or changed by the import
+        const V *was = find(before, key);
+        if (was != nullptr && *was == value) continue;
+        const V *now = find(current, key);
+        const bool consistent = now == nullptr ? was == nullptr : (was != nullptr && *now == *was) || *now == value;
+        if (!consistent) ok = false;
+        erase(current, key);
+        current.emplace_back(key, value);
+    }
+    for (const auto &[key, value] : before) {  // removed by the import
+        if (find(after, key) != nullptr) continue;
+        const V *now = find(current, key);
+        if (now != nullptr && !(*now == value)) ok = false;
+        erase(current, key);
+    }
+    std::sort(current.begin(), current.end(), [](const auto &l, const auto &r) { return l.first < r.first; });
+    return ok;
+}
+
+} // namespace
+
+bool apply_kernel_delta(KernelReplayState &current, const KernelReplayState &before, const KernelReplayState &after) {
+    bool ok = merge_map(current.blocks, before.blocks, after.blocks);
+    ok = merge_field(current.free_ranges, before.free_ranges, after.free_ranges) && ok;
+    ok = merge_field(current.next_address, before.next_address, after.next_address) && ok;
+    ok = merge_field(current.next_stack_top, before.next_stack_top, after.next_stack_top) && ok;
+    ok = merge_field(current.next_uid, before.next_uid, after.next_uid) && ok;
+    ok = merge_map(current.thread_priorities, before.thread_priorities, after.thread_priorities) && ok;
+    ok = merge_field(current.next_lwmutex_uid, before.next_lwmutex_uid, after.next_lwmutex_uid) && ok;
+    ok = merge_map(current.mutexes, before.mutexes, after.mutexes) && ok;
+    return ok;
 }
 
 void ImportLog::clear() noexcept {
@@ -98,10 +151,9 @@ ImportLog::Match ImportLog::next(std::uint32_t stub, const std::array<std::uint3
         return {nullptr, "import call " + number + ": " + describe(stub, 0u, args) +
                              " that the original didn't make (it made " + std::to_string(records_.size()) + ")"};
     const ImportRecord &record = records_[next_];
-    const bool same_args = std::equal(args.begin(), args.begin() + std::min<std::size_t>(record.arity, 8u), record.args.begin());
-    if (record.stub != stub || !same_args)
-        return {nullptr, "import call " + number + ": expected " + describe(record.stub, record.arity, record.args) +
-                             ", got " + describe(stub, record.stub == stub ? record.arity : 0u, args)};
+    if (record.stub != stub || !same_masked(args, record.args, record.arg_mask))
+        return {nullptr, "import call " + number + ": expected " + describe(record.stub, record.arg_mask, record.args) +
+                             ", got " + describe(stub, record.stub == stub ? record.arg_mask : std::uint8_t{0}, args)};
     ++next_;
     return {&record, {}};
 }
@@ -111,7 +163,7 @@ std::optional<std::string> ImportLog::leftover() const {
     const ImportRecord &record = records_[next_];
     return "the decompiled run made " + std::to_string(next_) + " of the original's " +
            std::to_string(records_.size()) + " import calls; the next was " +
-           describe(record.stub, record.arity, record.args);
+           describe(record.stub, record.arg_mask, record.args);
 }
 
 } // namespace gt
