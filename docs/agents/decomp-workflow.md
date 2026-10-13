@@ -68,6 +68,17 @@ never per function. Settings measured and decided by the user on 2026-10-12:
     (measured 2026-10-12).
   - **Full gate (once, before the PR):** every function, real time, race 600 s, dealer 300 s, garage
     310 s — ~11 min. It is the regression check for everything already landed.
+- **The tool:** `.venv/bin/python -m tools.decomp_gate fast TAG --only <addresses or @file>`, `full TAG`,
+  `sabotage TAG --file <source> --only ...` (bumps s0 in the listed functions, runs the fast gate,
+  restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).
+  It takes the shared heavy-job lock and the memory cgroup itself. Tooling the workflow needs lives in
+  `tools/`, never only in a session's scratch directory (a reboot wiped those once, mid-PR).
+- **When a function is registered (verified):** in this PR's validation it was compared (> 0) with 0
+  mismatches in the fast **or** the full gate, and its sabotage was detected. The real-time full gate
+  often doesn't reach script-driven functions that the uncapped fast gate does; "compared 0 in the full
+  gate" alone is not a reason to unregister. A function compared 0 in every run stays unregistered.
+  Two registrations of one address are refused at startup (`gt::duplicate_registration`): moving a
+  function into a subsystem means deleting its old registration (`src/core/` generic helpers included).
 - **Per batch, in order:**
   1. Write the batch from the asm / generated code as a *reading aid* (never copied); check that no
      `func_X`, `kX` constant or helper name already exists in the file.

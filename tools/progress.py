@@ -18,9 +18,15 @@ from pathlib import Path
 
 LOAD_BASE = 0x08804000  # runtime address of ELF vaddr 0 (docs/FACTS.md)
 SDK_DIRS = ("libc", "libm", "libstdcxx", "libgcc", "sdk")
-# Only active registrations (GT_DECOMP, or a GT_DECOMP_<KIND> template-instance registration):
+# Only active registrations (GT_DECOMP, a GT_DECOMP_<KIND> template-instance registration, or a subsystem's
+# shorthand macro taking the address and a function name):
 # one behind `//` is decompiled but not swapped in (not comparable yet).
-_REGISTRATION = re.compile(r"^[ \t]*GT_DECOMP(?:_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]", re.MULTILINE)
+_REGISTRATION = re.compile(
+    r"^[ \t]*(?:GT_DECOMP(?:_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]"
+    # a subsystem's shorthand for GT_DECOMP (src/game/race/race_operator.cpp: RACE_OPERATOR(0x..u, name, kind))
+    r"|[A-Z][A-Z0-9_]*\(\s*0x([0-9A-Fa-f]+)u?\s*,\s*[A-Za-z_])",
+    re.MULTILINE,
+)
 
 
 def load_functions(path: Path) -> dict[int, int]:
@@ -39,7 +45,7 @@ def decompiled_functions(src: Path) -> dict[int, str]:
     for path in sorted(src.rglob("*.cpp")):
         kind = "sdk" if path.relative_to(src).parts[0] in SDK_DIRS else "game"
         for match in _REGISTRATION.finditer(path.read_text()):
-            runtime = int(match.group(1), 16)
+            runtime = int(match.group(1) or match.group(2), 16)
             if runtime < LOAD_BASE:
                 raise ValueError(f"{path}: GT_DECOMP address {runtime:#010x} is below the load base")
             found[runtime - LOAD_BASE] = kind
