@@ -157,6 +157,14 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     return " ".join(parts) + " wait"
 
 
+def clear_run(tag: str, logs: Path) -> None:
+    """Removes a tag's logs and exit codes from an earlier run, so a run that dies early can't be read
+    with an old run's results."""
+    for route, _ in ROUTES["full"]:
+        for suffix in (".log", ".exit"):
+            (logs / f"gt_diff_{tag}_{route}{suffix}").unlink(missing_ok=True)
+
+
 def slice_limits() -> list[str]:
     """Sets (runtime only, nothing persistent) the shared ceiling of every heavy job."""
     return ["systemctl", "--user", "set-property", "--runtime", SLICE, *SLICE_LIMITS]
@@ -195,13 +203,21 @@ class HeavySlot:
     def acquire(self, block: bool = True) -> bool:
         import time
         while True:
+            if self._exclusive and block:
+                return self._acquire_all_in_order()
             if self._exclusive:
-                held = [h for h in (self._try(p) for p in self._locks) if h is not None]
+                held = []
+                for path in self._locks:
+                    handle = self._try(path)
+                    if handle is None:
+                        break
+                    held.append(handle)
                 if len(held) == len(self._locks):
                     self._files = held
                     return True
                 for handle in held:
                     handle.close()
+                return False
             else:
                 for path in self._locks:
                     handle = self._try(path)
@@ -211,6 +227,18 @@ class HeavySlot:
             if not block:
                 return False
             time.sleep(2)
+
+    def _acquire_all_in_order(self) -> bool:
+        """Blocks on each lock in turn, always in the same order, keeping what it has: two exclusive
+        waiters can't deadlock (both wait on the first lock) and none releases and retries (no livelock).
+        A shared job may still take a later lock meanwhile; the wait is then one job long."""
+        import fcntl
+        for path in self._locks:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            self._files.append(handle)
+        return True
 
     def release(self) -> None:
         for handle in self._files:
@@ -235,6 +263,7 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
     if only is not None:
         import os
         env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
+    clear_run(tag, Path("recomp/analysis"))
     subprocess.run(slice_limits(), check=True)
     recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
     recomp.acquire()
@@ -300,9 +329,12 @@ def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no c
         print("not found in", file, ":", ", ".join(missing))
     try:
         file.write_text(sabotaged)
-        _run_gate("fast", tag, only)
+        ran = _run_gate("fast", tag, only)
     finally:
         file.write_text(original)
+    if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
+        print("sabotage: the sabotaged build did not run")
+        return 2
     total = combine(parse_report(Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").read_text(errors="replace"))
                     for r, _ in ROUTES["full"] if Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").exists())
     undetected = [f"0x{a:08X}" for a in only if total.get(a) is None or total[a].mismatched == 0]

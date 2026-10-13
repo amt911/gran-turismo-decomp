@@ -15,7 +15,7 @@ lives in this repo when it became one.
   throttles at `MemoryHigh` — and a throttled real-time test times out. Know each heavy step's peak
   (here recomp 3.8 GB, a gcc build 3.76 GB vs clang far less) and give the biggest one the whole slice.
 - **A run that timed out or printed nothing is a failure, not "0 mismatches".** The gate tool once
-  summed four empty, timed-out routes into "0 mismatched, rc=0".
+  summed every route of a run — all empty, all timed out — into "0 mismatched, rc=0".
 - **Cap the total, not each job.** Put all heavy jobs in one systemd slice with the memory ceiling
   (`--slice=<name>.slice`, `MemoryMax` on the slice) and let several run at once. A per-job cap plus a
   global lock gives safety but serializes everything; a shared slice gives the same safety in parallel.

@@ -153,3 +153,36 @@ def test_an_exclusive_slot_takes_every_lock(tmp_path):
     exclusive.release()
     assert other.acquire(block=False)
     other.release()
+
+
+def test_two_exclusive_waiters_and_a_shared_holder_all_get_through(tmp_path):
+    import threading
+    locks = [tmp_path / "a.lock", tmp_path / "b.lock"]
+    shared = gate.HeavySlot(locks)
+    assert shared.acquire(block=False)
+    done = []
+
+    def run_exclusive():
+        slot = gate.HeavySlot(locks, exclusive=True)
+        slot.acquire()  # blocks in lock order: no partial-hold-release-retry, so no livelock or deadlock
+        done.append(True)
+        slot.release()
+
+    waiters = [threading.Thread(target=run_exclusive) for _ in range(2)]
+    for waiter in waiters:
+        waiter.start()
+    waiters[0].join(0.5)
+    assert not done  # a.lock is still held
+    shared.release()
+    for waiter in waiters:
+        waiter.join(5)
+    assert done == [True, True]
+
+
+def test_clear_run_removes_a_tags_old_logs_and_exit_codes(tmp_path):
+    for route, _ in gate.ROUTES["full"]:
+        (tmp_path / f"gt_diff_t1_{route}.log").write_text("old")
+        (tmp_path / f"gt_diff_t1_{route}.exit").write_text("0")
+    (tmp_path / "gt_diff_t2_race.log").write_text("other tag")
+    gate.clear_run("t1", tmp_path)
+    assert [p.name for p in tmp_path.iterdir()] == ["gt_diff_t2_race.log"]
