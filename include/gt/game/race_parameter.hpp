@@ -22,8 +22,10 @@
 
 namespace gt::game {
 
-// Per-side boost settings (MRaceParameter::setBoostParams(a0, a1, b0, b1, c0, c1) writes value 0, 1, 2
-// of side 0 and side 1 through 0x088D4E68, 0x088D4EE4, 0x088D4F48).
+// Boost settings of one side. MRaceParameter::setBoostParams(a0, a1, b0, b1, c0, c1) writes value 0, 1 and 2
+// through 0x088D4E68, 0x088D4EE4 and 0x088D4F48: side 1 at +0x72.., any other side at +0x6E... What each
+// value means isn't established, so they are indexed, not named; modelling the two sides as an array of
+// this 4-byte group is a reading of those two bases (the fourth byte of side 0 is rolling_player_grid).
 struct BoostParams : guest::Layout {
     GT_ARRAY(std::uint8_t, value, 0x0, 1, 3);
 };
@@ -45,7 +47,7 @@ struct RaceParameter : guest::Layout {
     GT_FIELD(guest::be16, packet_timeout_interval, 0x30);  // attributes packet_timeout_*: one setter
     GT_FIELD(guest::be16, packet_timeout_latency, 0x32);   // 0x088D5AC8 (interval, latency, lag) and one
     GT_FIELD(guest::be16, packet_timeout_lag, 0x34);       // getter 0x088D5D54 for the three
-    GT_FIELD(guest::be16, racers_max, 0x36);         // attribute racers_max: 0x088D5A70 / 0x088D5DA8
+    GT_FIELD(guest::be16, racers_max, 0x36);         // attribute racers_max (handler 0x0884996C): 0x088D5A70 / 0x088D5DA8
     GT_FIELD(std::int8_t, penalty_level, 0x48);      // attribute penalty_level: 0x088D4CC4 / 0x088D4CB8
     GT_FIELD(std::int8_t, auto_start_with_session, 0x49);       // 0x088D4C0C / 0x088D4BFC
     GT_FIELD(std::int8_t, auto_end_session_with_finish, 0x4A);  // 0x088D4C28 / 0x088D4C18
@@ -58,19 +60,21 @@ struct RaceParameter : guest::Layout {
     GT_FIELD(std::int8_t, disable_collision, 0x55);  // attribute disable_collision: 0x088D4DE4 / 0x088D4DD4
     GT_FIELD(std::int8_t, penalty_condition, 0x56);  // attribute penalty_condition: 0x088D4DFC / 0x088D4DF0
     GT_FIELD(std::int8_t, academy_event, 0x57);      // attribute academy_event: 0x088D500C / 0x088D4FFC
-    // MRaceParameter::getDelayStartSecond(i) (0x0884BDA8) -> 0x088D4D14: one per entry, up to 8 (the
-    // next field is at +0x60).
-    GT_ARRAY(std::int8_t, delay_start_second, 0x58, 1, 8);
+    // MRaceParameter::getDelayStartSecond(i) (0x0884BDA8) -> 0x088D4D14; 4 of them: 0x088D4D24 clears
+    // exactly +0x58..+0x5B.
+    GT_ARRAY(std::int8_t, delay_start_second, 0x58, 1, 4);
     GT_FIELD(std::uint8_t, use_launch_data, 0x60);   // MRaceParameter::useLaunchData -> 0x088D4E18
-    // MRaceParameter::setLaunchSpeed(i, v) (0x088471E4) -> 0x088D4E3C; up to 5 (the next field is at +0x66).
+    // MRaceParameter::setLaunchSpeed(i, v) (0x088471E4) -> 0x088D4E3C; the count is only bounded by the next
+    // field (+0x66): at most 5, not established.
     GT_ARRAY(std::uint8_t, launch_speed, 0x61, 1, 5);
-    // MRaceParameter::setLaunchPosition(i, v) (0x088472C0) -> 0x088D59A0; up to 4 (boost starts at +0x6E).
+    // MRaceParameter::setLaunchPosition(i, v) (0x088472C0) -> 0x088D59A0; the count is only bounded by the
+    // boost settings at +0x6E: at most 4, not established.
     GT_ARRAY(guest::be16, launch_position, 0x66, 2, 4);
     // MRaceParameter::setBoostParams: side 0 at +0x6E, side 1 at +0x72 (see BoostParams).
     GT_ARRAY(BoostParams, boost_params, 0x6E, 4, 2);
     GT_FIELD(std::int8_t, rolling_player_grid, 0x71);  // attribute rolling_player_grid: 0x088D4FB4 / 0x088D4FA8
-    // MRaceParameter::setEventV(i, v) (0x088477A0) -> 0x088D5988; count not established.
-    GT_ARRAY(guest::be16, event_v, 0x7A, 2, 1);
+    // MRaceParameter::setEventV(i, v) (0x088477A0) -> 0x088D5988. The count is unknown: event_v_count is 0.
+    GT_ARRAY(guest::be16, event_v, 0x7A, 2, 0);
 };
 
 // The engine object the script's MRaceParameter wraps (0x08846E50 returns it): a handle whose first word

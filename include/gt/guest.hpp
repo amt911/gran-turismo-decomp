@@ -15,6 +15,10 @@
 // every host (endianness, bounds). Fields GT stores big-endian are declared `be16` / `be32`; a field of
 // a Layout type is a nested struct (its accessor returns a View); `Pointer<T>` is a field holding the
 // guest address of a T. Only fields with evidence get a name (see each layout's comments).
+//
+// An accessor returns a live reference to the field, not a copy of its value: `auto x = race.endless();`
+// keeps reading memory. Take the value with a typed variable (`std::int8_t x = race.endless();`) or
+// `.value()`. A field must not be named `address` or `memory` (the view's own accessors).
 #pragma once
 
 #include "psprecomp/guest_memory.hpp"
@@ -122,6 +126,7 @@ class Ref {
 public:
     using value_type = typename Scalar<T>::value_type;
     Ref(psprecomp::GuestMemory &memory, std::uint32_t address) : memory_(&memory), address_(address) {}
+    Ref(const Ref &) = default;  // copies the reference (the field), not the value
     operator value_type() const { return Scalar<T>::load(*memory_, address_); }  // NOLINT: a field reads as its value
     const Ref &operator=(value_type value) const {
         Scalar<T>::store(*memory_, address_, value);

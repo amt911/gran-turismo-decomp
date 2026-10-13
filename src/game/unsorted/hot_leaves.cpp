@@ -4923,14 +4923,6 @@ std::uint32_t bswap32(std::uint32_t value) {
     return ((value & 0xFFu) << 24) | ((value & 0xFF00u) << 8) | ((value >> 8) & 0xFF00u) | (value >> 24);
 }
 
-// The halfword at `offset` of *holder, byte-swapped (a big-endian field).
-void big_endian_half(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t offset) {
-    const std::uint32_t object = word(rt, ctx.gpr[4]);
-    ctx.gpr[3] = object;
-    const std::uint32_t raw = rt.memory().load16(object + offset);
-    ctx.gpr[2] = ((raw & 0xFFu) << 8) | (raw >> 8);
-}
-
 // Runs `target(object)` when the guard word is set (both are globals).
 void guarded_global(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t guard, std::uint32_t object,
                     std::uint32_t target) {
@@ -8184,12 +8176,6 @@ constexpr std::uint32_t kVtable6D38 = 0x08CD6D38u;  // vtables the constructors 
 constexpr std::uint32_t kVtable5F38 = 0x08CD5F38u;
 constexpr std::uint32_t kVtable7C18 = 0x08CC7C18u;
 constexpr std::uint32_t kVtable79C0 = 0x08CC79C0u;
-
-// The signed byte at `offset` of *this (v1 keeps *this).
-void deref_signed_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t offset) {
-    ctx.gpr[3] = word(rt, ctx.gpr[4]);
-    ctx.gpr[2] = static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(rt.memory().load8(ctx.gpr[3] + offset))));
-}
 
 // The byte at `offset` of the object at +0x4 (v1 keeps it).
 void object4_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t offset) {
@@ -36698,17 +36684,6 @@ void singleton_forward(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, 
         object = call_guest(rt, ctx, getter, {ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
     }
     tail_call(ctx, target, {object});
-}
-
-// The big-endian halfword (the two bytes of the low half of v swapped) stored at the object (+0x0)'s `offset`.
-void store_swapped_half(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t offset, std::uint32_t value) {
-    const std::uint32_t swapped = ((value & 0x00FF00FFu) << 8) | ((value & 0xFF00FF00u) >> 8);
-    rt.memory().store16(word(rt, ctx.gpr[4]) + offset, swapped & 0xFFFFu);
-}
-
-// Whether the signed byte at `offset` of the object (+0x0) is positive.
-void positive_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t offset) {
-    ctx.gpr[2] = static_cast<std::int8_t>(rt.memory().load8(word(rt, ctx.gpr[4]) + offset)) > 0 ? 1u : 0u;
 }
 
 // `v` as an unsigned 32-bit integer converted to float.
