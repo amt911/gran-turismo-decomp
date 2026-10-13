@@ -244,3 +244,12 @@ the line says otherwise.
   accessors (quicktune_*, color, car code) all index with it. A spec struct hangs off `+0x4C8`
   (weight, power, torque, PP). *(verified: the engine accessors the handlers call,
   `src/game/car/car_parameter.cpp`, `include/gt/game/car_parameter.hpp`)*
+- MSpecDB: 86 static natives (registrar `0x08B86FB0`, handlers `0x0883A3D4..0x08841500`), no attributes. A car or
+  course code is a 64-bit key, `(id, table number)` as `(low, high)`: table 0 for cars and 34 for courses
+  (`CarCode32ToCarCode64` / `CourseCode32ToCourseCode64`); a car record is 32 bytes (price at `+0x08`,
+  year `+0x0C`, category `+0x15`), a course record 28 bytes (condition `+0x14`, max entry `+0x15`); the
+  maker table has 96 entries and the tuner table 114 (`getMakerSize` / `getTunerSize` store them). *(verified:
+  the engine functions the natives call, `src/game/specdb/spec_db.cpp`)*
+- **The diff harness replays nested guest calls**: a decompiled function called only from another
+  decompiled function is not verified by its parent's cases (a value sabotage of such an engine function went
+  undetected); only its own direct cases count, so a new function with none stays unregistered. *(verified: sabotage of `get_car_price`)*

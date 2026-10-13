@@ -504,6 +504,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `src/game/car/car_parameter.cpp`: los accesores del motor llevan el nombre del atributo o método
       de MCarParameter que los llama (`team_id`, `quicktune_tcs`, `color`, `getPP`…). 21 registrados con
       gate; el resto escrito pero sin registrar porque las rutas nunca lo llaman (y `begin_parts_change`, que llega a llamadas que el aislamiento no reproduce).
+- [x] **Cuarto subsistema con nombres: SpecDB** (2026-10-13): `include/gt/game/spec_db.hpp` (los registros de
+      coche de 32 bytes y de circuito de 28 bytes, códigos de 64 bits = id + número de tabla) y
+      `src/game/specdb/spec_db.cpp` con las lecturas simples de MSpecDB (`getCarPrice`, `getCarCategory`,
+      `getCourseCondition`, `isDirt`, `canRun`, tamaños de tablas, códigos 32 a 64 bits). 18 funciones
+      movidas desde `game_natives.cpp` y `hot_leaves.cpp`, 18 nuevas; 19 registradas. Las cuatro natives de
+      texto (`getCarLabel`, `getCourseLabel`, `getCarShortName`, `getTunerCode`) siguen en `text_natives.cpp`
+      porque comparten ayudantes con otras.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
