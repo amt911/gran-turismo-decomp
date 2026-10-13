@@ -25,6 +25,15 @@ functions and adding the buy route compared only 8 of them.
 4. **Sabotage that survives callers.** The sabotage also bumps a kernel-region RAM word: a caller that
    saves and restores s0 erases an s0 bump in a function reached only nested (FINDINGS).
 
+5. **Opt-in per callee (`GT_DECOMP_NESTED`).** Running *every* decompiled callee nested made the full gate
+   report 1131 mismatching functions. They were not wrong behaviour of the parents but wrong **return
+   contracts** of callees: a function registered `Void` whose original leaves a value in v0 that callers
+   read (`func_08987A74` returns the state it stores; its caller reads it as the token), or a parent that
+   passes a `Void` callee's leftover v0 on as its own result. A top-level case never compares v0 of a
+   `Void` function, so those registrations passed. Only callees registered with `GT_DECOMP_NESTED` —
+   whose whole return contract was audited — run decompiled when nested; the subsystem registrations
+   use it. The generic registrations join after a contract audit (callers that read v0/v1 after the call).
+
 **Verified, restated.** Reached (compared > 0, or nested in > 0 equal cases) with 0 mismatches in the
 fast or full gate, **and** a sabotage pinned on it by the tool.
 

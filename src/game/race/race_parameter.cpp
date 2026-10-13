@@ -203,41 +203,41 @@ void set_boost_param(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 namespace race_parameter_registrations {
 using gt::ReturnKind;
 // Attributes (setter, getter) — the handler addresses in include/gt/game/race_parameter.hpp.
-GT_DECOMP(0x088D5A24u, gt::game::race_parameter::set_race_type, ReturnKind::Void);
-GT_DECOMP(0x088D62FCu, gt::game::race_parameter::race_type, ReturnKind::Word);
-GT_DECOMP(0x088D5A14u, gt::game::race_parameter::set_start_type, ReturnKind::Void);
-GT_DECOMP(0x088D6358u, gt::game::race_parameter::start_type, ReturnKind::Word);
-GT_DECOMP(0x088D5A04u, gt::game::race_parameter::set_complete_type, ReturnKind::Void);
-GT_DECOMP(0x088D63D4u, gt::game::race_parameter::complete_type, ReturnKind::Word);
-GT_DECOMP(0x088D59F4u, gt::game::race_parameter::set_finish_type, ReturnKind::Void);
-GT_DECOMP(0x088D5AB8u, gt::game::race_parameter::set_race_limit_laps, ReturnKind::Void);
-GT_DECOMP(0x088D5D98u, gt::game::race_parameter::race_limit_laps, ReturnKind::Word);
-GT_DECOMP(0x088D5D88u, gt::game::race_parameter::race_limit_minute, ReturnKind::Word);
-GT_DECOMP(0x088D5910u, gt::game::race_parameter::complete_laps, ReturnKind::Word);
-GT_DECOMP(0x088D5E70u, gt::game::race_parameter::time_to_start, ReturnKind::Word);
-GT_DECOMP(0x088D5A70u, gt::game::race_parameter::set_racers_max, ReturnKind::Void);
-GT_DECOMP(0x088D5DA8u, gt::game::race_parameter::racers_max, ReturnKind::Word);
-GT_DECOMP(0x088D5DF8u, gt::game::race_parameter::over_entry_max, ReturnKind::Word);
-GT_DECOMP(0x088D4C6Cu, gt::game::race_parameter::course_layout_no, ReturnKind::Word);
-GT_DECOMP(0x088D4C84u, gt::game::race_parameter::lucky_slot_id, ReturnKind::Word);
-GT_DECOMP(0x088D4CC4u, gt::game::race_parameter::set_penalty_level, ReturnKind::Void);
-GT_DECOMP(0x088D4CB8u, gt::game::race_parameter::penalty_level, ReturnKind::Word);
-GT_DECOMP(0x088D4CDCu, gt::game::race_parameter::grid_sort_type, ReturnKind::Word);
-GT_DECOMP(0x088D4FA8u, gt::game::race_parameter::rolling_player_grid, ReturnKind::Word);
-GT_DECOMP(0x088D4BFCu, gt::game::race_parameter::auto_start_with_session, ReturnKind::Word);
-GT_DECOMP(0x088D4C9Cu, gt::game::race_parameter::online_on, ReturnKind::Word);
-GT_DECOMP(0x088D4C50u, gt::game::race_parameter::endless, ReturnKind::Word);
-GT_DECOMP(0x088D4D9Cu, gt::game::race_parameter::with_ghost, ReturnKind::Word);
-GT_DECOMP(0x088D4DD4u, gt::game::race_parameter::disable_collision, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5A24u, gt::game::race_parameter::set_race_type, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D62FCu, gt::game::race_parameter::race_type, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5A14u, gt::game::race_parameter::set_start_type, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D6358u, gt::game::race_parameter::start_type, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5A04u, gt::game::race_parameter::set_complete_type, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D63D4u, gt::game::race_parameter::complete_type, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D59F4u, gt::game::race_parameter::set_finish_type, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D5AB8u, gt::game::race_parameter::set_race_limit_laps, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D5D98u, gt::game::race_parameter::race_limit_laps, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5D88u, gt::game::race_parameter::race_limit_minute, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5910u, gt::game::race_parameter::complete_laps, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5E70u, gt::game::race_parameter::time_to_start, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5A70u, gt::game::race_parameter::set_racers_max, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D5DA8u, gt::game::race_parameter::racers_max, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D5DF8u, gt::game::race_parameter::over_entry_max, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4C6Cu, gt::game::race_parameter::course_layout_no, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4C84u, gt::game::race_parameter::lucky_slot_id, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4CC4u, gt::game::race_parameter::set_penalty_level, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D4CB8u, gt::game::race_parameter::penalty_level, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4CDCu, gt::game::race_parameter::grid_sort_type, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4FA8u, gt::game::race_parameter::rolling_player_grid, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4BFCu, gt::game::race_parameter::auto_start_with_session, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4C9Cu, gt::game::race_parameter::online_on, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4C50u, gt::game::race_parameter::endless, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4D9Cu, gt::game::race_parameter::with_ghost, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4DD4u, gt::game::race_parameter::disable_collision, ReturnKind::Word);
 // Methods.
-GT_DECOMP(0x088D4E18u, gt::game::race_parameter::set_use_launch_data, ReturnKind::Void);
-GT_DECOMP(0x088D4E3Cu, gt::game::race_parameter::set_launch_speed, ReturnKind::Void);
-GT_DECOMP(0x088D59A0u, gt::game::race_parameter::set_launch_position, ReturnKind::Void);
-GT_DECOMP(0x088D5988u, gt::game::race_parameter::set_event_v, ReturnKind::Void);
-GT_DECOMP(0x088D4D14u, gt::game::race_parameter::delay_start_second, ReturnKind::Word);
-GT_DECOMP(0x088D4E68u, gt::game::race_parameter::set_boost_param<0>, ReturnKind::Void);
-GT_DECOMP(0x088D4EE4u, gt::game::race_parameter::set_boost_param<1>, ReturnKind::Void);
-GT_DECOMP(0x088D4F48u, gt::game::race_parameter::set_boost_param<2>, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D4E18u, gt::game::race_parameter::set_use_launch_data, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D4E3Cu, gt::game::race_parameter::set_launch_speed, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D59A0u, gt::game::race_parameter::set_launch_position, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D5988u, gt::game::race_parameter::set_event_v, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D4D14u, gt::game::race_parameter::delay_start_second, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088D4E68u, gt::game::race_parameter::set_boost_param<0>, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D4EE4u, gt::game::race_parameter::set_boost_param<1>, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088D4F48u, gt::game::race_parameter::set_boost_param<2>, ReturnKind::Void);
 // Not registered yet: the three pad routes never call these (compared 0, calls 0), so the gate can't
 // check them; they run as the recompiled originals until a route reaches them. Mostly setters of
 // attributes the scripts leave at their defaults in those states.

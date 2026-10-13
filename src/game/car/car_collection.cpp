@@ -229,7 +229,7 @@ void MCarCollection_getCarCount(psprecomp::Runtime &rt, psprecomp::AllegrexConte
 
 namespace car_collection_registrations {
 using gt::ReturnKind;
-#define CAR_COLLECTION(address, name, kind) GT_DECOMP(address, gt::game::car_collection::name, ReturnKind::kind)
+#define CAR_COLLECTION(address, name, kind) GT_DECOMP_NESTED(address, gt::game::car_collection::name, ReturnKind::kind)
 
 CAR_COLLECTION(0x0881D538u, MCarCollection_hasCar, Void);
 CAR_COLLECTION(0x0881E6C0u, MCarCollection_hasFavorite, Void);

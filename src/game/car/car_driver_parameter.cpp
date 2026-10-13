@@ -232,7 +232,7 @@ void MCarDriverParameter_getRTAUnadjustable(psprecomp::Runtime &rt, psprecomp::A
 
 namespace car_driver_parameter_registrations {
 using gt::ReturnKind;
-#define CAR_DRIVER_PARAMETER(address, name, kind) GT_DECOMP(address, gt::game::car_driver_parameter::name, ReturnKind::kind)
+#define CAR_DRIVER_PARAMETER(address, name, kind) GT_DECOMP_NESTED(address, gt::game::car_driver_parameter::name, ReturnKind::kind)
 
 CAR_DRIVER_PARAMETER(0x08896FD0u, set_manual, Void);
 CAR_DRIVER_PARAMETER(0x08896FC0u, manual, Word);

@@ -998,3 +998,18 @@ bump survives any caller.
 gate stayed green.
 
 Found: 2026-10-13 · tools/decomp_gate.py
+
+## A "Void" registration that loses v0 passes the gate
+
+**Symptom.** With every decompiled callee running decompiled inside its callers' cases, the full gate
+reported 1131 mismatching functions that all passed on their own.
+**Cause.** Return contracts. `func_08987A74` was registered `Void` and its decompiled version left v0 as
+the caller had it; the original returns the value it stores, and `func_08987A9C` reads it as the token.
+A top-level case doesn't compare v0 of a `Void` function, so the bug only shows through a caller. Parents
+that pass a `Void` callee's leftover v0 on as their own result mismatch the same way.
+**Fix / workaround.** `func_08987A74` sets v0 and is registered `Word`. Nested execution is opt-in per
+callee (`GT_DECOMP_NESTED`) until the generic registrations' contracts are audited.
+**Why it isn't obvious.** "Void" is our claim, not the original's: GCC leaves whatever the last call
+returned in v0, and callers compiled against a non-void prototype read it.
+
+Found: 2026-10-13 · host/diff_harness.cpp, src/game/unsorted/hot_leaves.cpp

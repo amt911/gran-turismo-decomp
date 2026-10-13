@@ -307,7 +307,7 @@ void MUnit_GetCurrentUnitOfTemperature(psprecomp::Runtime &rt, psprecomp::Allegr
 
 namespace unit_system_registrations {
 using gt::ReturnKind;
-#define UNIT_SYSTEM(address, name, kind) GT_DECOMP(address, gt::game::unit_system::name, ReturnKind::kind)
+#define UNIT_SYSTEM(address, name, kind) GT_DECOMP_NESTED(address, gt::game::unit_system::name, ReturnKind::kind)
 
 UNIT_SYSTEM(0x08A252E8u, MUnit_SetUnitOfVelocity, Void);
 UNIT_SYSTEM(0x08A25338u, MUnit_SetUnitOfPower, Void);

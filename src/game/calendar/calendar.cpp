@@ -141,8 +141,8 @@ void MCalendar_dateToDay(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
 namespace calendar_registrations {
 using gt::ReturnKind;
 
-GT_DECOMP(0x08817924u, gt::game::calendar::func_08817924, ReturnKind::Word);
-GT_DECOMP(0x08818560u, gt::game::calendar::MCalendar_getGameDay, ReturnKind::Void);
+GT_DECOMP_NESTED(0x08817924u, gt::game::calendar::func_08817924, ReturnKind::Word);
+GT_DECOMP_NESTED(0x08818560u, gt::game::calendar::MCalendar_getGameDay, ReturnKind::Void);
 // Not registered yet: the three pad routes never call these (compared 0, calls 0), so the gate can't
 // check them; they run as the recompiled originals until a route reaches them.
 // GT_DECOMP(0x08817A0Cu, gt::game::calendar::inc_date, ReturnKind::Void);

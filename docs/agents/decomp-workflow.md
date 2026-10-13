@@ -77,7 +77,9 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   (> 0), or run nested in > 0 equal cases of a decompiled caller — with 0 mismatches in the fast **or**
   the full gate, and the tool pinned its sabotage on it. Inside a case, nested decompiled callees run
   decompiled in the decompiled run (spec `docs/superpowers/specs/2026-10-13-nested-verification-design.md`),
-  so a helper reached only through its decompiled callers is verified through them; `sabotage` pins a
+  so a helper reached only through its decompiled callers is verified through them — for callees
+  registered with `GT_DECOMP_NESTED` (return contract audited: every register a caller reads after the
+  call is set as the original sets it, v0 of a "Void" function included; the subsystem macros use it); `sabotage` pins a
   mismatch on a function only where it was the one sabotaged function in that case, and re-runs
   parents and callees that always mismatched together in separate rounds. The real-time full gate
   often doesn't reach script-driven functions that the uncapped fast gate does; "compared 0 in the full

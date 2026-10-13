@@ -407,7 +407,7 @@ void MOrganizer_setBackRaceParameter(psprecomp::Runtime &rt, psprecomp::Allegrex
 
 namespace organizer_registrations {
 using gt::ReturnKind;
-#define ORGANIZER(address, name, kind) GT_DECOMP(address, gt::game::organizer::name, ReturnKind::kind)
+#define ORGANIZER(address, name, kind) GT_DECOMP_NESTED(address, gt::game::organizer::name, ReturnKind::kind)
 
 ORGANIZER(0x0885E424u, func_0885E424, Void);
 ORGANIZER(0x0885EC1Cu, func_0885EC1C, Word);

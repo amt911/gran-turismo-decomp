@@ -418,7 +418,7 @@ void MSpecDB_getCarColorName(psprecomp::Runtime &rt, psprecomp::AllegrexContext 
 
 namespace spec_db_registrations {
 using gt::ReturnKind;
-#define SPEC_DB(address, name, kind) GT_DECOMP(address, gt::game::spec_db::name, ReturnKind::kind)
+#define SPEC_DB(address, name, kind) GT_DECOMP_NESTED(address, gt::game::spec_db::name, ReturnKind::kind)
 
 SPEC_DB(0x089300C0u, car_code_32_to_64, Word);
 SPEC_DB(0x0893067Cu, get_course_max_entry, Word);

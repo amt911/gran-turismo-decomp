@@ -261,29 +261,29 @@ void func_088A5820(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 namespace car_parameter_registrations {
 using gt::ReturnKind;
 
-GT_DECOMP(0x088A5928u, gt::game::car_parameter::target, ReturnKind::Word);
-GT_DECOMP(0x088A5938u, gt::game::car_parameter::set_target, ReturnKind::Void);
-GT_DECOMP(0x088A595Cu, gt::game::car_parameter::race_class_id, ReturnKind::Word);
-GT_DECOMP(0x088A5974u, gt::game::car_parameter::set_quality_flag, ReturnKind::Void);
-GT_DECOMP(0x088A599Cu, gt::game::car_parameter::set_color, ReturnKind::Void);
-GT_DECOMP(0x088A6164u, gt::game::car_parameter::color, ReturnKind::Word);
-GT_DECOMP(0x088A6F7Cu, gt::game::car_parameter::set_quicktune_tcs, ReturnKind::Void);
-GT_DECOMP(0x088A63A0u, gt::game::car_parameter::quicktune_tcs, ReturnKind::Word);
-GT_DECOMP(0x088A7608u, gt::game::car_parameter::power_scratch, ReturnKind::Word);
-GT_DECOMP(0x088A5A48u, gt::game::car_parameter::power, ReturnKind::Void);
-GT_DECOMP(0x088A5AE4u, gt::game::car_parameter::pp, ReturnKind::Float);
-GT_DECOMP(0x088A6144u, gt::game::car_parameter::color_max, ReturnKind::Void);
-GT_DECOMP(0x088A5EE0u, gt::game::car_parameter::car_code, ReturnKind::DoubleWord);
-GT_DECOMP(0x088A6414u, gt::game::car_parameter::tire_categories, ReturnKind::Void);
-GT_DECOMP(0x088A5CD0u, gt::game::car_parameter::end_parts_change, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A5928u, gt::game::car_parameter::target, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A5938u, gt::game::car_parameter::set_target, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A595Cu, gt::game::car_parameter::race_class_id, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A5974u, gt::game::car_parameter::set_quality_flag, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A599Cu, gt::game::car_parameter::set_color, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A6164u, gt::game::car_parameter::color, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A6F7Cu, gt::game::car_parameter::set_quicktune_tcs, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A63A0u, gt::game::car_parameter::quicktune_tcs, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A7608u, gt::game::car_parameter::power_scratch, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A5A48u, gt::game::car_parameter::power, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A5AE4u, gt::game::car_parameter::pp, ReturnKind::Float);
+GT_DECOMP_NESTED(0x088A6144u, gt::game::car_parameter::color_max, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A5EE0u, gt::game::car_parameter::car_code, ReturnKind::DoubleWord);
+GT_DECOMP_NESTED(0x088A6414u, gt::game::car_parameter::tire_categories, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A5CD0u, gt::game::car_parameter::end_parts_change, ReturnKind::Void);
 // Not registered: reaches calls the isolated run can't replay (not comparable in all its cases).
 // GT_DECOMP(0x088A5E54u, gt::game::car_parameter::begin_parts_change, ReturnKind::Void);
-GT_DECOMP(0x088A5A0Cu, gt::game::car_parameter::end_info, ReturnKind::Void);
-GT_DECOMP(0x088A6C18u, gt::game::car_parameter::deep_copy, ReturnKind::Word);
-GT_DECOMP(0x088A6C48u, gt::game::car_parameter::set_changeable_params, ReturnKind::Void);
-GT_DECOMP(0x088A6608u, gt::game::car_parameter::selected_block_address, ReturnKind::Word);
-GT_DECOMP(0x088A58A4u, gt::game::car_parameter::func_088A58A4, ReturnKind::Word);
-GT_DECOMP(0x088A5820u, gt::game::car_parameter::func_088A5820, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A5A0Cu, gt::game::car_parameter::end_info, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A6C18u, gt::game::car_parameter::deep_copy, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A6C48u, gt::game::car_parameter::set_changeable_params, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A6608u, gt::game::car_parameter::selected_block_address, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A58A4u, gt::game::car_parameter::func_088A58A4, ReturnKind::Word);
+GT_DECOMP_NESTED(0x088A5820u, gt::game::car_parameter::func_088A5820, ReturnKind::Word);
 // Not registered yet: the three pad routes never call these (compared 0, calls 0), so the gate can't
 // check them; they run as the recompiled originals until a route reaches them. Mostly accessors of
 // attributes the scripts leave alone in those states.

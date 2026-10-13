@@ -331,7 +331,7 @@ void MRaceOperator_clear(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
 
 namespace race_operator_registrations {
 using gt::ReturnKind;
-#define RACE_OPERATOR(address, name, kind) GT_DECOMP(address, gt::game::race_operator::name, ReturnKind::kind)
+#define RACE_OPERATOR(address, name, kind) GT_DECOMP_NESTED(address, gt::game::race_operator::name, ReturnKind::kind)
 
 RACE_OPERATOR(0x0885BBD8u, personal_id, DoubleWord);
 RACE_OPERATOR(0x0885BC90u, set_with_ghost, Void);
