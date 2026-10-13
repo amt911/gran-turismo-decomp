@@ -244,3 +244,7 @@ the line says otherwise.
   accessors (quicktune_*, color, car code) all index with it. A spec struct hangs off `+0x4C8`
   (weight, power, torque, PP). *(verified: the engine accessors the handlers call,
   `src/game/car/car_parameter.cpp`, `include/gt/game/car_parameter.hpp`)*
+- MCalendar (initializer `0x08818A04`): 1 attribute (`today`) and 12 methods. The script object holds the
+  engine object at `+0x14`; the engine object starts with the day number (`0x08B1B2F4` year/month/day, the
+  first day is 2009-10-01) and holds a ring of 100 events of 148 bytes from `+0x14`, with the count at
+  `+0x10`. *(verified: the engine functions the handlers call, `src/game/calendar/calendar.cpp`)*
