@@ -355,8 +355,7 @@ void func_08B59838(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08B57DE8(x): stores x at 0x08D6D0C4.
 void func_08B57DE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { put(rt, 0x08D6D0C4u, ctx.gpr[4]); }
 // func_08B55B90(): sets bit 11 in the words +0x278 and +0x27C and bit 7 in the flags.
-void func_08B55B90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    (void)ctx;
+void func_08B55B90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &) {
     const std::uint32_t second = word(rt, kGuState + 636u), first = word(rt, kGuState + 632u), flags = word(rt, kGuFlags);
     put(rt, kGuFlags, flags | 128u);
     put(rt, kGuState + 636u, second | 2048u);

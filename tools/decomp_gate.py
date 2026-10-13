@@ -171,12 +171,13 @@ def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
     missing = []
     for name in names:
         pattern = re.compile(r"^(void " + re.escape(name) +
-                             r"\(psprecomp::Runtime &)(\w*)(, psprecomp::AllegrexContext &ctx\) \{)", re.MULTILINE)
+                             r"\(psprecomp::Runtime &)(\w*)(, psprecomp::AllegrexContext &)(\w*)(\) \{)", re.MULTILINE)
 
         def bump(match: re.Match) -> str:
             rt = match[2] or "sabotage_rt"
-            return (f"{match[1]}{rt}{match[3]} ctx.gpr[16] += 1u; {rt}.memory().store32(0x{SABOTAGE_WORD:08X}u, "
-                    f"{rt}.memory().load32(0x{SABOTAGE_WORD:08X}u) + 1u);")
+            ctx = match[4] or "ctx"  # an unnamed parameter is named for the bump
+            return (f"{match[1]}{rt}{match[3]}{ctx}{match[5]} {ctx}.gpr[16] += 1u; "
+                    f"{rt}.memory().store32(0x{SABOTAGE_WORD:08X}u, {rt}.memory().load32(0x{SABOTAGE_WORD:08X}u) + 1u);")
 
         source, count = pattern.subn(bump, source, count=1)
         if count == 0:
