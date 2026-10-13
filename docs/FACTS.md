@@ -259,6 +259,11 @@ the line says otherwise.
   flags), two 100-entry lists at `+0x34` and `+0x1C4`, and 30 favourite slots at `+0x354` that are
   CarParameter handles; `getOneCarMax` returns the constant 10. *(verified: the engine functions the natives
   call, `src/game/car/car_collection.cpp`)*
+- MRaceOperator (initializer `0x0882506C`): 58 methods and 11 attributes. The script object's `+0x14` is the engine
+  handle (`+0x00` data, `+0x04` organizer, `+0x08` lock); the data holds the slots (392 bytes each) at `+0x00`,
+  their count at `+0x04`, `window_max` at `+0x0C`, the series (`+0x30`, `+0x34`, 64-bit course codes from `+0x38`),
+  the race parameter at `+0x7C` and six 28-byte memory-plan blocks from `+0x90`. *(verified: the engine functions
+  the attribute handlers call, `src/game/race/race_operator.cpp`)*
 - **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
   exercised by its decompiled parent's cases (a value sabotage of such an engine function went
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the
