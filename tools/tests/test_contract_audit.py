@@ -114,3 +114,20 @@ def test_a_long_return_block_is_read_to_its_end():
     filler = "    aot_mem.aot_store32(ctx.gpr[29] + static_cast<std::uint32_t>(4), ctx.gpr[16]);\n" * 80
     unit = "L_08800010:\n" + filler + "    aot_mem.aot_store32(ctx.gpr[16], ctx.gpr[2]);\nL_08800020:\n"
     assert audit.reads_after(unit, 0x08800010, 2)
+
+
+def test_an_lwl_lwr_pair_into_the_register_is_a_write_not_a_read():
+    # the memset caller at 0x08B2FCF0: both halves of an unaligned load land in v1 before anything reads it
+    unit = ("L_08B2FCF0:\n"
+            "    ctx.gpr[3] = (rt.memory().aot_load_word_left(ctx.gpr[19] + static_cast<std::uint32_t>(3), ctx.gpr[3]));\n"
+            "    ctx.gpr[5] = (ctx.gpr[16] + 0u);\n"
+            "    ctx.gpr[3] = (rt.memory().aot_load_word_right(ctx.gpr[19] + static_cast<std::uint32_t>(0), ctx.gpr[3]));\n"
+            "    aot_mem.aot_store32(ctx.gpr[18] + static_cast<std::uint32_t>(0), ctx.gpr[3]);\n")
+    assert not audit.reads_after(unit, 0x08B2FCF0, 3)
+
+
+def test_a_lone_partial_load_still_reads_the_register():
+    unit = ("L_08800010:\n"
+            "    ctx.gpr[3] = (rt.memory().aot_load_word_left(ctx.gpr[19] + static_cast<std::uint32_t>(3), ctx.gpr[3]));\n"
+            "    aot_mem.aot_store32(ctx.gpr[18], ctx.gpr[3]);\n")
+    assert audit.reads_after(unit, 0x08800010, 3)
