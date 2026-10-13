@@ -36,7 +36,6 @@ constexpr std::uint32_t kCarSettingsBegin = 0x088A657Cu;
 constexpr std::uint32_t kCarSettingsEnd = 0x088A5CD8u;
 constexpr std::uint32_t kSelfAsCarDriverParameter = 0x0884D660u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kCarDriverParameterCore = 0x0884D3D8u;
-constexpr std::uint32_t kCarDriverParameterSetDefault = 0x0889793Cu;
 constexpr std::uint32_t kArgumentAsRaceSound = 0x08835BD8u;  // (holder *out, argv)
 constexpr std::uint32_t kOrganizerSetRaceSound = 0x08829538u;   // (organizer *, holder *)
 constexpr std::uint32_t kArgumentAsSoundContext = 0x08A22050u;  // (holder *out, argv)
@@ -65,8 +64,6 @@ constexpr std::uint32_t kWrapDriverParameter = 0x0884F674u;  // (holder *out, dr
 constexpr std::uint32_t kWrapRaceParameter = 0x08848DB8u;    // (holder *out, race parameter *)
 constexpr std::uint32_t kCarParameterHasTarget = 0x088A5928u;  // (core) -> int
 constexpr std::uint32_t kCarParameterIsRemote = 0x088A5984u;   // (core) -> int
-constexpr std::uint32_t kDriverParameterIsHuman = 0x08897788u; // (core) -> bool
-constexpr std::uint32_t kDriverParameterSetAILevel = 0x08897290u;  // (core, level)
 constexpr std::uint32_t kSelfAsRaceParameter = 0x08847008u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kRaceParameterCore = 0x08846E50u;    // (race parameter *) -> engine object
 constexpr std::uint32_t kRaceParameterSetLaunchPosition = 0x088D59A0u;  // (core, a, b)
@@ -92,7 +89,6 @@ constexpr std::uint32_t kTransmissionIsATOnly = 0x089325E0u;          // (info) 
 constexpr std::uint32_t kCarParameterPowerScratch = 0x088A7608u;
 constexpr std::uint32_t kCarParameterSetRearTire = 0x088A6508u;       // (core, category) -> int
 constexpr std::uint32_t kCarParameterSetFrontTire = 0x088A6494u;
-constexpr std::uint32_t kDriverParameterSetPlayer = 0x08897554u;      // (core, player)
 constexpr std::uint32_t kRaceParameterDelayStart = 0x088D4D14u;       // (core, index) -> int
 constexpr std::uint32_t kRaceParameterUseLaunchData = 0x088D4E18u;    // (core, bool)
 constexpr std::uint32_t kRaceParameterSetEventV = 0x088D5988u;        // (core, a, b)
@@ -115,7 +111,6 @@ constexpr std::uint32_t kSoundPlay = 0x08A34DA8u;            // (sound *, std::s
 constexpr std::uint32_t kSoundPlayWith = 0x08A34D98u;        // (sound *, std::string name, float in $f12)
 constexpr std::uint32_t kSelfAsMenuObjectManager = 0x08A14610u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kMenuObjectManagerStart = 0x08A142C8u;   // (manager *, const std::string *name)
-
 
 // self as `cls` into a frame holder, `use(object)`, then drop the holder.
 
@@ -175,11 +170,6 @@ void MCarParameter_updateScratch(psprecomp::Runtime &rt, psprecomp::AllegrexCont
 void CarSettings_beginSetting(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_call(rt, ctx, kCarSettingsBegin, DropFirst::no); }
 void CarSettings_endSetting(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_call(rt, ctx, kCarSettingsEnd, DropFirst::no); }
 
-// MCarDriverParameter.setDefault().
-void MCarDriverParameter_setDefault(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    core_call(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore, kCarDriverParameterSetDefault, DropFirst::yes);
-}
-
 // MOrganizer.setRaceSound(sound) / setSoundContext(context): with at least one argument.
 void organizer_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t convert, std::uint32_t set) {
     const std::uint32_t self = ctx.gpr[5];
@@ -201,8 +191,6 @@ void MOrganizer_setRaceSound(psprecomp::Runtime &rt, psprecomp::AllegrexContext 
 void MOrganizer_setSoundContext(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     organizer_set(rt, ctx, kArgumentAsSoundContext, kOrganizerSetSoundContext);
 }
-
-
 
 // loadCarArray(...) / loadCourseMap(...): the shared loader, building an array of cars or a map of
 // courses from the arguments; its result goes to *result. Module functions: (result, argc, argv).
@@ -239,7 +227,6 @@ void MSceneFace_setClearColorBuffer(psprecomp::Runtime &rt, psprecomp::AllegrexC
     return_integer(rt, ctx, result, frame.at(0u), done);
 }
 
-
 // pdistd.IsDebugVersion() -> 0: this is the release build.
 void pdistd_IsDebugVersion(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -257,9 +244,6 @@ void MCarParameter_getCarCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     return_long(rt, ctx, result, frame.at(0u), code.v0, code.v1);
 }
 
-
-
-
 // MMusic.isPlaying() -> integer (the engine's state, not a boolean).
 void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -269,12 +253,9 @@ void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     });
 }
 
-
 std::uint32_t organizer_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return self_core(rt, ctx, kAsOrganizer, kOrganizerCore);
 }
-
-
 
 // MOrganizer.getEntryMaxAtCurrentRace() -> integer; canEnterCourse() -> boolean.
 void MOrganizer_getEntryMaxAtCurrentRace(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -334,22 +315,6 @@ void MCarParameter_isTargetLocal(psprecomp::Runtime &rt, psprecomp::AllegrexCont
     }
     GuestFrame frame(ctx, 0x10u);
     return_integer(rt, ctx, result, frame.at(0u), local);
-}
-
-// MCarDriverParameter.isHuman() -> boolean; setAILevel(level), with at least one argument.
-void MCarDriverParameter_isHuman(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
-    const std::uint32_t human = call_guest(rt, ctx, kDriverParameterIsHuman, {core});
-    GuestFrame frame(ctx, 0x10u);
-    return_bool(rt, ctx, result, frame.at(0u), human);
-}
-void MCarDriverParameter_setAILevel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
-    (void)call_guest(rt, ctx, kDriverParameterSetAILevel, {core, int_argument(rt, ctx, argv, 0u)});
 }
 
 // MRaceParameter.setLaunchPosition(a, b) / setLaunchSpeed(a, b): with at least two arguments
@@ -439,8 +404,6 @@ void MMenuGameObjectManager_start(psprecomp::Runtime &rt, psprecomp::AllegrexCon
     string_release(rt, ctx, memory.load32(name));
     destroy(rt, ctx, manager);
 }
-
-
 
 // --- MOrganizer ---
 void MOrganizer_setDrivingLineDispFlag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -560,13 +523,6 @@ void car_parameter_set_tire(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
 }
 void MCarParameter_setRearTireCategory(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_set_tire(rt, ctx, kCarParameterSetRearTire); }
 void MCarParameter_setFrontTireCategory(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_set_tire(rt, ctx, kCarParameterSetFrontTire); }
-void MCarDriverParameter_setPlayer(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
-    (void)call_guest(rt, ctx, kDriverParameterSetPlayer, {core, int_argument(rt, ctx, argv, 0u)});
-}
 std::uint32_t race_parameter_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return self_core(rt, ctx, kSelfAsRaceParameter, kRaceParameterCore);
 }
@@ -603,7 +559,6 @@ void MRaceParameter_setBoostParams(psprecomp::Runtime &rt, psprecomp::AllegrexCo
         (void)call_guest(rt, ctx, setters[i], {core, 1u, value[i * 2u + 1u]});
     }
 }
-
 
 // --- system natives (module functions: result, argc, argv) ---
 void MSystemCondition_IsExitGame(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -708,8 +663,6 @@ GT_DECOMP(0x0882B9C4u, gt::adhoc::game::MOrganizer_setChangeableDriverParameterA
 GT_DECOMP(0x08830874u, gt::adhoc::game::MOrganizer_getEntriedDriverParameter, gt::ReturnKind::Void);
 GT_DECOMP(0x0883332Cu, gt::adhoc::game::MOrganizer_getCurrentRaceParameter, gt::ReturnKind::Void);
 GT_DECOMP(0x0885600Cu, gt::adhoc::game::MCarParameter_isTargetLocal, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D81Cu, gt::adhoc::game::MCarDriverParameter_isHuman, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D77Cu, gt::adhoc::game::MCarDriverParameter_setAILevel, gt::ReturnKind::Void);
 GT_DECOMP(0x088472C0u, gt::adhoc::game::MRaceParameter_setLaunchPosition, gt::ReturnKind::Void);
 GT_DECOMP(0x088471E4u, gt::adhoc::game::MRaceParameter_setLaunchSpeed, gt::ReturnKind::Void);
 GT_DECOMP(0x08A36608u, gt::adhoc::game::MSound_play, gt::ReturnKind::Void);
@@ -719,7 +672,6 @@ GT_DECOMP(0x08854BC8u, gt::adhoc::game::MCarParameter_endInfo, gt::ReturnKind::V
 GT_DECOMP(0x08854C1Cu, gt::adhoc::game::MCarParameter_updateScratch, gt::ReturnKind::Void);
 GT_DECOMP(0x0884F760u, gt::adhoc::game::CarSettings_beginSetting, gt::ReturnKind::Void);
 GT_DECOMP(0x0884F7B4u, gt::adhoc::game::CarSettings_endSetting, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D9F0u, gt::adhoc::game::MCarDriverParameter_setDefault, gt::ReturnKind::Void);
 GT_DECOMP(0x088297E8u, gt::adhoc::game::MOrganizer_setRaceSound, gt::ReturnKind::Void);
 GT_DECOMP(0x08829868u, gt::adhoc::game::MOrganizer_setSoundContext, gt::ReturnKind::Void);
 GT_DECOMP(0x08805FD0u, gt::adhoc::game::CreateGameRecordStructure, gt::ReturnKind::Void);
@@ -747,7 +699,6 @@ GT_DECOMP(0x0885794Cu, gt::adhoc::game::MCarParameter_isATOnly, gt::ReturnKind::
 GT_DECOMP(0x08857584u, gt::adhoc::game::MCarParameter_getPowerScratch, gt::ReturnKind::Void);
 GT_DECOMP(0x08855E54u, gt::adhoc::game::MCarParameter_setRearTireCategory, gt::ReturnKind::Void);
 GT_DECOMP(0x08855D78u, gt::adhoc::game::MCarParameter_setFrontTireCategory, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D950u, gt::adhoc::game::MCarDriverParameter_setPlayer, gt::ReturnKind::Void);
 GT_DECOMP(0x0884BDA8u, gt::adhoc::game::MRaceParameter_getDelayStartSecond, gt::ReturnKind::Void);
 GT_DECOMP(0x08847144u, gt::adhoc::game::MRaceParameter_useLaunchData, gt::ReturnKind::Void);
 GT_DECOMP(0x088477A0u, gt::adhoc::game::MRaceParameter_setEventV, gt::ReturnKind::Void);
