@@ -132,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the 
     if outside:
         print(f"{outside} functions lie outside .text (not clustered)")
     units = sorted(args.recompiled.glob("generated_unit_*.cpp"))
+    if not units:
+        print(f"warning: no generated units in {args.recompiled}: code nothing reaches is counted too "
+              "(run .venv/bin/python -m tools.recomp)", file=sys.stderr)
     if units:
         emitted = recompiled_functions(u.read_text() for u in units)
         unreachable = [a for a in inside if a not in emitted]
