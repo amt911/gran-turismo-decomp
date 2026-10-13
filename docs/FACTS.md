@@ -264,6 +264,11 @@ the line says otherwise.
   their count at `+0x04`, `window_max` at `+0x0C`, the series (`+0x30`, `+0x34`, 64-bit course codes from `+0x38`),
   the race parameter at `+0x7C` and six 28-byte memory-plan blocks from `+0x90`. *(verified: the engine functions
   the attribute handlers call, `src/game/race/race_operator.cpp`)*
+- MCarDriverParameter (initializer `0x0884E9D4`): 10 methods and 14 attributes. The script object's handle points
+  to a 184-byte data: the driver aids are signed bytes at `+0x8D..+0x97` (`manual`, `assist_tcs`, `assist_asm`,
+  `steering_assist_type`, `active_steering`, `active_brake_level`, `physics_pro`, `academy_flag`, `assist_4was`), the
+  type (0 = human) and user number are big-endian words at `+0x9C` / `+0xA0`, and the AI level is the byte `+0xAF`.
+  *(verified: the engine functions the handlers call, `src/game/car/car_driver_parameter.cpp`)*
 - **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
   exercised by its decompiled parent's cases (a value sabotage of such an engine function went
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the
