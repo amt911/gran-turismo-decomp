@@ -46,6 +46,16 @@ def test_classify_tells_hand_written_from_template_registrations(tmp_path: Path)
     assert classify(tmp_path) == {0x28: "hand", 0xAC: "template"}
 
 
+def test_classify_counts_a_subsystems_shorthand_registrations_as_hand_written(tmp_path: Path):
+    (tmp_path / "game").mkdir()
+    (tmp_path / "game" / "race_operator.cpp").write_text(
+        "RACE_OPERATOR(0x08804028u, window_max, Word);\n"
+        "// RACE_OPERATOR(0x088040ACu, set_window_max, Void);\n"
+        "    GT_FIELD(guest::be16, race_type, 0x04);\n"
+    )
+    assert classify(tmp_path) == {0x28: "hand"}
+
+
 def test_group_functions_splits_game_code_into_address_regions_and_keeps_the_sdk_apart():
     functions = [Function(0x28, 0x10, "hand", None), Function(0x40028, 0x10, None, None),
                  Function(0x330000, 0x10, None, None)]

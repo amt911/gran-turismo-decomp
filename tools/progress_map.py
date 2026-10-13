@@ -25,14 +25,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tools.progress import LOAD_BASE, load_functions
+from tools.progress import LOAD_BASE, SHORTHAND_REGISTRATION, load_functions
 
 SDK_START = 0x330000          # ELF vaddr; about where libc starts (gt::libc::page_heap at 0x08B344E0)
 REGION = 0x40000              # game code grouped in 256 KiB regions
 MARK_START = "<!-- progress:start -->"
 MARK_END = "<!-- progress:end -->"
 
-_REGISTRATION = re.compile(r"^[ \t]*GT_DECOMP(_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]", re.MULTILINE)
+_REGISTRATION = re.compile(
+    r"^[ \t]*(?:GT_DECOMP(_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]|" + SHORTHAND_REGISTRATION + ")", re.MULTILINE
+)
 _SYMBOL = re.compile(r"^([^/\s][^=]*?) = 0x([0-9A-Fa-f]+);", re.MULTILINE)
 _STATE_LABEL = {"hand": "decompilada a mano", "template": "decompilada (plantilla)", None: "pendiente"}
 
@@ -66,7 +68,8 @@ def classify(src: Path) -> dict[int, str]:
     states: dict[int, str] = {}
     for path in sorted(src.rglob("*.cpp")):
         for match in _REGISTRATION.finditer(path.read_text()):
-            states[int(match.group(2), 16) - LOAD_BASE] = "template" if match.group(1) else "hand"
+            address = match.group(2) or match.group(3)  # GT_DECOMP[_KIND](...) or a subsystem's shorthand
+            states[int(address, 16) - LOAD_BASE] = "template" if match.group(1) else "hand"
     return states
 
 
