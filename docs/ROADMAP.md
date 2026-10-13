@@ -490,6 +490,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       el decompilado debe hacer las mismas llamadas con los mismos argumentos; recibe el efecto grabado.
       32 funciones que antes no se podían comparar ya se comparan.
       **4.446 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **+54 funciones calientes**: 49 funciones anteriores registradas de nuevo ahora que el arnes graba y reproduce imports, mas creacion de registros de hilo, bucles de reintento del asignador y busqueda del hilo actual
+      **4.500 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
