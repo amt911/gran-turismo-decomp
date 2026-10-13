@@ -229,3 +229,12 @@ the line says otherwise.
   `isoinfo -x` produced empty files here. *(verified: ran both, 2026-10-09)*
 - `pspdecrypt -o <out.elf> EBOOT.BIN` — decrypts the game EBOOT (build: `make` in the repo; needs zlib +
   OpenSSL `libcrypto`). *(verified: ran it, 2026-10-09)*
+
+## Adhoc class registration (verified 2026-10-13)
+
+- Script classes register **methods** through `0x08B87108` and **attributes** through `0x08B878E8`,
+  as `(class, name string, handler, handler)`. One attribute handler does both get and set. Example:
+  MRaceParameter at `0x08847D64..`, names at `0x08C9CC0C..` (.rodata), 31 attributes and 28 methods.
+  *(verified: generated code of unit 0008 plus the ELF strings; table in `config/symbol_addrs.txt`)*
+- The engine-side RaceParameter is big-endian (be16/be32 fields), consistent with `MRaceParameter::pack`
+  sending it online. *(verified: the getters' byte swaps, `src/game/race/race_parameter.cpp`)*

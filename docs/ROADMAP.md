@@ -494,6 +494,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **4.500 funciones, 0 discrepancias en las tres rutas** (gate completo).
 - [x] **+6 funciones calientes**: busquedas y borrado por hilo sobre un mapa, secuencias de llamadas con locales holder, un setter de seleccion acotada bajo lock, actualizacion de slot con llamadas virtuales
       **4.506 funciones, 0 discrepancias en las tres rutas** (gate completo).
+- [x] **Primer subsistema con nombres: RaceParameter** (2026-10-13): structs tipados sobre la memoria
+      del juego (`include/gt/guest.hpp`) y los ajustes de carrera con los nombres del propio GT
+      (`race_type`, `endless`, `disable_collision`, `launch_speed`…, sacados del registro de atributos de
+      los scripts Adhoc) en `src/game/race/race_parameter.cpp`; receta en el workflow para los siguientes
+      (CarParameter, SpecDB, Calendar).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

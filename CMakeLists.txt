@@ -86,7 +86,7 @@ add_library(gt_host_objs OBJECT
     host/gt_ge_exec.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
-target_include_directories(gt_host_objs PRIVATE host "${GT_LCS_HOST_DIR}")
+target_include_directories(gt_host_objs PRIVATE host include "${GT_LCS_HOST_DIR}")
 target_link_libraries(gt_host_objs PRIVATE psprecomp_core PkgConfig::FFMPEG)
 # PSP fonts fetched by tools/setup.sh (never committed): the sceLibFont HLE's default directory.
 target_compile_definitions(gt_host_objs PRIVATE
@@ -191,6 +191,10 @@ add_executable(guest_call_tests host/tests/guest_call_test.cpp host/guest_call.c
 target_include_directories(guest_call_tests PRIVATE host)
 target_link_libraries(guest_call_tests PRIVATE psprecomp_core)
 add_test(NAME guest_call COMMAND guest_call_tests)
+add_executable(guest_view_tests host/tests/guest_view_test.cpp)
+target_include_directories(guest_view_tests PRIVATE include)
+target_link_libraries(guest_view_tests PRIVATE psprecomp_core)
+add_test(NAME guest_view COMMAND guest_view_tests)
 add_executable(fiber_tests host/tests/fiber_test.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
 target_include_directories(fiber_tests PRIVATE host)
 target_link_libraries(fiber_tests PRIVATE psprecomp_core)
