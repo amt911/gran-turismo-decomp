@@ -280,7 +280,7 @@ the line says otherwise.
   deg.F). The engine functions at `0x08B48BFC..0x08B497A0` take that address in a0; the internal units are m/s, PS,
   kgfm and m, and `0x08B49238` sets a whole set of units from a system number 0..13 (a language maps to one through
   the 14-pair table at `0x08C95494`). *(verified: the engine functions the natives call,
-  `src/game/unit/unit_system.cpp`; the 13 rows of `0x08B49238` were read from the jump table's stores, one is compared per route)*
+  `src/game/unit/unit_system.cpp`; `0x08B49238` is gate-verified for system 1 only; its 14 rows (systems 0..13, others behave as 0) were read from the jump table's stores and the other 13 never ran)*
 - **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
   exercised by its decompiled parent's cases (a value sabotage of such an engine function went
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the

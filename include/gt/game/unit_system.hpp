@@ -21,7 +21,7 @@ namespace gt::game {
 inline constexpr std::uint32_t kUnitSystemAddress = 0x08D6950Cu;
 
 struct UnitSystem : guest::Layout {
-    // 0 = km/h, 1 = mph (anything else prints "VVV"): Unit::get_unit_of_velocity (0x08B48BFC), read by
+    // 0 = km/h, 1 = mph (anything else prints "VVV"): UnitSystem::get_unit_of_velocity (0x08B48BFC), read by
     // MUnit::GetUnitOfVelocity (0x08A26548); GetVelocityForDisplay scales by it (0x08B48EAC).
     GT_FIELD(std::uint32_t, velocity, 0x00);
     // Index into the power names PS, HP, BHP, ch, kW, CV, PF (0x08B48C30, read by MUnit::GetUnitOfPower 0x08A26498);

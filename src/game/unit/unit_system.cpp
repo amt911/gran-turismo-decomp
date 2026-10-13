@@ -192,7 +192,7 @@ void get_course_length_for_display(psprecomp::Runtime &rt, psprecomp::AllegrexCo
 // --- Choosing units --------------------------------------------------------------------------------
 
 // set_unit_system(units, system): the set of units for a system number 0..13 (others behave as 0). The
-// table is the stores of the original's jump table, one row per case: velocity, power, torque, rpm, unk_10,
+// table is the stores of the original's jump table, 14 rows for systems 0..13 (others behave as 0), one per case: velocity, power, torque, rpm, unk_10,
 // temperature. Cases 1, 8, 9 and 10 share a row.
 void set_unit_system(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     static constexpr std::uint8_t kRows[14][6] = {
@@ -253,9 +253,9 @@ void get_language_index(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx)
     ctx.gpr[2] = 0xFFFFFFFFu;
 }
 
-// MUnit::IsCalendarTypeDayFirst (0x08A25A48): the native tests this for 1. 0 for system numbers 0, 10, 11, 12
+// func_08B49688: MUnit::IsCalendarTypeDayFirst (0x08A25A48) calls it and tests the result for 1 (the name of its role is an inference from that one use). 0 for system numbers 0, 10, 11, 12
 // and 13, 2 for numbers >= 14, 1 otherwise.
-void get_calendar_type(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+void func_08B49688(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)rt;
     const std::uint32_t system = ctx.gpr[4];
     if (system >= 14u) ctx.gpr[2] = 2u;
@@ -323,8 +323,14 @@ UNIT_SYSTEM(0x08B48F04u, get_power_for_display, Float);
 UNIT_SYSTEM(0x08B48F54u, get_torque_for_display, Float);
 UNIT_SYSTEM(0x08B491A8u, get_course_height_for_display, Float);
 UNIT_SYSTEM(0x08B491D0u, get_course_length_for_display, Word);
+// Verified for system 1 only: the routes never select another, so rows 0 and 2..13, the default and the >= 14 branch were
+// never run by the gate (rows were extracted from the original's jump-table stores, not compared).
 UNIT_SYSTEM(0x08B49238u, set_unit_system, Void);
+// Verified only for the languages the routes pass (the lookup in the table at 0x08C95494 was compared for those entries
+// alone, not for the other languages nor for a language missing from it).
 UNIT_SYSTEM(0x08B49414u, set_unit_system_by_language, Void);
+// Verified only for the names the routes pass (a match among the 14 names and the -1 result for no match were
+// compared only as far as the routes reach them).
 UNIT_SYSTEM(0x08B497A0u, get_language_index, Word);
 // Not registered: compared 0 in every fast and full run of the PR (no pad route prints that
 // unit or asks the calendar type), so nothing could verify them; they run as the recompiled originals.
@@ -333,6 +339,6 @@ UNIT_SYSTEM(0x08B497A0u, get_language_index, Word);
 // UNIT_SYSTEM(0x08B48CFCu, get_unit_of_rpm, Word);
 // UNIT_SYSTEM(0x08B48DCCu, get_unit_of_temperature, Word);
 // UNIT_SYSTEM(0x08B48EACu, get_velocity_for_display, Float);
-// UNIT_SYSTEM(0x08B49688u, get_calendar_type, Word);
+// UNIT_SYSTEM(0x08B49688u, func_08B49688, Word);
 #undef UNIT_SYSTEM
 } // namespace unit_system_registrations
