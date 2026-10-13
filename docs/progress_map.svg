@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="sans-serif">
 <rect width="1200" height="760" fill="#1d2129"/>
 <text x="6" y="16" fill="#e6e8ec" font-size="13" font-weight="bold">Gran Turismo (PSP) — progreso de la decompilación</text>
-<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: 4503 / 23208 (19.40 %) · bytes: 394180 / 4175084 (9.44 %) · cada rectángulo es una función, por tamaño en bytes · verde = a mano, turquesa = plantilla, gris = pendiente</text>
+<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: 4505 / 23208 (19.41 %) · bytes: 394348 / 4175084 (9.45 %) · cada rectángulo es una función, por tamaño en bytes · verde = a mano, turquesa = plantilla, gris = pendiente</text>
 <g transform="translate(0,40)">
 <rect x="0.0" y="0.0" width="324.6" height="720.0" fill="#262b35" stroke="#12151b" stroke-width="1"/>
 <rect class="f" x="1.0" y="14.0" width="37.8" height="34.0" fill="#4a5260"/>
@@ -11632,7 +11632,7 @@
 <rect class="f" x="893.6" y="202.3" width="5.0" height="5.1" fill="#4a5260"/>
 <rect class="f" x="893.6" y="207.3" width="5.0" height="5.1" fill="#4a5260"/>
 <rect class="f" x="893.6" y="212.4" width="5.0" height="5.1" fill="#4a5260"/>
-<rect class="f" x="893.6" y="217.5" width="5.0" height="5.1" fill="#4a5260"/>
+<rect class="f" x="893.6" y="217.5" width="5.0" height="5.1" fill="#3fa65a"/>
 <rect class="f" x="893.6" y="222.5" width="5.0" height="5.1" fill="#3fa65a"/>
 <rect class="f" x="898.6" y="145.5" width="5.0" height="5.0" fill="#4a5260"/>
 <rect class="f" x="898.6" y="150.5" width="5.0" height="5.0" fill="#4a5260"/>
@@ -12033,7 +12033,7 @@
 <rect class="f" x="952.5" y="194.1" width="2.6" height="2.6" fill="#4a5260"/>
 <rect class="f" x="955.1" y="194.1" width="2.6" height="2.6" fill="#3fa65a"/>
 <rect class="f" x="957.7" y="194.1" width="2.6" height="2.6" fill="#3fa65a"/>
-<rect class="f" x="960.4" y="194.1" width="2.6" height="2.6" fill="#4a5260"/>
+<rect class="f" x="960.4" y="194.1" width="2.6" height="2.6" fill="#3fa65a"/>
 <rect class="f" x="963.0" y="194.1" width="2.6" height="2.6" fill="#4a5260"/>
 <rect class="f" x="965.6" y="194.1" width="2.6" height="2.6" fill="#3fa65a"/>
 <rect class="f" x="968.2" y="194.1" width="2.6" height="2.6" fill="#3fa65a"/>
