@@ -525,6 +525,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       operador de carrera: 392 bytes por ranura, ventana, serie de circuitos, seis bloques del plan de memoria) y
       `src/game/race/race_operator.cpp` con los nativos de MRaceOperator que ya existían más las lecturas y escrituras
       de sus atributos. Solo se registra lo que se compara por sí solo en el gate.
+- [x] **Octavo subsistema con nombres: Organizer** (2026-10-13): `include/gt/game/organizer.hpp` (los datos del
+      organizador de sesión: cámara, panel de carrera, buffer de repetición, condición de juego, objetos de pausa) y
+      `src/game/race/organizer.cpp` con los 27 nativos de MOrganizer que ya existían y sus funciones del motor. Solo se
+      registra lo que se compara por sí solo en el gate rápido o completo.
 - [x] **Séptimo subsistema con nombres: CarDriverParameter** (2026-10-13): `include/gt/game/car_driver_parameter.hpp`
       (los 184 bytes del conductor: ayudas, nivel de IA, tipo humano/IA) y `src/game/car/car_driver_parameter.cpp` con los
       accesores de sus 14 atributos, sus métodos y 7 nativos de MCarDriverParameter. Las registraciones genéricas de
