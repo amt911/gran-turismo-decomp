@@ -232,17 +232,17 @@ using gt::ReturnKind;
 #define CAR_COLLECTION(address, name, kind) GT_DECOMP(address, gt::game::car_collection::name, ReturnKind::kind)
 
 CAR_COLLECTION(0x0881D538u, MCarCollection_hasCar, Void);
-// CAR_COLLECTION(0x0881E6C0u, MCarCollection_hasFavorite, Void);
+CAR_COLLECTION(0x0881E6C0u, MCarCollection_hasFavorite, Void);
 CAR_COLLECTION(0x0881A8C0u, func_0881A8C0, Word);
 CAR_COLLECTION(0x0881AC68u, func_0881AC68, Word);
 CAR_COLLECTION(0x0881AC84u, func_0881AC84, Word);
-// CAR_COLLECTION(0x0881ACB0u, func_0881ACB0, Word);
-// CAR_COLLECTION(0x0881AA44u, func_0881AA44, Word);
-// CAR_COLLECTION(0x0881D7F0u, MCarCollection_getMyAllCarCount, Void);
+CAR_COLLECTION(0x0881ACB0u, func_0881ACB0, Word);
+CAR_COLLECTION(0x0881AA44u, func_0881AA44, Word);
+CAR_COLLECTION(0x0881D7F0u, MCarCollection_getMyAllCarCount, Void);
 CAR_COLLECTION(0x0881D674u, MCarCollection_getCarCount, Void);
-// Not registered: compared 0 on every route in the gate (the pad routes never call them on their own, and the
+CAR_COLLECTION(0x0881AEA4u, has_favorite, Word);
+// Not registered: compared 0 in every fast, dense and full run (the pad routes never call them on their own, and the
 // harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
-// CAR_COLLECTION(0x0881AEA4u, has_favorite, Word);
 // CAR_COLLECTION(0x0881A840u, func_0881A840, Word);
 // CAR_COLLECTION(0x0881A8F0u, func_0881A8F0, Word);
 // CAR_COLLECTION(0x0881A9CCu, get_flg, Word);
