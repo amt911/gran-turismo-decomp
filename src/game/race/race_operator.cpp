@@ -343,21 +343,22 @@ RACE_OPERATOR(0x08824E88u, MRaceOperator_setOrganizer, Void);
 RACE_OPERATOR(0x08824CB0u, MRaceOperator_clear, Void);
 // Not comparable yet (waits on the UMD drive: sceUmdWaitDriveStat): MRaceOperator_checkIn (0x08825AE8).
 // Not comparable yet (creates threads: sceKernelCreateThread): MRaceOperator_allocateResource (0x08825B74).
-// Not registered: compared 0 on every route in the gate (the pad routes never call them on their own, and the
-// harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
+// Not registered: calls 0 in the fast and full gates. The pad routes reach them only inside their (decompiled)
+// callers' own harness cases, where nested calls run the recompiled originals, so nothing verifies them; they
+// run as the recompiled originals.
 // RACE_OPERATOR(0x0885BB9Cu, set_organizer, Void);
 // RACE_OPERATOR(0x0885C188u, get_account_car_parameter, Void);
 // RACE_OPERATOR(0x0885C228u, get_account_driver_parameter, Void);
 // RACE_OPERATOR(0x0885C35Cu, is_theater, Word);
 // RACE_OPERATOR(0x0885D4CCu, func_0885D4CC, Word);
 // RACE_OPERATOR(0x0885BBB0u, set_window_max, Void);
-// RACE_OPERATOR(0x0885BBBCu, window_max, Word);
+RACE_OPERATOR(0x0885BBBCu, window_max, Word);
 // RACE_OPERATOR(0x0885BBC8u, set_personal_id, Void);
 // RACE_OPERATOR(0x0885BC9Cu, with_ghost, Word);
 // RACE_OPERATOR(0x0885C368u, set_expand_memory, Void);
 // RACE_OPERATOR(0x0885C374u, expand_memory, Word);
 // RACE_OPERATOR(0x0885C0DCu, representative_slot_id, Word);
-// RACE_OPERATOR(0x0885BE8Cu, race_parameter, Word);
+RACE_OPERATOR(0x0885BE8Cu, race_parameter, Word);
 // RACE_OPERATOR(0x0885BEA4u, game_condition, Word);
 // RACE_OPERATOR(0x0885BEC8u, gadget_condition, Word);
 // RACE_OPERATOR(0x0885BF50u, race_build_parameter, Word);
@@ -369,23 +370,24 @@ RACE_OPERATOR(0x08824CB0u, MRaceOperator_clear, Void);
 // RACE_OPERATOR(0x0885D29Cu, set_account_personal_id, Void);
 // RACE_OPERATOR(0x0885C138u, get_account_personal_id, DoubleWord);
 // RACE_OPERATOR(0x0885C1FCu, check_valid_driver, Word);
-// RACE_OPERATOR(0x0885C380u, get_memory_assign_standard, Word);
+RACE_OPERATOR(0x0885C380u, get_memory_assign_standard, Word);
 // RACE_OPERATOR(0x0885C3A4u, get_memory_assign_expand_memory, Word);
 // RACE_OPERATOR(0x0885C3B0u, get_memory_assign_without_replay, Word);
 // RACE_OPERATOR(0x0885C3BCu, get_memory_assign_for_replay, Word);
-// RACE_OPERATOR(0x0885C38Cu, get_memory_assign_with_ghost, Word);
+RACE_OPERATOR(0x0885C38Cu, get_memory_assign_with_ghost, Word);
 // RACE_OPERATOR(0x0885C398u, get_memory_assign_many_players, Word);
-// Not registered: compared 0 on every route in the gate (the pad routes never call them on their own, and the
-// harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
-// RACE_OPERATOR(0x0885BBF0u, get_target_slot, Word);
-// RACE_OPERATOR(0x0885BD3Cu, build_race, Word);
-// RACE_OPERATOR(0x0885BE14u, is_online, Word);
-// RACE_OPERATOR(0x0885BE70u, set_race_parameter, Void);
-// RACE_OPERATOR(0x0885C1ACu, get_account_fixed_car_parameter, Void);
-// RACE_OPERATOR(0x0882689Cu, MRaceOperator_getTargetSlot, Void);
-// RACE_OPERATOR(0x08826070u, MRaceOperator_isOnline, Void);
-// RACE_OPERATOR(0x08826968u, MRaceOperator_getTargetCarParameter, Void);
-// RACE_OPERATOR(0x088270E8u, MRaceOperator_getTargetDriverParameter, Void);
-// RACE_OPERATOR(0x08825FE4u, MRaceOperator_isTheater, Void);
+// Not registered: calls 0 in the fast and full gates. The pad routes reach them only inside their (decompiled)
+// callers' own harness cases, where nested calls run the recompiled originals, so nothing verifies them; they
+// run as the recompiled originals.
+RACE_OPERATOR(0x0885BBF0u, get_target_slot, Word);
+RACE_OPERATOR(0x0885BD3Cu, build_race, Word);
+RACE_OPERATOR(0x0885BE14u, is_online, Word);
+RACE_OPERATOR(0x0885BE70u, set_race_parameter, Void);
+RACE_OPERATOR(0x0885C1ACu, get_account_fixed_car_parameter, Void);
+RACE_OPERATOR(0x0882689Cu, MRaceOperator_getTargetSlot, Void);
+RACE_OPERATOR(0x08826070u, MRaceOperator_isOnline, Void);
+RACE_OPERATOR(0x08826968u, MRaceOperator_getTargetCarParameter, Void);
+RACE_OPERATOR(0x088270E8u, MRaceOperator_getTargetDriverParameter, Void);
+RACE_OPERATOR(0x08825FE4u, MRaceOperator_isTheater, Void);
 #undef RACE_OPERATOR
 } // namespace race_operator_registrations
