@@ -551,6 +551,12 @@ void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned c
     g_mode = mode;
     g_cases = cases_per_function;
     if (mode == DecompMode::Off) return;
+    {
+        std::vector<std::pair<std::uint32_t, std::string>> registrations;
+        for (const auto &function : decompiled_functions()) registrations.emplace_back(function.address, function.name);
+        if (const auto duplicate = duplicate_registration(registrations))
+            throw std::runtime_error("decompiled functions: " + *duplicate);
+    }
     if (mode == DecompMode::Diff) {  // the import gate and the continuation sentinel only exist in diff mode
         for (auto &[address, gate] : g_gates) {
             gate.original = runtime.function_at(address);

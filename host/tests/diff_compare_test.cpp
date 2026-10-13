@@ -1,6 +1,8 @@
 // Unit tests for gt::first_difference (host/diff_compare.cpp). Plain executable, run by CTest.
 #include "diff_compare.hpp"
 
+#include <utility>
+
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -92,6 +94,18 @@ int main() {
         check(!gt::parse_address_list("0x108AD408C").has_value(), "more than 32 bits is rejected");
         const auto empty = gt::parse_address_list(" , ");
         check(empty.has_value() && empty->empty(), "separators alone give an empty list");
+    }
+    {
+        const std::vector<std::pair<std::uint32_t, std::string>> unique{{0x08800000u, "a"}, {0x08800004u, "b"}};
+        check(!gt::duplicate_registration(unique).has_value(), "distinct addresses: no duplicate");
+        const std::vector<std::pair<std::uint32_t, std::string>> twice{
+            {0x0885C38Cu, "gt::core::ptr_member_address"}, {0x08800004u, "b"},
+            {0x0885C38Cu, "gt::game::race_operator::get_memory_assign_with_ghost"}};
+        const auto message = gt::duplicate_registration(twice);
+        check(message.has_value() && message->find("0x0885C38C") != std::string::npos &&
+                  message->find("ptr_member_address") != std::string::npos &&
+                  message->find("get_memory_assign_with_ghost") != std::string::npos,
+              "an address registered twice is reported with both names");
     }
     if (failures == 0) std::puts("diff_compare_test: all passed");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

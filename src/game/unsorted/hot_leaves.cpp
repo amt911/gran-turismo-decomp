@@ -6520,11 +6520,9 @@ void func_08B1753C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // Member addresses: func_08A06FB8 / func_08A06FB0 / func_08A06FA8(this) -> this + 0x100 / 0xF4 / 0xE8;
-// func_0881ACB0(this, i) -> &this->words[i] at +0x1C4.
 void func_08A06FB8(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[4] + 0x100u; }
 void func_08A06FB0(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[4] + 0xF4u; }
 void func_08A06FA8(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[4] + 0xE8u; }
-void func_0881ACB0(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = (ctx.gpr[5] << 2) + ctx.gpr[4] + 0x1C4u; }
 
 // func_0896601C(this, bool on): bit 1 of the flags at +0xE0 = on, keeping bits 0, 2 and 3.
 void func_0896601C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -6706,7 +6704,6 @@ GT_DECOMP(0x08B1753Cu, gt::game::func_08B1753C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A06FB8u, gt::game::func_08A06FB8, gt::ReturnKind::Word);
 GT_DECOMP(0x08A06FB0u, gt::game::func_08A06FB0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A06FA8u, gt::game::func_08A06FA8, gt::ReturnKind::Word);
-GT_DECOMP(0x0881ACB0u, gt::game::func_0881ACB0, gt::ReturnKind::Word);
 GT_DECOMP(0x0896601Cu, gt::game::func_0896601C, gt::ReturnKind::Word);
 GT_DECOMP(0x089A2528u, gt::game::func_089A2528, gt::ReturnKind::Word);
 GT_DECOMP(0x089742E8u, gt::game::func_089742E8, gt::ReturnKind::Word);
@@ -7687,14 +7684,6 @@ void func_08937D90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = result;
 }
 
-// func_0881A8C0(a, b, c, d, i) -> the low nibble of byte i + 2 of the record func_0881A840(a, b, c, d)
-// returns.
-void func_0881A8C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t i = ctx.gpr[8];
-    GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t record = call_guest(rt, ctx, 0x0881A840u, {});
-    ctx.gpr[2] = rt.memory().load8(record + i + 0x2u) & 0xFu;
-}
 
 // func_0892A07C(...) -> func_08929FD8(...), or the default at 0x08CF290C when it returns null.
 void func_0892A07C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -7774,7 +7763,6 @@ GT_DECOMP(0x088FAED4u, gt::game::func_088FAED4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1E364u, gt::game::func_08B1E364, gt::ReturnKind::Word);
 GT_DECOMP(0x08991FE0u, gt::game::func_08991FE0, gt::ReturnKind::Word);
 GT_DECOMP(0x08937D90u, gt::game::func_08937D90, gt::ReturnKind::Word);
-GT_DECOMP(0x0881A8C0u, gt::game::func_0881A8C0, gt::ReturnKind::Word);
 GT_DECOMP(0x0892A07Cu, gt::game::func_0892A07C, gt::ReturnKind::Word);
 GT_DECOMP(0x08955284u, gt::game::func_08955284, gt::ReturnKind::Float);
 GT_DECOMP(0x0895526Cu, gt::game::func_0895526C, gt::ReturnKind::Float);
@@ -33823,12 +33811,6 @@ void func_0885BE70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x088D4824u, {word(rt, word(rt, ctx.gpr[4]) + 124u)});
 }
 
-// func_0881AC68(this) -> func_0881AA94(this, this + 0x34).
-void func_0881AC68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, 0x0881AA94u, {self, self + 52u, ctx.gpr[6], ctx.gpr[7]});
-}
 
 // func_08B2ECAC(a, b, c) -> the first word of func_08B2EBE4(0x08B2E930, &{_, a, b, c}) fills.
 void func_08B2ECAC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -34314,11 +34296,6 @@ void func_0885C35C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = rt.memory().load8(ctx.gpr[3] + 23u);
 }
 
-// func_0881AEA4(...) -> 1 when func_0881AD9C(...) isn't negative, else 0.
-void func_0881AEA4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = ~call_guest(rt, ctx, 0x0881AD9Cu, {ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]}) >> 31;
-}
 
 // func_08B319B8(this, flag): with flag, the 9 bytes +0xC.. cleared and func_08B7C830(this + 0xC, flag, 9) (tail call).
 void func_08B319B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -34496,7 +34473,6 @@ GT_DECOMP(0x08896CC8u, gt::game::func_08896CC8, gt::ReturnKind::Void);
 GT_DECOMP(0x0885F3ACu, gt::game::func_0885F3AC, gt::ReturnKind::Void);
 GT_DECOMP(0x0885C228u, gt::game::func_0885C228, gt::ReturnKind::Void);
 GT_DECOMP(0x0885BE70u, gt::game::func_0885BE70, gt::ReturnKind::Void);
-GT_DECOMP(0x0881AC68u, gt::game::func_0881AC68, gt::ReturnKind::Word);
 // func_08B2ECAC reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
 // GT_DECOMP(0x08B2ECACu, gt::game::func_08B2ECAC, gt::ReturnKind::Word);
@@ -34566,7 +34542,6 @@ GT_DECOMP(0x0885EF44u, gt::game::func_0885EF44, gt::ReturnKind::Void);
 GT_DECOMP(0x0885EE58u, gt::game::func_0885EE58, gt::ReturnKind::Word);
 GT_DECOMP(0x0885E6E0u, gt::game::func_0885E6E0, gt::ReturnKind::Void);
 GT_DECOMP(0x0885C35Cu, gt::game::func_0885C35C, gt::ReturnKind::Word);
-GT_DECOMP(0x0881AEA4u, gt::game::func_0881AEA4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B319B8u, gt::game::func_08B319B8, gt::ReturnKind::Void);
 // func_08B2E250 reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
@@ -37120,20 +37095,6 @@ void func_0881FC80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store32(0x08CE2ACCu, 0u);
 }
 
-// func_0881AC84(this) -> func_0881AA94(this, this + 0x1C4).
-void func_0881AC84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, 0x0881AA94u, {self, self + 452u, ctx.gpr[6], ctx.gpr[7]});
-}
-
-// func_0881AA44(this) -> 34 * the word +0x0 + 48 + func_0881AA18(this).
-void func_0881AA44(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
-    const std::uint32_t base = word(rt, self) * 34u + 48u;
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = base + call_guest(rt, ctx, 0x0881AA18u, {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
-}
 
 // Holders made by a builder (build_and_assign): func_0881A6C4 (func_0881A664(local, 0)), func_08809608 (func_08808F2C(local,
 // a, b, 0, 0)), func_089FCE88 (func_089FCE28(local, 0x08C8DAF8)).
@@ -37316,8 +37277,6 @@ GT_DECOMP(0x0885BB9Cu, gt::game::func_0885BB9C, gt::ReturnKind::Void);
 GT_DECOMP(0x0883B7F8u, gt::game::func_0883B7F8, gt::ReturnKind::Void);
 GT_DECOMP(0x08835AB8u, gt::game::func_08835AB8, gt::ReturnKind::Void);
 GT_DECOMP(0x0881FC80u, gt::game::func_0881FC80, gt::ReturnKind::Void);
-GT_DECOMP(0x0881AC84u, gt::game::func_0881AC84, gt::ReturnKind::Word);
-GT_DECOMP(0x0881AA44u, gt::game::func_0881AA44, gt::ReturnKind::Word);
 GT_DECOMP(0x0881A6C4u, gt::game::func_0881A6C4, gt::ReturnKind::Void);
 // func_08809608 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
@@ -38061,7 +38020,7 @@ void func_089BFB70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08B3457Cu, {self + 688u});
 }
 
-// func_0881C240(this, x) -> this: func_0881BBF4(x) -> v; func_08A950D0(&local, 0, func_0881AA44(v), 16); func_0881B0D8(v, the
+// func_0881C240(this, x) -> this: func_0881BBF4(x) -> v; func_08A950D0(&local, 0, car_collection::func_0881AA44(v), 16); func_0881B0D8(v, the
 // local object's +0x14); func_08A76ABC(this, &local); the local released.
 void func_0881C240(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
@@ -38440,19 +38399,8 @@ void func_08B26B74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08B25968u, {self});
 }
 
-// func_0881D7F0(this) / func_0881DCA8(this): a holder made by func_0881BD98 (func_08A5BB7C(message) when null), v = func_0881B068(object),
-// released; a local from func_08A85B1C(&local, v's +0x8) / func_0881DB64(&local, v) assigned to this and released.
-void func_0881D7F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, 0x0881BD98u, {frame.at(4u)});
-    const std::uint32_t object = word(rt, frame.at(4u));
-    report_if_null(rt, ctx, object, 0x08C98F48u);
-    const std::uint32_t value = call_guest(rt, ctx, 0x0881B068u, {object});
-    (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(4u)});
-    (void)call_guest(rt, ctx, 0x08A85B1Cu, {frame.at(0u), word(rt, value + 8u)});
-    assign_and_release(rt, ctx, self, frame.at(0u));
-}
+// func_0881DCA8(this) — like car_collection::MCarCollection_getMyAllCarCount (0x0881D7F0): a holder made by func_0881BD98 (func_08A5BB7C(message) when null), v = func_0881B068(object),
+// released; a local from func_0881DB64(&local, v) assigned to this and released.
 void func_0881DCA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x20u);
@@ -38714,7 +38662,6 @@ GT_DECOMP(0x08836014u, gt::game::func_08836014, gt::ReturnKind::Void);
 GT_DECOMP(0x0883609Cu, gt::game::func_0883609C, gt::ReturnKind::Void);
 GT_DECOMP(0x08B17AFCu, gt::game::func_08B17AFC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B26B74u, gt::game::func_08B26B74, gt::ReturnKind::Void);
-GT_DECOMP(0x0881D7F0u, gt::game::func_0881D7F0, gt::ReturnKind::Void);
 GT_DECOMP(0x0881DCA8u, gt::game::func_0881DCA8, gt::ReturnKind::Void);
 GT_DECOMP(0x08825848u, gt::game::func_08825848, gt::ReturnKind::Void);
 GT_DECOMP(0x088C4FFCu, gt::game::func_088C4FFC, gt::ReturnKind::Word);

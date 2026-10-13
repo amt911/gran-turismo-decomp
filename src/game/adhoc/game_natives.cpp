@@ -3,7 +3,7 @@
 // a1, left untouched here unless an argument is converted instead), call the engine, drop holders.
 
 #include "decomp_registry.hpp"
-#include "value.hpp"
+#include "natives.hpp"
 
 namespace gt::adhoc::game {
 namespace {
@@ -61,11 +61,6 @@ constexpr std::uint32_t kRaceOperatorTargetSlot = 0x0885BBF0u;  // (operator eng
 constexpr std::uint32_t kRaceOperatorIsOnline = 0x0885BE14u;    // (operator engine object) -> bool
 constexpr std::uint32_t kSelfAsMusic = 0x08A3A9D0u;          // (holder *out) [a1 = self]
 constexpr std::uint32_t kMusicIsPlaying = 0x08A3A788u;       // (music *) -> int
-constexpr std::uint32_t kSelfAsCarCollection = 0x0881BD98u;  // (holder *out) [a1 = self]
-constexpr std::uint32_t kCarCollectionCore = 0x0881B068u;    // (collection *) -> its engine object
-constexpr std::uint32_t kCarCollectionFind = 0x0881BF5Cu;    // (core, argc, argv, u64 *code, int *index) -> kind
-constexpr std::uint32_t kCarCollectionHasKind1 = 0x0881A8F0u;  // (core, -, u64 code) -> count
-constexpr std::uint32_t kCarCollectionHasKind2 = 0x0881A8C0u;  // (core, -, u64 code, index) -> count
 constexpr std::uint32_t kOrganizerEntryMax = 0x0885EC1Cu;    // (organizer core) -> int
 constexpr std::uint32_t kOrganizerCanEnterCourse = 0x0885E8B8u;  // (organizer core) -> bool
 constexpr std::uint32_t kOrganizerSetChangeableDriver = 0x0885ED58u;  // (core, entry, slot, driver parameter core)
@@ -116,7 +111,6 @@ constexpr std::uint32_t kRaceParameterSetEventV = 0x088D5988u;        // (core, 
 constexpr std::uint32_t kRaceParameterSetBoostA = 0x088D4E68u;        // (core, side, value)
 constexpr std::uint32_t kRaceParameterSetBoostB = 0x088D4EE4u;
 constexpr std::uint32_t kRaceParameterSetBoostC = 0x088D4F48u;
-constexpr std::uint32_t kCarCollectionHasFavorite = 0x0881AEA4u;      // (core, -, u64 code, index) -> bool
 constexpr std::uint32_t kSystemIsExitGame = 0x08B1A844u;              // () -> int
 constexpr std::uint32_t kTemporalAntialias = 0x08CF6568u;             // u8 flag
 constexpr std::uint32_t kEnterButtonQuery = 0x08C19BECu;              // (system parameter *) -> nonzero: circle
@@ -134,19 +128,8 @@ constexpr std::uint32_t kSoundPlayWith = 0x08A34D98u;        // (sound *, std::s
 constexpr std::uint32_t kSelfAsMenuObjectManager = 0x08A14610u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kMenuObjectManagerStart = 0x08A142C8u;   // (manager *, const std::string *name)
 
-void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
-    (void)call_guest(rt, ctx, kHolderDestroy, {holder});
-}
 
 // self as `cls` into a frame holder, `use(object)`, then drop the holder.
-template <typename Use>
-void with_self(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, Use use) {
-    GuestFrame frame(ctx, 0x20u);
-    const std::uint32_t holder = frame.at(0u);
-    (void)call_guest(rt, ctx, self_as, {holder});
-    use(rt.memory().load32(holder));  // NULL is not checked (the originals only report it)
-    destroy(rt, ctx, holder);
-}
 
 } // namespace
 
@@ -247,9 +230,6 @@ void MRaceOperator_setOrganizer(psprecomp::Runtime &rt, psprecomp::AllegrexConte
 }
 
 
-
-
-
 // loadCarArray(...) / loadCourseMap(...): the shared loader, building an array of cars or a map of
 // courses from the arguments; its result goes to *result. Module functions: (result, argc, argv).
 void load_container(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t is_array,
@@ -284,8 +264,6 @@ void MSceneFace_setClearColorBuffer(psprecomp::Runtime &rt, psprecomp::AllegrexC
     }
     return_integer(rt, ctx, result, frame.at(0u), done);
 }
-
-
 
 
 // pdistd.IsDebugVersion() -> 0: this is the release build.
@@ -342,56 +320,11 @@ void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     });
 }
 
-// MCarCollection.hasCar(car...) -> boolean: the arguments name a car (its code, plus an index for
-// kind 2); no car (code -1) gives false, otherwise whether the collection holds at least one.
-void MCarCollection_hasCar(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    auto &memory = rt.memory();
-    std::uint32_t core = 0u;
-    with_self(rt, ctx, kSelfAsCarCollection, [&](std::uint32_t collection) { core = call_guest(rt, ctx, kCarCollectionCore, {collection}); });
-    GuestFrame frame(ctx, 0x20u);
-    const std::uint32_t index = frame.at(0x0u);
-    const std::uint32_t code = frame.at(0x8u);  // u64, 8-aligned
-    const std::uint32_t kind =
-        call_guest(rt, ctx, kCarCollectionFind, {core, static_cast<std::uint32_t>(argc), argv, code, index});
-    const std::uint32_t low = memory.load32(code);
-    const std::uint32_t high = memory.load32(code + 4u);
-    std::uint32_t has = 0u;
-    if (low != 0xFFFFFFFFu || high != 0xFFFFFFFFu) {
-        std::int32_t count = 0;
-        if (kind == 1u) count = static_cast<std::int32_t>(call_guest(rt, ctx, kCarCollectionHasKind1, {core, 0u, low, high}));
-        else if (kind == 2u)
-            count = static_cast<std::int32_t>(
-                call_guest(rt, ctx, kCarCollectionHasKind2, {core, 0u, low, high, memory.load32(index)}));
-        has = count > 0 ? 1u : 0u;
-    }
-    GuestFrame value(ctx, 0x20u);
-    return_bool(rt, ctx, result, value.at(0u), has);
-}
 
-// self as `self_as`, then its engine object (`core_of`); the holder is dropped before returning.
-std::uint32_t self_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, std::uint32_t core_of,
-                        std::uint32_t self_holder_arg = 0u, bool explicit_self = false) {
-    std::uint32_t core = 0u;
-    GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t holder = frame.at(0u);
-    if (explicit_self) (void)call_guest(rt, ctx, self_as, {holder, self_holder_arg});
-    else (void)call_guest(rt, ctx, self_as, {holder});
-    core = call_guest(rt, ctx, core_of, {rt.memory().load32(holder)});
-    destroy(rt, ctx, holder);
-    return core;
-}
 std::uint32_t organizer_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return self_core(rt, ctx, kAsOrganizer, kOrganizerCore);
 }
 
-// Argument `index` as an integer (its toInt()).
-std::uint32_t int_argument(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t argv, std::uint32_t index) {
-    return static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(argv + 4u * index)));
-}
 
 // *result = the holder `wrap(out, object)` fills.
 void return_wrapped(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t wrap,
@@ -567,14 +500,6 @@ void MMenuGameObjectManager_start(psprecomp::Runtime &rt, psprecomp::AllegrexCon
     destroy(rt, ctx, manager);
 }
 
-void return_int(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t value) {
-    GuestFrame frame(ctx, 0x10u);
-    return_integer(rt, ctx, result, frame.at(0u), value);
-}
-void return_boolean(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t value) {
-    GuestFrame frame(ctx, 0x10u);
-    return_bool(rt, ctx, result, frame.at(0u), value);
-}
 
 // --- MRaceOperator: the race's operator (self as MRaceOperator, engine object at +0x14) ---
 void MRaceOperator_getTargetCarParameter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -778,25 +703,6 @@ void MRaceParameter_setBoostParams(psprecomp::Runtime &rt, psprecomp::AllegrexCo
     }
 }
 
-// MCarCollection.hasFavorite(car...) -> boolean (false for no car).
-void MCarCollection_hasFavorite(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    auto &memory = rt.memory();
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarCollection, kCarCollectionCore);
-    GuestFrame frame(ctx, 0x20u);
-    const std::uint32_t index = frame.at(0x0u);
-    const std::uint32_t code = frame.at(0x8u);
-    const std::uint32_t kind = call_guest(rt, ctx, kCarCollectionFind, {core, static_cast<std::uint32_t>(argc), argv, code, index});
-    const std::uint32_t low = memory.load32(code);
-    const std::uint32_t high = memory.load32(code + 4u);
-    std::uint32_t favorite = 0u;
-    if (low != 0xFFFFFFFFu || high != 0xFFFFFFFFu)
-        favorite = call_guest(rt, ctx, kCarCollectionHasFavorite, {core, kind, low, high, memory.load32(index)});
-    return_boolean(rt, ctx, result, favorite);
-}
 
 // --- system natives (module functions: result, argc, argv) ---
 void MSystemCondition_IsExitGame(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -897,7 +803,6 @@ GT_DECOMP(0x088558F8u, gt::adhoc::game::MCarParameter_getCarCode, gt::ReturnKind
 GT_DECOMP(0x0882689Cu, gt::adhoc::game::MRaceOperator_getTargetSlot, gt::ReturnKind::Void);
 GT_DECOMP(0x08826070u, gt::adhoc::game::MRaceOperator_isOnline, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3B220u, gt::adhoc::game::MMusic_isPlaying, gt::ReturnKind::Void);
-GT_DECOMP(0x0881D538u, gt::adhoc::game::MCarCollection_hasCar, gt::ReturnKind::Void);
 GT_DECOMP(0x0882FE1Cu, gt::adhoc::game::MOrganizer_getEntryMaxAtCurrentRace, gt::ReturnKind::Void);
 GT_DECOMP(0x0882F498u, gt::adhoc::game::MOrganizer_canEnterCourse, gt::ReturnKind::Void);
 GT_DECOMP(0x0882B9C4u, gt::adhoc::game::MOrganizer_setChangeableDriverParameterAtBeginningOfSession, gt::ReturnKind::Void);
@@ -955,7 +860,6 @@ GT_DECOMP(0x0884BDA8u, gt::adhoc::game::MRaceParameter_getDelayStartSecond, gt::
 GT_DECOMP(0x08847144u, gt::adhoc::game::MRaceParameter_useLaunchData, gt::ReturnKind::Void);
 GT_DECOMP(0x088477A0u, gt::adhoc::game::MRaceParameter_setEventV, gt::ReturnKind::Void);
 GT_DECOMP(0x0884739Cu, gt::adhoc::game::MRaceParameter_setBoostParams, gt::ReturnKind::Void);
-GT_DECOMP(0x0881E6C0u, gt::adhoc::game::MCarCollection_hasFavorite, gt::ReturnKind::Void);
 GT_DECOMP(0x08A29540u, gt::adhoc::game::MSystemCondition_IsExitGame, gt::ReturnKind::Void);
 GT_DECOMP(0x08A29730u, gt::adhoc::game::MSystemConfiguration_SetTemporalAntialias, gt::ReturnKind::Void);
 GT_DECOMP(0x08A29FD8u, gt::adhoc::game::MSystemConfiguration_GetEnterButtonAssign, gt::ReturnKind::Void);
