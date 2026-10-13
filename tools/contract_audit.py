@@ -47,7 +47,7 @@ class Registration:
     nested: bool
 
 
-_NESTED_SHORTHAND = re.compile(r"^#define ([A-Z][A-Z0-9_]*)\([^)]*\)\s+GT_DECOMP_NESTED\(", re.MULTILINE)
+_NESTED_SHORTHAND = re.compile(r"^#define ([A-Z][A-Z0-9_]*)\([^)]*\)(?:\s|\\\n)+GT_DECOMP_NESTED\(", re.MULTILINE)
 
 
 def registrations(source: str) -> dict[int, Registration]:
@@ -74,7 +74,8 @@ def reads_after(unit: str, return_address: int, reg: int, labels: Mapping[int, i
     if start is None:
         return False
     use = re.compile(rf"ctx\.gpr\[{reg}\]")
-    for line in unit[start:start + 4000].split("\n"):
+    end = unit.find("\nL_", start)
+    for line in unit[start:end if end != -1 else len(unit)].split("\n"):
         code = line.split("//")[0].strip()
         if not code:
             continue
