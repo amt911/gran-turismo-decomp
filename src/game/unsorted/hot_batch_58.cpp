@@ -319,7 +319,8 @@ void func_08B58444(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 // func_08B583D0(a, b, c): appends 0xDC000000 | c << 16 | b << 8 | a & 7.
 void func_08B583D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    append(rt, 0xDC000000u | ((ctx.gpr[6] & 0xFFu) << 16) | ((ctx.gpr[5] & 0xFFu) << 8) | (ctx.gpr[4] & 7u));
+    ctx.gpr[2] = 0xDC000000u | ((ctx.gpr[6] & 0xFFu) << 16) | ((ctx.gpr[5] & 0xFFu) << 8) | (ctx.gpr[4] & 7u);  // the command stays in v0
+    append(rt, ctx.gpr[2]);
 }
 // func_08B58388(a, b, c): appends 0xDD000000 | f(c) << 16 | f(b) << 8 | f(a), f(x) = x ? (x >> 4) & 7 : 1.
 void func_08B58388(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -369,7 +370,10 @@ void func_08B540E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08B5C274() -> 0x08C95D4C.
 void func_08B5C274(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 0x08C95D4Cu; }
 // func_08B550E0(n): state +0x60 -= (n + 3) & ~3.
-void func_08B550E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { put(rt, kGuState + 96u, word(rt, kGuState + 96u) - ((ctx.gpr[4] + 3u) & ~3u)); }
+void func_08B550E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = word(rt, kGuState + 96u) - ((ctx.gpr[4] + 3u) & ~3u);  // the new value stays in v0
+    put(rt, kGuState + 96u, ctx.gpr[2]);
+}
 // func_08B555F8(x): state +0x2D8 = x; appends 0x10000000 | (x >> 24) << 16 and 0x01000000 | x & 0xFFFFFF.
 void func_08B555F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t x = ctx.gpr[4];
@@ -459,17 +463,17 @@ HOT58(0x08BD2D74u, func_08BD2D74, Word);
 HOT58(0x08B5894Cu, func_08B5894C, Word);
 HOT58(0x08B587D0u, func_08B587D0, Word);
 HOT58(0x08B58444u, func_08B58444, Word);
-HOT58(0x08B583D0u, func_08B583D0, Void);
+HOT58(0x08B583D0u, func_08B583D0, Word);
 HOT58(0x08B58388u, func_08B58388, Void);
 HOT58(0x08B563C0u, func_08B563C0, Word);
 HOT58(0x08B57744u, func_08B57744, Void);
 HOT58(0x08B59ADCu, func_08B59ADC, Void);
-HOT58(0x08B59AC8u, func_08B59AC8, Void);
+HOT58(0x08B59AC8u, func_08B59AC8, Word);
 HOT58(0x08B57750u, func_08B57750, Word);
 HOT58(0x08B57278u, func_08B57278, Word);
 HOT58(0x08B540E0u, func_08B540E0, Void);
 HOT58(0x08B5C274u, func_08B5C274, Word);
-HOT58(0x08B550E0u, func_08B550E0, Void);
+HOT58(0x08B550E0u, func_08B550E0, Word);
 HOT58(0x08B555F8u, func_08B555F8, Void);
 HOT58(0x08B558F8u, func_08B558F8, Void);
 HOT58(0x08B55820u, func_08B55820, Void);
