@@ -36323,7 +36323,9 @@ GT_DECOMP(0x089325E0u, gt::game::func_089325E0, gt::ReturnKind::Word);
 GT_DECOMP(0x08930EBCu, gt::game::func_08930EBC, gt::ReturnKind::Word);
 GT_DECOMP(0x08930E68u, gt::game::func_08930E68, gt::ReturnKind::Word);
 GT_DECOMP(0x08930308u, gt::game::func_08930308, gt::ReturnKind::DoubleWord);
-GT_DECOMP(0x0892C8B8u, gt::game::func_0892C8B8, gt::ReturnKind::Word);
+// func_0892C8B8 is a tail call (v0 is the callee's) that no route calls on its own: compared 0 in every fast run, so its sabotage
+// was not detected and it can't be verified; it runs as the recompiled original.
+// GT_DECOMP(0x0892C8B8u, gt::game::func_0892C8B8, gt::ReturnKind::Word);
 GT_DECOMP(0x0892BAA8u, gt::game::func_0892BAA8, gt::ReturnKind::Void);
 GT_DECOMP(0x08927550u, gt::game::func_08927550, gt::ReturnKind::Void);
 GT_DECOMP(0x089273F0u, gt::game::func_089273F0, gt::ReturnKind::Void);
