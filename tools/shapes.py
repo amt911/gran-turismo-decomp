@@ -12,9 +12,10 @@ Usage (from the repository root):
 from __future__ import annotations
 
 import argparse
+import re
 import struct
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,14 +93,36 @@ def text_section(elf: bytes) -> tuple[int, bytes]:
     raise ValueError("no .text section")
 
 
+_REGISTERED = re.compile(r"runtime\.register_function\(0x([0-9A-Fa-f]{8})u")
+
+
+def recompiled_functions(units: Iterable[str]) -> set[int]:
+    """ELF vaddrs of the functions the recompiler emitted. The others are code nothing reaches (no direct call
+    or known pointer): no route can run them, so no gate can verify a decompiled version."""
+    from tools.progress import LOAD_BASE
+    return {int(m, 16) - LOAD_BASE for unit in units for m in _REGISTERED.findall(unit)}
+
+
+def done_functions(src: Path) -> dict[int, str]:
+    """ELF vaddr -> a name for every active registration under `src`, template instances included."""
+    from tools.decomp_gate import registered_names
+    from tools.progress import LOAD_BASE, decompiled_functions
+    names = {}
+    for path in sorted(src.rglob("*.cpp")):
+        for runtime, name in registered_names(path.read_text()).items():
+            names[runtime - LOAD_BASE] = name
+    return {vaddr: names.get(vaddr, "template") for vaddr in decompiled_functions(src)}
+
+
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the dump
     from tools.progress import LOAD_BASE, load_functions
-    from tools.decomp_gate import registered_names
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--elf", type=Path, default=Path("extracted/EBOOT.elf"))
     parser.add_argument("--functions", type=Path, default=Path("recomp/analysis/functions.tsv"))
     parser.add_argument("--src", type=Path, default=Path("src"))
+    parser.add_argument("--recompiled", type=Path, default=Path("recomp/generated"),
+                        help="generated units; functions they don't register are left out")
     parser.add_argument("--min", type=int, default=3, help="pending functions a cluster needs to be listed")
     parser.add_argument("--top", type=int, default=40)
     args = parser.parse_args(argv)
@@ -108,11 +131,17 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the 
     inside, outside = split_inside(sizes, base, len(text))
     if outside:
         print(f"{outside} functions lie outside .text (not clustered)")
+    units = sorted(args.recompiled.glob("generated_unit_*.cpp"))
+    if not units:
+        print(f"warning: no generated units in {args.recompiled}: code nothing reaches is counted too "
+              "(run .venv/bin/python -m tools.recomp)", file=sys.stderr)
+    if units:
+        emitted = recompiled_functions(u.read_text() for u in units)
+        unreachable = [a for a in inside if a not in emitted]
+        inside = {a: n for a, n in inside.items() if a in emitted}
+        print(f"{len(unreachable)} functions the recompiler never emitted (unreachable: not clustered)")
     code = {a: text[a - base:a - base + n] for a, n in inside.items()}
-    done: dict[int, str] = {}
-    for path in sorted(args.src.rglob("*.cpp")):
-        for runtime, name in registered_names(path.read_text()).items():
-            done[runtime - LOAD_BASE] = name
+    done = done_functions(args.src)
     rows = report(clusters(code), sizes, done, args.min)
     print(f"{len(rows)} clusters with >= {args.min} pending functions; "
           f"{sum(len(r.pending) for r in rows)} functions in them; "
