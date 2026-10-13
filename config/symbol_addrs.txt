@@ -1541,3 +1541,14 @@ SpecDB::extract_id = 0x089304C8; // engine function MSpecDB::extractID (0x08840D
 SpecDB::get_maker_size = 0x0892C890; // engine function MSpecDB::getMakerSize (0x08840278) calls: stores 96 (the maker count) and returns the maker table
 SpecDB::get_tuner_size = 0x0892C8C8; // engine function MSpecDB::getTunerSize (0x08840780) calls: stores 114 (the tuner count) and returns the tuner table
 SpecDB::get_tuner_id = 0x0892C8A4; // engine function MSpecDB::getTunerID (0x088402C8) calls: func_08B20A54 on the table at 0x08CF2958 with -1 as the default
+// CarCollection (src/game/car/car_collection.cpp, include/gt/game/car_collection.hpp): engine functions named after the MCarCollection method that calls them (2026-10-13).
+CarCollection::has_favorite = 0x0881AEA4; // engine function MCarCollection::hasFavorite (0x0881E6C0) calls: 1 when get_index_favorite finds the car
+CarCollection::remove_favorite = 0x0881AE5C; // engine function MCarCollection::removeFavorite (0x0881E5B0) calls: removes the favourite found by get_index_favorite and shifts the others
+CarCollection::get_favorite = 0x0881AEC8; // engine function MCarCollection::getFavorite (0x0881E7D0) calls: the favourite slot found by get_index_favorite, or 0
+CarCollection::get_favorite_by_index = 0x0881AF04; // engine function MCarCollection::getFavoriteByIndex (0x0881E8E4) calls: the favourite slot at an index below 30, or 0
+CarCollection::get_index_favorite = 0x0881AD9C; // engine function MCarCollection::getIndexFavorite (0x0881E9C4) calls: the index of the favourite with the car code, or -1 (hasFavorite, removeFavorite and updateParamForFavorite use it too)
+CarCollection::get_favorite_size = 0x0881AF28; // engine function MCarCollection::getFavoriteSize (0x0881ECEC) calls: 30, the number of favourite slots
+CarCollection::get_car_count_favorite = 0x0881AF30; // engine function MCarCollection::getCarCountFavorite (0x0881ED80) calls: the index of the first empty favourite slot, or 30
+CarCollection::update_param_for_favorite = 0x0881AFA0; // engine function MCarCollection::updateParamForFavorite (0x0881EE14) calls: copies the parameter into the favourite found by get_index_favorite
+CarCollection::push_favorite = 0x0881BAC0; // engine function MCarCollection::pushFavorite (0x0881EAD0) calls: adds a favourite
+CarCollection::get_flg = 0x0881A9CC; // engine function MCarCollection::getFlg (0x0881D18C) calls: bit of the high nibble of a record byte

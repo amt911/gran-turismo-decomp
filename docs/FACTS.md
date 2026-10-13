@@ -254,6 +254,11 @@ the line says otherwise.
   year `+0x0C`, category `+0x15`), a course record 28 bytes (condition `+0x14`, max entry `+0x15`); the
   maker table has 96 entries and the tuner table 114 (`getMakerSize` / `getTunerSize` store them). *(verified:
   the engine functions the natives call, `src/game/specdb/spec_db.cpp`)*
+- MCarCollection (initializer `0x0881C3E8`): 34 methods. Its engine object (script object `+0x14`) holds the
+  record array pointer at `+0x30` (34 bytes per car type: low nibble of byte `i + 2` is how many, high nibble
+  flags), two 100-entry lists at `+0x34` and `+0x1C4`, and 30 favourite slots at `+0x354` that are
+  CarParameter handles; `getOneCarMax` returns the constant 10. *(verified: the engine functions the natives
+  call, `src/game/car/car_collection.cpp`)*
 - **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
   exercised by its decompiled parent's cases (a value sabotage of such an engine function went
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the

@@ -517,6 +517,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       movidas desde `game_natives.cpp` y `hot_leaves.cpp`, 18 nuevas; 19 registradas. Las cuatro natives de
       texto (`getCarLabel`, `getCourseLabel`, `getCarShortName`, `getTunerCode`) siguen en `text_natives.cpp`
       porque comparten ayudantes con otras.
+- [x] **Quinto subsistema con nombres: CarCollection** (2026-10-13): `include/gt/game/car_collection.hpp` (el garaje:
+      registros de 34 bytes por coche, dos listas de 100 entradas y 30 favoritos que son `CarParameterHandle`) y
+      `src/game/car/car_collection.cpp` con los nativos de MCarCollection (`hasCar`, `getCarCount`,
+      `hasFavorite`, tamaños) y sus funciones del motor. Solo se registra lo que se compara por sí solo en el gate.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
