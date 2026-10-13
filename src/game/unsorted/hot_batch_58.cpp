@@ -99,11 +99,8 @@ void func_08BAC0D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08BAE824(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     for (std::uint32_t i = 0; i < 4u; ++i) put(rt, ctx.gpr[4] + 4u * i, word(rt, ctx.gpr[5] + 4u * i));
 }
-// func_08C464B4(d, s): a 3x3 matrix of floats transposed: d[0,3,6,1,4,7,2,5,8] = s[0..8].
-void func_08C464B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    static constexpr std::uint32_t kTarget[9] = {0, 12, 24, 4, 16, 28, 8, 20, 32};
-    for (std::uint32_t i = 0; i < 9u; ++i) put(rt, ctx.gpr[4] + kTarget[i], word(rt, ctx.gpr[5] + 4u * i));
-}
+// func_08C464B4: a plain jump to 0x08C464AC.
+void func_08C464B4(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08C464ACu, {}); }
 // func_08B4A708(v2) -> x * x + y * y.
 void func_08B4A708(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const float x = float_at(rt, ctx.gpr[4]), y = float_at(rt, ctx.gpr[4] + 4u);
@@ -137,11 +134,11 @@ void func_08BAE7C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // --- Small objects --------------------------------------------------------------------------------------------
 
-// func_0886B0F8(this) -> the float at +0x148 of the object at +4 when its byte +0x14C is set, else 0.0.
+// func_0886B0F8(this) -> the float at +0x148 of the object at +4 when its byte +0x14C is clear, else 0.0.
 void func_0886B0F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[4] + 4u);
     ctx.gpr[2] = rt.memory().load8(object + 332u);
-    ctx.fpr[0] = ctx.gpr[2] != 0u ? float_at(rt, object + 328u) : 0.0f;
+    ctx.fpr[0] = ctx.gpr[2] == 0u ? float_at(rt, object + 328u) : 0.0f;
 }
 // func_0886B120(this) -> whether the word +0x154 of the object at +4 is nonzero.
 void func_0886B120(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -197,11 +194,12 @@ void func_08977558(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store16(ctx.gpr[4] + ctx.gpr[5] * 2u + 342u, 1u);
     ctx.gpr[2] = 1u;
 }
-// func_08B64494(this): the byte +1 decremented, the byte +0 = 1.
+// func_08B64494(this): the byte +1 decremented, the byte +0 = 1, then func_08B64344 (tail call).
 void func_08B64494(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store8(ctx.gpr[4] + 1u, static_cast<std::uint8_t>(rt.memory().load8(ctx.gpr[4] + 1u) - 1u));
     rt.memory().store8(ctx.gpr[4], 1u);
     ctx.gpr[2] = 1u;
+    tail_call(ctx, 0x08B64344u, {});
 }
 // func_08C53CDC(delta, p*) / func_08C53CC4: *p += delta unless it is 0 (v0 = the old word).
 void add_unless_zero(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -341,10 +339,10 @@ void func_08B59ADC(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail
 void func_08B59AC8(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08B5A270u, {kGuBlock2, static_cast<std::uint32_t>(static_cast<std::int32_t>(ctx.gpr[4] + 8191u) >> 13)});
 }
-// func_08B57750(kind, bit): appends 0x5E000000 | bit & 1 unless kind is 3 (v0 = 3, else the old list pointer).
+// func_08B57750(kind, bit): appends 0x5E000000 | bit & 1 only when kind is 3 (v0 = 3 otherwise, else the old list pointer).
 void func_08B57750(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 3u;
-    if (ctx.gpr[4] == 3u) return;
+    if (ctx.gpr[4] != 3u) return;
     ctx.gpr[2] = word(rt, kGuListPointer);
     append(rt, 0x5E000000u | (ctx.gpr[5] & 1u));
 }
@@ -368,8 +366,8 @@ void func_08B540E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.fpr[12] = psp_mul(ctx.fpr[12], float_at(rt, 0x08CB6190u));
     put_float(rt, 0x08CE0DD0u, ctx.fpr[12]);
 }
-// func_08B5C274() -> 0x08C95C4C.
-void func_08B5C274(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 0x08C95C4Cu; }
+// func_08B5C274() -> 0x08C95D4C.
+void func_08B5C274(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 0x08C95D4Cu; }
 // func_08B550E0(n): state +0x60 -= (n + 3) & ~3.
 void func_08B550E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { put(rt, kGuState + 96u, word(rt, kGuState + 96u) - ((ctx.gpr[4] + 3u) & ~3u)); }
 // func_08B555F8(x): state +0x2D8 = x; appends 0x10000000 | (x >> 24) << 16 and 0x01000000 | x & 0xFFFFFF.
@@ -389,13 +387,13 @@ void func_08B55820(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08B557E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     append(rt, 0x4A000000u | (std::bit_cast<std::uint32_t>(ctx.fpr[12]) >> 8), 0x4B000000u | (std::bit_cast<std::uint32_t>(ctx.fpr[13]) >> 8), true);
 }
-// func_08B583FC(r, g, b): state +0x108 = b << 16 | g << 8 | r; bit 11 of the flags unless +0xFC is 778.
+// func_08B583FC(r, g, b): state +0x108 = b << 16 | g << 8 | r; bit 11 of the flags only when +0xFC is 778.
 void func_08B583FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t colour = ((ctx.gpr[6] & 0xFFu) << 16) | ((ctx.gpr[5] & 0xFFu) << 8) | (ctx.gpr[4] & 0xFFu);
     const std::uint32_t mode = word(rt, kGuState + 252u);
     ctx.gpr[2] = 778u;
     put(rt, kGuState + 264u, colour);
-    if (mode != 778u) {
+    if (mode == 778u) {
         ctx.gpr[2] = word(rt, kGuFlags) | 2048u;
         put(rt, kGuFlags, ctx.gpr[2]);
     }
@@ -430,7 +428,7 @@ HOT58(0x08B4A918u, func_08B4A918, Void);
 HOT58(0x08C46718u, func_08C46718, Void);
 HOT58(0x08BAC0D0u, func_08BAC0D0, Void);
 HOT58(0x08BAE824u, func_08BAE824, Void);
-HOT58(0x08C464B4u, func_08C464B4, Void);
+HOT58(0x08C464B4u, func_08C464B4, Word);
 HOT58(0x08B4A708u, func_08B4A708, Float);
 HOT58(0x08B4ABECu, func_08B4ABEC, Float);
 HOT58(0x08BADAA8u, func_08BADAA8, Void);
