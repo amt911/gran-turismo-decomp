@@ -36615,7 +36615,7 @@ void func_08896040(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // Object member addresses: func_0889417C (+0x1C), func_08894100 (+0x4) of the object +0x0; func_08829314 (+0xC) of the
-// object +0x18; organizer::func_0885EE70 (+0x3F80), Organizer::get_game_condition (+0x3F88), func_0885E710 (+0x5CC) of the object +0x0.
+// object +0x18; organizer::func_0885EE70 (+0x3F80), the handler of Organizer::get_game_condition, itself unregistered (+0x3F88), func_0885E710 (+0x5CC) of the object +0x0.
 void func_0889417C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = word(rt, ctx.gpr[4]) + 28u; }
 void func_08894100(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = word(rt, ctx.gpr[4]) + 4u; }
 void func_08829314(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = word(rt, ctx.gpr[4] + 24u) + 12u; }

@@ -5,7 +5,7 @@
 // OrganizerData its first word points to. A function is named after the method or attribute whose native
 // calls it when only that one does; the ones several natives share keep func_XXXXXXXX. Registered
 // functions replace the recompiled originals; the ones commented out at the end were not compared in any
-// fast, dense or full run of the PR (or reach calls the harness can't replay), so the gate can't verify them.
+// fast, dense (GT_DECOMP_DENSE: every call of the function compared) or full run of the PR (or reach calls the harness can't replay), so the gate can't verify them.
 //
 // Modding: the organizer is where a session starts, runs and ends; a mod that wants, say, a different
 // session setup changes the engine functions behind enterCourse and the entry setters. Keep the original
@@ -109,8 +109,8 @@ void start_game_object_loop(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
     tail_call(ctx, word(rt, word(rt, object) + 28u), {object});
 }
 
-// 0x0885EC1C (also called by getSlotIDListOnGrid, getEntriedCarParameters and RaceOperator::race_build_parameter) and
-// canEnterCourse / hasLoadingCarDone: queries on the object at +0x5AC.
+// 0x0885EC1C (also called by getSlotIDListOnGrid, getEntriedCarParameters and RaceOperator::race_build_parameter):
+// tail-calls 0x088D9F80 on the object at +0x5AC; v0 is first loaded with *a0, as the original does.
 void func_0885EC1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = word(rt, ctx.gpr[4]);
     tail_call(ctx, 0x088D9F80u, {data_of(rt, ctx).unk_5AC()});
