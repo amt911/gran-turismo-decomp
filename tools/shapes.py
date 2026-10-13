@@ -18,12 +18,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# MIPS opcodes (bits 31..26) whose low 16 bits are an immediate to mask: loads, stores, ALU-immediate,
-# lui. Branches (beq, bne, blez, bgtz, REGIMM, the "likely" forms) keep their offset: control flow must match.
-_IMMEDIATE_OPS = {0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,  # addi..lui
-                  0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,  # lb..lwu
-                  0x28, 0x29, 0x2A, 0x2B, 0x2E,                    # sb, sh, swl, sw, swr
-                  0x31, 0x35, 0x39, 0x3D}                          # lwc1, ldc1, swc1, sdc1
+# Allegrex opcodes (bits 31..26) whose low 16 bits are an immediate to mask: ALU-immediate and lui, loads and
+# stores, cache, ll/sc, the FPU and VFPU loads/stores. Branches (REGIMM, beq..bgtz, the "likely" forms, COP1)
+# keep their offset — control flow must match — and so do R-type shift amounts and VFPU arithmetic (0x34):
+# a cluster means "same shape", not "same constants".
+_IMMEDIATE_OPS = {0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,  # addi, addiu, slti, sltiu, andi, ori, xori, lui
+                  0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,  # lb, lh, lwl, lw, lbu, lhu, lwr, lwu
+                  0x28, 0x29, 0x2A, 0x2B, 0x2E, 0x2F,              # sb, sh, swl, sw, swr, cache
+                  0x30, 0x38,                                      # ll, sc
+                  0x31, 0x39,                                      # lwc1, swc1
+                  0x32, 0x36, 0x35, 0x3A, 0x3E, 0x3D}              # VFPU lv.s, lv.q, lvl/lvr.q, sv.s, sv.q, svl/svr.q
 _JUMP_OPS = {0x02, 0x03}  # j, jal: the target is masked
 
 
@@ -65,6 +69,12 @@ def report(groups: list[list[int]], sizes: Mapping[int, int], done: Mapping[int,
     return rows
 
 
+def split_inside(sizes: Mapping[int, int], base: int, length: int) -> tuple[dict[int, int], int]:
+    """The functions lying wholly inside [base, base + length), and how many don't (reported, not hidden)."""
+    inside = {a: n for a, n in sizes.items() if base <= a and a - base + n <= length}
+    return inside, len(sizes) - len(inside)
+
+
 def text_section(elf: bytes) -> tuple[int, bytes]:
     """(address, bytes) of the ELF32 little-endian file's .text section."""
     shoff, = struct.unpack_from("<I", elf, 32)
@@ -95,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the 
     args = parser.parse_args(argv)
     base, text = text_section(args.elf.read_bytes())
     sizes = load_functions(args.functions)
-    code = {a: text[a - base:a - base + n] for a, n in sizes.items() if base <= a and a - base + n <= len(text)}
+    inside, outside = split_inside(sizes, base, len(text))
+    if outside:
+        print(f"{outside} functions lie outside .text (not clustered)")
+    code = {a: text[a - base:a - base + n] for a, n in inside.items()}
     done: dict[int, str] = {}
     for path in sorted(args.src.rglob("*.cpp")):
         for runtime, name in registered_names(path.read_text()).items():
@@ -103,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the 
     rows = report(clusters(code), sizes, done, args.min)
     print(f"{len(rows)} clusters with >= {args.min} pending functions; "
           f"{sum(len(r.pending) for r in rows)} functions in them; "
-          f"{sum(len(r.pending) for r in rows if r.done)} share a shape with a decompiled one")
+          f"{sum(len(r.pending) for r in rows if r.done)} of them share a shape with a decompiled one")
     for row in sorted(rows, key=lambda r: (not r.done, -len(r.pending) * r.size))[: args.top]:
         sibling = ", ".join(f"{n} @0x{a + LOAD_BASE:08X}" for a, n in list(row.done.items())[:2])
         print(f"{len(row.pending):5d} x {row.size:4d} B  e.g. 0x{row.pending[0] + LOAD_BASE:08X}"

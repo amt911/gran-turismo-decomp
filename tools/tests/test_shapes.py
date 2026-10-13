@@ -1,5 +1,7 @@
 import struct
 
+import pytest
+
 from tools import shapes
 
 
@@ -60,3 +62,36 @@ def test_text_section_of_a_minimal_elf():
                 struct.pack("<10I", 7, 3, 0, 0, shstr_off, len(shstr), 0, 0, 1, 0))
     elf = header + text + shstr + sections
     assert shapes.text_section(elf) == (0x28, text)
+
+
+
+@pytest.mark.parametrize("op", [0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x20, 0x21, 0x22, 0x23, 0x24,
+                                0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x35,
+                                0x36, 0x38, 0x39, 0x3A, 0x3D, 0x3E])
+def test_every_immediate_opcode_has_its_immediate_masked(op):
+    a = (op << 26) | (4 << 21) | (2 << 16) | 0x0010
+    b = (op << 26) | (4 << 21) | (2 << 16) | 0x0020
+    assert shapes.normalize(words(a)) == shapes.normalize(words(b))
+
+
+@pytest.mark.parametrize("op", [0x01, 0x04, 0x05, 0x06, 0x07, 0x11, 0x14, 0x15, 0x16, 0x17, 0x34])
+def test_branches_and_vfpu_arithmetic_keep_their_low_bits(op):
+    a = (op << 26) | (4 << 21) | (2 << 16) | 0x0010
+    b = (op << 26) | (4 << 21) | (2 << 16) | 0x0020
+    assert shapes.normalize(words(a)) != shapes.normalize(words(b))
+
+
+def test_text_section_without_text_raises():
+    shstr = b"\0.data\0.shstrtab\0"
+    sh_off = 52 + len(shstr)
+    header = (b"\x7fELF\x01\x01\x01" + b"\0" * 9 +
+              struct.pack("<HHIIIIIHHHHHH", 0xFFA0, 8, 1, 0, 0, sh_off, 0, 52, 0, 0, 40, 3, 2))
+    sections = (struct.pack("<10I", *[0] * 10) + struct.pack("<10I", 1, 1, 3, 0, 52, 0, 0, 0, 4, 0) +
+                struct.pack("<10I", 7, 3, 0, 0, 52, len(shstr), 0, 0, 1, 0))
+    with pytest.raises(ValueError):
+        shapes.text_section(header + shstr + sections)
+
+
+def test_split_inside_keeps_functions_within_the_section_and_counts_the_rest():
+    inside, outside = shapes.split_inside({0x28: 8, 0x30: 8, 0x40: 8}, base=0x28, length=0x10)
+    assert inside == {0x28: 8, 0x30: 8} and outside == 1

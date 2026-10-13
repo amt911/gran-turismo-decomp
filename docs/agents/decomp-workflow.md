@@ -101,7 +101,8 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   (immediates and jump targets masked, branches kept). A cluster with a decompiled member is the cheapest
   batch: turn that member into a template (its constants in a table keyed by address, as `src/core/`
   does) and register it for the others — each still passes the gate and the sabotage on its own.
-  Measured 2026-10-13: 3160 pending functions share a shape with a decompiled one.
+  A cluster means "same shape", not "same constants" (bounds, offsets, frame sizes and call targets are
+  masked). Measured 2026-10-13: in clusters of ≥ 3 pending functions, 3160 share a shape with a decompiled one.
 
 ## Calling other guest functions from decompiled code
 
