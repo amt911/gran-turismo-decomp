@@ -66,9 +66,6 @@ constexpr std::uint32_t kCarCollectionCore = 0x0881B068u;    // (collection *) -
 constexpr std::uint32_t kCarCollectionFind = 0x0881BF5Cu;    // (core, argc, argv, u64 *code, int *index) -> kind
 constexpr std::uint32_t kCarCollectionHasKind1 = 0x0881A8F0u;  // (core, -, u64 code) -> count
 constexpr std::uint32_t kCarCollectionHasKind2 = 0x0881A8C0u;  // (core, -, u64 code, index) -> count
-constexpr std::uint32_t kSelfAsCalendar = 0x08817FCCu;       // (holder *out) [a1 = self]
-constexpr std::uint32_t kCalendarToday = 0x08817A54u;        // (calendar *) -> int * (the current day)
-constexpr std::uint32_t kCalendarFirstDay = 0x08817924u;     // () -> int
 constexpr std::uint32_t kOrganizerEntryMax = 0x0885EC1Cu;    // (organizer core) -> int
 constexpr std::uint32_t kOrganizerCanEnterCourse = 0x0885E8B8u;  // (organizer core) -> bool
 constexpr std::uint32_t kOrganizerSetChangeableDriver = 0x0885ED58u;  // (core, entry, slot, driver parameter core)
@@ -404,16 +401,6 @@ void return_wrapped(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std
     (void)call_guest(rt, ctx, wrap, {out, object});
     if (result != out) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(out)});
     destroy(rt, ctx, out);
-}
-
-// MCalendar.getGameDay() -> integer: days since the calendar's first day.
-void MCalendar_getGameDay(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const std::uint32_t today = self_core(rt, ctx, kSelfAsCalendar, kCalendarToday);
-    const std::uint32_t day = rt.memory().load32(today);
-    const std::uint32_t first = call_guest(rt, ctx, kCalendarFirstDay, {});
-    GuestFrame frame(ctx, 0x10u);
-    return_integer(rt, ctx, result, frame.at(0u), day - first);
 }
 
 // MOrganizer.getEntryMaxAtCurrentRace() -> integer; canEnterCourse() -> boolean.
@@ -911,7 +898,6 @@ GT_DECOMP(0x0882689Cu, gt::adhoc::game::MRaceOperator_getTargetSlot, gt::ReturnK
 GT_DECOMP(0x08826070u, gt::adhoc::game::MRaceOperator_isOnline, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3B220u, gt::adhoc::game::MMusic_isPlaying, gt::ReturnKind::Void);
 GT_DECOMP(0x0881D538u, gt::adhoc::game::MCarCollection_hasCar, gt::ReturnKind::Void);
-GT_DECOMP(0x08818560u, gt::adhoc::game::MCalendar_getGameDay, gt::ReturnKind::Void);
 GT_DECOMP(0x0882FE1Cu, gt::adhoc::game::MOrganizer_getEntryMaxAtCurrentRace, gt::ReturnKind::Void);
 GT_DECOMP(0x0882F498u, gt::adhoc::game::MOrganizer_canEnterCourse, gt::ReturnKind::Void);
 GT_DECOMP(0x0882B9C4u, gt::adhoc::game::MOrganizer_setChangeableDriverParameterAtBeginningOfSession, gt::ReturnKind::Void);

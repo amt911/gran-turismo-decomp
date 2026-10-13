@@ -244,6 +244,10 @@ the line says otherwise.
   accessors (quicktune_*, color, car code) all index with it. A spec struct hangs off `+0x4C8`
   (weight, power, torque, PP). *(verified: the engine accessors the handlers call,
   `src/game/car/car_parameter.cpp`, `include/gt/game/car_parameter.hpp`)*
+- MCalendar (initializer `0x08818A04`): 1 attribute (`today`) and 12 methods. The script object holds the
+  engine object at `+0x14`; the engine object starts with the day number (`0x08B1B2F4` year/month/day, the
+  first day is 2009-10-01) and holds a ring of 100 events of 148 bytes from `+0x14`, with the count at
+  `+0x10`. *(verified: the engine functions the handlers call, `src/game/calendar/calendar.cpp`)*
 - MSpecDB: 86 static natives (registrar `0x08B86FB0`, handlers `0x0883A3D4..0x08841500`), no attributes. A car or
   course code is a 64-bit key, `(id, table number)` as `(low, high)`: table 0 for cars and 34 for courses
   (`CarCode32ToCarCode64` / `CourseCode32ToCourseCode64`); a car record is 32 bytes (price at `+0x08`,

@@ -504,6 +504,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `src/game/car/car_parameter.cpp`: los accesores del motor llevan el nombre del atributo o método
       de MCarParameter que los llama (`team_id`, `quicktune_tcs`, `color`, `getPP`…). 21 registrados con
       gate; el resto escrito pero sin registrar porque las rutas nunca lo llaman (y `begin_parts_change`, que llega a llamadas que el aislamiento no reproduce).
+- [x] **Tercer subsistema con nombres: Calendar** (2026-10-13): `include/gt/game/calendar.hpp` (contador de
+      días y anillo de 100 eventos de 148 bytes) y `src/game/calendar/calendar.cpp` con los nativos de
+      MCalendar (`getGameDay`, `getEventSize`, `incDate`, `dateToDay`, `dayToWeekDay`, `dayToGameDay`,
+      `gameDayToDay`). Solo `getGameDay` y el primer día (2009-10-01) los llaman las rutas, así que son los
+      únicos registrados; el resto está escrito y sin registrar. `dayToDate`, `getEvent` y los `put*Event`
+      siguen siendo el original.
 - [x] **Cuarto subsistema con nombres: SpecDB** (2026-10-13): `include/gt/game/spec_db.hpp` (los registros de
       coche de 32 bytes y de circuito de 28 bytes, códigos de 64 bits = id + número de tabla) y
       `src/game/specdb/spec_db.cpp` con las lecturas simples de MSpecDB (`getCarPrice`, `getCarCategory`,

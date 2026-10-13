@@ -1522,6 +1522,9 @@ CarParameter::deep_copy = 0x088A6C18; // copies another CarParameter's data; MCa
 CarParameter::set_changeable_params = 0x088A6C48; // forwards both data pointers to func_088A5580; MCarParameter::setChangeableParams (0x088549C4) calls it
 CarParameter::clear = 0x088A719C; // not decompiled yet; MCarParameter::clear (0x088548B0) calls it
 CarParameter::selected_block_address = 0x088A6608; // the selected block's address (isATOnly calls it too); MCarParameter::isCVT (0x088578B0) calls it
+// Calendar (src/game/calendar/calendar.cpp, include/gt/game/calendar.hpp) (2026-10-13).
+MCalendar::today = 0x0881A208; // adhoc attribute handler (registered with its name by 0x08B878E8 from initializer 0x08818A04)
+Calendar::incDate = 0x08817A0C; // engine function MCalendar::incDate (0x0881800C) calls on the engine object: adds one to the day counter
 // SpecDB (src/game/specdb/spec_db.cpp, include/gt/game/spec_db.hpp): engine functions named after the MSpecDB native that calls them (2026-10-13).
 SpecDB::get_car_price = 0x08930E08; // engine function MSpecDB::getCarPrice (0x0883D928) calls: the price of a car record, +0x08
 SpecDB::get_car_sell_price = 0x08930DD8; // engine function MSpecDB::getCarSellPrice (0x0883D988) calls: a quarter of the price of the car record (signed division by 4)
