@@ -91,3 +91,26 @@ def test_decompiled_callers_that_use_a_void_result_are_reported():
                                                                                  "token = call_guest(rt, ctx, kOther, {});"],
                                                                     0x08900100: ["a.cpp: ctx.gpr[2] = call_guest(rt, ctx, "
                                                                                  "0x08900100u, {});"]}
+
+
+def test_a_shorthand_macro_defined_as_gt_decomp_nested_registers_nested_functions():
+    source = ("#define RACE_OPERATOR(address, name, kind) GT_DECOMP_NESTED(address, gt::game::race_operator::name, "
+              "ReturnKind::kind)\n"
+              "RACE_OPERATOR(0x0885C188u, get_account_car_parameter, Void);\n"
+              "#define OTHER(address, name, kind) GT_DECOMP(address, gt::game::other::name, ReturnKind::kind)\n"
+              "OTHER(0x08800000u, plain, Word);\n")
+    regs = audit.registrations(source)
+    assert regs[0x0885C188] == audit.Registration("get_account_car_parameter", "Void", True)
+    assert regs[0x08800000] == audit.Registration("plain", "Word", False)
+
+
+def test_a_continued_shorthand_define_is_nested_too():
+    source = ("#define SUB(address, name, kind) \\\n    GT_DECOMP_NESTED(address, gt::game::sub::name, ReturnKind::kind)\n"
+              "SUB(0x08800004u, f, Word);\n")
+    assert audit.registrations(source)[0x08800004].nested
+
+
+def test_a_long_return_block_is_read_to_its_end():
+    filler = "    aot_mem.aot_store32(ctx.gpr[29] + static_cast<std::uint32_t>(4), ctx.gpr[16]);\n" * 80
+    unit = "L_08800010:\n" + filler + "    aot_mem.aot_store32(ctx.gpr[16], ctx.gpr[2]);\nL_08800020:\n"
+    assert audit.reads_after(unit, 0x08800010, 2)

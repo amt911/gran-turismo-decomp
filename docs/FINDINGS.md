@@ -1009,6 +1009,11 @@ A top-level case doesn't compare v0 of a `Void` function, so the bug only shows 
 that pass a `Void` callee's leftover v0 on as their own result mismatch the same way.
 **Fix / workaround.** `func_08987A74` sets v0 and is registered `Word`. Nested execution is opt-in per
 callee (`GT_DECOMP_NESTED`) until the generic registrations' contracts are audited.
+`tools.contract_audit` then listed 80 registrations whose callers read an uncompared return register.
+Registering each with the contract its callers need and gating it: 49 already set the register right
+(now `Word`/`DoubleWord`, so the gate checks it); 30 really lose it — under `--decomp on` their callers
+get the wrong value — and 1 was never reached. Those 31 keep their old kind until fixed (the audit lists
+them; a `GT_DECOMP_NESTED` one fails the gate).
 **Why it isn't obvious.** "Void" is our claim, not the original's: GCC leaves whatever the last call
 returned in v0, and callers compiled against a non-void prototype read it.
 

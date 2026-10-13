@@ -686,7 +686,7 @@ void crc32(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::game
 
-GT_DECOMP(0x08A5BB5Cu, gt::game::func_08A5BB5C, gt::ReturnKind::Void);
+GT_DECOMP(0x08A5BB5Cu, gt::game::func_08A5BB5C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A76ACCu, gt::game::func_08A76ACC, gt::ReturnKind::Void);
 GT_DECOMP(0x088A3E48u, gt::game::func_088A3E48, gt::ReturnKind::Word);
 GT_DECOMP(0x088A3E0Cu, gt::game::func_088A3E0C, gt::ReturnKind::Word);
@@ -694,17 +694,17 @@ GT_DECOMP(0x088A3844u, gt::game::func_088A3844, gt::ReturnKind::Word);
 GT_DECOMP(0x088D09CCu, gt::game::func_088D09CC, gt::ReturnKind::Word);
 GT_DECOMP(0x08954688u, gt::game::func_08954688, gt::ReturnKind::Word);
 GT_DECOMP(0x08903568u, gt::game::func_08903568, gt::ReturnKind::Float);
-GT_DECOMP(0x08968DE4u, gt::game::func_08968DE4, gt::ReturnKind::Void);
+GT_DECOMP(0x08968DE4u, gt::game::func_08968DE4, gt::ReturnKind::Word);
 GT_DECOMP(0x089673F4u, gt::game::func_089673F4, gt::ReturnKind::Word);
 GT_DECOMP(0x08AE8658u, gt::game::func_08AE8658, gt::ReturnKind::Word);
 GT_DECOMP(0x0894CFF8u, gt::game::func_0894CFF8, gt::ReturnKind::Word);
 GT_DECOMP(0x0895BBB4u, gt::game::func_0895BBB4, gt::ReturnKind::Word);
-GT_DECOMP(0x089A8C0Cu, gt::game::func_089A8C0C, gt::ReturnKind::Void);
+GT_DECOMP(0x089A8C0Cu, gt::game::func_089A8C0C, gt::ReturnKind::Word);
 GT_DECOMP(0x08AA6404u, gt::game::func_08AA6404, gt::ReturnKind::Word);
 GT_DECOMP(0x08888694u, gt::game::func_08888694, gt::ReturnKind::Word);
 GT_DECOMP(0x08929864u, gt::game::func_08929864, gt::ReturnKind::Void);
 GT_DECOMP(0x08946C58u, gt::game::func_08946C58, gt::ReturnKind::Float);
-GT_DECOMP(0x08955358u, gt::game::func_08955358, gt::ReturnKind::Void);
+GT_DECOMP(0x08955358u, gt::game::func_08955358, gt::ReturnKind::Word);
 GT_DECOMP(0x08B29E88u, gt::game::crc32, gt::ReturnKind::Word);
 
 // --- batch 4 ---
@@ -957,7 +957,7 @@ GT_DECOMP(0x08A696E4u, gt::game::func_08A696E4, gt::ReturnKind::Void);
 GT_DECOMP(0x08A94A28u, gt::game::func_08A94A28, gt::ReturnKind::Void);
 GT_DECOMP(0x089A8D6Cu, gt::game::func_089A8D6C, gt::ReturnKind::Void);
 GT_DECOMP(0x08AAD8BCu, gt::game::func_08AAD8BC, gt::ReturnKind::Word);
-GT_DECOMP(0x08AAD93Cu, gt::game::func_08AAD93C, gt::ReturnKind::Void);
+GT_DECOMP(0x08AAD93Cu, gt::game::func_08AAD93C, gt::ReturnKind::Word);
 GT_DECOMP(0x089DDC94u, gt::game::func_089DDC94, gt::ReturnKind::Word);
 GT_DECOMP(0x088A9A88u, gt::game::func_088A9A88, gt::ReturnKind::Word);
 GT_DECOMP(0x088DA1C8u, gt::game::func_088DA1C8, gt::ReturnKind::Word);
@@ -1342,7 +1342,7 @@ void func_08B2A8E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 GT_DECOMP(0x08AEB808u, gt::game::func_08AEB808, gt::ReturnKind::Void);
-GT_DECOMP(0x08AEB82Cu, gt::game::func_08AEB82C, gt::ReturnKind::Void);
+GT_DECOMP(0x08AEB82Cu, gt::game::func_08AEB82C, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD8CB0u, gt::game::func_08AD8CB0, gt::ReturnKind::Void);
 GT_DECOMP(0x088DB5D4u, gt::game::func_088DB5D4, gt::ReturnKind::Word);
 GT_DECOMP(0x089AA95Cu, gt::game::func_089AA95C, gt::ReturnKind::Void);
@@ -1551,7 +1551,7 @@ void func_08B1A844(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 GT_DECOMP(0x08977270u, gt::game::func_08977270, gt::ReturnKind::Word);
 GT_DECOMP(0x088C3858u, gt::game::func_088C3858, gt::ReturnKind::Void);
-GT_DECOMP(0x08AF484Cu, gt::game::func_08AF484C, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF484Cu, gt::game::func_08AF484C, gt::ReturnKind::Word);
 GT_DECOMP(0x089296BCu, gt::game::func_089296BC, gt::ReturnKind::Float);
 GT_DECOMP(0x0892969Cu, gt::game::func_0892969C, gt::ReturnKind::Float);
 GT_DECOMP(0x089099A0u, gt::game::func_089099A0, gt::ReturnKind::Word);
@@ -1564,9 +1564,9 @@ GT_DECOMP(0x089A8EB0u, gt::game::func_089A8EB0, gt::ReturnKind::Void);
 GT_DECOMP(0x08B24A8Cu, gt::game::func_08B24A8C, gt::ReturnKind::Void);
 GT_DECOMP(0x08B24A60u, gt::game::func_08B24A60, gt::ReturnKind::Void);
 GT_DECOMP(0x08A4CCE8u, gt::game::func_08A4CCE8, gt::ReturnKind::Word);
-GT_DECOMP(0x08983440u, gt::game::func_08983440, gt::ReturnKind::Void);
+GT_DECOMP(0x08983440u, gt::game::func_08983440, gt::ReturnKind::Word);
 GT_DECOMP(0x088D9CCCu, gt::game::func_088D9CCC, gt::ReturnKind::Word);
-GT_DECOMP(0x08B1A844u, gt::game::func_08B1A844, gt::ReturnKind::Void);
+GT_DECOMP(0x08B1A844u, gt::game::func_08B1A844, gt::ReturnKind::Word);
 
 // --- batch 8 ---
 
@@ -3000,7 +3000,7 @@ GT_DECOMP(0x08AF1DE0u, gt::game::func_08AF1DE0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AF1254u, gt::game::func_08AF1254, gt::ReturnKind::Void);
 GT_DECOMP(0x088CE914u, gt::game::func_088CE914, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF3FD8u, gt::game::func_08AF3FD8, gt::ReturnKind::Word);
-GT_DECOMP(0x08A76E3Cu, gt::game::func_08A76E3C, gt::ReturnKind::Void);
+GT_DECOMP(0x08A76E3Cu, gt::game::func_08A76E3C, gt::ReturnKind::Word);
 GT_DECOMP(0x089AA48Cu, gt::game::func_089AA48C, gt::ReturnKind::Word);
 GT_DECOMP(0x088A3DD0u, gt::game::func_088A3DD0, gt::ReturnKind::Float);
 GT_DECOMP(0x0894C240u, gt::game::func_0894C240, gt::ReturnKind::Float);
@@ -3226,8 +3226,8 @@ void func_08A5D50C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 GT_DECOMP(0x08B319A4u, gt::game::func_08B319A4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B31990u, gt::game::func_08B31990, gt::ReturnKind::Word);
 GT_DECOMP(0x08968F20u, gt::game::func_08968F20, gt::ReturnKind::Void);
-GT_DECOMP(0x0897D548u, gt::game::func_0897D548, gt::ReturnKind::Void);
-GT_DECOMP(0x089B8884u, gt::game::func_089B8884, gt::ReturnKind::Void);
+GT_DECOMP(0x0897D548u, gt::game::func_0897D548, gt::ReturnKind::Word);
+GT_DECOMP(0x089B8884u, gt::game::func_089B8884, gt::ReturnKind::Word);
 GT_DECOMP(0x08969330u, gt::game::func_08969330, gt::ReturnKind::Word);
 GT_DECOMP(0x08A6C4FCu, gt::game::func_08A6C4FC, gt::ReturnKind::Word);
 GT_DECOMP(0x08A5D6D0u, gt::game::func_08A5D6D0, gt::ReturnKind::Void);
@@ -4480,7 +4480,7 @@ GT_DECOMP(0x088C57DCu, gt::game::func_088C57DC, gt::ReturnKind::Word);
 GT_DECOMP(0x088C57BCu, gt::game::func_088C57BC, gt::ReturnKind::Word);
 GT_DECOMP(0x088C577Cu, gt::game::func_088C577C, gt::ReturnKind::Word);
 GT_DECOMP(0x088B16D4u, gt::game::func_088B16D4, gt::ReturnKind::Word);
-GT_DECOMP(0x08AFA404u, gt::game::func_08AFA404, gt::ReturnKind::Void);
+GT_DECOMP(0x08AFA404u, gt::game::func_08AFA404, gt::ReturnKind::Word);
 GT_DECOMP(0x089B8BA0u, gt::game::func_089B8BA0, gt::ReturnKind::Word);
 GT_DECOMP(0x089552E8u, gt::game::func_089552E8, gt::ReturnKind::Float);
 GT_DECOMP(0x089552DCu, gt::game::func_089552DC, gt::ReturnKind::Float);
@@ -6271,8 +6271,8 @@ GT_DECOMP(0x08B166C0u, gt::game::func_08B166C0, gt::ReturnKind::Word);
 GT_DECOMP(0x08B11E84u, gt::game::func_08B11E84, gt::ReturnKind::Word);
 GT_DECOMP(0x08A17B10u, gt::game::func_08A17B10, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1FD24u, gt::game::func_08B1FD24, gt::ReturnKind::Void);
-GT_DECOMP(0x08926384u, gt::game::func_08926384, gt::ReturnKind::Void);
-GT_DECOMP(0x08B24D84u, gt::game::func_08B24D84, gt::ReturnKind::Void);
+GT_DECOMP(0x08926384u, gt::game::func_08926384, gt::ReturnKind::Word);
+GT_DECOMP(0x08B24D84u, gt::game::func_08B24D84, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD5EBCu, gt::game::func_08AD5EBC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2B7D8u, gt::game::func_08B2B7D8, gt::ReturnKind::Word);
 GT_DECOMP(0x08B2B800u, gt::game::func_08B2B800, gt::ReturnKind::Word);
@@ -6715,7 +6715,7 @@ GT_DECOMP(0x08B1FC10u, gt::game::func_08B1FC10, gt::ReturnKind::Word);
 GT_DECOMP(0x08968ED8u, gt::game::func_08968ED8, gt::ReturnKind::Word);
 GT_DECOMP(0x08B0DD20u, gt::game::func_08B0DD20, gt::ReturnKind::Word);
 GT_DECOMP(0x089BA6CCu, gt::game::func_089BA6CC, gt::ReturnKind::Void);
-GT_DECOMP(0x08931014u, gt::game::func_08931014, gt::ReturnKind::Word);
+GT_DECOMP(0x08931014u, gt::game::func_08931014, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x08A5CC14u, gt::game::func_08A5CC14, gt::ReturnKind::Word);
 GT_DECOMP(0x08ADB314u, gt::game::func_08ADB314, gt::ReturnKind::Word);
 GT_DECOMP(0x08A9E848u, gt::game::func_08A9E848, gt::ReturnKind::Word);
@@ -8048,7 +8048,7 @@ void func_08AD85C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::game
 
-GT_DECOMP(0x08932730u, gt::game::func_08932730, gt::ReturnKind::Word);
+GT_DECOMP(0x08932730u, gt::game::func_08932730, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x089F0AFCu, gt::game::func_089F0AFC, gt::ReturnKind::Word);
 GT_DECOMP(0x08A94CE8u, gt::game::func_08A94CE8, gt::ReturnKind::Word);
 GT_DECOMP(0x088DA7F0u, gt::game::func_088DA7F0, gt::ReturnKind::Word);
@@ -9834,7 +9834,7 @@ GT_DECOMP(0x08A66AFCu, gt::game::func_08A66AFC, gt::ReturnKind::Word);
 GT_DECOMP(0x08930170u, gt::game::func_08930170, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x08A65F0Cu, gt::game::func_08A65F0C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A65FD0u, gt::game::func_08A65FD0, gt::ReturnKind::Word);
-GT_DECOMP(0x08ACCB50u, gt::game::func_08ACCB50, gt::ReturnKind::Void);
+GT_DECOMP(0x08ACCB50u, gt::game::func_08ACCB50, gt::ReturnKind::Word);
 GT_DECOMP(0x08A66BC0u, gt::game::func_08A66BC0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A64624u, gt::game::func_08A64624, gt::ReturnKind::Word);
 GT_DECOMP(0x08A752D4u, gt::game::func_08A752D4, gt::ReturnKind::Word);
@@ -10717,7 +10717,7 @@ GT_DECOMP(0x08AD6294u, gt::game::func_08AD6294, gt::ReturnKind::Void);
 GT_DECOMP(0x089A5450u, gt::game::func_089A5450, gt::ReturnKind::Void);
 GT_DECOMP(0x08993ECCu, gt::game::func_08993ECC, gt::ReturnKind::Word);
 GT_DECOMP(0x08A67480u, gt::game::func_08A67480, gt::ReturnKind::Word);
-GT_DECOMP(0x088978B4u, gt::game::func_088978B4, gt::ReturnKind::Void);
+GT_DECOMP(0x088978B4u, gt::game::func_088978B4, gt::ReturnKind::Word);
 GT_DECOMP(0x089B518Cu, gt::game::func_089B518C, gt::ReturnKind::Void);
 GT_DECOMP(0x08994FD4u, gt::game::func_08994FD4, gt::ReturnKind::Word);
 GT_DECOMP(0x08A84D50u, gt::game::func_08A84D50, gt::ReturnKind::Void);
@@ -11606,7 +11606,7 @@ GT_DECOMP(0x089A9570u, gt::game::func_089A9570, gt::ReturnKind::Word);
 GT_DECOMP(0x08A7D4E4u, gt::game::func_08A7D4E4, gt::ReturnKind::Word);
 GT_DECOMP(0x088E7284u, gt::game::func_088E7284, gt::ReturnKind::Word);
 GT_DECOMP(0x088DA880u, gt::game::func_088DA880, gt::ReturnKind::Word);
-GT_DECOMP(0x08926488u, gt::game::func_08926488, gt::ReturnKind::Void);
+GT_DECOMP(0x08926488u, gt::game::func_08926488, gt::ReturnKind::Word);
 GT_DECOMP(0x08B0151Cu, gt::game::func_08B0151C, gt::ReturnKind::Void);
 GT_DECOMP(0x0892BB1Cu, gt::game::func_0892BB1C, gt::ReturnKind::Void);
 GT_DECOMP(0x088AF9F4u, gt::game::func_088AF9F4, gt::ReturnKind::Word);
@@ -13416,7 +13416,7 @@ GT_DECOMP(0x088A4684u, gt::game::func_088A4684, gt::ReturnKind::Word);
 GT_DECOMP(0x08A7BEBCu, gt::game::func_08A7BEBC, gt::ReturnKind::Word);
 GT_DECOMP(0x08AB8BDCu, gt::game::func_08AB8BDC, gt::ReturnKind::Float);
 GT_DECOMP(0x0889DB3Cu, gt::game::func_0889DB3C, gt::ReturnKind::Word);
-GT_DECOMP(0x08B03C78u, gt::game::func_08B03C78, gt::ReturnKind::Void);
+GT_DECOMP(0x08B03C78u, gt::game::func_08B03C78, gt::ReturnKind::Word);
 GT_DECOMP(0x088D636Cu, gt::game::func_088D636C, gt::ReturnKind::Word);
 GT_DECOMP(0x088B4640u, gt::game::func_088B4640, gt::ReturnKind::Void);
 GT_DECOMP(0x088995CCu, gt::game::func_088995CC, gt::ReturnKind::Void);
@@ -14326,7 +14326,7 @@ GT_DECOMP(0x08B2C248u, gt::game::func_08B2C248, gt::ReturnKind::Word);
 GT_DECOMP(0x08A81B74u, gt::game::func_08A81B74, gt::ReturnKind::Word);
 GT_DECOMP(0x08A8631Cu, gt::game::func_08A8631C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A0FDD8u, gt::game::func_08A0FDD8, gt::ReturnKind::Void);
-GT_DECOMP(0x08A0F560u, gt::game::func_08A0F560, gt::ReturnKind::Void);
+GT_DECOMP(0x08A0F560u, gt::game::func_08A0F560, gt::ReturnKind::Word);
 GT_DECOMP(0x089D8E2Cu, gt::game::func_089D8E2C, gt::ReturnKind::Word);
 GT_DECOMP(0x089D8974u, gt::game::func_089D8974, gt::ReturnKind::Void);
 GT_DECOMP(0x08AF72A4u, gt::game::func_08AF72A4, gt::ReturnKind::Void);
@@ -14334,7 +14334,7 @@ GT_DECOMP(0x08A7B0E8u, gt::game::func_08A7B0E8, gt::ReturnKind::Word);
 GT_DECOMP(0x08A84910u, gt::game::func_08A84910, gt::ReturnKind::Word);
 GT_DECOMP(0x08A758BCu, gt::game::func_08A758BC, gt::ReturnKind::Word);
 GT_DECOMP(0x08AB50FCu, gt::game::func_08AB50FC, gt::ReturnKind::Word);
-GT_DECOMP(0x0896B0E4u, gt::game::func_0896B0E4, gt::ReturnKind::Void);
+GT_DECOMP(0x0896B0E4u, gt::game::func_0896B0E4, gt::ReturnKind::Word);
 GT_DECOMP(0x08966DA4u, gt::game::func_08966DA4, gt::ReturnKind::Void);
 
 // --- batch 41 ---
@@ -17339,7 +17339,7 @@ void func_08B2450C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 GT_DECOMP(0x089C507Cu, gt::game::func_089C507C, gt::ReturnKind::Void);
-GT_DECOMP(0x08A00C58u, gt::game::func_08A00C58, gt::ReturnKind::Void);
+GT_DECOMP(0x08A00C58u, gt::game::func_08A00C58, gt::ReturnKind::Word);
 GT_DECOMP(0x088AA18Cu, gt::game::func_088AA18C, gt::ReturnKind::Void);
 GT_DECOMP(0x0893A764u, gt::game::func_0893A764, gt::ReturnKind::Float);
 GT_DECOMP(0x0893A6BCu, gt::game::func_0893A6BC, gt::ReturnKind::Float);
@@ -19505,7 +19505,7 @@ void func_0897394C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vi
 
 } // namespace gt::game
 
-GT_DECOMP(0x08AF8904u, gt::game::func_08AF8904, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF8904u, gt::game::func_08AF8904, gt::ReturnKind::Word);
 GT_DECOMP(0x08A746A8u, gt::game::func_08A746A8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A1A720u, gt::game::func_08A1A720, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD372Cu, gt::game::func_08AD372C, gt::ReturnKind::Word);
@@ -19535,7 +19535,7 @@ GT_DECOMP(0x08ABB404u, gt::game::func_08ABB404, gt::ReturnKind::Word);
 GT_DECOMP(0x089A57D0u, gt::game::func_089A57D0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AA43CCu, gt::game::func_08AA43CC, gt::ReturnKind::Word);
 GT_DECOMP(0x08A89258u, gt::game::func_08A89258, gt::ReturnKind::Void);
-GT_DECOMP(0x089A301Cu, gt::game::func_089A301C, gt::ReturnKind::Void);
+GT_DECOMP(0x089A301Cu, gt::game::func_089A301C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A87F4Cu, gt::game::func_08A87F4C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A36C3Cu, gt::game::func_08A36C3C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A34F44u, gt::game::func_08A34F44, gt::ReturnKind::Void);
@@ -19561,7 +19561,7 @@ GT_DECOMP(0x08A7D594u, gt::game::func_08A7D594, gt::ReturnKind::Void);
 GT_DECOMP(0x08A678E0u, gt::game::func_08A678E0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A5E71Cu, gt::game::func_08A5E71C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A15D54u, gt::game::func_08A15D54, gt::ReturnKind::Word);
-GT_DECOMP(0x089BA4D8u, gt::game::func_089BA4D8, gt::ReturnKind::Void);
+GT_DECOMP(0x089BA4D8u, gt::game::func_089BA4D8, gt::ReturnKind::Word);
 GT_DECOMP(0x08AE34A8u, gt::game::func_08AE34A8, gt::ReturnKind::Void);
 GT_DECOMP(0x089FD6E0u, gt::game::func_089FD6E0, gt::ReturnKind::Word);
 GT_DECOMP(0x0899C97Cu, gt::game::func_0899C97C, gt::ReturnKind::Void);
@@ -22015,7 +22015,7 @@ GT_DECOMP(0x08973074u, gt::game::func_08973074, gt::ReturnKind::Void);
 GT_DECOMP(0x08972FB4u, gt::game::func_08972FB4, gt::ReturnKind::Void);
 GT_DECOMP(0x088DCEACu, gt::game::func_088DCEAC, gt::ReturnKind::Word);
 GT_DECOMP(0x0899BB20u, gt::game::func_0899BB20, gt::ReturnKind::Void);
-GT_DECOMP(0x089788CCu, gt::game::func_089788CC, gt::ReturnKind::Void);
+GT_DECOMP(0x089788CCu, gt::game::func_089788CC, gt::ReturnKind::Word);
 GT_DECOMP(0x08973F38u, gt::game::func_08973F38, gt::ReturnKind::Void);
 GT_DECOMP(0x08973DD0u, gt::game::func_08973DD0, gt::ReturnKind::Void);
 GT_DECOMP(0x08973B94u, gt::game::func_08973B94, gt::ReturnKind::Void);
@@ -22030,8 +22030,8 @@ GT_DECOMP(0x08A88638u, gt::game::func_08A88638, gt::ReturnKind::Void);
 GT_DECOMP(0x08A54F3Cu, gt::game::func_08A54F3C, gt::ReturnKind::Void);
 GT_DECOMP(0x0893A9CCu, gt::game::func_0893A9CC, gt::ReturnKind::Void);
 GT_DECOMP(0x0893A854u, gt::game::func_0893A854, gt::ReturnKind::Void);
-GT_DECOMP(0x088B1468u, gt::game::func_088B1468, gt::ReturnKind::Void);
-GT_DECOMP(0x088B14B4u, gt::game::func_088B14B4, gt::ReturnKind::Void);
+GT_DECOMP(0x088B1468u, gt::game::func_088B1468, gt::ReturnKind::Word);
+GT_DECOMP(0x088B14B4u, gt::game::func_088B14B4, gt::ReturnKind::Word);
 GT_DECOMP(0x0884C9D0u, gt::game::func_0884C9D0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AC9540u, gt::game::func_08AC9540, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABC4C4u, gt::game::func_08ABC4C4, gt::ReturnKind::Void);
@@ -23227,7 +23227,7 @@ GT_DECOMP(0x08AB5354u, gt::game::func_08AB5354, gt::ReturnKind::Void);
 GT_DECOMP(0x08A013D8u, gt::game::func_08A013D8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A08C20u, gt::game::func_08A08C20, gt::ReturnKind::Void);
 GT_DECOMP(0x08A08934u, gt::game::func_08A08934, gt::ReturnKind::Void);
-GT_DECOMP(0x08A08B2Cu, gt::game::func_08A08B2C, gt::ReturnKind::Void);
+GT_DECOMP(0x08A08B2Cu, gt::game::func_08A08B2C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A729F8u, gt::game::func_08A729F8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A63B5Cu, gt::game::func_08A63B5C, gt::ReturnKind::Void);
 GT_DECOMP(0x089A42E8u, gt::game::func_089A42E8, gt::ReturnKind::Void);
@@ -24146,7 +24146,7 @@ GT_DECOMP(0x089E2430u, gt::game::func_089E2430, gt::ReturnKind::Void);
 GT_DECOMP(0x089E2660u, gt::game::func_089E2660, gt::ReturnKind::Void);
 GT_DECOMP(0x089A5868u, gt::game::func_089A5868, gt::ReturnKind::Void);
 GT_DECOMP(0x089D03DCu, gt::game::func_089D03DC, gt::ReturnKind::Void);
-GT_DECOMP(0x08A105B8u, gt::game::func_08A105B8, gt::ReturnKind::Void);
+GT_DECOMP(0x08A105B8u, gt::game::func_08A105B8, gt::ReturnKind::Word);
 GT_DECOMP(0x0899F658u, gt::game::func_0899F658, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3AF3Cu, gt::game::func_08A3AF3C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A00B6Cu, gt::game::func_08A00B6C, gt::ReturnKind::Void);
@@ -26482,7 +26482,7 @@ GT_DECOMP(0x089E20D0u, gt::game::func_089E20D0, gt::ReturnKind::Void);
 GT_DECOMP(0x08A928E8u, gt::game::func_08A928E8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A133DCu, gt::game::func_08A133DC, gt::ReturnKind::Void);
 GT_DECOMP(0x08910864u, gt::game::func_08910864, gt::ReturnKind::Void);
-GT_DECOMP(0x089FD5ACu, gt::game::func_089FD5AC, gt::ReturnKind::Void);
+GT_DECOMP(0x089FD5ACu, gt::game::func_089FD5AC, gt::ReturnKind::Word);
 GT_DECOMP(0x088D1A90u, gt::game::func_088D1A90, gt::ReturnKind::Void);
 GT_DECOMP(0x089DE1BCu, gt::game::func_089DE1BC, gt::ReturnKind::Void);
 GT_DECOMP(0x089DE054u, gt::game::func_089DE054, gt::ReturnKind::Void);
@@ -34279,7 +34279,7 @@ GT_DECOMP(0x08AD542Cu, gt::game::func_08AD542C, gt::ReturnKind::Void);
 // func_08ACE9DC reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
 // GT_DECOMP(0x08ACE9DCu, gt::game::func_08ACE9DC, gt::ReturnKind::Void);
-GT_DECOMP(0x08B0C9ACu, gt::game::func_08B0C9AC, gt::ReturnKind::Void);
+GT_DECOMP(0x08B0C9ACu, gt::game::func_08B0C9AC, gt::ReturnKind::Word);
 GT_DECOMP(0x08ACCCA8u, gt::game::func_08ACCCA8, gt::ReturnKind::Word);
 // func_08ACB500 reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
@@ -34312,7 +34312,7 @@ GT_DECOMP(0x0891A6BCu, gt::game::func_0891A6BC, gt::ReturnKind::Void);
 GT_DECOMP(0x088FD974u, gt::game::func_088FD974, gt::ReturnKind::Void);
 GT_DECOMP(0x088DAAA4u, gt::game::func_088DAAA4, gt::ReturnKind::Word);
 GT_DECOMP(0x088D9FACu, gt::game::func_088D9FAC, gt::ReturnKind::Word);
-GT_DECOMP(0x088D5EACu, gt::game::func_088D5EAC, gt::ReturnKind::Void);
+GT_DECOMP(0x088D5EACu, gt::game::func_088D5EAC, gt::ReturnKind::Word);
 GT_DECOMP(0x088D43E4u, gt::game::func_088D43E4, gt::ReturnKind::Void);
 GT_DECOMP(0x088CB414u, gt::game::func_088CB414, gt::ReturnKind::Void);
 GT_DECOMP(0x088AB5B4u, gt::game::func_088AB5B4, gt::ReturnKind::Word);
@@ -36256,7 +36256,7 @@ GT_DECOMP(0x08932890u, gt::game::func_08932890, gt::ReturnKind::Word);
 GT_DECOMP(0x089325E0u, gt::game::func_089325E0, gt::ReturnKind::Word);
 GT_DECOMP(0x08930EBCu, gt::game::func_08930EBC, gt::ReturnKind::Word);
 GT_DECOMP(0x08930E68u, gt::game::func_08930E68, gt::ReturnKind::Word);
-GT_DECOMP(0x08930308u, gt::game::func_08930308, gt::ReturnKind::Void);
+GT_DECOMP(0x08930308u, gt::game::func_08930308, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x0892C8B8u, gt::game::func_0892C8B8, gt::ReturnKind::Void);
 GT_DECOMP(0x0892BAA8u, gt::game::func_0892BAA8, gt::ReturnKind::Void);
 GT_DECOMP(0x08927550u, gt::game::func_08927550, gt::ReturnKind::Void);
@@ -36909,7 +36909,7 @@ GT_DECOMP(0x088C97A4u, gt::game::func_088C97A4, gt::ReturnKind::Void);
 GT_DECOMP(0x088BA61Cu, gt::game::func_088BA61C, gt::ReturnKind::Word);
 GT_DECOMP(0x088B4100u, gt::game::func_088B4100, gt::ReturnKind::Void);
 GT_DECOMP(0x088AFA88u, gt::game::func_088AFA88, gt::ReturnKind::Void);
-GT_DECOMP(0x08863094u, gt::game::func_08863094, gt::ReturnKind::Void);
+GT_DECOMP(0x08863094u, gt::game::func_08863094, gt::ReturnKind::Word);
 GT_DECOMP(0x088A5CD8u, gt::game::func_088A5CD8, gt::ReturnKind::Void);
 GT_DECOMP(0x088A364Cu, gt::game::func_088A364C, gt::ReturnKind::Word);
 GT_DECOMP(0x08898664u, gt::game::func_08898664, gt::ReturnKind::Void);
@@ -39637,19 +39637,19 @@ void func_08AF96C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::game
 
-GT_DECOMP(0x08B2DC70u, gt::game::func_08B2DC70, gt::ReturnKind::Void);
-GT_DECOMP(0x088EF80Cu, gt::game::func_088EF80C, gt::ReturnKind::Void);
+GT_DECOMP(0x08B2DC70u, gt::game::func_08B2DC70, gt::ReturnKind::Word);
+GT_DECOMP(0x088EF80Cu, gt::game::func_088EF80C, gt::ReturnKind::Word);
 // func_08ACE760 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08ACE760u, gt::game::func_08ACE760, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACCD2Cu, gt::game::func_08ACCD2C, gt::ReturnKind::Void);
-GT_DECOMP(0x08B2ED6Cu, gt::game::func_08B2ED6C, gt::ReturnKind::Void);
+GT_DECOMP(0x08B2ED6Cu, gt::game::func_08B2ED6C, gt::ReturnKind::Word);
 GT_DECOMP(0x08B2ECE0u, gt::game::func_08B2ECE0, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2E0ECu, gt::game::func_08B2E0EC, gt::ReturnKind::Void);
 // func_08B2E224 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08B2E224u, gt::game::func_08B2E224, gt::ReturnKind::Void);
-GT_DECOMP(0x08B2E214u, gt::game::func_08B2E214, gt::ReturnKind::Void);
+GT_DECOMP(0x08B2E214u, gt::game::func_08B2E214, gt::ReturnKind::Word);
 GT_DECOMP(0x08A17A0Cu, gt::game::func_08A17A0C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A1A08Cu, gt::game::func_08A1A08C, gt::ReturnKind::Void);
 GT_DECOMP(0x08898230u, gt::game::func_08898230, gt::ReturnKind::Word);
@@ -39672,7 +39672,7 @@ GT_DECOMP(0x08A5657Cu, gt::game::func_08A5657C, gt::ReturnKind::Void);
 // func_08ABB298 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08ABB298u, gt::game::func_08ABB298, gt::ReturnKind::Void);
-GT_DECOMP(0x08AF24B0u, gt::game::func_08AF24B0, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF24B0u, gt::game::func_08AF24B0, gt::ReturnKind::Word);
 GT_DECOMP(0x08894848u, gt::game::func_08894848, gt::ReturnKind::Void);
 // func_08B19F10 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
@@ -39687,13 +39687,13 @@ GT_DECOMP(0x08B2C958u, gt::game::func_08B2C958, gt::ReturnKind::Void);
 GT_DECOMP(0x088885E4u, gt::game::func_088885E4, gt::ReturnKind::Word);
 GT_DECOMP(0x08894B04u, gt::game::func_08894B04, gt::ReturnKind::Void);
 GT_DECOMP(0x08896724u, gt::game::func_08896724, gt::ReturnKind::Void);
-GT_DECOMP(0x089365F8u, gt::game::func_089365F8, gt::ReturnKind::Void);
+GT_DECOMP(0x089365F8u, gt::game::func_089365F8, gt::ReturnKind::Word);
 GT_DECOMP(0x089368DCu, gt::game::func_089368DC, gt::ReturnKind::Word);
 // func_08AC0584 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08AC0584u, gt::game::func_08AC0584, gt::ReturnKind::Word);
 GT_DECOMP(0x0896A7B0u, gt::game::func_0896A7B0, gt::ReturnKind::Void);
-GT_DECOMP(0x08936584u, gt::game::func_08936584, gt::ReturnKind::Void);
+GT_DECOMP(0x08936584u, gt::game::func_08936584, gt::ReturnKind::Word);
 GT_DECOMP(0x08935B10u, gt::game::func_08935B10, gt::ReturnKind::Word);
 GT_DECOMP(0x08946734u, gt::game::func_08946734, gt::ReturnKind::Word);
 GT_DECOMP(0x089B0950u, gt::game::func_089B0950, gt::ReturnKind::Void);
