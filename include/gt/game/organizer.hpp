@@ -19,8 +19,7 @@
 
 namespace gt::game {
 
-// Members that are objects with functions of their own (0x08917xxx, 0x0889xxxx, 0x08865Fxx): only their
-// address is used here.
+// Members that are objects with functions of their own: only their address is used here.
 struct OrganizerCamera : guest::Layout {};
 struct OrganizerRaceDisplay : guest::Layout {};
 struct OrganizerReplayBuffer : guest::Layout {};
@@ -29,14 +28,14 @@ struct OrganizerPause : guest::Layout {};
 struct OrganizerUnknownBlock : guest::Layout {};
 
 struct OrganizerData : guest::Layout {
-    GT_FIELD(std::uint32_t, unk_8C, 0x8C);                   // 0x0885E498 passes it when its argument is 0
+    GT_FIELD(std::uint32_t, unk_8C, 0x8C);                   // read by 0x0885E498
     GT_FIELD(std::uint8_t, rendering_race, 0x9C);            // MOrganizer::enableRenderingRace / disableRenderingRace: 1 / 0
     GT_FIELD(std::uint32_t, unk_5AC, 0x5AC);                 // an object (0x088Dxxxx functions) most queries go through
     GT_FIELD(std::uint32_t, unk_5B4, 0x5B4);                 // the entries' list (0x088F8A14 / 0x088F8CC0)
-    GT_FIELD(OrganizerCamera, camera, 0x5CC);                // the camera methods' object (0x08917xxx)
+    GT_FIELD(OrganizerCamera, camera, 0x5CC);                // its address is passed to 0x08917840, 0x08917870 and 0x08917F54
     GT_FIELD(OrganizerRaceDisplay, race_display, 0x600);     // MOrganizer::fetchRaceDisplay and getRaceDisplay* object
     GT_FIELD(std::uint32_t, unk_3F50, 0x3F50);               // MRaceOperator::setOrganizer stores the operator here
-    GT_FIELD(OrganizerPause, unk_3F58, 0x3F58);              // the pause attributes' object (0x08865F44..0x08865F7C)
+    GT_FIELD(OrganizerPause, unk_3F58, 0x3F58);              // its address is passed to 0x08865F54, 0x08865F68, 0x08865F70, 0x08865F7C
     GT_FIELD(OrganizerReplayBuffer, replay_buffer, 0x3F80);  // MOrganizer::getReplayBuffer / getSaveGhostBuffer
     GT_FIELD(OrganizerGameCondition, game_condition, 0x3F88);  // MOrganizer::getGameCondition / setGameCondition
     GT_FIELD(std::uint32_t, unk_3F98, 0x3F98);               // the sound target: enable/disableSoundingRace pass it to 0x08AB8858

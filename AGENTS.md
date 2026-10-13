@@ -340,6 +340,19 @@ Detail in [reverse engineering](docs/agents/reverse-engineering.md).
 - **The binary is the authority over any wiki, cheat database or other LLM.** External claims enter
   FACTS only after being checked against our ELF.
 
+## Lessons learned — read before planning throughput, verification or tooling
+
+Detail and the incidents behind each one: [lessons](docs/agents/lessons.md).
+
+- **Measure before buying resources**: RAM was never the limit (build peak 0.86 GB); serialization was.
+- **More test routes beat more code** for verified coverage: a function no route calls can't be verified.
+- **Verified** = compared > 0 with 0 mismatches in the fast or full gate + its sabotage detected.
+- **No silent "last one wins"**: one address, one registration (refused at startup otherwise).
+- **Tooling in the repo, tested** — never only in scratch (a reboot wiped it once).
+- **One checkout per agent**; **no stacked PRs** (the upper one merges into the lower branch, not main);
+  integrate by merge, never rebase + force push.
+- **Names only with GT evidence**, written next to the name; review every PR before merging.
+
 ## Working rules
 
 - **Heavy or parallel jobs run inside a memory cgroup** — never launch a build, Ghidra analysis or a

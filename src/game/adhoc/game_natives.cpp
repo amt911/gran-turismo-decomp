@@ -25,7 +25,6 @@ constexpr std::uint32_t kCarSettingsBegin = 0x088A657Cu;
 constexpr std::uint32_t kCarSettingsEnd = 0x088A5CD8u;
 constexpr std::uint32_t kSelfAsCarDriverParameter = 0x0884D660u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kCarDriverParameterCore = 0x0884D3D8u;
-constexpr std::uint32_t kCarDriverParameterSetDefault = 0x0889793Cu;
 constexpr std::uint32_t kLoadContainer = 0x08808F2Cu;        // (holder *out, argc, argv, is_array, element factory)
 constexpr std::uint32_t kCarArrayElement = 0x08808640u;      // element factory of loadCarArray
 constexpr std::uint32_t kCourseMapElement = 0x088085B8u;     // element factory of loadCourseMap
@@ -43,8 +42,6 @@ constexpr std::uint32_t kSelfAsMusic = 0x08A3A9D0u;          // (holder *out) [a
 constexpr std::uint32_t kMusicIsPlaying = 0x08A3A788u;       // (music *) -> int
 constexpr std::uint32_t kCarParameterHasTarget = 0x088A5928u;  // (core) -> int
 constexpr std::uint32_t kCarParameterIsRemote = 0x088A5984u;   // (core) -> int
-constexpr std::uint32_t kDriverParameterIsHuman = 0x08897788u; // (core) -> bool
-constexpr std::uint32_t kDriverParameterSetAILevel = 0x08897290u;  // (core, level)
 constexpr std::uint32_t kSelfAsRaceParameter = 0x08847008u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kRaceParameterCore = 0x08846E50u;    // (race parameter *) -> engine object
 constexpr std::uint32_t kRaceParameterSetLaunchPosition = 0x088D59A0u;  // (core, a, b)
@@ -55,7 +52,6 @@ constexpr std::uint32_t kTransmissionIsATOnly = 0x089325E0u;          // (info) 
 constexpr std::uint32_t kCarParameterPowerScratch = 0x088A7608u;
 constexpr std::uint32_t kCarParameterSetRearTire = 0x088A6508u;       // (core, category) -> int
 constexpr std::uint32_t kCarParameterSetFrontTire = 0x088A6494u;
-constexpr std::uint32_t kDriverParameterSetPlayer = 0x08897554u;      // (core, player)
 constexpr std::uint32_t kRaceParameterDelayStart = 0x088D4D14u;       // (core, index) -> int
 constexpr std::uint32_t kRaceParameterUseLaunchData = 0x088D4E18u;    // (core, bool)
 constexpr std::uint32_t kRaceParameterSetEventV = 0x088D5988u;        // (core, a, b)
@@ -79,7 +75,6 @@ constexpr std::uint32_t kSoundPlayWith = 0x08A34D98u;        // (sound *, std::s
 constexpr std::uint32_t kSelfAsMenuObjectManager = 0x08A14610u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kMenuObjectManagerStart = 0x08A142C8u;   // (manager *, const std::string *name)
 
-
 // self as `cls` into a frame holder, `use(object)`, then drop the holder.
 
 } // namespace
@@ -93,11 +88,6 @@ void MWatcher_remove(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         (void)call_guest(rt, ctx, virtual_function(rt, watcher, kWatcherRemoveSlot), {watcher});
     });
 }
-
-// The common shape of argument-less natives: self as the engine class, its engine object
-// (`core_of`), then `engine(core)` — called after the holder is dropped (`DropFirst::yes`) or before
-// (`DropFirst::no`), as each original does.
-
 
 // MCarParameter: a car's parameter set (parts, info). begin*/end* bracket changes to it.
 void car_parameter_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t engine, DropFirst drop_first) {
@@ -113,12 +103,6 @@ void MCarParameter_updateScratch(psprecomp::Runtime &rt, psprecomp::AllegrexCont
 // script name isn't known yet). It takes self as MCarParameter, like the class above.
 void CarSettings_beginSetting(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_call(rt, ctx, kCarSettingsBegin, DropFirst::no); }
 void CarSettings_endSetting(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_call(rt, ctx, kCarSettingsEnd, DropFirst::no); }
-
-// MCarDriverParameter.setDefault().
-void MCarDriverParameter_setDefault(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    core_call(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore, kCarDriverParameterSetDefault, DropFirst::yes);
-}
-
 
 // loadCarArray(...) / loadCourseMap(...): the shared loader, building an array of cars or a map of
 // courses from the arguments; its result goes to *result. Module functions: (result, argc, argv).
@@ -155,7 +139,6 @@ void MSceneFace_setClearColorBuffer(psprecomp::Runtime &rt, psprecomp::AllegrexC
     return_integer(rt, ctx, result, frame.at(0u), done);
 }
 
-
 // pdistd.IsDebugVersion() -> 0: this is the release build.
 void pdistd_IsDebugVersion(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -172,7 +155,6 @@ void MCarParameter_getCarCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     GuestFrame frame(ctx, 0x20u);
     return_long(rt, ctx, result, frame.at(0u), code.v0, code.v1);
 }
-
 
 // MMusic.isPlaying() -> integer (the engine's state, not a boolean).
 void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -194,22 +176,6 @@ void MCarParameter_isTargetLocal(psprecomp::Runtime &rt, psprecomp::AllegrexCont
     }
     GuestFrame frame(ctx, 0x10u);
     return_integer(rt, ctx, result, frame.at(0u), local);
-}
-
-// MCarDriverParameter.isHuman() -> boolean; setAILevel(level), with at least one argument.
-void MCarDriverParameter_isHuman(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
-    const std::uint32_t human = call_guest(rt, ctx, kDriverParameterIsHuman, {core});
-    GuestFrame frame(ctx, 0x10u);
-    return_bool(rt, ctx, result, frame.at(0u), human);
-}
-void MCarDriverParameter_setAILevel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
-    (void)call_guest(rt, ctx, kDriverParameterSetAILevel, {core, int_argument(rt, ctx, argv, 0u)});
 }
 
 // MRaceParameter.setLaunchPosition(a, b) / setLaunchSpeed(a, b): with at least two arguments
@@ -332,13 +298,6 @@ void car_parameter_set_tire(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
 }
 void MCarParameter_setRearTireCategory(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_set_tire(rt, ctx, kCarParameterSetRearTire); }
 void MCarParameter_setFrontTireCategory(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_set_tire(rt, ctx, kCarParameterSetFrontTire); }
-void MCarDriverParameter_setPlayer(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarDriverParameter, kCarDriverParameterCore);
-    (void)call_guest(rt, ctx, kDriverParameterSetPlayer, {core, int_argument(rt, ctx, argv, 0u)});
-}
 std::uint32_t race_parameter_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return self_core(rt, ctx, kSelfAsRaceParameter, kRaceParameterCore);
 }
@@ -375,7 +334,6 @@ void MRaceParameter_setBoostParams(psprecomp::Runtime &rt, psprecomp::AllegrexCo
         (void)call_guest(rt, ctx, setters[i], {core, 1u, value[i * 2u + 1u]});
     }
 }
-
 
 // --- system natives (module functions: result, argc, argv) ---
 void MSystemCondition_IsExitGame(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -466,8 +424,6 @@ GT_DECOMP(0x08854ACCu, gt::adhoc::game::MCarParameter_endPartsChange, gt::Return
 GT_DECOMP(0x088558F8u, gt::adhoc::game::MCarParameter_getCarCode, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3B220u, gt::adhoc::game::MMusic_isPlaying, gt::ReturnKind::Void);
 GT_DECOMP(0x0885600Cu, gt::adhoc::game::MCarParameter_isTargetLocal, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D81Cu, gt::adhoc::game::MCarDriverParameter_isHuman, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D77Cu, gt::adhoc::game::MCarDriverParameter_setAILevel, gt::ReturnKind::Void);
 GT_DECOMP(0x088472C0u, gt::adhoc::game::MRaceParameter_setLaunchPosition, gt::ReturnKind::Void);
 GT_DECOMP(0x088471E4u, gt::adhoc::game::MRaceParameter_setLaunchSpeed, gt::ReturnKind::Void);
 GT_DECOMP(0x08A36608u, gt::adhoc::game::MSound_play, gt::ReturnKind::Void);
@@ -477,7 +433,6 @@ GT_DECOMP(0x08854BC8u, gt::adhoc::game::MCarParameter_endInfo, gt::ReturnKind::V
 GT_DECOMP(0x08854C1Cu, gt::adhoc::game::MCarParameter_updateScratch, gt::ReturnKind::Void);
 GT_DECOMP(0x0884F760u, gt::adhoc::game::CarSettings_beginSetting, gt::ReturnKind::Void);
 GT_DECOMP(0x0884F7B4u, gt::adhoc::game::CarSettings_endSetting, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D9F0u, gt::adhoc::game::MCarDriverParameter_setDefault, gt::ReturnKind::Void);
 GT_DECOMP(0x08805FD0u, gt::adhoc::game::CreateGameRecordStructure, gt::ReturnKind::Void);
 GT_DECOMP(0x08A4C848u, gt::adhoc::game::pdistd_IsDebugVersion, gt::ReturnKind::Void);
 // Not comparable: the loader reads files (sceIo), which a harness case can't replay.
@@ -492,7 +447,6 @@ GT_DECOMP(0x0885794Cu, gt::adhoc::game::MCarParameter_isATOnly, gt::ReturnKind::
 GT_DECOMP(0x08857584u, gt::adhoc::game::MCarParameter_getPowerScratch, gt::ReturnKind::Void);
 GT_DECOMP(0x08855E54u, gt::adhoc::game::MCarParameter_setRearTireCategory, gt::ReturnKind::Void);
 GT_DECOMP(0x08855D78u, gt::adhoc::game::MCarParameter_setFrontTireCategory, gt::ReturnKind::Void);
-GT_DECOMP(0x0884D950u, gt::adhoc::game::MCarDriverParameter_setPlayer, gt::ReturnKind::Void);
 GT_DECOMP(0x0884BDA8u, gt::adhoc::game::MRaceParameter_getDelayStartSecond, gt::ReturnKind::Void);
 GT_DECOMP(0x08847144u, gt::adhoc::game::MRaceParameter_useLaunchData, gt::ReturnKind::Void);
 GT_DECOMP(0x088477A0u, gt::adhoc::game::MRaceParameter_setEventV, gt::ReturnKind::Void);

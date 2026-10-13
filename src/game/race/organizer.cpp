@@ -109,8 +109,9 @@ void start_game_object_loop(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
     tail_call(ctx, word(rt, word(rt, object) + 28u), {object});
 }
 
-// getEntryMaxAtCurrentRace / canEnterCourse / hasLoadingCarDone: queries on the object at +0x5AC.
-void get_entry_max_at_current_race(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+// 0x0885EC1C (also called by getSlotIDListOnGrid, getEntriedCarParameters and RaceOperator::race_build_parameter) and
+// canEnterCourse / hasLoadingCarDone: queries on the object at +0x5AC.
+void func_0885EC1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = word(rt, ctx.gpr[4]);
     tail_call(ctx, 0x088D9F80u, {data_of(rt, ctx).unk_5AC()});
 }
@@ -165,8 +166,9 @@ void func_0885EF18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ta
 // attribute window_max: the setter forwards to 0x08917F54 on the camera, the getter to 0x08917840.
 void set_window_max(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08917F54u, {data_of(rt, ctx).camera().address()}); }
 void window_max(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08917840u, {data_of(rt, ctx).camera().address()}); }
-// setCameraTarget(a, b): 0x08917870(camera, b, a) (tail call).
-void set_camera_target(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+// 0x0885E6E0(a, b): 0x08917870(camera, b, a) (tail call); also called by RaceOperator (0x0885CA10, 0x0885D184, 0x0885D1BC,
+// 0x0885CFD4) besides setCameraTarget, so it keeps its address.
+void func_0885E6E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08917870u, {data_of(rt, ctx).camera().address(), ctx.gpr[6], ctx.gpr[5]});
 }
 // 0x0885E498(this, x): 0x08891C54(the replay buffer, x or, when 0, the word +0x8C).
@@ -175,8 +177,9 @@ void func_0885E498(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t x = ctx.gpr[5] != 0u ? ctx.gpr[5] : data.unk_8C().value();
     tail_call(ctx, 0x08891C54u, {data.replay_buffer().address(), x});
 }
-// setChangeableCarParameterAtBeginningOfSession(a, b): 0x0885DFF4(data, a, b, 0) (tail call).
-void set_changeable_car_parameter_at_beginning_of_session(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+// 0x0885EC80(a, b): 0x0885DFF4(data, a, b, 0) (tail call); called by setChangeableCarParameterAtBeginningOfSession,
+// setChangeableCarParameterAtPitWork and others, so it keeps its address as name.
+void func_0885EC80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x0885DFF4u, {word(rt, ctx.gpr[4]), ctx.gpr[5], ctx.gpr[6], 0u});
 }
 // getEntriedDriverParameter(entry, slot): the entry list's (+0x5B4) record + 0x20, or 0.
@@ -193,8 +196,8 @@ void get_entried_driver_parameter(psprecomp::Runtime &rt, psprecomp::AllegrexCon
     const std::uint32_t found = call_guest(rt, ctx, 0x088F8D0Cu, {data.unk_5B4(), a, k});
     ctx.gpr[2] = found != 0u ? found + 32u : 0u;
 }
-// setChangeableDriverParameterAtBeginningOfSession(a, b, c)
-void set_changeable_driver_parameter_at_beginning_of_session(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+// 0x0885ED58(a, b, c): shared by setChangeableDriverParameterAtBeginningOfSession and other callers (keeps its address).
+void func_0885ED58(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t a = ctx.gpr[5], c = ctx.gpr[7];
     std::uint32_t b = ctx.gpr[6];
     std::uint32_t entry;
@@ -407,7 +410,7 @@ using gt::ReturnKind;
 #define ORGANIZER(address, name, kind) GT_DECOMP(address, gt::game::organizer::name, ReturnKind::kind)
 
 ORGANIZER(0x0885E424u, func_0885E424, Void);
-ORGANIZER(0x0885EC1Cu, get_entry_max_at_current_race, Word);
+ORGANIZER(0x0885EC1Cu, func_0885EC1C, Word);
 ORGANIZER(0x0885E8B8u, can_enter_course, Word);
 ORGANIZER(0x0885E848u, request_loading_course, Void);
 ORGANIZER(0x0885EE58u, func_0885EE58, Word);
@@ -417,10 +420,10 @@ ORGANIZER(0x0885EF44u, func_0885EF44, Void);
 ORGANIZER(0x0885EF50u, func_0885EF50, Void);
 ORGANIZER(0x0885EF18u, func_0885EF18, Void);
 ORGANIZER(0x0885E734u, set_window_max, Void);
-ORGANIZER(0x0885E6E0u, set_camera_target, Void);
+ORGANIZER(0x0885E6E0u, func_0885E6E0, Void);
 ORGANIZER(0x0885E498u, func_0885E498, Void);
-ORGANIZER(0x0885EC80u, set_changeable_car_parameter_at_beginning_of_session, Void);
-ORGANIZER(0x0885ED58u, set_changeable_driver_parameter_at_beginning_of_session, Void);
+ORGANIZER(0x0885EC80u, func_0885EC80, Void);
+ORGANIZER(0x0885ED58u, func_0885ED58, Void);
 ORGANIZER(0x0885EF78u, func_0885EF78, Void);
 ORGANIZER(0x0882A530u, MOrganizer_startGameObjectLoop, Void);
 // Not comparable yet (sleeps/wakes PSP threads inside a case): ORGANIZER(0x08829E58u, MOrganizer_endSession, Void);
