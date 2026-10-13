@@ -47,9 +47,14 @@ class Registration:
     nested: bool
 
 
+_NESTED_SHORTHAND = re.compile(r"^#define ([A-Z][A-Z0-9_]*)\([^)]*\)\s+GT_DECOMP_NESTED\(", re.MULTILINE)
+
+
 def registrations(source: str) -> dict[int, Registration]:
-    """Active registrations in a source file: address -> (short name, ReturnKind, GT_DECOMP_NESTED)."""
-    return {int(m["address"], 16): Registration(m["name"].split("::")[-1], m["kind"], m["macro"] == "GT_DECOMP_NESTED")
+    """Active registrations in a source file: address -> (short name, ReturnKind, nested). A subsystem's
+    shorthand macro (`#define RACE_OPERATOR(...) GT_DECOMP_NESTED(...)`) registers nested functions too."""
+    nested_macros = {"GT_DECOMP_NESTED", *_NESTED_SHORTHAND.findall(source)}
+    return {int(m["address"], 16): Registration(m["name"].split("::")[-1], m["kind"], m["macro"] in nested_macros)
             for m in _REGISTRATION.finditer(source)}
 
 
@@ -58,13 +63,18 @@ def call_sites(unit: str) -> list[tuple[int, int]]:
     return [(int(m["pc"] or m["goto"] or m["chained"], 16), int(m["ret"], 16)) for m in _CALL.finditer(unit)]
 
 
-def reads_after(unit: str, return_address: int, reg: int) -> bool:
+def label_index(unit: str) -> dict[int, int]:
+    """Offset just past each `L_XXXXXXXX:` line of a generated unit."""
+    return {int(m[1], 16): m.end() + 1 for m in _LABEL.finditer(unit)}
+
+
+def reads_after(unit: str, return_address: int, reg: int, labels: Mapping[int, int] | None = None) -> bool:
     """Whether the block at `return_address` reads gpr `reg` before writing it or leaving the block."""
-    label = re.search(rf"^L_{return_address:08X}:\n", unit, re.MULTILINE)
-    if label is None:
+    start = (labels if labels is not None else label_index(unit)).get(return_address)
+    if start is None:
         return False
     use = re.compile(rf"ctx\.gpr\[{reg}\]")
-    for line in unit[label.end():].split("\n"):
+    for line in unit[start:start + 4000].split("\n"):
         code = line.split("//")[0].strip()
         if not code:
             continue
@@ -82,12 +92,13 @@ def original_readers(units: Mapping[str, str], regs: Mapping[int, Registration])
     """Registered functions whose original callers read a register their ReturnKind leaves uncompared."""
     found: dict[int, list[tuple[str, int]]] = {}
     for unit in units.values():
+        labels = label_index(unit)
         for callee, ret in call_sites(unit):
             reg = regs.get(callee)
             if reg is None:
                 continue
             for r in UNCOMPARED[reg.kind]:
-                if reads_after(unit, ret, r):
+                if reads_after(unit, ret, r, labels):
                     found.setdefault(callee, []).append((_NAMES[r], ret))
     return found
 

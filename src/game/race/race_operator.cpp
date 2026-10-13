@@ -344,8 +344,8 @@ RACE_OPERATOR(0x08824CB0u, MRaceOperator_clear, Void);
 // Reached only inside their decompiled callers' cases: verified there since nested callees run decompiled in
 // a case's decompiled run (2026-10-13; nested in 2-4 equal cases, 0 mismatches, sabotage pinned on each).
 RACE_OPERATOR(0x0885BB9Cu, set_organizer, Void);
-RACE_OPERATOR(0x0885C188u, get_account_car_parameter, Void);
-RACE_OPERATOR(0x0885C228u, get_account_driver_parameter, Void);
+RACE_OPERATOR(0x0885C188u, get_account_car_parameter, Word);
+RACE_OPERATOR(0x0885C228u, get_account_driver_parameter, Word);
 RACE_OPERATOR(0x0885C35Cu, is_theater, Word);
 RACE_OPERATOR(0x0885D4CCu, func_0885D4CC, Word);
 // RACE_OPERATOR(0x0885BBB0u, set_window_max, Void);
@@ -376,8 +376,8 @@ RACE_OPERATOR(0x0885C38Cu, get_memory_assign_with_ghost, Word);
 RACE_OPERATOR(0x0885BBF0u, get_target_slot, Word);
 RACE_OPERATOR(0x0885BD3Cu, build_race, Word);
 RACE_OPERATOR(0x0885BE14u, is_online, Word);
-RACE_OPERATOR(0x0885BE70u, set_race_parameter, Void);
-RACE_OPERATOR(0x0885C1ACu, get_account_fixed_car_parameter, Void);
+RACE_OPERATOR(0x0885BE70u, set_race_parameter, Word);
+RACE_OPERATOR(0x0885C1ACu, get_account_fixed_car_parameter, Word);
 RACE_OPERATOR(0x0882689Cu, MRaceOperator_getTargetSlot, Void);
 RACE_OPERATOR(0x08826070u, MRaceOperator_isOnline, Void);
 RACE_OPERATOR(0x08826968u, MRaceOperator_getTargetCarParameter, Void);
