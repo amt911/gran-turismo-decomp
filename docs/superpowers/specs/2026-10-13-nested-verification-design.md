@@ -30,9 +30,11 @@ functions and adding the buy route compared only 8 of them.
    contracts** of callees: a function registered `Void` whose original leaves a value in v0 that callers
    read (`func_08987A74` returns the state it stores; its caller reads it as the token), or a parent that
    passes a `Void` callee's leftover v0 on as its own result. A top-level case never compares v0 of a
-   `Void` function, so those registrations passed. Only callees registered with `GT_DECOMP_NESTED` —
-   whose whole return contract was audited — run decompiled when nested; the subsystem registrations
-   use it. The generic registrations join after a contract audit (callers that read v0/v1 after the call).
+   `Void` function, so those registrations passed. Only callees registered with `GT_DECOMP_NESTED` run
+   decompiled when nested; the subsystem registrations use it. `tools.contract_audit` checks the claim
+   before every gate: no direct caller (recompiled code) and no decompiled caller (`call_guest` result)
+   reads a return register the registration leaves uncompared — a lower bound (reads after a branch or
+   through indirect calls aren't seen). The generic registrations join once their contracts pass it.
 
 **Verified, restated.** Reached (compared > 0, or nested in > 0 equal cases) with 0 mismatches in the
 fast or full gate, **and** a sabotage pinned on it by the tool.

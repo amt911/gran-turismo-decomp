@@ -73,6 +73,7 @@ std::vector<struct Entry *> g_nested_ran;
 // in such a case: with nested callees running decompiled, a parent's mismatch may be its callee's fault.
 std::set<std::string> g_mismatch_cases;
 constexpr std::size_t kMaxMismatchCases = 4096;
+std::size_t g_mismatch_cases_dropped = 0;  // reported: a sabotage can't be pinned on what isn't listed
 
 // Why the last run_to_sentinel gave up (for the report).
 std::string g_last_stop;
@@ -401,6 +402,8 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         }
         if (std::find(g_nested_ran.begin(), g_nested_ran.end(), &entry) == g_nested_ran.end())
             g_nested_ran.push_back(&entry);
+        // As run_decompiled: a function ending in tail_call leaves ctx.pc at its target, which the dispatcher
+        // that called this trampoline (run_to_sentinel or call_guest; chained calls check ctx.pc) runs next.
         const std::uint32_t return_address = ctx.gpr[31];
         ctx.pc = entry.info.address;
         entry.info.fn(rt, ctx);
@@ -552,6 +555,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             mismatch_case += (i ? "," : "") + psprecomp::hex32(nested_addresses[i]);
         if (nested_addresses.empty()) mismatch_case += "-";
         if (g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(std::move(mismatch_case));
+        else ++g_mismatch_cases_dropped;
         if (entry.first_mismatch.empty()) {
             entry.first_mismatch = *difference + " (a0=" + psprecomp::hex32(entry_ctx.gpr[4]) +
                                    " a1=" + psprecomp::hex32(entry_ctx.gpr[5]) +
@@ -670,6 +674,9 @@ int decomp_report() {
     for (const auto &[stop, count] : g_skips_by_import)
         std::cerr << "[decomp] not comparable, stopped at " << stop << ": " << count << " cases\n";
     for (const std::string &mismatch_case : g_mismatch_cases) std::cerr << "[decomp] mismatch case: " << mismatch_case << "\n";
+    if (g_mismatch_cases_dropped != 0u)
+        std::cerr << "[decomp] warning: " << g_mismatch_cases_dropped << " more mismatching cases not listed (cap "
+                  << kMaxMismatchCases << ")\n";
     return status;
 }
 

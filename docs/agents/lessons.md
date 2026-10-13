@@ -37,7 +37,7 @@ lives in this repo when it became one.
   their new code never ran while the gate stayed green.
 - **Nested calls inside a test case may not exercise the callee's new code** (the harness may run
   originals for nested calls). Know your harness's rule and don't count a child as verified because its
-  parent passed.
+  parent passed. Here: only `GT_DECOMP_NESTED` callees run decompiled when nested (decomp-workflow.md).
 - **Verify helpers through their callers, and attribute exactly.** Running nested decompiled callees
   decompiled inside a case lets the gate reach helpers no route calls directly — but then a parent's
   mismatch may be its callee's fault: log each mismatching case's members and credit a sabotage only where

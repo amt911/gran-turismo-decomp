@@ -5,7 +5,7 @@
 // Engine functions take the RaceOperatorHandle in a0 (the script object's engine object); the natives are
 // `MRaceOperator_<method>`. Engine functions with no script name keep func_XXXXXXXX. Registered functions
 // replace the recompiled originals; the ones commented out at the end are never compared on their own by
-// the pad routes (the harness replays nested calls), so the gate can't verify them.
+// the pad routes (nested in decompiled callers they ran as originals until nested verification; see their registrations), so the gate can't verify them.
 //
 // Modding: window_max, the memory plan and the series course codes live in RaceOperatorData; most of their
 // readers here aren't verified by the gate yet (see the unregistered list at the end). Keep the original

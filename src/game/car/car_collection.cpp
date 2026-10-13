@@ -5,7 +5,7 @@
 // Engine functions take the CarCollectionData in a0 (the script object's engine object); the natives are
 // `MCarCollection_<method>`. Engine functions with no script name keep func_XXXXXXXX. Registered
 // functions replace the recompiled originals; the ones commented out at the end are never compared on
-// their own by the pad routes (the harness replays nested calls), so the gate can't verify them.
+// their own by the pad routes (nested in decompiled callers they ran as originals until nested verification; see their registrations), so the gate can't verify them.
 //
 // Modding: the garage limits and the ownership queries come out of here (getOneCarMax is the constant 10,
 // the favourites are 30 slots); a mod that wants a bigger garage changes them. Keep the original

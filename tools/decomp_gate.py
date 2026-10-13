@@ -325,6 +325,10 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
         import os
         env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
     clear_run(tag, Path("recomp/analysis"))
+    if subprocess.run([sys.executable, "-m", "tools.contract_audit"], stdout=subprocess.DEVNULL).returncode == 1:
+        print("contract audit: a GT_DECOMP_NESTED function has a caller reading a register its ReturnKind leaves "
+              "uncompared (.venv/bin/python -m tools.contract_audit)")
+        return 2
     subprocess.run(slice_limits(), check=True)
     recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
     recomp.acquire()

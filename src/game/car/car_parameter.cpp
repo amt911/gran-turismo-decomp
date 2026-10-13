@@ -208,10 +208,16 @@ void end_parts_change(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // endInfo: releases the spec (func_08B64654) unless unk_4CC is set, and clears the member.
 void end_info(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t handle = ctx.gpr[4];
-    if (data_of(rt, handle).unk_4CC() != 0u) return;
+    // v0 is left as the original leaves it — the flag on the early exit, the data pointer otherwise — because
+    // a decompiled caller passes it on as its own result (tools.contract_audit).
+    if (const std::uint32_t done = data_of(rt, handle).unk_4CC(); done != 0u) {
+        ctx.gpr[2] = done;
+        return;
+    }
     GuestFrame frame(ctx, 0x10u);
     (void)call_guest(rt, ctx, 0x08B64654u, {static_cast<std::uint32_t>(data_of(rt, handle).spec())});
     data_of(rt, handle).spec() = 0u;
+    ctx.gpr[2] = rt.memory().load32(handle);
 }
 
 // deepCopy(handle, const word *other) -> handle, after func_088A5450 on the two data pointers.
@@ -272,13 +278,13 @@ GT_DECOMP_NESTED(0x088A63A0u, gt::game::car_parameter::quicktune_tcs, ReturnKind
 GT_DECOMP_NESTED(0x088A7608u, gt::game::car_parameter::power_scratch, ReturnKind::Word);
 GT_DECOMP_NESTED(0x088A5A48u, gt::game::car_parameter::power, ReturnKind::Void);
 GT_DECOMP_NESTED(0x088A5AE4u, gt::game::car_parameter::pp, ReturnKind::Float);
-GT_DECOMP_NESTED(0x088A6144u, gt::game::car_parameter::color_max, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A6144u, gt::game::car_parameter::color_max, ReturnKind::Word);
 GT_DECOMP_NESTED(0x088A5EE0u, gt::game::car_parameter::car_code, ReturnKind::DoubleWord);
 GT_DECOMP_NESTED(0x088A6414u, gt::game::car_parameter::tire_categories, ReturnKind::Void);
 GT_DECOMP_NESTED(0x088A5CD0u, gt::game::car_parameter::end_parts_change, ReturnKind::Void);
 // Not registered: reaches calls the isolated run can't replay (not comparable in all its cases).
 // GT_DECOMP(0x088A5E54u, gt::game::car_parameter::begin_parts_change, ReturnKind::Void);
-GT_DECOMP_NESTED(0x088A5A0Cu, gt::game::car_parameter::end_info, ReturnKind::Void);
+GT_DECOMP_NESTED(0x088A5A0Cu, gt::game::car_parameter::end_info, ReturnKind::Word);
 GT_DECOMP_NESTED(0x088A6C18u, gt::game::car_parameter::deep_copy, ReturnKind::Word);
 GT_DECOMP_NESTED(0x088A6C48u, gt::game::car_parameter::set_changeable_params, ReturnKind::Void);
 GT_DECOMP_NESTED(0x088A6608u, gt::game::car_parameter::selected_block_address, ReturnKind::Word);

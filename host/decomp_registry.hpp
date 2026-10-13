@@ -38,8 +38,10 @@ struct DecompiledFunction {
     DecompiledFn fn;
     ReturnKind returns;
     // Runs decompiled inside other decompiled functions' cases too (host/diff_harness.cpp), so it is verified
-    // through its callers. Only for functions whose whole return contract is right — every register a caller
-    // reads after the call (v0 of a "Void" one included) — or a caller's case mismatches for nothing it did.
+    // through its callers. Only for functions whose return contract covers every register a caller reads after
+    // the call (v0 of a "Void" one included) — or a caller's case mismatches for nothing it did. Checked by
+    // tools.contract_audit (direct callers in the recompiled code and decompiled callers; a lower bound), which
+    // tools.decomp_gate runs before every gate.
     bool nested = false;
 };
 

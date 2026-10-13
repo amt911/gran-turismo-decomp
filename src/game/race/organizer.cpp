@@ -452,7 +452,7 @@ ORGANIZER(0x08832BB4u, MOrganizer_getGameCondition, Void);
 ORGANIZER(0x08833C24u, MOrganizer_getRaceSound, Void);
 ORGANIZER(0x08829A78u, MOrganizer_setBackRaceParameter, Void);
 // Not registered: compared 0 in every fast, dense and full run of the PR (the pad routes never call them on their own,
-// and the harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
+// and no decompiled GT_DECOMP_NESTED caller reached them either), so nothing could verify them; they run as the recompiled originals.
 // ORGANIZER(0x0885EFE0u, func_0885EFE0, Void);
 // ORGANIZER(0x0885EFECu, func_0885EFEC, Void);
 // ORGANIZER(0x0885E778u, enable_rendering_race, Void);
