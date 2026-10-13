@@ -537,6 +537,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       visualización: velocidad, potencia, par, régimen, temperatura) y `src/game/unit/unit_system.cpp` con los 8 nativos
       de MUnit que ya existían (`munit.cpp` se retira) y las funciones del motor que usan (textos, factores de conversión,
       tabla idioma → sistema de unidades). Solo se registra lo que se compara por sí solo en el gate; `set_unit_system` solo está verificada para el sistema 1 (las otras 13 filas salen de la tabla de saltos del original).
+- [x] **Contratos de retorno, segunda parte** (2026-10-14): las 30 funciones registradas `Void`/`Word` cuyos llamadores
+      leen un registro que no se comparaba (`tools.contract_audit`) dejan v0 (y v1 en `func_088D9C70`) como el original
+      en cada salida y se registran `Word`/`DoubleWord`. Solo queda `memset` (falso positivo del escáner, comentado);
+      `func_0892C8B8` se desregistra (nunca comparada). **4.519 funciones, 0 discrepancias en las cuatro rutas.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
