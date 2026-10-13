@@ -925,6 +925,9 @@ Found: 2026-10-13 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch
 - Reporting the MPEG HLE's picture writes (`ge_gpu_backend_note_guest_write`), and folding the write
   stamp into the texture key. Neither changed the failures; the second added new ones at 2220–2400 and
   was reverted.
+- The palette. The GE copies its CLUT at the load command (`0xC4`), while this emulation reads it at
+  draw time and the software rasterizer only at its deferred flush. A temporary checksum instrument
+  found that 0 of 32142 CLUT loads in the dealer route changed before the flush (2026-10-13).
 
 What is left: a real rendering difference that depends on timing. The worst frames show purple light
 where the software rasterizer shows white, which suggests a CLUT or a render-to-texture read at a
