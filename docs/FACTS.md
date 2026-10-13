@@ -274,6 +274,13 @@ the line says otherwise.
   `steering_assist_type`, `active_steering`, `active_brake_level`, `physics_pro`, `academy_flag`, `assist_4was`), the
   type (0 = human) and the word setPlayer stores and getControllerPort returns (`unk_A0`) are big-endian words at `+0x9C` / `+0xA0` (the `user_number` attribute is the plain word `+0x88`), and the AI level is the byte `+0xAF`.
   *(verified: the engine functions the handlers call, `src/game/car/car_driver_parameter.cpp`)*
+- MUnit (initializer registers 28 methods, no attributes): the display units are six consecutive words of `.bss` from
+  `0x08D6950C` (velocity `+0x00`: 0 = km/h, 1 = mph; power `+0x04`: index into PS, HP, BHP, ch, kW, CV, PF; torque
+  `+0x08`: kgfm, ft-lb, Nm; rpm `+0x0C`; `+0x10` whose role is not established; temperature `+0x14`: K, deg.C,
+  deg.F). The engine functions at `0x08B48BFC..0x08B497A0` take that address in a0; the internal units are m/s, PS,
+  kgfm and m, and `0x08B49238` sets a whole set of units from a system number 0..13 (a language maps to one through
+  the 14-pair table at `0x08C95494`). *(verified: the engine functions the natives call,
+  `src/game/unit/unit_system.cpp`; `0x08B49238` is gate-verified for system 1 only; its 14 rows (systems 0..13, others behave as 0) were read from the jump table's stores and the other 13 never ran)*
 - **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
   exercised by its decompiled parent's cases (a value sabotage of such an engine function went
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the

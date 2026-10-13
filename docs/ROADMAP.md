@@ -140,7 +140,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       arranque: FINDINGS), modo denso por función. `GT_PROBE_SYMBOLS` cuenta qué funciones con nombre
       se ejecutan (74 nativos Adhoc hasta el menú).
 - [x] Primeros nativos Adhoc: los 8 de `MUnit` (`Set/GetCurrentUnitOf{Velocity,Power,Torque,
-      Temperature}`, `src/game/adhoc/munit.cpp`), con `GuestFrame` para locales en la pila guest.
+      Temperature}`, `src/game/unit/unit_system.cpp` (antes `munit.cpp`)), con `GuestFrame` para locales en la pila guest.
 - [x] `MRandom::GetValue` (10/10, rama de 2 argumentos); `call_guest` con floats; leer la hora del
       sistema es re-ejecutable en el harness.
 - [x] Nativos `Object.toInt/toFloat/defined`, `Math.clamp`, `Module.clearStatic`,
@@ -533,6 +533,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (los 184 bytes del conductor: ayudas, nivel de IA, tipo humano/IA) y `src/game/car/car_driver_parameter.cpp` con los
       accesores de sus 14 atributos, sus métodos y 7 nativos de MCarDriverParameter. Las registraciones genéricas de
       `src/core/chained.cpp` y de `hot_leaves.cpp` que repetían estas direcciones se retiran.
+- [x] **Noveno subsistema con nombres: UnitSystem** (2026-10-13): `include/gt/game/unit_system.hpp` (las unidades de
+      visualización: velocidad, potencia, par, régimen, temperatura) y `src/game/unit/unit_system.cpp` con los 8 nativos
+      de MUnit que ya existían (`munit.cpp` se retira) y las funciones del motor que usan (textos, factores de conversión,
+      tabla idioma → sistema de unidades). Solo se registra lo que se compara por sí solo en el gate; `set_unit_system` solo está verificada para el sistema 1 (las otras 13 filas salen de la tabla de saltos del original).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

@@ -117,7 +117,7 @@ void build_race(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // Calls on a field of *this: is_online -> race_parameter::online_on(the object at +0x7C); func_0885EC1C ->
-// func_088D9F80(the object at +0x5AC) as a tail call; func_0885E8B8 -> whether func_088D7FB4(the
+// func_088D9F80(the object at +0x5AC) as a tail call; Organizer::can_enter_course -> whether func_088D7FB4(the
 // object at +0x5AC) is nonzero.
 void is_online(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, word(rt, ctx.gpr[4]) + 0x7Cu);
