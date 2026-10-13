@@ -133,8 +133,15 @@ thousands of lines), the full differential suite, splat, `decomp-permuter`, the 
 workers, anything that spawns workers — runs under a kernel-enforced memory ceiling:
 
 ```bash
-systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- <command>
+systemctl --user set-property --runtime gt-heavy.slice MemoryHigh=5G MemoryMax=6G MemorySwapMax=0
+systemd-run --user --scope --quiet --slice=gt-heavy.slice -- <command>
 ```
+
+**One slice caps all heavy jobs together**, so up to **two** may run at once (two slots,
+`tools.decomp_gate.HeavySlot`; `tools.decomp_gate` does all of this itself). Measured 2026-10-13: a
+build at `-j4` peaks at 0.86 GB and a gate's three routes ~0.3 GB each — the old per-job cap plus a
+global lock was safe but serialized everything. Two gates need two worktrees (the build dir is
+exclusive). The slice was proven to hold: a 7 GB allocation inside it stalled at 5.4 GB.
 
 **6 GB is the standing ceiling on this machine** (raised from 4 GB by the user on 2026-08-11); don't
 exceed it without being told to. `MemoryHigh` throttles and reclaims, `MemoryMax` is the hard stop,

@@ -105,8 +105,28 @@ def test_route_commands_are_capped_and_parallel():
     assert "--max-seconds 600" in full and "--max-seconds 310" in full
 
 
-def test_heavy_wraps_in_the_lock_and_the_memory_cgroup():
-    wrapped = gate.heavy(["cmake", "--build", "build", "-j4"])
-    assert wrapped[:2] == ["flock", "/tmp/claude-1000/gt-heavy.lock"]
-    assert "MemoryMax=6G" in wrapped and "MemorySwapMax=0" in wrapped
-    assert wrapped[-4:] == ["cmake", "--build", "build", "-j4"]
+def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
+    wrapped = gate.heavy(["cmake", "--build", "build", "-j8"])
+    assert wrapped[:4] == ["systemd-run", "--user", "--scope", "--quiet"]
+    assert "--slice=gt-heavy.slice" in wrapped
+    assert wrapped[-4:] == ["cmake", "--build", "build", "-j8"]
+
+
+def test_slice_limits_cap_the_total_at_6g_without_swap():
+    command = gate.slice_limits()
+    assert command[:4] == ["systemctl", "--user", "set-property", "--runtime"]
+    assert "gt-heavy.slice" in command
+    assert {"MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0"} <= set(command)
+
+
+def test_heavy_slot_lets_two_jobs_in_and_makes_a_third_wait(tmp_path):
+    locks = [tmp_path / "a.lock", tmp_path / "b.lock"]
+    first = gate.HeavySlot(locks)
+    second = gate.HeavySlot(locks)
+    third = gate.HeavySlot(locks)
+    assert first.acquire(block=False) and second.acquire(block=False)
+    assert not third.acquire(block=False)
+    first.release()
+    assert third.acquire(block=False)
+    second.release()
+    third.release()

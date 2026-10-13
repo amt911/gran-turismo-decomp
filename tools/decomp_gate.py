@@ -8,7 +8,7 @@ Usage (from the repository root):
 
 `fast` and `full` regenerate the recompiled code (tools.recomp: registrations are boundaries), build, and
 run the three pad routes in parallel with `build/gt_native --decomp diff`, all inside the shared heavy-job
-lock and the 6 GB memory cgroup (AGENTS.md). Logs go to recomp/analysis/gt_diff_<TAG>_<route>.log.
+slice whose 6 GB ceiling caps all heavy jobs together, at most two at once (AGENTS.md). Logs go to recomp/analysis/gt_diff_<TAG>_<route>.log.
 
 A function is verified when a run compared it (compared > 0) with 0 mismatches, and its sabotage — `s0`
 bumped at entry (`ctx.gpr[16] += 1u`), which every comparison sees — was detected. The full gate is the
@@ -29,9 +29,12 @@ ROUTES = {
     "fast": (("race", 200), ("dealer", 100), ("garage", 103)),
     "full": (("race", 600), ("dealer", 300), ("garage", 310)),
 }
-LOCK = "/tmp/claude-1000/gt-heavy.lock"
-CGROUP = ["systemd-run", "--user", "--scope", "--quiet", "-p", "MemoryHigh=5G", "-p", "MemoryMax=6G",
-          "-p", "MemorySwapMax=0", "--"]
+# Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
+# machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
+SLICE = "gt-heavy.slice"
+SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0")
+SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
+BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(
     r"^\[decomp\] (?P<name>\S+) @0x(?P<address>[0-9A-Fa-f]{8}): compared (?P<compared>\d+), equal (?P<equal>\d+), "
@@ -154,9 +157,45 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     return " ".join(parts) + " wait"
 
 
+def slice_limits() -> list[str]:
+    """Sets (runtime only, nothing persistent) the shared ceiling of every heavy job."""
+    return ["systemctl", "--user", "set-property", "--runtime", SLICE, *SLICE_LIMITS]
+
+
 def heavy(command: Sequence[str]) -> list[str]:
-    """`command` inside the shared heavy-job lock and the memory cgroup."""
-    return ["flock", LOCK, *CGROUP, *command]
+    """`command` in a scope inside the shared heavy-job slice."""
+    return ["systemd-run", "--user", "--scope", "--quiet", f"--slice={SLICE}", "--", *command]
+
+
+class HeavySlot:
+    """One of len(locks) slots for a heavy job: at most that many run at once (flock on one file each)."""
+
+    def __init__(self, locks: Sequence[Path] = SLOTS):
+        self._locks = list(locks)
+        self._file = None
+
+    def acquire(self, block: bool = True) -> bool:
+        import fcntl
+        import time
+        while True:
+            for path in self._locks:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    handle.close()
+                    continue
+                self._file = handle
+                return True
+            if not block:
+                return False
+            time.sleep(2)
+
+    def release(self) -> None:
+        if self._file is not None:
+            self._file.close()  # closing drops the flock
+            self._file = None
 
 
 def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no cover - drives the build
@@ -164,10 +203,20 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
     if only is not None:
         import os
         env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
+    subprocess.run(slice_limits(), check=True)
+    slot = HeavySlot()
+    slot.acquire()
+    try:
+        return _gate_steps(kind, tag, env)
+    finally:
+        slot.release()
+
+
+def _gate_steps(kind: str, tag: str, env: dict[str, str] | None) -> int:  # pragma: no cover - drives the build
     if subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]), stdout=subprocess.DEVNULL).returncode != 0:
         print("recomp failed")
         return 2
-    build = subprocess.run(heavy(["cmake", "--build", "build", "-j4"]), capture_output=True, text=True)
+    build = subprocess.run(heavy(["cmake", "--build", "build", f"-j{BUILD_JOBS}"]), capture_output=True, text=True)
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
         return 2
