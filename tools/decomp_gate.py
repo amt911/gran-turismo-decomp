@@ -34,6 +34,7 @@ ROUTES = {
 SLICE = "gt-heavy.slice"
 SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0")
 SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
+MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(
@@ -42,6 +43,7 @@ _LINE = re.compile(
     r"(?:.*?, nested in (?P<nested_equal>\d+) equal / (?P<nested_mismatched>\d+) mismatched cases)?",
     re.MULTILINE,
 )
+_MISMATCH_CASE = re.compile(r"^\[decomp\] mismatch case: 0x([0-9A-Fa-f]{8}) nested (\S+)$", re.MULTILINE)
 _FIRST_MISMATCH = re.compile(r"^\[decomp\]   first mismatch: (.*)$")
 _STOP = re.compile(r"^Runtime stopped: (.*)$", re.MULTILINE)
 # An active registration: GT_DECOMP(0x..u, ns::name, ...) or a subsystem's shorthand NAME(0x..u, name, ...).
@@ -86,6 +88,36 @@ def parse_report(text: str) -> dict[int, Stats]:
         if first and last is not None and not stats[last].first_mismatch:
             stats[last] = replace(stats[last], first_mismatch=first[1])
     return stats
+
+
+def parse_mismatch_cases(text: str) -> set[tuple[int, frozenset[int]]]:
+    """Each distinct mismatching case of a run: the function whose case it was, and the decompiled functions
+    that ran nested in its decompiled run."""
+    return {(int(parent, 16), frozenset() if nested == "-" else frozenset(int(a, 16) for a in nested.split(",")))
+            for parent, nested in _MISMATCH_CASE.findall(text)}
+
+
+def attributed(sabotaged: set[int], cases: Iterable[tuple[int, frozenset[int]]]) -> set[int]:
+    """The sabotaged functions a mismatch can be pinned on: those that were the only sabotaged function in
+    some mismatching case (as its own function or nested in it). A case holding two sabotaged functions — a
+    parent and its decompiled callee — proves neither."""
+    found = set()
+    for parent, nested in cases:
+        culprits = ({parent} | nested) & sabotaged
+        if len(culprits) == 1:
+            found |= culprits
+    return found
+
+
+def next_round(ambiguous: set[int], cases: Iterable[tuple[int, frozenset[int]]]) -> set[int]:
+    """The ambiguous functions to sabotage next, together: lowest address first, skipping any that shared a
+    mismatching case with one already taken (they would make each other ambiguous again)."""
+    cases = list(cases)
+    taken: set[int] = set()
+    for address in sorted(ambiguous):
+        if not any(address in ({p} | n) and taken & ({p} | n) for p, n in cases):
+            taken.add(address)
+    return taken
 
 
 def not_installed(text: str) -> int:
@@ -337,9 +369,11 @@ def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
     return status
 
 
-def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no cover - edits, runs, restores
+def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  # pragma: no cover - runs
+    """Sabotages `targets` (with every function of `only` installed), runs the fast gate, restores the file.
+    Returns the run's mismatching cases, or None when the sabotaged build didn't run."""
     original = file.read_text()
-    names = [n for a, n in registered_names(original).items() if a in set(only)]
+    names = [n for a, n in registered_names(original).items() if a in targets]
     sabotaged, missing = sabotage(original, names)
     if missing:
         print("not found in", file, ":", ", ".join(missing))
@@ -349,11 +383,29 @@ def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no c
     finally:
         file.write_text(original)
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
-        print("sabotage: the sabotaged build did not run")
-        return 2
-    total = combine(parse_report(Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").read_text(errors="replace"))
-                    for r, _ in ROUTES["full"] if Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").exists())
-    undetected = [f"0x{a:08X}" for a in only if total.get(a) is None or not detected(total[a])]
+        return None
+    logs = [Path(f"recomp/analysis/gt_diff_{tag}_{r}.log") for r, _ in ROUTES["full"]]
+    return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists()))
+
+
+def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no cover - edits, runs, restores
+    targets = set(only)
+    seen: set[tuple[int, frozenset[int]]] = set()
+    found: set[int] = set()
+    for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
+        cases = _sabotage_round(f"{tag}s{round_number}", file, only, targets)
+        if cases is None:
+            print("sabotage: the sabotaged build did not run")
+            return 2
+        new = attributed(targets, cases)  # only this round's cases: they hold only this round's sabotage
+        found |= new
+        seen |= cases
+        print(f"sabotage round {round_number}: {len(targets)} sabotaged, {len(new)} pinned")
+        ambiguous = {a for a in set(only) - found if any(a == p or a in n for p, n in seen)}
+        targets = next_round(ambiguous, seen)
+        if not targets:
+            break
+    undetected = [f"0x{a:08X}" for a in only if a not in found]
     print(f"sabotage: {len(only) - len(undetected)}/{len(only)} detected; undetected: {undetected}")
     return 0 if not undetected else 1
 

@@ -18,6 +18,7 @@
 #include <optional>
 #include <iostream>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -67,6 +68,11 @@ struct Entry {
 
 // Decompiled functions that ran nested inside the current case's decompiled run (each once).
 std::vector<struct Entry *> g_nested_ran;
+// Each distinct mismatching case: its function and what ran nested in it ("0x0890ABCD nested 0x..,0x.." or
+// "nested -"). tools.decomp_gate pins a sabotage on a function only where it was the one sabotaged function
+// in such a case: with nested callees running decompiled, a parent's mismatch may be its callee's fault.
+std::set<std::string> g_mismatch_cases;
+constexpr std::size_t kMaxMismatchCases = 4096;
 
 // Why the last run_to_sentinel gave up (for the report).
 std::string g_last_stop;
@@ -534,8 +540,18 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         difference = "kernel state differs (memory blocks or thread priorities)";
     if (difference) {
         ++entry.mismatched;
+        std::string mismatch_case = psprecomp::hex32(entry.info.address) + " nested ";
+        std::vector<std::uint32_t> nested_addresses;
         for (Entry *nested : g_nested_ran)
-            if (nested != &entry) ++nested->nested_mismatched;
+            if (nested != &entry) {
+                ++nested->nested_mismatched;
+                nested_addresses.push_back(nested->info.address);
+            }
+        std::sort(nested_addresses.begin(), nested_addresses.end());
+        for (std::size_t i = 0; i < nested_addresses.size(); ++i)
+            mismatch_case += (i ? "," : "") + psprecomp::hex32(nested_addresses[i]);
+        if (nested_addresses.empty()) mismatch_case += "-";
+        if (g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(std::move(mismatch_case));
         if (entry.first_mismatch.empty()) {
             entry.first_mismatch = *difference + " (a0=" + psprecomp::hex32(entry_ctx.gpr[4]) +
                                    " a1=" + psprecomp::hex32(entry_ctx.gpr[5]) +
@@ -653,6 +669,7 @@ int decomp_report() {
                   << " sampled calls ran unchecked: every sentinel return address was held by a live continuation\n";
     for (const auto &[stop, count] : g_skips_by_import)
         std::cerr << "[decomp] not comparable, stopped at " << stop << ": " << count << " cases\n";
+    for (const std::string &mismatch_case : g_mismatch_cases) std::cerr << "[decomp] mismatch case: " << mismatch_case << "\n";
     return status;
 }
 

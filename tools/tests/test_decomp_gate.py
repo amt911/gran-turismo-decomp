@@ -144,6 +144,7 @@ def test_a_function_compared_only_nested_counts_as_reached_and_its_nested_mismat
     assert gate.reached(total[0x08930E08]) and not gate.reached(gate.Stats("x"))
     assert gate.detected(total[0x08930E08]) and not gate.detected(total[0x0885BBBC])
 
+
 def test_route_problem_flags_a_timeout_a_missing_report_and_a_crash():
     assert gate.route_problem(REPORT, "0") is None
     assert "timed out" in gate.route_problem(REPORT, "124")
@@ -198,3 +199,39 @@ def test_clear_run_removes_a_tags_old_logs_and_exit_codes(tmp_path):
     (tmp_path / "gt_diff_t2_race.log").write_text("other tag")
     gate.clear_run("t1", tmp_path)
     assert [p.name for p in tmp_path.iterdir()] == ["gt_diff_t2_race.log"]
+
+
+MISMATCH_CASES = """\
+[decomp] mismatch case: 0x08900000 nested 0x08900100,0x08900200
+[decomp] mismatch case: 0x08900300 nested -
+[decomp] mismatch case: 0x08900000 nested 0x08900200
+"""
+
+
+def test_parse_mismatch_cases_reads_each_case_and_what_ran_nested_in_it():
+    assert gate.parse_mismatch_cases(MISMATCH_CASES) == {
+        (0x08900000, frozenset({0x08900100, 0x08900200})),
+        (0x08900300, frozenset()),
+        (0x08900000, frozenset({0x08900200})),
+    }
+
+
+def test_a_sabotage_counts_only_where_it_was_the_one_sabotaged_function_in_the_case():
+    cases = gate.parse_mismatch_cases(MISMATCH_CASES)
+    # parent 0x08900000 and its children sabotaged together: the first case can't tell who caused it, the
+    # third can't either; 0x08900300's own case had nothing nested
+    assert gate.attributed({0x08900000, 0x08900100, 0x08900200, 0x08900300}, cases) == {0x08900300}
+    # children sabotaged without their parent: 0x08900200 alone in the third case; 0x08900100 never alone
+    assert gate.attributed({0x08900100, 0x08900200}, cases) == {0x08900200}
+    assert gate.attributed({0x08900100}, cases) == {0x08900100}
+
+
+def test_the_next_sabotage_round_takes_ambiguous_functions_that_never_shared_a_mismatching_case():
+    cases = gate.parse_mismatch_cases(MISMATCH_CASES)
+    # all four sabotaged: 0x08900300 attributed; the other three only ever mismatched together
+    ambiguous = {0x08900000, 0x08900100, 0x08900200}
+    first = gate.next_round(ambiguous, cases)
+    assert first == {0x08900000}  # lowest address first; its callees shared its cases
+    second = gate.next_round(ambiguous - first, cases)
+    assert second == {0x08900100}  # 0x08900100 and 0x08900200 shared the first case
+    assert gate.next_round(set(), cases) == set()

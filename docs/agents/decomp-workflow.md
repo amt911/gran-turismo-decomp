@@ -73,8 +73,13 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).
   It takes the shared heavy-job lock and the memory cgroup itself. Tooling the workflow needs lives in
   `tools/`, never only in a session's scratch directory (a reboot wiped those once, mid-PR).
-- **When a function is registered (verified):** in this PR's validation it was compared (> 0) with 0
-  mismatches in the fast **or** the full gate, and its sabotage was detected. The real-time full gate
+- **When a function is registered (verified):** in this PR's validation it was reached — compared
+  (> 0), or run nested in > 0 equal cases of a decompiled caller — with 0 mismatches in the fast **or**
+  the full gate, and the tool pinned its sabotage on it. Inside a case, nested decompiled callees run
+  decompiled in the decompiled run (spec `docs/superpowers/specs/2026-10-13-nested-verification-design.md`),
+  so a helper reached only through its decompiled callers is verified through them; `sabotage` pins a
+  mismatch on a function only where it was the one sabotaged function in that case, and re-runs
+  parents and callees that always mismatched together in separate rounds. The real-time full gate
   often doesn't reach script-driven functions that the uncapped fast gate does; "compared 0 in the full
   gate" alone is not a reason to unregister. A function compared 0 in every run stays unregistered.
   Two registrations of one address are refused at startup (`gt::duplicate_registration`): moving a
@@ -84,15 +89,15 @@ never per function. Settings measured and decided by the user on 2026-10-12:
      `func_X`, `kX` constant or helper name already exists in the file.
   2. Fast gate: 0 mismatches on all three routes.
   3. **Unregister what the gate can't see**, with a comment saying why (the `GT_DECOMP` line stays,
-     commented out): `compared 0` with `calls 0` (only reached from inside its generated unit) or
+     commented out): `compared 0` and `nested in 0 equal` (reached neither directly nor through a decompiled caller) or
      everything `not comparable` (reaches imports that block or switch threads; see below).
   4. **Sabotage, fast gate**: bump s0 (`ctx.gpr[16] += 1u;`) as the **first** statement of every
      registered function of the batch. s0 is callee-saved and always compared, and a bump at entry
      survives early returns, guest calls and tail calls — sabotaging the return value at the end
      missed functions whose routes only took an early return, and tail callees overwrite v0. Add,
      don't XOR: a function that calls another sabotaged one directly would flip s0 twice and pass
-     (FINDINGS). Every function must show `mismatched > 0`; never land one whose sabotage was not
-     detected.
+     (FINDINGS). Every function must be pinned by `tools.decomp_gate sabotage`; never land one whose
+     sabotage was not detected.
   5. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
