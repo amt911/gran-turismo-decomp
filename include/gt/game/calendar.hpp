@@ -17,8 +17,8 @@ namespace gt::game {
 
 // One scheduled event. 148 bytes (the stride of every access: 0x08817B10, 0x08817DD0, 0x08818168). Built
 // by MCalendar::putRunCourseEvent (0x08818210), putRunLicenseEvent (0x08818264) and putGarageEvent
-// (0x088183D4); the layout of its fields isn't decoded yet. The byte at +4 is the event's kind: 0x08817934
-// indexes a 4-entry table with it (kind < 4).
+// (0x088183D4); the layout of its fields isn't decoded yet. The byte at +4 is an index into a 4-entry table
+// (0x08817934 looks it up, index < 4); what it selects isn't established.
 struct CalendarEvent : guest::Layout {
     GT_FIELD(std::uint8_t, unk_04, 0x04);
 };
@@ -29,7 +29,7 @@ struct CalendarData : guest::Layout {
     // into a date (0x0881799C -> 0x08B1B420); MCalendar::getGameDay returns it minus the first day
     // (0x08817924: 2009-10-01); MCalendar::incDate adds one (0x08817A0C).
     GT_FIELD(std::uint32_t, today, 0x00);
-    // The events form a ring of 100 slots from +0x14 (capacity 100: 0x08818168 drops the oldest when the
+    // The events form a ring of 100 slots from +0x14 (capacity 100: 0x08818168 makes room (0x08B89DAC(deque, 1)) when the
     // count is 100). Indexes: 0x08817DD0 reads slot (i + unk_0C) % 100 for i < event_size; 0x08818168
     // writes at unk_08 and advances it.
     GT_FIELD(std::uint32_t, unk_08, 0x08);
