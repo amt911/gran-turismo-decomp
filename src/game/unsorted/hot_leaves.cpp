@@ -4509,9 +4509,7 @@ GT_DECOMP(0x08AF23C0u, gt::game::func_08AF23C0, gt::ReturnKind::Word);
 GT_DECOMP(0x08909B00u, gt::game::func_08909B00, gt::ReturnKind::Word);
 GT_DECOMP(0x08B28C74u, gt::game::func_08B28C74, gt::ReturnKind::Word);
 GT_DECOMP(0x08B28C44u, gt::game::func_08B28C44, gt::ReturnKind::Word);
-// Not registered: every case calls a kernel import the isolated diff run cannot replay ("not
-// comparable" in all 59 cases), so the gate can't check it.
-// GT_DECOMP(0x08AEB954u, gt::game::func_08AEB954, gt::ReturnKind::Word);
+GT_DECOMP(0x08AEB954u, gt::game::func_08AEB954, gt::ReturnKind::Word);
 GT_DECOMP(0x08A7273Cu, gt::game::func_08A7273C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A6159Cu, gt::game::func_08A6159C, gt::ReturnKind::Word);
 GT_DECOMP(0x088AFAF0u, gt::game::func_088AFAF0, gt::ReturnKind::Word);
@@ -4723,15 +4721,11 @@ GT_DECOMP(0x089B883Cu, gt::game::func_089B883C, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
 // in all 58 cases), so the gate can't check it.
 // GT_DECOMP(0x08B2EFDCu, gt::game::func_08B2EFDC, gt::ReturnKind::Word);
-// Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
-// in all 48 cases), so the gate can't check it.
-// GT_DECOMP(0x08B2DBE0u, gt::game::func_08B2DBE0, gt::ReturnKind::Word);
+GT_DECOMP(0x08B2DBE0u, gt::game::func_08B2DBE0, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
 // in all 58 cases), so the gate can't check it.
 // GT_DECOMP(0x08B28CD4u, gt::game::func_08B28CD4, gt::ReturnKind::Word);
-// Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
-// in all 58 cases), so the gate can't check it.
-// GT_DECOMP(0x08B28D04u, gt::game::func_08B28D04, gt::ReturnKind::Word);
+GT_DECOMP(0x08B28D04u, gt::game::func_08B28D04, gt::ReturnKind::Word);
 GT_DECOMP(0x0895541Cu, gt::game::func_0895541C, gt::ReturnKind::Word);
 GT_DECOMP(0x088D5910u, gt::game::func_088D5910, gt::ReturnKind::Word);
 GT_DECOMP(0x08A76E88u, gt::game::func_08A76E88, gt::ReturnKind::Word);
@@ -5956,9 +5950,7 @@ GT_DECOMP(0x089BA68Cu, gt::game::func_089BA68C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A17BD0u, gt::game::func_08A17BD0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A17B68u, gt::game::func_08A17B68, gt::ReturnKind::Word);
 GT_DECOMP(0x08A7ADD0u, gt::game::func_08A7ADD0, gt::ReturnKind::Word);
-// Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
-// all 16 cases), so the gate can't check it.
-// GT_DECOMP(0x08ABBEF8u, gt::game::func_08ABBEF8, gt::ReturnKind::Word);
+GT_DECOMP(0x08ABBEF8u, gt::game::func_08ABBEF8, gt::ReturnKind::Word);
 GT_DECOMP(0x089A1628u, gt::game::func_089A1628, gt::ReturnKind::Word);
 GT_DECOMP(0x08A9A414u, gt::game::func_08A9A414, gt::ReturnKind::Word);
 GT_DECOMP(0x08AE2B40u, gt::game::func_08AE2B40, gt::ReturnKind::Word);
@@ -6759,9 +6751,7 @@ GT_DECOMP(0x08B17A20u, gt::game::func_08B17A20, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD55ECu, gt::game::func_08AD55EC, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD37F8u, gt::game::func_08AD37F8, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABBE00u, gt::game::func_08ABBE00, gt::ReturnKind::Word);
-// Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
-// all 11 cases), so the gate can't check it.
-// GT_DECOMP(0x08ABB678u, gt::game::func_08ABB678, gt::ReturnKind::Word);
+GT_DECOMP(0x08ABB678u, gt::game::func_08ABB678, gt::ReturnKind::Word);
 GT_DECOMP(0x089FD978u, gt::game::func_089FD978, gt::ReturnKind::Word);
 GT_DECOMP(0x089B9EA4u, gt::game::func_089B9EA4, gt::ReturnKind::Word);
 GT_DECOMP(0x088BB57Cu, gt::game::func_088BB57C, gt::ReturnKind::Word);
@@ -7089,9 +7079,7 @@ void func_08977390(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::game
 
-// Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
-// all 25 cases), so the gate can't check it.
-// GT_DECOMP(0x08B0C99Cu, gt::game::func_08B0C99C, gt::ReturnKind::Word);
+GT_DECOMP(0x08B0C99Cu, gt::game::func_08B0C99C, gt::ReturnKind::Word);
 GT_DECOMP(0x08991B98u, gt::game::func_08991B98, gt::ReturnKind::Word);
 GT_DECOMP(0x089DFAACu, gt::game::func_089DFAAC, gt::ReturnKind::Word);
 GT_DECOMP(0x089DFAC0u, gt::game::func_089DFAC0, gt::ReturnKind::Word);
@@ -9280,8 +9268,7 @@ GT_DECOMP(0x088A3718u, gt::game::func_088A3718, gt::ReturnKind::Word);
 GT_DECOMP(0x088977D4u, gt::game::func_088977D4, gt::ReturnKind::Word);
 GT_DECOMP(0x088970D4u, gt::game::func_088970D4, gt::ReturnKind::Word);
 GT_DECOMP(0x0885BE14u, gt::game::func_0885BE14, gt::ReturnKind::Word);
-// func_08B2E924 reaches kernel imports the isolated run can't replay (not comparable in all 12 cases), so the gate can't check it.
-// GT_DECOMP(0x08B2E924u, gt::game::func_08B2E924, gt::ReturnKind::Word);
+GT_DECOMP(0x08B2E924u, gt::game::func_08B2E924, gt::ReturnKind::Word);
 GT_DECOMP(0x08B24954u, gt::game::func_08B24954, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1F810u, gt::game::func_08B1F810, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1E334u, gt::game::func_08B1E334, gt::ReturnKind::Word);
@@ -9308,8 +9295,7 @@ GT_DECOMP(0x08AA2D50u, gt::game::func_08AA2D50, gt::ReturnKind::Word);
 GT_DECOMP(0x0899AFCCu, gt::game::func_0899AFCC, gt::ReturnKind::Word);
 GT_DECOMP(0x088C4D28u, gt::game::func_088C4D28, gt::ReturnKind::Word);
 GT_DECOMP(0x08B248FCu, gt::game::func_08B248FC, gt::ReturnKind::Word);
-// func_08B1B96C reaches kernel imports the isolated run can't replay (not comparable in all 12 cases), so the gate can't check it.
-// GT_DECOMP(0x08B1B96Cu, gt::game::func_08B1B96C, gt::ReturnKind::Word);
+GT_DECOMP(0x08B1B96Cu, gt::game::func_08B1B96C, gt::ReturnKind::Word);
 GT_DECOMP(0x08AB8858u, gt::game::func_08AB8858, gt::ReturnKind::Word);
 GT_DECOMP(0x0892FBE0u, gt::game::func_0892FBE0, gt::ReturnKind::Word);
 GT_DECOMP(0x0892F820u, gt::game::func_0892F820, gt::ReturnKind::Word);
@@ -9998,9 +9984,7 @@ GT_DECOMP(0x08A65680u, gt::game::func_08A65680, gt::ReturnKind::Word);
 GT_DECOMP(0x08A72B94u, gt::game::func_08A72B94, gt::ReturnKind::Word);
 GT_DECOMP(0x08A65154u, gt::game::func_08A65154, gt::ReturnKind::Word);
 GT_DECOMP(0x08A64F50u, gt::game::func_08A64F50, gt::ReturnKind::Word);
-// func_08ADF7F8 reaches kernel imports the isolated run can't replay (not comparable in all 15 cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08ADF7F8u, gt::game::func_08ADF7F8, gt::ReturnKind::Word);
+GT_DECOMP(0x08ADF7F8u, gt::game::func_08ADF7F8, gt::ReturnKind::Word);
 GT_DECOMP(0x08A68310u, gt::game::func_08A68310, gt::ReturnKind::Word);
 GT_DECOMP(0x08A85BF0u, gt::game::func_08A85BF0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A67EBCu, gt::game::func_08A67EBC, gt::ReturnKind::Word);
@@ -10876,9 +10860,7 @@ GT_DECOMP(0x08B1F9B4u, gt::game::func_08B1F9B4, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD5DFCu, gt::game::func_08AD5DFC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1FA64u, gt::game::func_08B1FA64, gt::ReturnKind::Word);
 GT_DECOMP(0x088DE9CCu, gt::game::func_088DE9CC, gt::ReturnKind::Word);
-// func_08AD5940 reaches kernel imports the isolated run can't replay (not comparable in all 9 cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08AD5940u, gt::game::func_08AD5940, gt::ReturnKind::Void);
+GT_DECOMP(0x08AD5940u, gt::game::func_08AD5940, gt::ReturnKind::Void);
 GT_DECOMP(0x08B0C778u, gt::game::func_08B0C778, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1065Cu, gt::game::func_08B1065C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A10A3Cu, gt::game::func_08A10A3C, gt::ReturnKind::Void);
@@ -20970,9 +20952,7 @@ GT_DECOMP(0x08A75194u, gt::game::func_08A75194, gt::ReturnKind::Void);
 GT_DECOMP(0x089734D0u, gt::game::func_089734D0, gt::ReturnKind::Void);
 GT_DECOMP(0x08973728u, gt::game::func_08973728, gt::ReturnKind::Void);
 GT_DECOMP(0x08A62518u, gt::game::func_08A62518, gt::ReturnKind::Void);
-// func_08A8917C reaches kernel imports the isolated run can't replay (not comparable in all 22 cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08A8917Cu, gt::game::func_08A8917C, gt::ReturnKind::Word);
+GT_DECOMP(0x08A8917Cu, gt::game::func_08A8917C, gt::ReturnKind::Word);
 GT_DECOMP(0x0899D2B4u, gt::game::func_0899D2B4, gt::ReturnKind::Void);
 GT_DECOMP(0x089AB114u, gt::game::func_089AB114, gt::ReturnKind::Void);
 GT_DECOMP(0x089A4CBCu, gt::game::func_089A4CBC, gt::ReturnKind::Void);
@@ -26743,9 +26723,7 @@ GT_DECOMP(0x088949E8u, gt::game::func_088949E8, gt::ReturnKind::Void);
 GT_DECOMP(0x08B0E008u, gt::game::func_08B0E008, gt::ReturnKind::Void);
 GT_DECOMP(0x08B0CDC8u, gt::game::func_08B0CDC8, gt::ReturnKind::Void);
 GT_DECOMP(0x08B0C304u, gt::game::func_08B0C304, gt::ReturnKind::Void);
-// func_08B0C880 reaches kernel imports the isolated run can't replay (not comparable in all 30 cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B0C880u, gt::game::func_08B0C880, gt::ReturnKind::Word);
+GT_DECOMP(0x08B0C880u, gt::game::func_08B0C880, gt::ReturnKind::Word);
 // func_08B0C71C reaches kernel imports the isolated run can't replay (not comparable in all 30 cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08B0C71Cu, gt::game::func_08B0C71C, gt::ReturnKind::Word);
@@ -31632,9 +31610,7 @@ GT_DECOMP(0x089AB008u, gt::game::func_089AB008, gt::ReturnKind::Void);
 GT_DECOMP(0x08AC0030u, gt::game::func_08AC0030, gt::ReturnKind::Void);
 GT_DECOMP(0x088B4A70u, gt::game::func_088B4A70, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABFD0Cu, gt::game::func_08ABFD0C, gt::ReturnKind::Void);
-// func_08B0C5C0 reaches kernel imports the isolated run can't replay (not comparable in all 4 cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B0C5C0u, gt::game::func_08B0C5C0, gt::ReturnKind::DoubleWord);
+GT_DECOMP(0x08B0C5C0u, gt::game::func_08B0C5C0, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x0893C54Cu, gt::game::func_0893C54C, gt::ReturnKind::Float);
 GT_DECOMP(0x0888D20Cu, gt::game::func_0888D20C, gt::ReturnKind::Void);
 GT_DECOMP(0x08AF1B78u, gt::game::func_08AF1B78, gt::ReturnKind::Void);
@@ -31650,9 +31626,7 @@ GT_DECOMP(0x0893B2F8u, gt::game::func_0893B2F8, gt::ReturnKind::Float);
 GT_DECOMP(0x08983B2Cu, gt::game::func_08983B2C, gt::ReturnKind::Void);
 GT_DECOMP(0x089D87E0u, gt::game::func_089D87E0, gt::ReturnKind::Void);
 GT_DECOMP(0x08A77148u, gt::game::func_08A77148, gt::ReturnKind::Void);
-// func_08866FBC reaches kernel imports the isolated run can't replay (not comparable in all 58 cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08866FBCu, gt::game::func_08866FBC, gt::ReturnKind::Void);
+GT_DECOMP(0x08866FBCu, gt::game::func_08866FBC, gt::ReturnKind::Void);
 GT_DECOMP(0x08960A48u, gt::game::func_08960A48, gt::ReturnKind::Void);
 GT_DECOMP(0x08969B98u, gt::game::func_08969B98, gt::ReturnKind::Void);
 GT_DECOMP(0x08897D9Cu, gt::game::func_08897D9C, gt::ReturnKind::Void);
@@ -33615,9 +33589,7 @@ GT_DECOMP(0x08B11830u, gt::game::func_08B11830, gt::ReturnKind::Void);
 GT_DECOMP(0x08B14DACu, gt::game::func_08B14DAC, gt::ReturnKind::Void);
 GT_DECOMP(0x088F8AA4u, gt::game::func_088F8AA4, gt::ReturnKind::Word);
 GT_DECOMP(0x08AA4294u, gt::game::func_08AA4294, gt::ReturnKind::Void);
-// func_088A37B0 reaches kernel imports the isolated run can't replay (not comparable in its only case),
-// so the gate can't check it.
-// GT_DECOMP(0x088A37B0u, gt::game::func_088A37B0, gt::ReturnKind::Word);
+GT_DECOMP(0x088A37B0u, gt::game::func_088A37B0, gt::ReturnKind::Word);
 GT_DECOMP(0x08912E08u, gt::game::func_08912E08, gt::ReturnKind::Void);
 GT_DECOMP(0x088D65DCu, gt::game::func_088D65DC, gt::ReturnKind::Void);
 GT_DECOMP(0x08A7004Cu, gt::game::func_08A7004C, gt::ReturnKind::Void);
@@ -34743,9 +34715,7 @@ GT_DECOMP(0x0881AC68u, gt::game::func_0881AC68, gt::ReturnKind::Word);
 // func_08B2ECAC reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
 // GT_DECOMP(0x08B2ECACu, gt::game::func_08B2ECAC, gt::ReturnKind::Word);
-// func_08B24278 reaches calls the isolated run can\'t replay (not comparable in all its cases),
-// so the gate can\'t check it.
-// GT_DECOMP(0x08B24278u, gt::game::func_08B24278, gt::ReturnKind::Void);
+GT_DECOMP(0x08B24278u, gt::game::func_08B24278, gt::ReturnKind::Void);
 GT_DECOMP(0x08B24238u, gt::game::func_08B24238, gt::ReturnKind::Void);
 GT_DECOMP(0x08B241A0u, gt::game::func_08B241A0, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2410Cu, gt::game::func_08B2410C, gt::ReturnKind::Void);
@@ -34762,9 +34732,7 @@ GT_DECOMP(0x08AD542Cu, gt::game::func_08AD542C, gt::ReturnKind::Void);
 // func_08ACE9DC reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
 // GT_DECOMP(0x08ACE9DCu, gt::game::func_08ACE9DC, gt::ReturnKind::Void);
-// func_08B0C9AC reaches calls the isolated run can\'t replay (not comparable in all its cases),
-// so the gate can\'t check it.
-// GT_DECOMP(0x08B0C9ACu, gt::game::func_08B0C9AC, gt::ReturnKind::Void);
+GT_DECOMP(0x08B0C9ACu, gt::game::func_08B0C9AC, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACCCA8u, gt::game::func_08ACCCA8, gt::ReturnKind::Word);
 // func_08ACB500 reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
@@ -34774,9 +34742,7 @@ GT_DECOMP(0x08AC2C50u, gt::game::func_08AC2C50, gt::ReturnKind::Word);
 // func_08AC0194 reaches calls the isolated run can\'t replay (not comparable in all its cases),
 // so the gate can\'t check it.
 // GT_DECOMP(0x08AC0194u, gt::game::func_08AC0194, gt::ReturnKind::Void);
-// func_08AC00D8 reaches calls the isolated run can\'t replay (not comparable in all its cases),
-// so the gate can\'t check it.
-// GT_DECOMP(0x08AC00D8u, gt::game::func_08AC00D8, gt::ReturnKind::Void);
+GT_DECOMP(0x08AC00D8u, gt::game::func_08AC00D8, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABFF0Cu, gt::game::func_08ABFF0C, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABF3CCu, gt::game::func_08ABF3CC, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABDC28u, gt::game::func_08ABDC28, gt::ReturnKind::Void);
@@ -35886,17 +35852,13 @@ GT_DECOMP(0x08B1CBFCu, gt::game::func_08B1CBFC, gt::ReturnKind::Void);
 // func_08B1C3E4 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08B1C3E4u, gt::game::func_08B1C3E4, gt::ReturnKind::Void);
-// func_08B1BA54 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B1BA54u, gt::game::func_08B1BA54, gt::ReturnKind::Word);
+GT_DECOMP(0x08B1BA54u, gt::game::func_08B1BA54, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1B858u, gt::game::func_08B1B858, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1AFB8u, gt::game::func_08B1AFB8, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1A8E4u, gt::game::func_08B1A8E4, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1A8BCu, gt::game::func_08B1A8BC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1A7FCu, gt::game::func_08B1A7FC, gt::ReturnKind::Void);
-// func_08B1A7A4 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B1A7A4u, gt::game::func_08B1A7A4, gt::ReturnKind::Word);
+GT_DECOMP(0x08B1A7A4u, gt::game::func_08B1A7A4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1A5B4u, gt::game::func_08B1A5B4, gt::ReturnKind::Void);
 GT_DECOMP(0x08B19FA4u, gt::game::func_08B19FA4, gt::ReturnKind::Word);
 // func_08B15F40 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
@@ -35917,9 +35879,7 @@ GT_DECOMP(0x08AF12D0u, gt::game::func_08AF12D0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AEC01Cu, gt::game::func_08AEC01C, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD9748u, gt::game::func_08AD9748, gt::ReturnKind::Word);
 GT_DECOMP(0x08AD9738u, gt::game::func_08AD9738, gt::ReturnKind::Word);
-// func_08AD479C reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08AD479Cu, gt::game::func_08AD479C, gt::ReturnKind::Void);
+GT_DECOMP(0x08AD479Cu, gt::game::func_08AD479C, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD40BCu, gt::game::func_08AD40BC, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD401Cu, gt::game::func_08AD401C, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD3F40u, gt::game::func_08AD3F40, gt::ReturnKind::Void);
@@ -35964,9 +35924,7 @@ GT_DECOMP(0x08AC2B20u, gt::game::func_08AC2B20, gt::ReturnKind::Void);
 GT_DECOMP(0x08AC032Cu, gt::game::func_08AC032C, gt::ReturnKind::Word);
 GT_DECOMP(0x08AC01C8u, gt::game::func_08AC01C8, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABF870u, gt::game::func_08ABF870, gt::ReturnKind::Void);
-// func_08ABFB14 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08ABFB14u, gt::game::func_08ABFB14, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABFB14u, gt::game::func_08ABFB14, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABDD54u, gt::game::func_08ABDD54, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABDA84u, gt::game::func_08ABDA84, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABD974u, gt::game::func_08ABD974, gt::ReturnKind::Void);
@@ -36765,8 +36723,7 @@ GT_DECOMP(0x089C41BCu, gt::game::func_089C41BC, gt::ReturnKind::Void);
 // so the gate can't check it.
 // GT_DECOMP(0x089B8C18u, gt::game::func_089B8C18, gt::ReturnKind::Void);
 GT_DECOMP(0x089B4DD8u, gt::game::func_089B4DD8, gt::ReturnKind::Void);
-// func_089A94B8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089A94B8u, gt::game::func_089A94B8, gt::ReturnKind::Void);
+GT_DECOMP(0x089A94B8u, gt::game::func_089A94B8, gt::ReturnKind::Void);
 GT_DECOMP(0x089A7644u, gt::game::func_089A7644, gt::ReturnKind::Void);
 GT_DECOMP(0x08999F94u, gt::game::func_08999F94, gt::ReturnKind::Void);
 GT_DECOMP(0x08994E10u, gt::game::func_08994E10, gt::ReturnKind::Void);
@@ -37683,9 +37640,7 @@ GT_DECOMP(0x0885EC80u, gt::game::func_0885EC80, gt::ReturnKind::Void);
 GT_DECOMP(0x0885E9F8u, gt::game::func_0885E9F8, gt::ReturnKind::Void);
 GT_DECOMP(0x0885E9ECu, gt::game::func_0885E9EC, gt::ReturnKind::Void);
 GT_DECOMP(0x0885E91Cu, gt::game::func_0885E91C, gt::ReturnKind::Word);
-// func_0885E848 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x0885E848u, gt::game::func_0885E848, gt::ReturnKind::Void);
+GT_DECOMP(0x0885E848u, gt::game::func_0885E848, gt::ReturnKind::Void);
 GT_DECOMP(0x0885E794u, gt::game::func_0885E794, gt::ReturnKind::Void);
 GT_DECOMP(0x0885E778u, gt::game::func_0885E778, gt::ReturnKind::Void);
 GT_DECOMP(0x0885E758u, gt::game::func_0885E758, gt::ReturnKind::Void);
@@ -39047,9 +39002,7 @@ GT_DECOMP(0x08809DFCu, gt::game::func_08809DFC, gt::ReturnKind::Void);
 GT_DECOMP(0x088B1350u, gt::game::func_088B1350, gt::ReturnKind::Word);
 GT_DECOMP(0x088BADB4u, gt::game::func_088BADB4, gt::ReturnKind::Void);
 GT_DECOMP(0x08818064u, gt::game::func_08818064, gt::ReturnKind::Word);
-// func_0882A638 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x0882A638u, gt::game::func_0882A638, gt::ReturnKind::Word);
+GT_DECOMP(0x0882A638u, gt::game::func_0882A638, gt::ReturnKind::Word);
 GT_DECOMP(0x0885DD70u, gt::game::func_0885DD70, gt::ReturnKind::Void);
 GT_DECOMP(0x0885FC4Cu, gt::game::func_0885FC4C, gt::ReturnKind::Void);
 GT_DECOMP(0x088CB958u, gt::game::func_088CB958, gt::ReturnKind::Void);
@@ -39073,8 +39026,7 @@ GT_DECOMP(0x08B21938u, gt::game::func_08B21938, gt::ReturnKind::Word);
 // func_088152F8 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x088152F8u, gt::game::func_088152F8, gt::ReturnKind::Void);
-// func_0885BD3C is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0885BD3Cu, gt::game::func_0885BD3C, gt::ReturnKind::Word);
+GT_DECOMP(0x0885BD3Cu, gt::game::func_0885BD3C, gt::ReturnKind::Word);
 // func_0885D010 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x0885D010u, gt::game::func_0885D010, gt::ReturnKind::Word);
@@ -39082,8 +39034,7 @@ GT_DECOMP(0x088A657Cu, gt::game::func_088A657C, gt::ReturnKind::Void);
 // func_0892EE54 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x0892EE54u, gt::game::func_0892EE54, gt::ReturnKind::Void);
-// func_0895E63C is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0895E63Cu, gt::game::func_0895E63C, gt::ReturnKind::Void);
+GT_DECOMP(0x0895E63Cu, gt::game::func_0895E63C, gt::ReturnKind::Void);
 GT_DECOMP(0x089BFBE4u, gt::game::func_089BFBE4, gt::ReturnKind::Void);
 GT_DECOMP(0x089CF244u, gt::game::func_089CF244, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1F3A8u, gt::game::func_08B1F3A8, gt::ReturnKind::Word);
@@ -39991,8 +39942,7 @@ GT_DECOMP(0x088DB8DCu, gt::game::func_088DB8DC, gt::ReturnKind::Void);
 // so the gate can't check it.
 // GT_DECOMP(0x08B33218u, gt::game::func_08B33218, gt::ReturnKind::Void);
 GT_DECOMP(0x08AA9960u, gt::game::func_08AA9960, gt::ReturnKind::Void);
-// func_0888AC24 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0888AC24u, gt::game::func_0888AC24, gt::ReturnKind::Void);
+GT_DECOMP(0x0888AC24u, gt::game::func_0888AC24, gt::ReturnKind::Void);
 
 // --- batch 62 ---
 
@@ -40507,33 +40457,25 @@ void func_08AF96C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::game
 
-// func_08B2DC70 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B2DC70u, gt::game::func_08B2DC70, gt::ReturnKind::Void);
+GT_DECOMP(0x08B2DC70u, gt::game::func_08B2DC70, gt::ReturnKind::Void);
 GT_DECOMP(0x088EF80Cu, gt::game::func_088EF80C, gt::ReturnKind::Void);
 // func_08ACE760 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08ACE760u, gt::game::func_08ACE760, gt::ReturnKind::Void);
-// func_08ACCD2C reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08ACCD2Cu, gt::game::func_08ACCD2C, gt::ReturnKind::Void);
+GT_DECOMP(0x08ACCD2Cu, gt::game::func_08ACCD2C, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2ED6Cu, gt::game::func_08B2ED6C, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2ECE0u, gt::game::func_08B2ECE0, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2E0ECu, gt::game::func_08B2E0EC, gt::ReturnKind::Void);
 // func_08B2E224 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08B2E224u, gt::game::func_08B2E224, gt::ReturnKind::Void);
-// func_08B2E214 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B2E214u, gt::game::func_08B2E214, gt::ReturnKind::Void);
+GT_DECOMP(0x08B2E214u, gt::game::func_08B2E214, gt::ReturnKind::Void);
 GT_DECOMP(0x08A17A0Cu, gt::game::func_08A17A0C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A1A08Cu, gt::game::func_08A1A08C, gt::ReturnKind::Void);
 GT_DECOMP(0x08898230u, gt::game::func_08898230, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABE514u, gt::game::func_08ABE514, gt::ReturnKind::Void);
 GT_DECOMP(0x089C11A8u, gt::game::func_089C11A8, gt::ReturnKind::Void);
-// func_08B1B900 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B1B900u, gt::game::func_08B1B900, gt::ReturnKind::Word);
+GT_DECOMP(0x08B1B900u, gt::game::func_08B1B900, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABBFD8u, gt::game::func_08ABBFD8, gt::ReturnKind::Void);
 // func_08B102D0 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.

@@ -61,6 +61,7 @@ file(GLOB_RECURSE GT_DECOMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*
 add_library(gt_host_objs OBJECT
     host/main.cpp
     host/diff_harness.cpp
+    host/import_replay.cpp
     host/diff_compare.cpp
     host/probes.cpp
     host/guest_call.cpp
@@ -167,6 +168,9 @@ enable_testing()
 add_executable(host_tests host/tests/diff_compare_test.cpp host/diff_compare.cpp)
 target_include_directories(host_tests PRIVATE host)
 add_test(NAME diff_compare COMMAND host_tests)
+add_executable(import_replay_tests host/tests/import_replay_test.cpp host/import_replay.cpp)
+target_include_directories(import_replay_tests PRIVATE host)
+add_test(NAME import_replay COMMAND import_replay_tests)
 add_executable(image_ppm_tests host/tests/image_ppm_test.cpp host/image_ppm.cpp)
 target_include_directories(image_ppm_tests PRIVATE host)
 add_test(NAME image_ppm COMMAND image_ppm_tests)

@@ -74,7 +74,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   2. Fast gate: 0 mismatches on all three routes.
   3. **Unregister what the gate can't see**, with a comment saying why (the `GT_DECOMP` line stays,
      commented out): `compared 0` with `calls 0` (only reached from inside its generated unit) or
-     everything `not comparable` (reaches kernel imports an isolated run can't replay).
+     everything `not comparable` (reaches imports that block or switch threads; see below).
   4. **Sabotage, fast gate**: bump s0 (`ctx.gpr[16] += 1u;`) as the **first** statement of every
      registered function of the batch. s0 is callee-saved and always compared, and a bump at entry
      survives early returns, guest calls and tail calls — sabotaging the return value at the end
@@ -99,13 +99,23 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
   (the harness's isolated diff runs) a switch still stops the runtime with a message.
 - Arguments go in `a0-a3, t0-t3`; the callee's frame goes below the caller's `sp`. The caller keeps
   its own state in C++ and gets only `v0` back.
-- The harness still compares such functions: an isolated original may call the **replay-safe
-  imports** (`gt::set_replay_safe_imports` in `host/main.cpp`): LwMutex, interrupt suspend/resume,
-  data-cache maintenance, system time, thread priority get/change, memory blocks. Their state is
-  guest RAM or host kernel state the harness snapshots, restores and compares
-  (`host/kernel_replay_state.hpp`); anything that would switch threads refuses inside a case
-  (`host/kernel_isolation.hpp`). The report names the reason of the first "not comparable" case —
-  extend the list when an import keeps showing up there.
+- The harness still compares such functions. Every import goes through a gate in diff mode
+  (`host/diff_harness.cpp`, the spec `docs/superpowers/specs/2026-10-13-import-record-replay-design.md`):
+  - **Replay-safe imports** (`kReplaySafeNids` in `host/main.cpp`: LwMutex, interrupts, data cache,
+    system time, thread priorities, memory blocks) run in both runs. Their state is guest RAM or host
+    kernel state the harness snapshots, restores and compares (`host/kernel_replay_state.hpp`).
+  - **Recordable imports** (`kRecordableNids`, with how many argument registers each reads:
+    thread create/start/wakeup/sleep/status/id, UMD, power, file open/seek, …) run once, in the
+    original's run, and are recorded (registers, guest RAM, kernel state). The decompiled run must make
+    the same calls with the same arguments, in order; it gets the recorded effect instead of a second
+    execution. A different, missing or extra call is a mismatch: `import replay: …`.
+  - Anything that would switch threads is refused inside a case (`host/kernel_isolation.hpp`, with a
+    reason: LwMutex contention, `sleep would block`, `wakeup would preempt`, `start would preempt`). The
+    call then runs live, from just before the refused import.
+  - The report names the reason of the first "not comparable" case and sums the cases per blocking
+    import. Extend a list when an import keeps showing up there, after reading its HLE: it must never
+    switch threads.
+  - `GT_DECOMP_TRACE=1` logs each record and each case that continues live.
 - A function the reached game states never call can't be compared, so it stays recompiled (e.g.
   `calloc`/`realloc`, `src/libc/malloc.cpp`).
 - **Tail calls**: where the original ends with `j other` / `jr $t9`, end the decompiled function with

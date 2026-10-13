@@ -14,8 +14,10 @@ namespace gt {
 void set_kernel_isolated(bool isolated) noexcept;
 bool kernel_isolated() noexcept;
 
-// Called by the kernel instead of an operation that would touch host-side scheduler state.
-void break_kernel_isolation() noexcept;
+// Called by the kernel instead of an operation that would touch host-side scheduler state; `reason` (a
+// string literal) is what the harness reports.
+void break_kernel_isolation(const char *reason = "LwMutex contention") noexcept;
+const char *kernel_isolation_reason() noexcept;
 // Whether that happened since set_kernel_isolated(true).
 bool kernel_isolation_broken() noexcept;
 
