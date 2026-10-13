@@ -503,7 +503,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (datos con tres bloques de coche de 384 bytes y la estructura de especificaciones) y
       `src/game/car/car_parameter.cpp`: los accesores del motor llevan el nombre del atributo o método
       de MCarParameter que los llama (`team_id`, `quicktune_tcs`, `color`, `getPP`…). 21 registrados con
-      gate; el resto escrito pero sin registrar porque las rutas nunca lo llaman.
+      gate; el resto escrito pero sin registrar porque las rutas nunca lo llaman (y `begin_parts_change`, que llega a llamadas que el aislamiento no reproduce).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

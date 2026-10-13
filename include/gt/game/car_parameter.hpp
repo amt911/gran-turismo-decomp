@@ -17,6 +17,9 @@
 //
 // GT keeps many numbers big-endian (be16/be32); the getters of the signed ones sign-extend, which
 // src/game/car/car_parameter.cpp does where the original does.
+// Type names: CarParameter comes from GT's script class MCarParameter. CarParameterData, CarBlock,
+// CarParameterSpec and CarParameterHandle are ours: they name structural roles (the data, a per-car
+// block, the spec it points to, the handle), not GT strings.
 #pragma once
 
 #include "gt/guest.hpp"
@@ -54,9 +57,9 @@ struct CarParameterSpec : guest::Layout {
 };
 
 struct CarParameterData : guest::Layout {
-    // Selects the block (signed): the index every per-car accessor uses (0x088A5EE0 and others). The name
-    // is ours, from that role.
-    GT_FIELD(std::int8_t, block_index, 0x08);
+    // Selects the block (signed): the index every per-car accessor uses (0x088A5EE0 and others). No GT name
+    // for it, so it keeps its offset.
+    GT_FIELD(std::int8_t, unk_08, 0x08);
     GT_FIELD(std::int8_t, target, 0x2C);           // attribute target: 0x088A5938 / 0x088A5928 (non-zero test)
     GT_FIELD(std::int8_t, team_id, 0x2D);          // attribute team_id: 0x088A5950 / 0x088A5944
     GT_FIELD(std::int8_t, race_class_id, 0x2E);    // attribute race_class_id: 0x088A5968 / 0x088A595C
@@ -72,7 +75,8 @@ struct CarParameterData : guest::Layout {
     GT_FIELD(guest::Pointer<CarParameterSpec>, spec, 0x4C8);
     GT_FIELD(std::uint8_t, unk_4CC, 0x4CC);        // endInfo does nothing when it is set
     // Read by MCarParameter::isTargetLocal (0x0885600C) through 0x088A5984: the car is local when it is 0.
-    GT_FIELD(std::uint32_t, target_remote, 0x4D0);
+    // No GT name for it.
+    GT_FIELD(std::uint32_t, unk_4D0, 0x4D0);
 };
 
 // The engine object the script's MCarParameter wraps (0x08854678 returns it): a handle whose first word

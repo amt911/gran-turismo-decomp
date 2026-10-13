@@ -1521,5 +1521,4 @@ CarParameter::end_info = 0x088A5A0C; // releases the spec; MCarParameter::endInf
 CarParameter::deep_copy = 0x088A6C18; // copies another CarParameter's data; MCarParameter::deepCopy (0x08854908) calls it
 CarParameter::set_changeable_params = 0x088A6C48; // forwards both data pointers to func_088A5580; MCarParameter::setChangeableParams (0x088549C4) calls it
 CarParameter::clear = 0x088A719C; // not decompiled yet; MCarParameter::clear (0x088548B0) calls it
-CarParameter::target_remote = 0x088A5984; // isTargetLocal is true when this is 0 and has_target; MCarParameter::isTargetLocal (0x0885600C) calls it
 CarParameter::selected_block_address = 0x088A6608; // the selected block's address (isATOnly calls it too); MCarParameter::isCVT (0x088578B0) calls it

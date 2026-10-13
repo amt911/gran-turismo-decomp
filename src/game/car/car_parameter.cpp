@@ -37,9 +37,9 @@ View<CarParameterData> data_of(psprecomp::Runtime &rt, std::uint32_t handle) {
     return *View<CarParameterHandle>(rt.memory(), handle).data();
 }
 
-// The block the data selects with block_index (a signed byte: a negative index goes below the data).
+// The block the data selects with unk_08 (+0x08) (a signed byte: a negative index goes below the data).
 View<CarBlock> selected_block(const View<CarParameterData> &car) {
-    return car.blocks(static_cast<std::uint32_t>(static_cast<std::int32_t>(car.block_index().value())));
+    return car.blocks(static_cast<std::uint32_t>(static_cast<std::int32_t>(car.unk_08().value())));
 }
 
 std::uint32_t word(psprecomp::Runtime &rt, std::uint32_t address) { return rt.memory().load32(address); }
@@ -147,8 +147,8 @@ void is_vacant(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = (low == 0xFFFFFFFFu && block.car_code_high() == low) ? 1u : 0u;
 }
 
-// isTargetLocal's second test: the car is remote.
-void target_remote(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = data(rt, ctx).target_remote(); }
+// isTargetLocal's second test (non-zero: not local). No GT name: it keeps its address-derived name.
+void func_088A5984(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = data(rt, ctx).unk_4D0(); }
 
 // getPower / getTorque(handle, &value, &half): writes the float and the half of the selected spec.
 void power(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -228,7 +228,7 @@ void set_changeable_params(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     tail_call(ctx, 0x088A5580u, {word(rt, ctx.gpr[4]), word(rt, ctx.gpr[5])});
 }
 
-// transmission: the selected block's address (what isCVT and isATOnly inspect through func_08932598 /
+// The selected block's address (what isCVT and isATOnly inspect through func_08932598 /
 // func_089325E0).
 void selected_block_address(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = selected_block(data(rt, ctx)).address();
@@ -304,7 +304,7 @@ GT_DECOMP(0x088A5820u, gt::game::car_parameter::func_088A5820, ReturnKind::Word)
 // GT_DECOMP(0x088A5804u, gt::game::car_parameter::tuner_id, ReturnKind::Word);
 // GT_DECOMP(0x088A7618u, gt::game::car_parameter::pp_scratch, ReturnKind::Word);
 // GT_DECOMP(0x088A6028u, gt::game::car_parameter::is_vacant, ReturnKind::Word);
-// GT_DECOMP(0x088A5984u, gt::game::car_parameter::target_remote, ReturnKind::Word);
+// GT_DECOMP(0x088A5984u, gt::game::car_parameter::func_088A5984, ReturnKind::Word);
 // GT_DECOMP(0x088A5A6Cu, gt::game::car_parameter::torque, ReturnKind::Void);
 // GT_DECOMP(0x088A5A90u, gt::game::car_parameter::weight, ReturnKind::Word);
 // GT_DECOMP(0x088A5AA0u, gt::game::car_parameter::pwr, ReturnKind::Float);
