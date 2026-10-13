@@ -81,3 +81,16 @@ def test_decompiled_functions_counts_single_argument_template_registrations(tmp_
 def test_decompiled_functions_counts_template_names_with_digits(tmp_path: Path):
     write_src(tmp_path, "core/leaves.cpp", "GT_DECOMP_RETURN_ARG0(0x08804028u);\n")
     assert decompiled_functions(tmp_path) == {0x28: "game"}
+
+
+def test_decompiled_functions_counts_a_subsystems_shorthand_registrations(tmp_path: Path):
+    # src/game/race/race_operator.cpp: #define RACE_OPERATOR(address, name, kind) GT_DECOMP(address, ...)
+    write_src(
+        tmp_path,
+        "game/race/race_operator.cpp",
+        "#define RACE_OPERATOR(address, name, kind) GT_DECOMP(address, gt::game::race_operator::name, kind)\n"
+        "RACE_OPERATOR(0x08804028u, window_max, Word);\n"
+        "// RACE_OPERATOR(0x088040ACu, set_window_max, Void);\n"
+        "    GT_FIELD(guest::be16, race_type, 0x04);\n",
+    )
+    assert set(decompiled_functions(tmp_path)) == {0x08804028 - LOAD_BASE}
