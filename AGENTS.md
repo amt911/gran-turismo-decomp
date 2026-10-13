@@ -351,7 +351,8 @@ Detail and the incidents behind each one: [lessons](docs/agents/lessons.md).
 - **Measure before buying resources**: RAM was never the limit (clang build peak 0.86 GB); serialization was — but
   the big steps (recomp 3.8 GB, a gcc build) must not overlap, or throttling stalls the gates.
 - **More test routes beat more code** for verified coverage: a function no route calls can't be verified.
-- **Verified** = compared > 0 with 0 mismatches in the fast or full gate + its sabotage detected.
+- **Verified** = reached (compared > 0, or nested in > 0 equal cases of a decompiled caller) with 0
+  mismatches in the fast or full gate + its sabotage pinned on it by `tools.decomp_gate sabotage`.
 - **No silent "last one wins"**: one address, one registration (refused at startup otherwise).
 - **Tooling in the repo, tested** — never only in scratch (a reboot wiped it once).
 - **One checkout per agent**; **no stacked PRs** (the upper one merges into the lower branch, not main);

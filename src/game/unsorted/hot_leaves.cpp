@@ -987,11 +987,14 @@ std::uint32_t point_data(psprecomp::Runtime &rt, std::uint32_t self, std::uint32
 
 } // namespace
 
-// func_08987A74(this): this->+0x34 = func_089868A8(this).
+// func_08987A74(this) -> this->+0x34 = func_089868A8(this), returned too: v0 is left holding it, and
+// func_08987A9C reads it as the token (registered Void before; nested verification caught the lost v0).
 void func_08987A74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x10u);
-    rt.memory().store32(self + 0x34u, call_guest(rt, ctx, kComputeState, {}));
+    const std::uint32_t state = call_guest(rt, ctx, kComputeState, {});
+    rt.memory().store32(self + 0x34u, state);
+    ctx.gpr[2] = state;
 }
 
 // func_08AF7DF4(x in $f12, y in $f13, z in $f14): sets the global vector at 0x08D47204.
@@ -1120,7 +1123,7 @@ void func_0893C60C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::game
 
-GT_DECOMP(0x08987A74u, gt::game::func_08987A74, gt::ReturnKind::Void);
+GT_DECOMP(0x08987A74u, gt::game::func_08987A74, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF7DF4u, gt::game::func_08AF7DF4, gt::ReturnKind::Void);
 GT_DECOMP(0x08958904u, gt::game::func_08958904, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF8FF0u, gt::game::func_08AF8FF0, gt::ReturnKind::Void);

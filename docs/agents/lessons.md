@@ -37,7 +37,13 @@ lives in this repo when it became one.
   their new code never ran while the gate stayed green.
 - **Nested calls inside a test case may not exercise the callee's new code** (the harness may run
   originals for nested calls). Know your harness's rule and don't count a child as verified because its
-  parent passed.
+  parent passed. Here: only `GT_DECOMP_NESTED` callees run decompiled when nested (decomp-workflow.md).
+- **Verify helpers through their callers, and attribute exactly.** Running nested decompiled callees
+  decompiled inside a case lets the gate reach helpers no route calls directly — but then a parent's
+  mismatch may be its callee's fault: log each mismatching case's members and credit a sabotage only where
+  it was the one sabotaged function; re-run parents and callees that always fail together in separate rounds.
+- **A sabotage must survive callers.** Bumping a callee-saved register is erased by any caller that saves
+  and restores it; bump a compared memory word nobody uses instead (or as well).
 - **Independent review catches what the author's gate can't**: wrong comments, invented names, weak
   evidence, mis-stated numbers. Review every PR before merging, even when all gates are green.
 

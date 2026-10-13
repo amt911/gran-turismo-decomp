@@ -232,7 +232,7 @@ void MCarDriverParameter_getRTAUnadjustable(psprecomp::Runtime &rt, psprecomp::A
 
 namespace car_driver_parameter_registrations {
 using gt::ReturnKind;
-#define CAR_DRIVER_PARAMETER(address, name, kind) GT_DECOMP(address, gt::game::car_driver_parameter::name, ReturnKind::kind)
+#define CAR_DRIVER_PARAMETER(address, name, kind) GT_DECOMP_NESTED(address, gt::game::car_driver_parameter::name, ReturnKind::kind)
 
 CAR_DRIVER_PARAMETER(0x08896FD0u, set_manual, Void);
 CAR_DRIVER_PARAMETER(0x08896FC0u, manual, Word);
@@ -255,7 +255,7 @@ CAR_DRIVER_PARAMETER(0x0884D77Cu, MCarDriverParameter_setAILevel, Void);
 CAR_DRIVER_PARAMETER(0x0884D950u, MCarDriverParameter_setPlayer, Void);
 CAR_DRIVER_PARAMETER(0x0884D9F0u, MCarDriverParameter_setDefault, Void);
 // Not registered: compared 0 in every fast, dense and full run of the PR (the pad routes never call them on their own,
-// and the harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
+// and no decompiled GT_DECOMP_NESTED caller reached them either), so nothing could verify them; they run as the recompiled originals.
 // CAR_DRIVER_PARAMETER(0x08896FDCu, assist_tcs, Word);
 // CAR_DRIVER_PARAMETER(0x0889703Cu, set_steering_assist_type, Void);
 // CAR_DRIVER_PARAMETER(0x08897030u, steering_assist_type, Word);

@@ -3,7 +3,7 @@
 Usage (from the repository root):
   .venv/bin/python -m tools.decomp_gate fast TAG --only 0xADDR,0xADDR...|@file   # listed functions, uncapped
   .venv/bin/python -m tools.decomp_gate full TAG                                 # everything, real time
-  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ...  # s0 bump, fast gate, restore
+  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ... [--also ...]  # s0 bump, fast gate
   .venv/bin/python -m tools.decomp_gate report TAG                               # re-read a run's logs
 
 `fast` and `full` regenerate the recompiled code (tools.recomp: registrations are boundaries), build, and
@@ -34,13 +34,16 @@ ROUTES = {
 SLICE = "gt-heavy.slice"
 SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0")
 SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
+MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(
     r"^\[decomp\] (?P<name>\S+) @0x(?P<address>[0-9A-Fa-f]{8}): compared (?P<compared>\d+), equal (?P<equal>\d+), "
-    r"mismatched (?P<mismatched>\d+), not comparable (?P<not_comparable>\d+) \(calls (?P<calls>\d+)",
+    r"mismatched (?P<mismatched>\d+), not comparable (?P<not_comparable>\d+) \(calls (?P<calls>\d+)"
+    r"(?:.*?, nested in (?P<nested_equal>\d+) equal / (?P<nested_mismatched>\d+) mismatched cases)?",
     re.MULTILINE,
 )
+_MISMATCH_CASE = re.compile(r"^\[decomp\] mismatch case: 0x([0-9A-Fa-f]{8}) nested (\S+)$", re.MULTILINE)
 _FIRST_MISMATCH = re.compile(r"^\[decomp\]   first mismatch: (.*)$")
 _STOP = re.compile(r"^Runtime stopped: (.*)$", re.MULTILINE)
 # An active registration: GT_DECOMP(0x..u, ns::name, ...) or a subsystem's shorthand NAME(0x..u, name, ...).
@@ -56,6 +59,8 @@ class Stats:
     not_comparable: int = 0
     calls: int = 0
     first_mismatch: str = ""
+    nested_equal: int = 0       # ran inside another decompiled function's case that came out equal
+    nested_mismatched: int = 0  # ... or mismatched
 
 
 @dataclass(frozen=True)
@@ -75,12 +80,44 @@ def parse_report(text: str) -> dict[int, Stats]:
         if match:
             last = int(match["address"], 16)
             stats[last] = Stats(match["name"], *(int(match[k]) for k in
-                                                  ("compared", "equal", "mismatched", "not_comparable", "calls")))
+                                                  ("compared", "equal", "mismatched", "not_comparable", "calls")),
+                                nested_equal=int(match["nested_equal"] or 0),
+                                nested_mismatched=int(match["nested_mismatched"] or 0))
             continue
         first = _FIRST_MISMATCH.match(line)
         if first and last is not None and not stats[last].first_mismatch:
             stats[last] = replace(stats[last], first_mismatch=first[1])
     return stats
+
+
+def parse_mismatch_cases(text: str) -> set[tuple[int, frozenset[int]]]:
+    """Each distinct mismatching case of a run: the function whose case it was, and the decompiled functions
+    that ran nested in its decompiled run."""
+    return {(int(parent, 16), frozenset() if nested == "-" else frozenset(int(a, 16) for a in nested.split(",")))
+            for parent, nested in _MISMATCH_CASE.findall(text)}
+
+
+def attributed(sabotaged: set[int], cases: Iterable[tuple[int, frozenset[int]]]) -> set[int]:
+    """The sabotaged functions a mismatch can be pinned on: those that were the only sabotaged function in
+    some mismatching case (as its own function or nested in it). A case holding two sabotaged functions — a
+    parent and its decompiled callee — proves neither."""
+    found = set()
+    for parent, nested in cases:
+        culprits = ({parent} | nested) & sabotaged
+        if len(culprits) == 1:
+            found |= culprits
+    return found
+
+
+def next_round(ambiguous: set[int], cases: Iterable[tuple[int, frozenset[int]]]) -> set[int]:
+    """The ambiguous functions to sabotage next, together: lowest address first, skipping any that shared a
+    mismatching case with one already taken (they would make each other ambiguous again)."""
+    cases = list(cases)
+    taken: set[int] = set()
+    for address in sorted(ambiguous):
+        if not any(address in ({p} | n) and taken & ({p} | n) for p, n in cases):
+            taken.add(address)
+    return taken
 
 
 def not_installed(text: str) -> int:
@@ -100,24 +137,48 @@ def combine(reports: Iterable[dict[int, Stats]]) -> dict[int, Stats]:
             t = total.get(address)
             total[address] = s if t is None else Stats(
                 t.name, t.compared + s.compared, t.equal + s.equal, t.mismatched + s.mismatched,
-                t.not_comparable + s.not_comparable, t.calls + s.calls, t.first_mismatch or s.first_mismatch)
+                t.not_comparable + s.not_comparable, t.calls + s.calls, t.first_mismatch or s.first_mismatch,
+                t.nested_equal + s.nested_equal, t.nested_mismatched + s.nested_mismatched)
     return total
+
+
+def reached(s: Stats) -> bool:
+    """Compared in its own cases, or ran nested in another decompiled function's equal case."""
+    return s.compared > 0 or s.nested_equal > 0
+
+
+def detected(s: Stats) -> bool:
+    """A mismatch in its own cases or in a case it ran nested in (a sabotage shows up either way)."""
+    return s.mismatched > 0 or s.nested_mismatched > 0
 
 
 def summarize(total: dict[int, Stats]) -> Summary:
     return Summary(functions=len(total),
-                   compared=sum(1 for s in total.values() if s.compared > 0),
-                   mismatched=sum(1 for s in total.values() if s.mismatched > 0),
-                   never_compared=sum(1 for s in total.values() if s.compared == 0))
+                   compared=sum(1 for s in total.values() if reached(s)),
+                   mismatched=sum(1 for s in total.values() if detected(s)),
+                   never_compared=sum(1 for s in total.values() if not reached(s)))
+
+
+# A guest word in the kernel region (0x08000000-0x087FFFFF): compared by every case (the whole RAM is), never
+# touched by GT's user-mode code under the HLE kernel, so a bump there survives any caller.
+SABOTAGE_WORD = 0x08000F00
 
 
 def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
-    """Inserts `ctx.gpr[16] += 1u;` as the first statement of each named function; returns the names not found."""
+    """Inserts, as the first statement of each named function, a bump of s0 and of SABOTAGE_WORD; returns the
+    names not found. s0 alone isn't enough for a function reached only nested: a caller that saves and restores
+    s0 erases the bump (measured 2026-10-13); a RAM word survives it."""
     missing = []
     for name in names:
         pattern = re.compile(r"^(void " + re.escape(name) +
-                             r"\(psprecomp::Runtime &\w*, psprecomp::AllegrexContext &ctx\) \{)", re.MULTILINE)
-        source, count = pattern.subn(r"\1 ctx.gpr[16] += 1u;", source, count=1)
+                             r"\(psprecomp::Runtime &)(\w*)(, psprecomp::AllegrexContext &ctx\) \{)", re.MULTILINE)
+
+        def bump(match: re.Match) -> str:
+            rt = match[2] or "sabotage_rt"
+            return (f"{match[1]}{rt}{match[3]} ctx.gpr[16] += 1u; {rt}.memory().store32(0x{SABOTAGE_WORD:08X}u, "
+                    f"{rt}.memory().load32(0x{SABOTAGE_WORD:08X}u) + 1u);")
+
+        source, count = pattern.subn(bump, source, count=1)
         if count == 0:
             missing.append(name)
     return source, missing
@@ -264,6 +325,10 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
         import os
         env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
     clear_run(tag, Path("recomp/analysis"))
+    if subprocess.run([sys.executable, "-m", "tools.contract_audit"], stdout=subprocess.DEVNULL).returncode == 1:
+        print("contract audit: a GT_DECOMP_NESTED function has a caller reading a register its ReturnKind leaves "
+              "uncompared (.venv/bin/python -m tools.contract_audit)")
+        return 2
     subprocess.run(slice_limits(), check=True)
     recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
     recomp.acquire()
@@ -321,9 +386,11 @@ def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
     return status
 
 
-def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no cover - edits, runs, restores
+def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  # pragma: no cover - runs
+    """Sabotages `targets` (with every function of `only` installed), runs the fast gate, restores the file.
+    Returns the run's mismatching cases, or None when the sabotaged build didn't run."""
     original = file.read_text()
-    names = [n for a, n in registered_names(original).items() if a in set(only)]
+    names = [n for a, n in registered_names(original).items() if a in targets]
     sabotaged, missing = sabotage(original, names)
     if missing:
         print("not found in", file, ":", ", ".join(missing))
@@ -333,11 +400,32 @@ def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no c
     finally:
         file.write_text(original)
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
-        print("sabotage: the sabotaged build did not run")
-        return 2
-    total = combine(parse_report(Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").read_text(errors="replace"))
-                    for r, _ in ROUTES["full"] if Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").exists())
-    undetected = [f"0x{a:08X}" for a in only if total.get(a) is None or total[a].mismatched == 0]
+        return None
+    logs = [Path(f"recomp/analysis/gt_diff_{tag}_{r}.log") for r, _ in ROUTES["full"]]
+    return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists()))
+
+
+def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - edits, runs, restores
+                  also: Sequence[int] = ()) -> int:
+    """Sabotages `only`; `also` is installed too (their callers or callees) without being sabotaged."""
+    installed = sorted(set(only) | set(also))
+    targets = set(only)
+    seen: set[tuple[int, frozenset[int]]] = set()
+    found: set[int] = set()
+    for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
+        cases = _sabotage_round(f"{tag}s{round_number}", file, installed, targets)
+        if cases is None:
+            print("sabotage: the sabotaged build did not run")
+            return 2
+        new = attributed(targets, cases)  # only this round's cases: they hold only this round's sabotage
+        found |= new
+        seen |= cases
+        print(f"sabotage round {round_number}: {len(targets)} sabotaged, {len(new)} pinned")
+        ambiguous = {a for a in set(only) - found if any(a == p or a in n for p, n in seen)}
+        targets = next_round(ambiguous, seen)
+        if not targets:
+            break
+    undetected = [f"0x{a:08X}" for a in only if a not in found]
     print(f"sabotage: {len(only) - len(undetected)}/{len(only)} detected; undetected: {undetected}")
     return 0 if not undetected else 1
 
@@ -354,6 +442,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     sab.add_argument("tag")
     sab.add_argument("--file", type=Path, required=True)
     sab.add_argument("--only", required=True)
+    sab.add_argument("--also", default="", help="installed but not sabotaged (e.g. the decompiled callers of "
+                                                "functions reached only nested)")
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -362,7 +452,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "full":
         return _run_gate("full", args.tag, None)
     if args.command == "sabotage":
-        return _sabotage_run(args.tag, args.file, parse_only(args.only))
+        return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else ())
     return _report(args.tag)
 
 

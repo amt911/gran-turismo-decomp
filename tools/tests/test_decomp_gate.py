@@ -15,7 +15,7 @@ Runtime stopped: Wall-clock limit reached at 0x08C7AC18
 [decomp] gt::game::race_operator::window_max @0x0885BBBC: compared 1, equal 1, mismatched 0, not comparable 0 (calls 3, cases that changed memory 0)
 [decomp] gt::game::func_088D4C9C @0x088D4C9C: compared 4, equal 3, mismatched 1, not comparable 2 (calls 9, cases that changed memory 1)
 [decomp]   first mismatch: v0: original 0x00000001, decompiled 0x00000000 (a0=0x09F00000 a1=0x00000000 a2=0x00000000)
-[decomp] gt::game::spec_db::get_car_price @0x08930E08: compared 0, equal 0, mismatched 0, not comparable 0 (calls 0, cases that changed memory 0)
+[decomp] gt::game::spec_db::get_car_price @0x08930E08: compared 0, equal 0, mismatched 0, not comparable 0 (calls 0, cases that changed memory 0, nested in 3 equal / 1 mismatched cases)
 [decomp]   warning: never compared in this run
 [decomp] gt::game::x @0x08800000: no recompiled function at 0x08800000, not installed
 """
@@ -53,7 +53,7 @@ def test_combine_sums_the_routes_per_address():
 def test_summary_counts_equal_mismatched_and_never_compared():
     total = gate.combine([gate.parse_report(REPORT)])
     summary = gate.summarize(total)
-    assert summary == gate.Summary(functions=3, compared=2, mismatched=1, never_compared=1)
+    assert summary == gate.Summary(functions=3, compared=3, mismatched=2, never_compared=0)
 
 
 SOURCE = """\
@@ -65,11 +65,15 @@ void untouched(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { }
 """
 
 
-def test_sabotage_bumps_s0_at_the_entry_of_each_named_function():
+def test_sabotage_bumps_s0_and_a_kernel_ram_word_at_the_entry_of_each_named_function():
     out, missing = gate.sabotage(SOURCE, ["func_088D4C9C", "window_max"])
     assert missing == []
-    assert "void func_088D4C9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; ctx.gpr[2]" in out
-    assert "void window_max(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u;\n" in out
+    bump = "ctx.gpr[16] += 1u; {0}.memory().store32(0x08000F00u, {0}.memory().load32(0x08000F00u) + 1u);"
+    assert ("void func_088D4C9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { " + bump.format("rt") +
+            " ctx.gpr[2]") in out
+    # an unnamed runtime parameter gets a name for the memory bump
+    assert ("void window_max(psprecomp::Runtime &sabotage_rt, psprecomp::AllegrexContext &ctx) { " +
+            bump.format("sabotage_rt") + "\n") in out
     assert "void untouched(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { }" in out
 
 
@@ -132,6 +136,19 @@ def test_heavy_slot_lets_two_jobs_in_and_makes_a_third_wait(tmp_path):
     third.release()
 
 
+def test_parse_report_reads_the_nested_counts():
+    stats = gate.parse_report(REPORT)
+    assert (stats[0x08930E08].nested_equal, stats[0x08930E08].nested_mismatched) == (3, 1)
+    assert (stats[0x0885BBBC].nested_equal, stats[0x0885BBBC].nested_mismatched) == (0, 0)  # older report format
+
+
+def test_a_function_compared_only_nested_counts_as_reached_and_its_nested_mismatch_as_detected():
+    total = gate.combine([gate.parse_report(REPORT), gate.parse_report(REPORT)])
+    assert total[0x08930E08].nested_equal == 6
+    assert gate.reached(total[0x08930E08]) and not gate.reached(gate.Stats("x"))
+    assert gate.detected(total[0x08930E08]) and not gate.detected(total[0x0885BBBC])
+
+
 def test_route_problem_flags_a_timeout_a_missing_report_and_a_crash():
     assert gate.route_problem(REPORT, "0") is None
     assert "timed out" in gate.route_problem(REPORT, "124")
@@ -186,3 +203,39 @@ def test_clear_run_removes_a_tags_old_logs_and_exit_codes(tmp_path):
     (tmp_path / "gt_diff_t2_race.log").write_text("other tag")
     gate.clear_run("t1", tmp_path)
     assert [p.name for p in tmp_path.iterdir()] == ["gt_diff_t2_race.log"]
+
+
+MISMATCH_CASES = """\
+[decomp] mismatch case: 0x08900000 nested 0x08900100,0x08900200
+[decomp] mismatch case: 0x08900300 nested -
+[decomp] mismatch case: 0x08900000 nested 0x08900200
+"""
+
+
+def test_parse_mismatch_cases_reads_each_case_and_what_ran_nested_in_it():
+    assert gate.parse_mismatch_cases(MISMATCH_CASES) == {
+        (0x08900000, frozenset({0x08900100, 0x08900200})),
+        (0x08900300, frozenset()),
+        (0x08900000, frozenset({0x08900200})),
+    }
+
+
+def test_a_sabotage_counts_only_where_it_was_the_one_sabotaged_function_in_the_case():
+    cases = gate.parse_mismatch_cases(MISMATCH_CASES)
+    # parent 0x08900000 and its children sabotaged together: the first case can't tell who caused it, the
+    # third can't either; 0x08900300's own case had nothing nested
+    assert gate.attributed({0x08900000, 0x08900100, 0x08900200, 0x08900300}, cases) == {0x08900300}
+    # children sabotaged without their parent: 0x08900200 alone in the third case; 0x08900100 never alone
+    assert gate.attributed({0x08900100, 0x08900200}, cases) == {0x08900200}
+    assert gate.attributed({0x08900100}, cases) == {0x08900100}
+
+
+def test_the_next_sabotage_round_takes_ambiguous_functions_that_never_shared_a_mismatching_case():
+    cases = gate.parse_mismatch_cases(MISMATCH_CASES)
+    # all four sabotaged: 0x08900300 attributed; the other three only ever mismatched together
+    ambiguous = {0x08900000, 0x08900100, 0x08900200}
+    first = gate.next_round(ambiguous, cases)
+    assert first == {0x08900000}  # lowest address first; its callees shared its cases
+    second = gate.next_round(ambiguous - first, cases)
+    assert second == {0x08900100}  # 0x08900100 and 0x08900200 shared the first case
+    assert gate.next_round(set(), cases) == set()

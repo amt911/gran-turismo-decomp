@@ -5,7 +5,7 @@
 // Engine functions take the CarCollectionData in a0 (the script object's engine object); the natives are
 // `MCarCollection_<method>`. Engine functions with no script name keep func_XXXXXXXX. Registered
 // functions replace the recompiled originals; the ones commented out at the end are never compared on
-// their own by the pad routes (the harness replays nested calls), so the gate can't verify them.
+// their own by the pad routes (nested in decompiled callers they ran as originals until nested verification; see their registrations), so the gate can't verify them.
 //
 // Modding: the garage limits and the ownership queries come out of here (getOneCarMax is the constant 10,
 // the favourites are 30 slots); a mod that wants a bigger garage changes them. Keep the original
@@ -229,7 +229,7 @@ void MCarCollection_getCarCount(psprecomp::Runtime &rt, psprecomp::AllegrexConte
 
 namespace car_collection_registrations {
 using gt::ReturnKind;
-#define CAR_COLLECTION(address, name, kind) GT_DECOMP(address, gt::game::car_collection::name, ReturnKind::kind)
+#define CAR_COLLECTION(address, name, kind) GT_DECOMP_NESTED(address, gt::game::car_collection::name, ReturnKind::kind)
 
 CAR_COLLECTION(0x0881D538u, MCarCollection_hasCar, Void);
 CAR_COLLECTION(0x0881E6C0u, MCarCollection_hasFavorite, Void);
@@ -241,10 +241,12 @@ CAR_COLLECTION(0x0881AA44u, func_0881AA44, Word);
 CAR_COLLECTION(0x0881D7F0u, MCarCollection_getMyAllCarCount, Void);
 CAR_COLLECTION(0x0881D674u, MCarCollection_getCarCount, Void);
 CAR_COLLECTION(0x0881AEA4u, has_favorite, Word);
-// Not registered: compared 0 in every fast, dense and full run (the pad routes never call them on their own, and the
-// harness replays nested calls), so nothing could verify them; they run as the recompiled originals.
-// CAR_COLLECTION(0x0881A840u, func_0881A840, Word);
-// CAR_COLLECTION(0x0881A8F0u, func_0881A8F0, Word);
+// Verified through nested verification (2026-10-13): compared directly (9 and 3 cases) once the whole
+// subsystem was installed, 0 mismatches, sabotage pinned on each.
+CAR_COLLECTION(0x0881A840u, func_0881A840, Word);
+CAR_COLLECTION(0x0881A8F0u, func_0881A8F0, Word);
+// Not registered: compared 0 in every fast, dense and full run (the pad routes never call them on their own,
+// directly or through a decompiled caller), so nothing could verify them; they run as the recompiled originals.
 // CAR_COLLECTION(0x0881A9CCu, get_flg, Word);
 // CAR_COLLECTION(0x0881AF28u, get_favorite_size, Word);
 // CAR_COLLECTION(0x0881AF30u, get_car_count_favorite, Word);
