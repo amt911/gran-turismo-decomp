@@ -11,6 +11,11 @@ lives in this repo when it became one.
   before raising a limit. Here a full build peaked at 0.9 GB under a 6 GB cap: more RAM would not have
   helped (AGENTS.md § Heavy jobs). The real limits were serialization (one global lock for every heavy job) and gates that run in
   real time.
+- **A shared ceiling still needs the big jobs kept apart.** Below `MemoryMax` the slice doesn't kill, it
+  throttles at `MemoryHigh` — and a throttled real-time test times out. Know each heavy step's peak
+  (here recomp 3.8 GB, a gcc build 3.76 GB vs clang far less) and give the biggest one the whole slice.
+- **A run that timed out or printed nothing is a failure, not "0 mismatches".** The gate tool once
+  summed four empty, timed-out routes into "0 mismatched, rc=0".
 - **Cap the total, not each job.** Put all heavy jobs in one systemd slice with the memory ceiling
   (`--slice=<name>.slice`, `MemoryMax` on the slice) and let several run at once. A per-job cap plus a
   global lock gives safety but serializes everything; a shared slice gives the same safety in parallel.

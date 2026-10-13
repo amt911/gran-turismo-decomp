@@ -168,34 +168,66 @@ def heavy(command: Sequence[str]) -> list[str]:
 
 
 class HeavySlot:
-    """One of len(locks) slots for a heavy job: at most that many run at once (flock on one file each)."""
+    """One of len(locks) slots for a heavy job: at most that many run at once (flock on one file each).
 
-    def __init__(self, locks: Sequence[Path] = SLOTS):
+    An exclusive slot holds every lock, for a step too big to share the ceiling: tools.recomp peaks at
+    3.8 GB, so beside a gate or a second recomp it pushes the slice into throttling, and throttled gates
+    time out on their real-time routes (measured 2026-10-13).
+    """
+
+    def __init__(self, locks: Sequence[Path] = SLOTS, exclusive: bool = False):
         self._locks = list(locks)
-        self._file = None
+        self._exclusive = exclusive
+        self._files: list = []
+
+    @staticmethod
+    def _try(path: Path):
+        import fcntl
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            return None
+        return handle
 
     def acquire(self, block: bool = True) -> bool:
-        import fcntl
         import time
         while True:
-            for path in self._locks:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
-                try:
-                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError:
+            if self._exclusive:
+                held = [h for h in (self._try(p) for p in self._locks) if h is not None]
+                if len(held) == len(self._locks):
+                    self._files = held
+                    return True
+                for handle in held:
                     handle.close()
-                    continue
-                self._file = handle
-                return True
+            else:
+                for path in self._locks:
+                    handle = self._try(path)
+                    if handle is not None:
+                        self._files = [handle]
+                        return True
             if not block:
                 return False
             time.sleep(2)
 
     def release(self) -> None:
-        if self._file is not None:
-            self._file.close()  # closing drops the flock
-            self._file = None
+        for handle in self._files:
+            handle.close()  # closing drops the flock
+        self._files = []
+
+
+def route_problem(text: str, exit_code: str) -> str | None:
+    """Why a route's run can't be trusted, or None. Exit 2 is gt_native's "mismatches found", which the
+    per-function lines already report; a timeout, a crash or a missing report fails on its own."""
+    if exit_code == "124":
+        return "timed out (killed by timeout; no trustworthy report)"
+    if not _LINE.search(text):
+        return "no report (the run ended before printing its results)"
+    if exit_code not in ("0", "2"):
+        return f"exit {exit_code}"
+    return None
 
 
 def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no cover - drives the build
@@ -204,6 +236,16 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
         import os
         env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
     subprocess.run(slice_limits(), check=True)
+    recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
+    recomp.acquire()
+    try:
+        recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
+                                   stdout=subprocess.DEVNULL).returncode == 0
+    finally:
+        recomp.release()
+    if not recomp_ok:
+        print("recomp failed")
+        return 2
     slot = HeavySlot()
     slot.acquire()
     try:
@@ -213,9 +255,6 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
 
 
 def _gate_steps(kind: str, tag: str, env: dict[str, str] | None) -> int:  # pragma: no cover - drives the build
-    if subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]), stdout=subprocess.DEVNULL).returncode != 0:
-        print("recomp failed")
-        return 2
     build = subprocess.run(heavy(["cmake", "--build", "build", f"-j{BUILD_JOBS}"]), capture_output=True, text=True)
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
@@ -238,7 +277,10 @@ def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
         print(f"{route}: exit {code}, {stop_reason(text)}; {s.functions} functions, {s.compared} compared, "
               f"{s.mismatched} mismatched, {not_installed(text)} not installed")
         reports.append(report)
-        if s.mismatched or not_installed(text):
+        problem = route_problem(text, code)
+        if problem:
+            print(f"  {route}: {problem}")
+        if s.mismatched or not_installed(text) or problem:
             status = 1
     total = combine(reports)
     s = summarize(total)

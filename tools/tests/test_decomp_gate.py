@@ -130,3 +130,26 @@ def test_heavy_slot_lets_two_jobs_in_and_makes_a_third_wait(tmp_path):
     assert third.acquire(block=False)
     second.release()
     third.release()
+
+
+def test_route_problem_flags_a_timeout_a_missing_report_and_a_crash():
+    assert gate.route_problem(REPORT, "0") is None
+    assert "timed out" in gate.route_problem(REPORT, "124")
+    assert "no report" in gate.route_problem("Running from entry 0x0880410C\n", "0")
+    assert "exit 1" in gate.route_problem(REPORT, "1")
+    assert gate.route_problem(REPORT, "2") is None  # 2 = mismatches, reported by the per-function lines
+
+
+def test_an_exclusive_slot_takes_every_lock(tmp_path):
+    locks = [tmp_path / "a.lock", tmp_path / "b.lock"]
+    shared = gate.HeavySlot(locks)
+    assert shared.acquire(block=False)
+    exclusive = gate.HeavySlot(locks, exclusive=True)
+    assert not exclusive.acquire(block=False)  # one slot is taken
+    shared.release()
+    assert exclusive.acquire(block=False)
+    other = gate.HeavySlot(locks)
+    assert not other.acquire(block=False)  # the exclusive job holds both
+    exclusive.release()
+    assert other.acquire(block=False)
+    other.release()
