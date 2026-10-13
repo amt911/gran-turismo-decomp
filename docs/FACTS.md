@@ -248,3 +248,14 @@ the line says otherwise.
   engine object at `+0x14`; the engine object starts with the day number (`0x08B1B2F4` year/month/day, the
   first day is 2009-10-01) and holds a ring of 100 events of 148 bytes from `+0x14`, with the count at
   `+0x10`. *(verified: the engine functions the handlers call, `src/game/calendar/calendar.cpp`)*
+- MSpecDB: 86 static natives (registrar `0x08B86FB0`, handlers `0x0883A3D4..0x08841500`), no attributes. A car or
+  course code is a 64-bit key, `(id, table number)` as `(low, high)`: table 0 for cars and 34 for courses
+  (`CarCode32ToCarCode64` / `CourseCode32ToCourseCode64`); a car record is 32 bytes (price at `+0x08`,
+  year `+0x0C`, category `+0x15`), a course record 28 bytes (condition `+0x14`, max entry `+0x15`); the
+  maker table has 96 entries and the tuner table 114 (`getMakerSize` / `getTunerSize` store them). *(verified:
+  the engine functions the natives call, `src/game/specdb/spec_db.cpp`)*
+- **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
+  exercised by its decompiled parent's cases (a value sabotage of such an engine function went
+  undetected). A child gets its own cases when the routes reach it outside the parent's cases (the
+  parent runs unsampled and reaches the child's trampoline); a child reached only inside sampled parent
+  calls, or never, has none, and stays unregistered. *(verified: sabotage of `get_car_price`)*

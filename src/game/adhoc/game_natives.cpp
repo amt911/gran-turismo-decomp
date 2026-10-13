@@ -43,31 +43,6 @@ constexpr std::uint32_t kArgumentAsSoundContext = 0x08A22050u;  // (holder *out,
 constexpr std::uint32_t kOrganizerSetSoundContext = 0x088294D8u; // (organizer *, holder *)
 constexpr std::uint32_t kSelfAsRaceOperator = 0x088248E4u;   // (holder *out) [a1 = self]
 constexpr std::uint32_t kRaceOperatorSetOrganizer = 0x0885BB9Cu; // (operator engine object, organizer object)
-constexpr std::uint32_t kCarLabelCount = 0x08931090u;        // () -> int
-constexpr std::uint32_t kCarCode = 0x0883B848u;              // (argv) -> 64-bit car code
-constexpr std::uint32_t kCourseCode = 0x0883B950u;           // (argv) -> 64-bit course code
-constexpr std::uint32_t kCarCategory = 0x08930D98u;          // (u64 car code) -> category
-constexpr std::uint32_t kCourseCondition = 0x0893069Cu;      // (u64 course code) -> condition
-constexpr std::uint32_t kCarPrice = 0x08930E08u;             // (u64 car code) -> price in credits
-constexpr std::uint32_t kCarSpecConstruct = 0x0893600Cu;     // (spec *) — a 0x188-byte stack object
-constexpr std::uint32_t kCarSpecLoad = 0x08935B10u;          // (spec *, -, u64 car code)
-constexpr std::uint32_t kCarSpecVariation = 0x0893273Cu;     // (spec *) -> variation (colour count)
-constexpr std::uint32_t kCarSpecDestroy = 0x08932448u;       // (spec *)
-constexpr std::uint32_t kSnprintf = 0x08B3767Cu;             // src/libc (snprintf)
-constexpr std::uint32_t kMemset = 0x08B36018u;               // src/libc (memset)
-constexpr std::uint32_t kNoSuchCar = 0x08C8821Cu;            // "no such car" (12 bytes with its NUL)
-constexpr std::uint32_t kNoSuchCarColor = 0x08C9C434u;       // "no such car ..." (colour-name fallback)
-constexpr std::uint32_t kCarName = 0x089311ECu;              // (u64 car code, char *buffer, size)
-constexpr std::uint32_t kCarSpecSetColor = 0x08932748u;      // (spec *, colour index)
-constexpr std::uint32_t kCarSpecColorName = 0x08936268u;     // (spec *) -> const char * or NULL
-constexpr std::uint32_t kCatalogNone = 0x08C9C45Cu;          // "---"
-constexpr std::uint32_t kCatalogPlain = 0x08C9C46Cu;         // "%d"
-constexpr std::uint32_t kCatalogKg = 0x08C9C47Cu;            // "%d kg"
-constexpr std::uint32_t kCatalogMm = 0x08C9C484u;            // "%d mm"
-constexpr std::uint32_t kCarSpecMass = 0x08932AECu;          // (spec *) -> kg
-constexpr std::uint32_t kCarSpecLength = 0x08932A38u;        // (spec *) -> mm
-constexpr std::uint32_t kCarSpecHeight = 0x08932A74u;        // (spec *) -> mm
-constexpr std::uint32_t kCarSpecWidth = 0x08932AB0u;         // (spec *) -> mm
 constexpr std::uint32_t kLoadContainer = 0x08808F2Cu;        // (holder *out, argc, argv, is_array, element factory)
 constexpr std::uint32_t kCarArrayElement = 0x08808640u;      // element factory of loadCarArray
 constexpr std::uint32_t kCourseMapElement = 0x088085B8u;     // element factory of loadCourseMap
@@ -271,61 +246,9 @@ void MRaceOperator_setOrganizer(psprecomp::Runtime &rt, psprecomp::AllegrexConte
     destroy(rt, ctx, organizer);
 }
 
-// MSpecDB.getCarLabelCount() -> integer.
-void MSpecDB_getCarLabelCount(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x20u);
-    return_integer(rt, ctx, result, frame.at(0u), call_guest(rt, ctx, kCarLabelCount, {}));
-}
 
-// MSpecDB.getCarCode(label) -> 64-bit car code (module function: result, argc, argv).
-void MSpecDB_getCarCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
-    const std::uint32_t argv = ctx.gpr[6];
-    if (argc <= 0) return;
-    GuestFrame frame(ctx, 0x20u);
-    const std::uint32_t value = frame.at(0u);
-    const GuestResult code = call_guest(rt, ctx, kCarCode, {argv}, {});
-    return_long(rt, ctx, result, value, code.v0, code.v1);
-}
 
-// MSpecDB.getCarCategory(car) / getCourseCondition(course) / isDirt(course): look the code up and
-// return the integer (isDirt: whether the course condition is 2 or 3). Module functions:
-// (result, argc, argv); nothing happens without an argument.
-void spec_lookup(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t code_of, std::uint32_t lookup,
-                 bool dirt) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
-    const std::uint32_t argv = ctx.gpr[6];
-    if (argc <= 0) return;
-    GuestFrame frame(ctx, 0x20u);
-    const GuestResult code = call_guest(rt, ctx, code_of, {argv}, {});
-    const std::uint32_t value = call_guest(rt, ctx, lookup, {code.v0, code.v1});
-    if (dirt) return_bool(rt, ctx, result, frame.at(0u), value - 2u < 2u ? 1u : 0u);
-    else return_integer(rt, ctx, result, frame.at(0u), value);
-}
-void MSpecDB_getCarCategory(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { spec_lookup(rt, ctx, kCarCode, kCarCategory, false); }
-void MSpecDB_getCourseCondition(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { spec_lookup(rt, ctx, kCourseCode, kCourseCondition, false); }
-void MSpecDB_isDirt(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { spec_lookup(rt, ctx, kCourseCode, kCourseCondition, true); }
-void MSpecDB_getCarPrice(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { spec_lookup(rt, ctx, kCarCode, kCarPrice, false); }
 
-// MSpecDB.getCarVariation(car) -> the car's variation count, read from a spec record built on the
-// stack (constructed, loaded for the car code, read, destroyed). Module function: (result, argc, argv).
-void MSpecDB_getCarVariation(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
-    const std::uint32_t argv = ctx.gpr[6];
-    if (argc <= 0) return;
-    GuestFrame frame(ctx, 0x1A0u);
-    const std::uint32_t spec = frame.at(8u);
-    (void)call_guest(rt, ctx, kCarSpecConstruct, {spec});
-    const GuestResult code = call_guest(rt, ctx, kCarCode, {argv}, {});
-    (void)call_guest(rt, ctx, kCarSpecLoad, {spec, ctx.gpr[5], code.v0, code.v1});
-    const std::uint32_t variation = call_guest(rt, ctx, kCarSpecVariation, {spec});
-    return_integer(rt, ctx, result, frame.at(0u), variation);
-    (void)call_guest(rt, ctx, kCarSpecDestroy, {spec});
-}
 
 // loadCarArray(...) / loadCourseMap(...): the shared loader, building an array of cars or a map of
 // courses from the arguments; its result goes to *result. Module functions: (result, argc, argv).
@@ -362,75 +285,8 @@ void MSceneFace_setClearColorBuffer(psprecomp::Runtime &rt, psprecomp::AllegrexC
     return_integer(rt, ctx, result, frame.at(0u), done);
 }
 
-// MSpecDB.getCarCatalogMs/Length/Height/Width(car[, with_unit]) -> the catalogue sheet's text for one
-// value of the car: "---" when it is 0, otherwise "%d" plus the unit unless toInt(argv[1]) is 0. Module
-// functions: (result, argc, argv); nothing happens without an argument.
-void car_catalog_text(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t read,
-                      std::uint32_t with_unit) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
-    const std::uint32_t argv = ctx.gpr[6];
-    if (argc <= 0) return;
-    GuestFrame frame(ctx, 0x230u);
-    const std::uint32_t text = frame.at(0xCu);
-    const std::uint32_t spec = frame.at(0x90u);
-    (void)call_guest(rt, ctx, kCarSpecConstruct, {spec});
-    const GuestResult code = call_guest(rt, ctx, kCarCode, {argv}, {});
-    (void)call_guest(rt, ctx, kCarSpecLoad, {spec, ctx.gpr[5], code.v0, code.v1});
-    const std::uint32_t value = call_guest(rt, ctx, read, {spec});
-    if (value == 0u) {
-        for (std::uint32_t i = 0u; i < 4u; ++i) rt.memory().store8(text + i, rt.memory().load8(kCatalogNone + i));
-    } else {
-        bool unit = true;
-        if (argc != 1) {
-            const std::uint32_t flag = rt.memory().load32(argv + 4u);
-            unit = call_guest(rt, ctx, virtual_function(rt, flag, kToIntSlot), {flag}) != 0u;
-        }
-        (void)call_guest(rt, ctx, kSnprintf, {text, 0x80u, unit ? with_unit : kCatalogPlain, value});
-    }
-    return_c_string(rt, ctx, result, text);
-    (void)call_guest(rt, ctx, kCarSpecDestroy, {spec});
-}
-void MSpecDB_getCarCatalogMs(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_catalog_text(rt, ctx, kCarSpecMass, kCatalogKg); }
-void MSpecDB_getCarCatalogLength(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_catalog_text(rt, ctx, kCarSpecLength, kCatalogMm); }
-void MSpecDB_getCarCatalogHeight(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_catalog_text(rt, ctx, kCarSpecHeight, kCatalogMm); }
-void MSpecDB_getCarCatalogWidth(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_catalog_text(rt, ctx, kCarSpecWidth, kCatalogMm); }
 
-// MSpecDB.getCarName(car) -> the car's name; "no such car" when the lookup leaves the buffer alone.
-// Module function: (result, argc, argv); nothing happens without an argument.
-void MSpecDB_getCarName(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
-    const std::uint32_t argv = ctx.gpr[6];
-    if (argc <= 0) return;
-    GuestFrame frame(ctx, 0x130u);
-    const std::uint32_t name = frame.at(0xCu);  // char[0x100]
-    for (std::uint32_t i = 0u; i < 12u; i += 4u) rt.memory().store32(name + i, rt.memory().load32(kNoSuchCar + i));
-    (void)call_guest(rt, ctx, kMemset, {name + 12u, 0u, 0x100u - 12u});
-    const GuestResult code = call_guest(rt, ctx, kCarCode, {argv}, {});
-    (void)call_guest(rt, ctx, kCarName, {code.v0, code.v1, name, 0x100u});
-    return_c_string(rt, ctx, result, name);
-}
 
-// MSpecDB.getCarColorName(car, colour) -> the name of the car's colour `toInt(argv[1])`, or a
-// "no such car" text when there is none. Module function: (result, argc, argv); needs 2 arguments.
-void MSpecDB_getCarColorName(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
-    const std::uint32_t argv = ctx.gpr[6];
-    if (argc < 2) return;
-    GuestFrame frame(ctx, 0x1B0u);
-    const std::uint32_t spec = frame.at(0x10u);
-    (void)call_guest(rt, ctx, kCarSpecConstruct, {spec});
-    const GuestResult code = call_guest(rt, ctx, kCarCode, {argv}, {});
-    (void)call_guest(rt, ctx, kCarSpecLoad, {spec, ctx.gpr[5], code.v0, code.v1});
-    const std::uint32_t colour_object = rt.memory().load32(argv + 4u);
-    const std::uint32_t colour = call_guest(rt, ctx, virtual_function(rt, colour_object, kToIntSlot), {colour_object});
-    (void)call_guest(rt, ctx, kCarSpecSetColor, {spec, colour});
-    const std::uint32_t colour_name = call_guest(rt, ctx, kCarSpecColorName, {spec});
-    return_c_string(rt, ctx, result, colour_name != 0u ? colour_name : kNoSuchCarColor);
-    (void)call_guest(rt, ctx, kCarSpecDestroy, {spec});
-}
 
 // pdistd.IsDebugVersion() -> 0: this is the release build.
 void pdistd_IsDebugVersion(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -1063,25 +919,12 @@ GT_DECOMP(0x0884D9F0u, gt::adhoc::game::MCarDriverParameter_setDefault, gt::Retu
 GT_DECOMP(0x088297E8u, gt::adhoc::game::MOrganizer_setRaceSound, gt::ReturnKind::Void);
 GT_DECOMP(0x08829868u, gt::adhoc::game::MOrganizer_setSoundContext, gt::ReturnKind::Void);
 GT_DECOMP(0x08824E88u, gt::adhoc::game::MRaceOperator_setOrganizer, gt::ReturnKind::Void);
-GT_DECOMP(0x0883BD04u, gt::adhoc::game::MSpecDB_getCarLabelCount, gt::ReturnKind::Void);
-GT_DECOMP(0x0883BF90u, gt::adhoc::game::MSpecDB_getCarCode, gt::ReturnKind::Void);
 GT_DECOMP(0x08805FD0u, gt::adhoc::game::CreateGameRecordStructure, gt::ReturnKind::Void);
-GT_DECOMP(0x0883D9E8u, gt::adhoc::game::MSpecDB_getCarCategory, gt::ReturnKind::Void);
-GT_DECOMP(0x0883F948u, gt::adhoc::game::MSpecDB_getCourseCondition, gt::ReturnKind::Void);
-GT_DECOMP(0x08840FA8u, gt::adhoc::game::MSpecDB_isDirt, gt::ReturnKind::Void);
-GT_DECOMP(0x0883D928u, gt::adhoc::game::MSpecDB_getCarPrice, gt::ReturnKind::Void);
-GT_DECOMP(0x0883C2FCu, gt::adhoc::game::MSpecDB_getCarVariation, gt::ReturnKind::Void);
 GT_DECOMP(0x08A4C848u, gt::adhoc::game::pdistd_IsDebugVersion, gt::ReturnKind::Void);
 // Not comparable: the loader reads files (sceIo), which a harness case can't replay.
 // GT_DECOMP(0x088094DCu, gt::adhoc::game::loadCarArray, gt::ReturnKind::Void);
 // GT_DECOMP(0x08809528u, gt::adhoc::game::loadCourseMap, gt::ReturnKind::Void);
 GT_DECOMP(0x0880C2D4u, gt::adhoc::game::MSceneFace_setClearColorBuffer, gt::ReturnKind::Void);
-GT_DECOMP(0x0883CE74u, gt::adhoc::game::MSpecDB_getCarCatalogMs, gt::ReturnKind::Void);
-GT_DECOMP(0x0883C0BCu, gt::adhoc::game::MSpecDB_getCarName, gt::ReturnKind::Void);
-GT_DECOMP(0x0883C390u, gt::adhoc::game::MSpecDB_getCarColorName, gt::ReturnKind::Void);
-GT_DECOMP(0x0883CFFCu, gt::adhoc::game::MSpecDB_getCarCatalogLength, gt::ReturnKind::Void);
-GT_DECOMP(0x0883D184u, gt::adhoc::game::MSpecDB_getCarCatalogHeight, gt::ReturnKind::Void);
-GT_DECOMP(0x0883D30Cu, gt::adhoc::game::MSpecDB_getCarCatalogWidth, gt::ReturnKind::Void);
 GT_DECOMP(0x08A27F20u, gt::adhoc::game::MProductInformation_GetParentalLevel, gt::ReturnKind::Void);
 GT_DECOMP(0x08A35648u, gt::adhoc::game::MSound_stopMusic, gt::ReturnKind::Void);
 GT_DECOMP(0x08806384u, gt::adhoc::game::InitializeGameRecord, gt::ReturnKind::Void);
