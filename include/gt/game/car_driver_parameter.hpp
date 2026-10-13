@@ -8,8 +8,7 @@
 // active_steering, academy_flag and special_driver_model_identity. The script object holds a handle (0x0884D660
 // and 0x0884D3D8 give it); the handle's first word points to the 184-byte data (0x08897B8C allocates 184
 // bytes). A field takes the attribute's or method's name when its engine function reads or writes it
-// (config/symbol_addrs.txt lists each address); fields without such a name are unk_XX. The two
-// big-endian words are the ones MCarDriverParameter's pack sends online. Struct names are ours, not GT's.
+// (config/symbol_addrs.txt lists each address); fields without such a name are unk_XX. Struct names are ours, not GT's.
 #pragma once
 
 #include "gt/guest.hpp"
@@ -33,13 +32,15 @@ struct CarDriverParameterData : guest::Layout {
     // getRTAUnadjustable reads it (0x08897094).
     GT_FIELD(std::uint8_t, rta_unadjustable, 0x99);
     GT_FIELD(guest::be32, type, 0x9C);                  // attribute type: 0x08897574 / 0x088977D4; isHuman: type == 0
-    GT_FIELD(guest::be32, user_number, 0xA0);           // setPlayer stores it (0x08897554); getControllerPort reads it
+    // setPlayer stores it (0x08897554) and getControllerPort (0x0889779C) returns it for a human driver; no GT
+    // name ties it to an attribute (user_number's handler 0x0884DEA0 uses the word +0x88 instead), so unk_A0.
+    GT_FIELD(guest::be32, unk_A0, 0xA0);
     GT_FIELD(std::uint8_t, unk_A8, 0xA8);               // MCarDriverParameter::setAISkill: 0x0889722C stores its second argument, clamped to 10..200
     GT_FIELD(std::uint8_t, unk_AB, 0xAB);               // ... and its first
     GT_FIELD(std::uint8_t, unk_AD, 0xAD);               // 0x088970EC stores (v clamped to 0..100) + 1
     GT_FIELD(std::uint8_t, ai_level, 0xAF);             // MCarDriverParameter::setAILevel: 0x08897290 stores (v clamped to 0..100) + 1
-    // attribute special_driver_model_identity (0x08897130 / 0x08897118): a value below 7 goes to +0xB0, a larger
-    // one to +0xB1, and the other byte is cleared; the getter answers +0xB1 when it is positive, else +0xB0.
+    // attribute special_driver_model_identity (0x08897130 / 0x08897118): a value below 7 goes to +0xB0, 7 or more
+    // to +0xB1, and the other byte is cleared; the getter answers +0xB1 when it is positive, else +0xB0.
     GT_FIELD(std::int8_t, unk_B0, 0xB0);
     GT_FIELD(std::int8_t, special_driver_model_identity, 0xB1);
 };

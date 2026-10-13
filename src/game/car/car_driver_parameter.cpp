@@ -137,12 +137,12 @@ void rta_unadjustable(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void set_player(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const View<CarDriverParameterData> data = data_of(rt, ctx);
     data.type() = 0u;
-    data.user_number() = ctx.gpr[5];
+    data.unk_A0() = ctx.gpr[5];
 }
 // getControllerPort: the user number of a human driver, else -1.
 void get_controller_port(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const View<CarDriverParameterData> data = data_of(rt, ctx);
-    ctx.gpr[2] = data.type() != 0u ? 0xFFFFFFFFu : data.user_number().value();
+    ctx.gpr[2] = data.type() != 0u ? 0xFFFFFFFFu : data.unk_A0().value();
 }
 // setDefault: clears the driver's settings (140 bytes), marks it as having no player (type -1) and resets the
 // AI bytes, then hands the data to func_08896D94.

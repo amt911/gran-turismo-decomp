@@ -112,7 +112,6 @@ constexpr std::uint32_t kSoundPlayWith = 0x08A34D98u;        // (sound *, std::s
 constexpr std::uint32_t kSelfAsMenuObjectManager = 0x08A14610u;  // (holder *out) [a1 = self]
 constexpr std::uint32_t kMenuObjectManagerStart = 0x08A142C8u;   // (manager *, const std::string *name)
 
-
 // self as `cls` into a frame holder, `use(object)`, then drop the holder.
 
 } // namespace
@@ -171,7 +170,6 @@ void MCarParameter_updateScratch(psprecomp::Runtime &rt, psprecomp::AllegrexCont
 void CarSettings_beginSetting(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_call(rt, ctx, kCarSettingsBegin, DropFirst::no); }
 void CarSettings_endSetting(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { car_parameter_call(rt, ctx, kCarSettingsEnd, DropFirst::no); }
 
-
 // MOrganizer.setRaceSound(sound) / setSoundContext(context): with at least one argument.
 void organizer_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t convert, std::uint32_t set) {
     const std::uint32_t self = ctx.gpr[5];
@@ -193,7 +191,6 @@ void MOrganizer_setRaceSound(psprecomp::Runtime &rt, psprecomp::AllegrexContext 
 void MOrganizer_setSoundContext(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     organizer_set(rt, ctx, kArgumentAsSoundContext, kOrganizerSetSoundContext);
 }
-
 
 // loadCarArray(...) / loadCourseMap(...): the shared loader, building an array of cars or a map of
 // courses from the arguments; its result goes to *result. Module functions: (result, argc, argv).
@@ -230,7 +227,6 @@ void MSceneFace_setClearColorBuffer(psprecomp::Runtime &rt, psprecomp::AllegrexC
     return_integer(rt, ctx, result, frame.at(0u), done);
 }
 
-
 // pdistd.IsDebugVersion() -> 0: this is the release build.
 void pdistd_IsDebugVersion(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -248,7 +244,6 @@ void MCarParameter_getCarCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     return_long(rt, ctx, result, frame.at(0u), code.v0, code.v1);
 }
 
-
 // MMusic.isPlaying() -> integer (the engine's state, not a boolean).
 void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
@@ -258,11 +253,9 @@ void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     });
 }
 
-
 std::uint32_t organizer_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return self_core(rt, ctx, kAsOrganizer, kOrganizerCore);
 }
-
 
 // MOrganizer.getEntryMaxAtCurrentRace() -> integer; canEnterCourse() -> boolean.
 void MOrganizer_getEntryMaxAtCurrentRace(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -323,7 +316,6 @@ void MCarParameter_isTargetLocal(psprecomp::Runtime &rt, psprecomp::AllegrexCont
     GuestFrame frame(ctx, 0x10u);
     return_integer(rt, ctx, result, frame.at(0u), local);
 }
-
 
 // MRaceParameter.setLaunchPosition(a, b) / setLaunchSpeed(a, b): with at least two arguments
 // (setLaunchSpeed passes b as a byte).
@@ -412,7 +404,6 @@ void MMenuGameObjectManager_start(psprecomp::Runtime &rt, psprecomp::AllegrexCon
     string_release(rt, ctx, memory.load32(name));
     destroy(rt, ctx, manager);
 }
-
 
 // --- MOrganizer ---
 void MOrganizer_setDrivingLineDispFlag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -568,7 +559,6 @@ void MRaceParameter_setBoostParams(psprecomp::Runtime &rt, psprecomp::AllegrexCo
         (void)call_guest(rt, ctx, setters[i], {core, 1u, value[i * 2u + 1u]});
     }
 }
-
 
 // --- system natives (module functions: result, argc, argv) ---
 void MSystemCondition_IsExitGame(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
