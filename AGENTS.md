@@ -138,10 +138,14 @@ systemd-run --user --scope --quiet --slice=gt-heavy.slice -- <command>
 ```
 
 **One slice caps all heavy jobs together**, so up to **two** may run at once (two slots,
-`tools.decomp_gate.HeavySlot`; `tools.decomp_gate` does all of this itself). Measured 2026-10-13: a
-build at `-j4` peaks at 0.86 GB and a gate's three routes ~0.3 GB each — the old per-job cap plus a
-global lock was safe but serialized everything. Two gates need two worktrees (the build dir is
-exclusive). The slice was proven to hold: a 7 GB allocation inside it stalled at 5.4 GB.
+`tools.decomp_gate.HeavySlot`; `tools.decomp_gate` does all of this itself). Measured 2026-10-13:
+an incremental clang build at `-j4` peaks at 0.86 GB, a fresh **gcc** build at `-j8` at 3.76 GB
+(~470 MB/job — **configure builds with clang**, `-DCMAKE_CXX_COMPILER=clang++`, as `docs/COMPILAR.md`
+does), `tools.recomp` at **3.8 GB** (so it takes both slots: `HeavySlot(exclusive=True)`), a gate route
+~0.3–0.4 GB. Two gates need two worktrees (the build dir is exclusive). The slice holds (a 7 GB
+allocation stalled at 5.4 GB) — but **at `MemoryHigh` it throttles, and a throttled gate's real-time
+routes time out**: a gcc build + recomp + a gate together made every route of a full gate exit 124. A
+route that times out or prints no report is a gate failure (`route_problem`), never a pass.
 
 **6 GB is the standing ceiling on this machine** (raised from 4 GB by the user on 2026-08-11); don't
 exceed it without being told to. `MemoryHigh` throttles and reclaims, `MemoryMax` is the hard stop,
@@ -344,7 +348,8 @@ Detail in [reverse engineering](docs/agents/reverse-engineering.md).
 
 Detail and the incidents behind each one: [lessons](docs/agents/lessons.md).
 
-- **Measure before buying resources**: RAM was never the limit (build peak 0.86 GB); serialization was.
+- **Measure before buying resources**: RAM was never the limit (clang build peak 0.86 GB); serialization was — but
+  the big steps (recomp 3.8 GB, a gcc build) must not overlap, or throttling stalls the gates.
 - **More test routes beat more code** for verified coverage: a function no route calls can't be verified.
 - **Verified** = compared > 0 with 0 mismatches in the fast or full gate + its sabotage detected.
 - **No silent "last one wins"**: one address, one registration (refused at startup otherwise).

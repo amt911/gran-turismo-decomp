@@ -157,6 +157,14 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     return " ".join(parts) + " wait"
 
 
+def clear_run(tag: str, logs: Path) -> None:
+    """Removes a tag's logs and exit codes from an earlier run, so a run that dies early can't be read
+    with an old run's results."""
+    for route, _ in ROUTES["full"]:
+        for suffix in (".log", ".exit"):
+            (logs / f"gt_diff_{tag}_{route}{suffix}").unlink(missing_ok=True)
+
+
 def slice_limits() -> list[str]:
     """Sets (runtime only, nothing persistent) the shared ceiling of every heavy job."""
     return ["systemctl", "--user", "set-property", "--runtime", SLICE, *SLICE_LIMITS]
@@ -168,34 +176,86 @@ def heavy(command: Sequence[str]) -> list[str]:
 
 
 class HeavySlot:
-    """One of len(locks) slots for a heavy job: at most that many run at once (flock on one file each)."""
+    """One of len(locks) slots for a heavy job: at most that many run at once (flock on one file each).
 
-    def __init__(self, locks: Sequence[Path] = SLOTS):
+    An exclusive slot holds every lock, for a step too big to share the ceiling: tools.recomp peaks at
+    3.8 GB, so beside a gate or a second recomp it pushes the slice into throttling, and throttled gates
+    time out on their real-time routes (measured 2026-10-13).
+    """
+
+    def __init__(self, locks: Sequence[Path] = SLOTS, exclusive: bool = False):
         self._locks = list(locks)
-        self._file = None
+        self._exclusive = exclusive
+        self._files: list = []
+
+    @staticmethod
+    def _try(path: Path):
+        import fcntl
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            return None
+        return handle
 
     def acquire(self, block: bool = True) -> bool:
-        import fcntl
         import time
         while True:
-            for path in self._locks:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
-                try:
-                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError:
+            if self._exclusive and block:
+                return self._acquire_all_in_order()
+            if self._exclusive:
+                held = []
+                for path in self._locks:
+                    handle = self._try(path)
+                    if handle is None:
+                        break
+                    held.append(handle)
+                if len(held) == len(self._locks):
+                    self._files = held
+                    return True
+                for handle in held:
                     handle.close()
-                    continue
-                self._file = handle
-                return True
+                return False
+            else:
+                for path in self._locks:
+                    handle = self._try(path)
+                    if handle is not None:
+                        self._files = [handle]
+                        return True
             if not block:
                 return False
             time.sleep(2)
 
+    def _acquire_all_in_order(self) -> bool:
+        """Blocks on each lock in turn, always in the same order, keeping what it has: two exclusive
+        waiters can't deadlock (both wait on the first lock) and none releases and retries (no livelock).
+        A shared job may still take a later lock meanwhile; the wait is then one job long."""
+        import fcntl
+        for path in self._locks:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            handle = open(path, "a")  # noqa: SIM115 - kept open while the slot is held
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            self._files.append(handle)
+        return True
+
     def release(self) -> None:
-        if self._file is not None:
-            self._file.close()  # closing drops the flock
-            self._file = None
+        for handle in self._files:
+            handle.close()  # closing drops the flock
+        self._files = []
+
+
+def route_problem(text: str, exit_code: str) -> str | None:
+    """Why a route's run can't be trusted, or None. Exit 2 is gt_native's "mismatches found", which the
+    per-function lines already report; a timeout, a crash or a missing report fails on its own."""
+    if exit_code == "124":
+        return "timed out (killed by timeout; no trustworthy report)"
+    if not _LINE.search(text):
+        return "no report (the run ended before printing its results)"
+    if exit_code not in ("0", "2"):
+        return f"exit {exit_code}"
+    return None
 
 
 def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no cover - drives the build
@@ -203,7 +263,18 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
     if only is not None:
         import os
         env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
+    clear_run(tag, Path("recomp/analysis"))
     subprocess.run(slice_limits(), check=True)
+    recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
+    recomp.acquire()
+    try:
+        recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
+                                   stdout=subprocess.DEVNULL).returncode == 0
+    finally:
+        recomp.release()
+    if not recomp_ok:
+        print("recomp failed")
+        return 2
     slot = HeavySlot()
     slot.acquire()
     try:
@@ -213,9 +284,6 @@ def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no
 
 
 def _gate_steps(kind: str, tag: str, env: dict[str, str] | None) -> int:  # pragma: no cover - drives the build
-    if subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]), stdout=subprocess.DEVNULL).returncode != 0:
-        print("recomp failed")
-        return 2
     build = subprocess.run(heavy(["cmake", "--build", "build", f"-j{BUILD_JOBS}"]), capture_output=True, text=True)
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
@@ -238,7 +306,10 @@ def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
         print(f"{route}: exit {code}, {stop_reason(text)}; {s.functions} functions, {s.compared} compared, "
               f"{s.mismatched} mismatched, {not_installed(text)} not installed")
         reports.append(report)
-        if s.mismatched or not_installed(text):
+        problem = route_problem(text, code)
+        if problem:
+            print(f"  {route}: {problem}")
+        if s.mismatched or not_installed(text) or problem:
             status = 1
     total = combine(reports)
     s = summarize(total)
@@ -258,9 +329,12 @@ def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no c
         print("not found in", file, ":", ", ".join(missing))
     try:
         file.write_text(sabotaged)
-        _run_gate("fast", tag, only)
+        ran = _run_gate("fast", tag, only)
     finally:
         file.write_text(original)
+    if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
+        print("sabotage: the sabotaged build did not run")
+        return 2
     total = combine(parse_report(Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").read_text(errors="replace"))
                     for r, _ in ROUTES["full"] if Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").exists())
     undetected = [f"0x{a:08X}" for a in only if total.get(a) is None or total[a].mismatched == 0]

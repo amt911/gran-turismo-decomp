@@ -130,3 +130,59 @@ def test_heavy_slot_lets_two_jobs_in_and_makes_a_third_wait(tmp_path):
     assert third.acquire(block=False)
     second.release()
     third.release()
+
+
+def test_route_problem_flags_a_timeout_a_missing_report_and_a_crash():
+    assert gate.route_problem(REPORT, "0") is None
+    assert "timed out" in gate.route_problem(REPORT, "124")
+    assert "no report" in gate.route_problem("Running from entry 0x0880410C\n", "0")
+    assert "exit 1" in gate.route_problem(REPORT, "1")
+    assert gate.route_problem(REPORT, "2") is None  # 2 = mismatches, reported by the per-function lines
+
+
+def test_an_exclusive_slot_takes_every_lock(tmp_path):
+    locks = [tmp_path / "a.lock", tmp_path / "b.lock"]
+    shared = gate.HeavySlot(locks)
+    assert shared.acquire(block=False)
+    exclusive = gate.HeavySlot(locks, exclusive=True)
+    assert not exclusive.acquire(block=False)  # one slot is taken
+    shared.release()
+    assert exclusive.acquire(block=False)
+    other = gate.HeavySlot(locks)
+    assert not other.acquire(block=False)  # the exclusive job holds both
+    exclusive.release()
+    assert other.acquire(block=False)
+    other.release()
+
+
+def test_two_exclusive_waiters_and_a_shared_holder_all_get_through(tmp_path):
+    import threading
+    locks = [tmp_path / "a.lock", tmp_path / "b.lock"]
+    shared = gate.HeavySlot(locks)
+    assert shared.acquire(block=False)
+    done = []
+
+    def run_exclusive():
+        slot = gate.HeavySlot(locks, exclusive=True)
+        slot.acquire()  # blocks in lock order: no partial-hold-release-retry, so no livelock or deadlock
+        done.append(True)
+        slot.release()
+
+    waiters = [threading.Thread(target=run_exclusive) for _ in range(2)]
+    for waiter in waiters:
+        waiter.start()
+    waiters[0].join(0.5)
+    assert not done  # a.lock is still held
+    shared.release()
+    for waiter in waiters:
+        waiter.join(5)
+    assert done == [True, True]
+
+
+def test_clear_run_removes_a_tags_old_logs_and_exit_codes(tmp_path):
+    for route, _ in gate.ROUTES["full"]:
+        (tmp_path / f"gt_diff_t1_{route}.log").write_text("old")
+        (tmp_path / f"gt_diff_t1_{route}.exit").write_text("0")
+    (tmp_path / "gt_diff_t2_race.log").write_text("other tag")
+    gate.clear_run("t1", tmp_path)
+    assert [p.name for p in tmp_path.iterdir()] == ["gt_diff_t2_race.log"]
