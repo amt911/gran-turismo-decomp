@@ -1012,8 +1012,12 @@ callee (`GT_DECOMP_NESTED`) until the generic registrations' contracts are audit
 `tools.contract_audit` then listed 80 registrations whose callers read an uncompared return register.
 Registering each with the contract its callers need and gating it: 49 already set the register right
 (now `Word`/`DoubleWord`, so the gate checks it); 30 really lose it — under `--decomp on` their callers
-get the wrong value — and 1 was never reached. Those 31 keep their old kind until fixed (the audit lists
-them; a `GT_DECOMP_NESTED` one fails the gate).
+get the wrong value — and 1 was never reached. Those 31 kept their old kind until the next change fixed them:
+each now leaves v0 (and v1 for `func_088D9C70`) as the original does on every exit — often a leftover, such as the end
+of a copied record, the vtable loaded for a tail call, an ll/sc success flag, or the last call's result — and is
+registered `Word`/`DoubleWord`. Only `memset` stays listed: the caller at `0x08B2FCF0` begins with an lwl/lwr pair
+into v1, which the scan reads as a use but which overwrites all four bytes (false positive, commented at its
+registration). `func_0892C8B8` (a tail call nobody reaches on its own) is unregistered.
 **Why it isn't obvious.** "Void" is our claim, not the original's: GCC leaves whatever the last call
 returned in v0, and callers compiled against a non-void prototype read it.
 

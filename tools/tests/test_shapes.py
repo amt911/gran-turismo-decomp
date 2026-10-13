@@ -95,3 +95,16 @@ def test_text_section_without_text_raises():
 def test_split_inside_keeps_functions_within_the_section_and_counts_the_rest():
     inside, outside = shapes.split_inside({0x28: 8, 0x30: 8, 0x40: 8}, base=0x28, length=0x10)
     assert inside == {0x28: 8, 0x30: 8} and outside == 1
+
+
+def test_done_counts_template_registrations_too(tmp_path):
+    (tmp_path / "game").mkdir()
+    (tmp_path / "game" / "a.cpp").write_text("GT_DECOMP_CONSTRUCT(0x08804100u, 0x08804200u, 0x08CC0000u);\n"
+                                             "GT_DECOMP(0x08804300u, gt::game::f, gt::ReturnKind::Word);\n")
+    assert set(shapes.done_functions(tmp_path)) == {0x100, 0x300}
+
+
+def test_recompiled_functions_are_the_registered_entries_as_elf_addresses():
+    unit = ("    runtime.register_function(0x0891A484u, &recomp_unit_0034, \"recomp_unit_0034\");\n"
+            "    ctx.pc = 0x0891A454u;\n")
+    assert shapes.recompiled_functions([unit]) == {0x0891A484 - 0x08804000}

@@ -286,3 +286,9 @@ the line says otherwise.
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the
   parent runs unsampled and reaches the child's trampoline); a child reached only inside sampled parent
   calls, or never, has none, and stays unregistered. *(verified: sabotage of `get_car_price`)*
+
+- **Code nothing reaches (2026-10-13, `tools.shapes`):** of the functions Ghidra lists inside `.text`, 2368
+  are never emitted by the recompiler — no direct call or known function pointer reaches them — so no
+  route can run them and no gate can verify a decompiled version (`[decomp] … no recompiled function at …,
+  not installed` when one is registered). They stay out of the shape clusters. Evidence: the
+  `runtime.register_function(0x…)` lines of `recomp/generated/` against `recomp/analysis/functions.tsv`.
