@@ -1,0 +1,3 @@
+# Route D — buy a car: Car Dealerships, DMC, the DeLorean S2 '04 (42,440 Cr of the starting 100,000), answer
+# yes to "Do you want to buy this car?" and to adding it to Favourites; ends back in the dealer list (150 s).
+3300:START,6600:RIGHT,6700:RIGHT,6800:CROSS,7600:CROSS,8400:RIGHT,8500:RIGHT,8600:CROSS,9400:CROSS,10200:CROSS,11000:LEFT,11100:CROSS
