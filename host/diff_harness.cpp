@@ -58,7 +58,15 @@ struct Entry {
     std::uint64_t next_sample{};
     std::string first_mismatch;
     std::string first_skip;   // why the first not-comparable case was dropped
+    // Runs of this function nested inside another decompiled function's case (its decompiled run executes
+    // decompiled callees too), counted by how that case ended. A function the routes reach only through
+    // its decompiled callers is verified this way: a bug in it makes the caller's case mismatch.
+    unsigned nested_equal{};
+    unsigned nested_mismatched{};
 };
+
+// Decompiled functions that ran nested inside the current case's decompiled run (each once).
+std::vector<struct Entry *> g_nested_ran;
 
 // Why the last run_to_sentinel gave up (for the report).
 std::string g_last_stop;
@@ -121,9 +129,9 @@ bool allowed_in_case(const Gate *gate) { return gate != nullptr && (gate->info.r
 // Continuing an aborted case live: the original returns to its case's sentinel, whose handler jumps to
 // the call's real return address and frees the sentinel.
 std::unordered_map<std::uint32_t, std::uint32_t> g_continuations;  // sentinel -> real return address
-// True while a case runs (original or decompiled): nested calls to decompiled functions then run
-// their originals, so a case never opens another case inside itself and both runs see the same
-// callees (each callee is compared on its own).
+// True while a case runs (original or decompiled): a case never opens another case inside itself.
+// Nested calls to decompiled functions run their originals in the original's run and their decompiled
+// versions in the decompiled run (see trampoline), so the case compares the two whole call trees.
 bool g_in_case = false;
 
 // Both runs of a case are isolated from the kernel (host/kernel_isolation.hpp) for their whole
@@ -301,6 +309,8 @@ EndState end_state(const psprecomp::AllegrexContext &ctx, std::vector<std::uint8
 // Runs guest code from ctx.pc until it returns to the case's sentinel. False when it would enter an
 // import that isn't replay-safe, switches threads, exceeds the step bound, or stops the runtime:
 // then the case is not comparable.
+void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx);
+
 bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     g_last_stop.clear();
     const std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
@@ -322,8 +332,13 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             g_last_stop = "time bound";
             return false;
         }
-        const auto decompiled = g_entries.find(ctx.pc);  // nested calls run originals, not the harness
-        const auto fn = decompiled != g_entries.end() ? decompiled->second.original : rt.function_at(ctx.pc);
+        // Nested decompiled functions: the original's run runs their originals; the decompiled run runs their
+        // decompiled versions (through the trampoline, which knows the phase), so the whole decompiled call
+        // tree is compared against the whole original one.
+        const auto decompiled = g_entries.find(ctx.pc);
+        const auto fn = decompiled == g_entries.end() ? rt.function_at(ctx.pc)
+                        : g_phase == ImportPhase::Replaying ? &trampoline
+                                                            : decompiled->second.original;
         if (fn == nullptr) {
             g_last_stop = "no function at " + psprecomp::hex32(ctx.pc);
             return false;
@@ -374,7 +389,17 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
     if (g_in_case) {
-        entry.original(rt, ctx);
+        if (g_phase != ImportPhase::Replaying) {
+            entry.original(rt, ctx);
+            return;
+        }
+        if (std::find(g_nested_ran.begin(), g_nested_ran.end(), &entry) == g_nested_ran.end())
+            g_nested_ran.push_back(&entry);
+        const std::uint32_t return_address = ctx.gpr[31];
+        ctx.pc = entry.info.address;
+        entry.info.fn(rt, ctx);
+        ctx.gpr[0] = 0u;
+        if (ctx.pc == entry.info.address) ctx.pc = return_address;
         return;
     }
     const std::uint64_t call = entry.calls++;
@@ -408,6 +433,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     bool original_ran;
     bool original_refused = false;  // the kernel refused an import (read before InCase clears the flag)
     g_log.clear();
+    g_nested_ran.clear();
     g_before_import.reset();
     {
         InCase in_case;
@@ -508,6 +534,8 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         difference = "kernel state differs (memory blocks or thread priorities)";
     if (difference) {
         ++entry.mismatched;
+        for (Entry *nested : g_nested_ran)
+            if (nested != &entry) ++nested->nested_mismatched;
         if (entry.first_mismatch.empty()) {
             entry.first_mismatch = *difference + " (a0=" + psprecomp::hex32(entry_ctx.gpr[4]) +
                                    " a1=" + psprecomp::hex32(entry_ctx.gpr[5]) +
@@ -515,6 +543,8 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         }
     } else {
         ++entry.equal;
+        for (Entry *nested : g_nested_ran)
+            if (nested != &entry) ++nested->nested_equal;
     }
 
     // The game continues with the original's result, so diff mode never changes the run.
@@ -610,11 +640,13 @@ int decomp_report() {
         }
         std::cerr << ": compared " << entry.compared << ", equal " << entry.equal << ", mismatched "
                   << entry.mismatched << ", not comparable " << entry.skipped << " (calls " << entry.calls
-                  << ", cases that changed memory " << entry.informative << ")\n";
+                  << ", cases that changed memory " << entry.informative << ", nested in " << entry.nested_equal
+                  << " equal / " << entry.nested_mismatched << " mismatched cases)\n";
         if (!entry.first_mismatch.empty()) std::cerr << "[decomp]   first mismatch: " << entry.first_mismatch << "\n";
         if (!entry.first_skip.empty()) std::cerr << "[decomp]   first not comparable: " << entry.first_skip << "\n";
         if (entry.mismatched != 0u) status = 2;
-        if (entry.compared == 0u) std::cerr << "[decomp]   warning: never compared in this run\n";
+        if (entry.compared == 0u && entry.nested_equal + entry.nested_mismatched == 0u)
+            std::cerr << "[decomp]   warning: never compared in this run\n";
     }
     if (g_unsampled_no_sentinel != 0u)
         std::cerr << "[decomp] warning: " << g_unsampled_no_sentinel

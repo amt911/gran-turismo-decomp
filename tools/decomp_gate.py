@@ -38,7 +38,8 @@ BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(
     r"^\[decomp\] (?P<name>\S+) @0x(?P<address>[0-9A-Fa-f]{8}): compared (?P<compared>\d+), equal (?P<equal>\d+), "
-    r"mismatched (?P<mismatched>\d+), not comparable (?P<not_comparable>\d+) \(calls (?P<calls>\d+)",
+    r"mismatched (?P<mismatched>\d+), not comparable (?P<not_comparable>\d+) \(calls (?P<calls>\d+)"
+    r"(?:.*?, nested in (?P<nested_equal>\d+) equal / (?P<nested_mismatched>\d+) mismatched cases)?",
     re.MULTILINE,
 )
 _FIRST_MISMATCH = re.compile(r"^\[decomp\]   first mismatch: (.*)$")
@@ -56,6 +57,8 @@ class Stats:
     not_comparable: int = 0
     calls: int = 0
     first_mismatch: str = ""
+    nested_equal: int = 0       # ran inside another decompiled function's case that came out equal
+    nested_mismatched: int = 0  # ... or mismatched
 
 
 @dataclass(frozen=True)
@@ -75,7 +78,9 @@ def parse_report(text: str) -> dict[int, Stats]:
         if match:
             last = int(match["address"], 16)
             stats[last] = Stats(match["name"], *(int(match[k]) for k in
-                                                  ("compared", "equal", "mismatched", "not_comparable", "calls")))
+                                                  ("compared", "equal", "mismatched", "not_comparable", "calls")),
+                                nested_equal=int(match["nested_equal"] or 0),
+                                nested_mismatched=int(match["nested_mismatched"] or 0))
             continue
         first = _FIRST_MISMATCH.match(line)
         if first and last is not None and not stats[last].first_mismatch:
@@ -100,15 +105,26 @@ def combine(reports: Iterable[dict[int, Stats]]) -> dict[int, Stats]:
             t = total.get(address)
             total[address] = s if t is None else Stats(
                 t.name, t.compared + s.compared, t.equal + s.equal, t.mismatched + s.mismatched,
-                t.not_comparable + s.not_comparable, t.calls + s.calls, t.first_mismatch or s.first_mismatch)
+                t.not_comparable + s.not_comparable, t.calls + s.calls, t.first_mismatch or s.first_mismatch,
+                t.nested_equal + s.nested_equal, t.nested_mismatched + s.nested_mismatched)
     return total
+
+
+def reached(s: Stats) -> bool:
+    """Compared in its own cases, or ran nested in another decompiled function's equal case."""
+    return s.compared > 0 or s.nested_equal > 0
+
+
+def detected(s: Stats) -> bool:
+    """A mismatch in its own cases or in a case it ran nested in (a sabotage shows up either way)."""
+    return s.mismatched > 0 or s.nested_mismatched > 0
 
 
 def summarize(total: dict[int, Stats]) -> Summary:
     return Summary(functions=len(total),
-                   compared=sum(1 for s in total.values() if s.compared > 0),
-                   mismatched=sum(1 for s in total.values() if s.mismatched > 0),
-                   never_compared=sum(1 for s in total.values() if s.compared == 0))
+                   compared=sum(1 for s in total.values() if reached(s)),
+                   mismatched=sum(1 for s in total.values() if detected(s)),
+                   never_compared=sum(1 for s in total.values() if not reached(s)))
 
 
 def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
@@ -263,7 +279,7 @@ def _sabotage_run(tag: str, file: Path, only: list[int]) -> int:  # pragma: no c
         file.write_text(original)
     total = combine(parse_report(Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").read_text(errors="replace"))
                     for r, _ in ROUTES["full"] if Path(f"recomp/analysis/gt_diff_{tag}_{r}.log").exists())
-    undetected = [f"0x{a:08X}" for a in only if total.get(a) is None or total[a].mismatched == 0]
+    undetected = [f"0x{a:08X}" for a in only if total.get(a) is None or not detected(total[a])]
     print(f"sabotage: {len(only) - len(undetected)}/{len(only)} detected; undetected: {undetected}")
     return 0 if not undetected else 1
 

@@ -15,7 +15,7 @@ Runtime stopped: Wall-clock limit reached at 0x08C7AC18
 [decomp] gt::game::race_operator::window_max @0x0885BBBC: compared 1, equal 1, mismatched 0, not comparable 0 (calls 3, cases that changed memory 0)
 [decomp] gt::game::func_088D4C9C @0x088D4C9C: compared 4, equal 3, mismatched 1, not comparable 2 (calls 9, cases that changed memory 1)
 [decomp]   first mismatch: v0: original 0x00000001, decompiled 0x00000000 (a0=0x09F00000 a1=0x00000000 a2=0x00000000)
-[decomp] gt::game::spec_db::get_car_price @0x08930E08: compared 0, equal 0, mismatched 0, not comparable 0 (calls 0, cases that changed memory 0)
+[decomp] gt::game::spec_db::get_car_price @0x08930E08: compared 0, equal 0, mismatched 0, not comparable 0 (calls 0, cases that changed memory 0, nested in 3 equal / 1 mismatched cases)
 [decomp]   warning: never compared in this run
 [decomp] gt::game::x @0x08800000: no recompiled function at 0x08800000, not installed
 """
@@ -53,7 +53,7 @@ def test_combine_sums_the_routes_per_address():
 def test_summary_counts_equal_mismatched_and_never_compared():
     total = gate.combine([gate.parse_report(REPORT)])
     summary = gate.summarize(total)
-    assert summary == gate.Summary(functions=3, compared=2, mismatched=1, never_compared=1)
+    assert summary == gate.Summary(functions=3, compared=3, mismatched=2, never_compared=0)
 
 
 SOURCE = """\
@@ -130,3 +130,16 @@ def test_heavy_slot_lets_two_jobs_in_and_makes_a_third_wait(tmp_path):
     assert third.acquire(block=False)
     second.release()
     third.release()
+
+
+def test_parse_report_reads_the_nested_counts():
+    stats = gate.parse_report(REPORT)
+    assert (stats[0x08930E08].nested_equal, stats[0x08930E08].nested_mismatched) == (3, 1)
+    assert (stats[0x0885BBBC].nested_equal, stats[0x0885BBBC].nested_mismatched) == (0, 0)  # older report format
+
+
+def test_a_function_compared_only_nested_counts_as_reached_and_its_nested_mismatch_as_detected():
+    total = gate.combine([gate.parse_report(REPORT), gate.parse_report(REPORT)])
+    assert total[0x08930E08].nested_equal == 6
+    assert gate.reached(total[0x08930E08]) and not gate.reached(gate.Stats("x"))
+    assert gate.detected(total[0x08930E08]) and not gate.detected(total[0x0885BBBC])
