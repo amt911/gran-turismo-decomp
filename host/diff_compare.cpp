@@ -1,9 +1,9 @@
 #include "diff_compare.hpp"
 
 #include <algorithm>
-#include <cstring>
-
 #include <cstdio>
+#include <cstring>
+#include <unordered_map>
 
 namespace gt {
 namespace {
@@ -112,6 +112,20 @@ std::optional<std::unordered_set<std::uint32_t>> parse_address_list(std::string_
         addresses.insert(value);
     }
     return addresses;
+}
+
+std::optional<std::string> duplicate_registration(
+    const std::vector<std::pair<std::uint32_t, std::string>> &registrations) {
+    std::unordered_map<std::uint32_t, const std::string *> seen;
+    for (const auto &[address, name] : registrations) {
+        const auto [it, inserted] = seen.emplace(address, &name);
+        if (!inserted) {
+            char text[16];
+            std::snprintf(text, sizeof text, "0x%08X", address);
+            return std::string(text) + " is registered twice: " + *it->second + " and " + name;
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace gt

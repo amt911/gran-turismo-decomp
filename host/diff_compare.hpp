@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace gt {
@@ -43,5 +44,11 @@ enum class ReturnKind { Void, Word, DoubleWord, Float };
 // Hex addresses (with or without 0x, any case) separated by commas or whitespace, as GT_DECOMP_ONLY
 // takes them. nullopt when any token isn't a 32-bit hex number, so a typo can't silently select nothing.
 [[nodiscard]] std::optional<std::unordered_set<std::uint32_t>> parse_address_list(std::string_view text);
+
+// The first address registered twice in (address, name) pairs, as a message naming both registrations; a
+// second registration would otherwise be ignored silently (the harness keeps the first), so a decompiled
+// function in a subsystem file could be shadowed by an older copy and never run.
+[[nodiscard]] std::optional<std::string> duplicate_registration(
+    const std::vector<std::pair<std::uint32_t, std::string>> &registrations);
 
 } // namespace gt
