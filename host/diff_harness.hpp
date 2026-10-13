@@ -6,7 +6,8 @@
 
 #include <cstdint>
 #include <string_view>
-#include <unordered_set>
+#include <string>
+#include <vector>
 
 namespace gt {
 
@@ -15,17 +16,23 @@ enum class DecompMode { Off, On, Diff };
 // Parses "off" / "on" / "diff"; returns false for anything else.
 bool parse_decomp_mode(std::string_view text, DecompMode &mode);
 
-// Import stub addresses: an isolated run of an original stops before entering one (HLE side
-// effects can't be replayed twice), and the case is reported as not comparable.
-void set_import_stubs(std::unordered_set<std::uint32_t> stubs);
-
-// Import stubs an isolated original may still call: their HLE keeps no state outside guest RAM
-// (which the harness snapshots and restores) and doesn't switch threads when uncontended — LwMutex
-// lock/unlock, interrupt suspend/resume, data-cache maintenance, reading the system time (the
-// virtual clock doesn't move inside a case), thread priorities and memory blocks (the
-// harness snapshots that kernel state, host/kernel_replay_state.hpp). A thread switch still makes the
-// case not comparable.
-void set_replay_safe_imports(std::unordered_set<std::uint32_t> stubs);
+// An import stub as the harness sees it. In an isolated run of an original:
+// - replay_safe: its HLE keeps no state outside guest RAM (snapshotted and restored) and the kernel
+//   replay state (host/kernel_replay_state.hpp), and doesn't switch threads when uncontended (LwMutex
+//   lock/unlock, interrupts, data cache, the system time, thread priorities, memory blocks). It runs in
+//   both runs of a case. A thread switch still makes the case not comparable.
+// - recordable: it never switches threads; it runs once, in the original's run, and its effect
+//   (registers, guest RAM, kernel replay state) is recorded and applied in the decompiled run, which must
+//   make the same calls with the same first `arity` arguments (host/import_replay.hpp).
+// - neither: the run stops before it and the case is not comparable.
+struct ImportStub {
+    std::uint32_t address{};
+    std::string name;
+    bool replay_safe{};
+    bool recordable{};
+    unsigned arity{};
+};
+void set_imports(std::vector<ImportStub> stubs);
 
 // Called for every import call (from the runtime import observer).
 void note_import() noexcept;

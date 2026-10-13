@@ -61,6 +61,7 @@ file(GLOB_RECURSE GT_DECOMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*
 add_library(gt_host_objs OBJECT
     host/main.cpp
     host/diff_harness.cpp
+    host/import_replay.cpp
     host/diff_compare.cpp
     host/probes.cpp
     host/guest_call.cpp

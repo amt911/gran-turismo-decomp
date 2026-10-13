@@ -2957,6 +2957,12 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 ctx.set_gpr(2, 0x800201A4u);
                 return;
             }
+            // In a diff-harness case a start must not switch threads (then it is recordable): refuse it when
+            // the new thread outranks the caller (host/kernel_isolation.hpp).
+            if (gt::kernel_isolated() && thread.priority < thread_priority(thread_table.current_uid)) {
+                gt::break_kernel_isolation("start would preempt");
+                return;
+            }
 
             const std::uint32_t arg_size = ctx.gpr[5];
             const std::uint32_t arg_ptr = ctx.gpr[6];
@@ -3287,6 +3293,15 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         });
 
     auto sleep_thread = [](psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+        // In a diff-harness case only a sleep that a pending wakeup satisfies at once is allowed (no
+        // thread switch, recordable); anything else would switch: refuse it (host/kernel_isolation.hpp).
+        if (gt::kernel_isolated()) {
+            const auto current = thread_table.threads.find(thread_table.current_uid);
+            if (current == thread_table.threads.end() || current->second.wakeup_count == 0u) {
+                gt::break_kernel_isolation("sleep would block");
+                return;
+            }
+        }
         (void)sleep_current_thread(rt, ctx);
     };
     runtime.register_hle("ThreadManForUser", 0x9ACE131Eu, sleep_thread);
@@ -3294,7 +3309,26 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
     runtime.register_hle("ThreadManForUser", 0xD59EAD2Fu,
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
 
-            const std::uint32_t result = wake_thread(static_cast<std::int32_t>(ctx.gpr[4]));
+            const auto uid = static_cast<std::int32_t>(ctx.gpr[4]);
+            // In a diff-harness case the wakeup must not switch threads (then it is recordable): refuse
+            // it when the woken thread, or one already ready, outranks the caller (host/kernel_isolation.hpp).
+            if (gt::kernel_isolated()) {
+                const auto current = thread_table.threads.find(thread_table.current_uid);
+                const auto target = thread_table.threads.find(uid);
+                std::uint32_t best = 0xFFFFFFFFu;
+                if (const auto ready = best_ready_thread(); ready != thread_table.continuations.end())
+                    best = thread_priority(ready->uid);
+                if (target != thread_table.threads.end() && target->second.state == ThreadState::Sleeping)
+                    best = std::min(best, thread_priority(uid));
+                if (current != thread_table.threads.end() && current->second.state == ThreadState::Running &&
+                    best < thread_priority(thread_table.current_uid)) {
+                    gt::break_kernel_isolation("wakeup would preempt");
+                    return;
+                }
+                ctx.set_gpr(2, wake_thread(uid));
+                return;
+            }
+            const std::uint32_t result = wake_thread(uid);
             ctx.set_gpr(2, result);
             if (result == 0u) (void)preempt_if_higher_priority(ctx, "thread-wakeup");
         });

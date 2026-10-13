@@ -44,6 +44,12 @@ void apply_ram(std::span<std::uint8_t> ram, std::uint32_t base, const std::vecto
 RegisterChanges changed_registers(std::span<const std::uint32_t, 32> before, std::span<const std::uint32_t, 32> after);
 void apply_registers(std::span<std::uint32_t, 32> registers, const RegisterChanges &changes);
 
+// The kernel replay state `current` with each field the import changed (before -> after) set to its
+// result; fields it left alone keep `current`'s value, so the replay doesn't hide the decompiled run's own
+// kernel changes from the final comparison.
+KernelReplayState apply_kernel_delta(KernelReplayState current, const KernelReplayState &before,
+                                     const KernelReplayState &after);
+
 class ImportLog {
 public:
     struct Match {

@@ -953,3 +953,33 @@ prints `[vulkan] internal resolution WxH` on each change.
 **Why it isn't obvious.** A capture of a 960×544 window looks sharp. Only a resize shows the problem.
 
 Found: 2026-10-13 · tools/patches/lcs-recomp/0021-gpu-ge-for-gt.patch, config/gt_play.ini
+
+### Leaving a harness case clears the "kernel refused" flag
+
+**Symptom.** With import record & replay, every route stopped in boot: "No recompiled function
+registered at 0x08D70000". The trace showed cases continuing live from game code right after an LwMutex
+lock, not from the lock's stub.
+**Cause.** `set_kernel_isolated(false)` (the `InCase` destructor) also resets
+`kernel_isolation_broken()`. The harness read the flag after leaving the case, saw "not refused", and
+resumed from the point after the refused call. The game then believed it held a mutex it never got.
+**Fix / workaround.** `host/diff_harness.cpp` reads the flag inside the case (`original_refused`). The
+continuation uses the registers saved before the refused import.
+**Why it isn't obvious.** The flag's comment says "since set_kernel_isolated(true)". Until then no code
+needed it after the case ended.
+
+Found: 2026-10-13 · host/kernel_isolation.cpp, host/diff_harness.cpp
+
+### One shared continuation slot silenced the whole harness
+
+**Symptom.** The first full gate with import replay had 0 mismatches, but 3869 functions were never
+compared, the same number on all three routes (1683 before).
+**Cause.** A case that continues live waits for the original to return to its sentinel. The
+first version had a single slot and started no new case while it was pending. One sampled thread loop
+never returns, so from then on no case started anywhere.
+**Fix / workaround.** Each case takes its own sentinel address from a pool of 1024, and the handler
+frees it when the original returns there. The compared volume went back to normal (24141 cases in the
+race, 24881 before).
+**Why it isn't obvious.** "0 mismatches" looks like a pass. Only the never-compared count shows that
+nothing was compared.
+
+Found: 2026-10-13 · host/diff_harness.cpp

@@ -36,40 +36,42 @@ byte runs) and the kernel replay state before and after (`host/kernel_replay_sta
 switches threads anyway the allowlist is wrong: the run stops with a message naming the NID.
 
 **Replay (decompiled run).** The decompiled run must make the same import calls in the same order.
-At each one the gate takes the next record and checks the stub and its argument registers (and that
-the kernel replay state matches the record's "before"); a difference is a mismatch ("import call 2:
-expected sceKernelCreateThread(a0=…), got …"). Then it applies the record — registers, RAM bytes,
-kernel state — instead of running the HLE, and returns to ra. Ending with records left over, or calling
+At each one the gate takes the next record and checks the stub and its argument registers; a difference is a mismatch ("import call 2:
+expected sceKernelCreateThread(a0=…), got …"). Then it applies the record — registers, RAM bytes, and the
+kernel-state fields the import changed (`apply_kernel_delta`; a whole-state check was wrong because a
+thread created in the original's run stays in the host thread table) — instead of running the HLE, and
+returns to ra. Ending with records left over, or calling
 an import past the end, is a mismatch too.
 
 **Replay-safe imports** (the existing list: LwMutex, interrupts, dcache, system time, …) keep running
 in both runs as today; they are not recorded.
 
-**Aborts continue live instead of re-running.** When the original's isolated run can't finish (an
-import that is neither replay-safe nor recordable, the step/time bound, LwMutex contention), the
-harness no longer restores RAM and re-runs the call — that would execute again any import already run
-(a latent double execution today: "import inside …"). Instead the game continues *live* from where the
-isolated run stopped: from the stop point itself, or — when the kernel refused an operation (isolation
-broken) — from the registers saved just before the import that was refused, so it runs for real. The
-original's return to the sentinel address is caught by a handler registered there, which jumps to the
-real return address saved at the start of the case. New cases don't start while a continuation is
-pending (single slot, cleared when the sentinel is reached).
+**Aborts after a recorded import continue live.** When the original's isolated run can't finish (an
+import that is neither replay-safe nor recordable, the step/time bound, a refused call), and no
+recordable import ran yet, the harness restores RAM and re-runs the call as before. Once one ran, a
+re-run would execute it twice. So the game continues *live* from where the isolated run stopped: from
+the stop point itself, or — when the kernel refused an operation — from the registers saved just
+before the refused import, so it runs for real. Each case returns to its own sentinel address, taken
+from a pool of 1024 outside guest memory. A continuing case keeps its address until the original
+really returns there (a thread loop may never), and the handler there jumps to the saved return
+address. A single shared slot blocked every later case behind such a loop: the first full gate
+compared almost nothing.
 
 **Recordable list** (NIDs, in `host/main.cpp` beside the replay-safe list, each with a one-line
 reason, starting with the ones the logs show and whose HLE never switches threads):
 sceUmdWaitDriveStat (returns at once), sceKernelCreateThread (creates a thread object; no switch until
 StartThread), sceKernelGetThreadId, sceKernelChangeCurrentThreadAttr, scePowerGetCpuClockFrequencyInt,
-sceKernelPowerTick, sceSasGetOutputmode, sceFontFindOptimumFont, sceNpDrmSetLicenseeKey. Further NIDs
+sceKernelPowerTick, sceSasGetOutputmode, sceFontFindOptimumFont, sceNpDrmSetLicenseeKey,
+sceKernelReferThreadStatus, sceIoOpen and sceIoLseek (synchronous), plus the three below. Further NIDs
 are added the same way, after reading their HLE. Never: imports that block or always switch
 (sceKernelSleepThread, sceDisplayWaitVblankStart*, sceKernelDelayThread, waits, sceUtilityLoadModule
 which delays the caller).
 
-**sceKernelWakeupThread** wakes a thread and preempts when the woken one has a higher priority. In
-a case it is recordable only when it would not preempt: under kernel isolation GT's handler checks
-first and, if the wake would switch threads, refuses (does nothing) and breaks isolation — the case
-then continues live from just before the call, exactly like LwMutex contention today. If the thread
-table isn't reachable from `host/gt_kernel.cpp` without a new lcs-recomp patch, this part is left for a
-follow-up and noted in FINDINGS.
+**sceKernelWakeupThread, sceKernelStartThread, sceKernelSleepThread(CB)** switch threads only
+sometimes. In a case GT's handlers (`host/gt_kernel.cpp`, which owns the thread table) check first:
+a wakeup or start that would let a higher-priority thread run, or a sleep without a pending wakeup, is
+refused (`break_kernel_isolation(reason)`, nothing done). The case then continues live from just before
+the call. Otherwise the call doesn't switch and is recordable.
 
 **Report.** "first not comparable: original: import stub 0x… (sceXxx)" names the import; a summary at
 the end counts not-comparable cases per import, so the next NID to make recordable is evident.

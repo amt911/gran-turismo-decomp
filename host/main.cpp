@@ -22,7 +22,9 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <utility>
 
 namespace psprecomp {
@@ -122,7 +124,8 @@ int main(int argc, char **argv) {
         if (!module) throw psprecomp::Error("PSP module info not found after relocation");
         runtime.cpu().set_gpr(28, module->gp);
 
-        // NIDs whose HLE only touches guest RAM (see gt::set_replay_safe_imports).
+        // NIDs whose HLE only touches guest RAM and the snapshotted kernel state: they run in both runs of a
+        // harness case (see gt::ImportStub).
         static const std::unordered_set<std::uint32_t> kReplaySafeNids{
             0xBEA46419u, 0x1FC64E09u, 0x15B6446Bu, 0xDC692EE3u,  // Lock/LockCB/Unlock/TryLock LwMutex
             0x092968F4u, 0x5F10D406u,                            // CpuSuspendIntr / CpuResumeIntr
@@ -135,14 +138,42 @@ int main(int argc, char **argv) {
             0xFE707FDFu, 0x50F61D8Au, 0xDB83A952u,  // Alloc/Free/GetAddr MemoryBlock: allocator snapshotted
             0xA5DA2406u, 0x34B78343u,  // sceUtilityGetSystemParamInt / String: constants written to guest RAM
         };
-        std::unordered_set<std::uint32_t> import_stubs, replay_safe;
+        // NIDs the harness records in the original's run and replays in the decompiled run (gt::ImportStub,
+        // docs/superpowers/specs/2026-10-13-import-record-replay-design.md): their HLE never switches PSP
+        // threads. Value: how many argument registers the import reads.
+        static const std::unordered_map<std::uint32_t, unsigned> kRecordableNids{
+            {0x8EF08FCEu, 2u},  // sceUmdWaitDriveStat(stat): returns at once (lcs_profile.cpp)
+            {0x446D8DE6u, 6u},  // sceKernelCreateThread(name, entry, prio, stack, attr, opt): no switch until Start
+            {0x293B45B8u, 0u},  // sceKernelGetThreadId
+            {0xEA748E31u, 2u},  // sceKernelChangeCurrentThreadAttr(clear, set)
+            {0xFDB5BFE9u, 0u},  // scePowerGetCpuClockFrequencyInt: 333
+            {0x090CCB3Fu, 1u},  // sceKernelPowerTick(type)
+            {0xE175EF66u, 0u},  // sceSasGetOutputmode
+            {0x099EF33Cu, 3u},  // sceFontFindOptimumFont(lib, style, error)
+            {0xA1336091u, 1u},  // sceNpDrmSetLicenseeKey(key)
+            {0x17C1684Eu, 2u},  // sceKernelReferThreadStatus(uid, info): writes the info struct
+            {0xD59EAD2Fu, 1u},  // sceKernelWakeupThread(uid): refused in a case when it would preempt
+            {0x9ACE131Eu, 0u},  // sceKernelSleepThread: only when a pending wakeup returns it at once,
+            {0x82826F70u, 0u},  // sceKernelSleepThreadCB  otherwise refused in a case (gt_kernel.cpp)
+            {0x109F50BCu, 3u},  // sceIoOpen(path, flags, mode): synchronous host open
+            {0x27EB27B8u, 5u},  // sceIoLseek(fd, -, offset lo, offset hi, whence): synchronous
+            {0xF475845Du, 3u},  // sceKernelStartThread(uid, size, args): refused in a case when it would preempt
+        };
+        std::vector<gt::ImportStub> import_stubs;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
             g_stub_by_import[{import.library, import.nid}] = import.stub_address;
-            import_stubs.insert(import.stub_address);
-            if (kReplaySafeNids.contains(import.nid)) replay_safe.insert(import.stub_address);
+            gt::ImportStub stub;
+            stub.address = import.stub_address;
+            stub.name = import.library + "::" +
+                        runtime.nids().resolve(import.library, import.nid).value_or(psprecomp::hex32(import.nid));
+            stub.replay_safe = kReplaySafeNids.contains(import.nid);
+            if (const auto recordable = kRecordableNids.find(import.nid); recordable != kRecordableNids.end()) {
+                stub.recordable = true;
+                stub.arity = recordable->second;
+            }
+            import_stubs.push_back(std::move(stub));
         }
-        gt::set_import_stubs(std::move(import_stubs));
-        gt::set_replay_safe_imports(std::move(replay_safe));
+        gt::set_imports(std::move(import_stubs));
         if (!options.trace.empty()) {
             g_trace = std::fopen(options.trace.c_str(), "w");
             if (g_trace == nullptr) throw psprecomp::Error("cannot open trace file " + options.trace.string());

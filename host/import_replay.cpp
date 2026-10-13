@@ -69,6 +69,22 @@ void apply_registers(std::span<std::uint32_t, 32> registers, const RegisterChang
         if (index < 32u) registers[index] = value;
 }
 
+KernelReplayState apply_kernel_delta(KernelReplayState current, const KernelReplayState &before,
+                                     const KernelReplayState &after) {
+    const auto take = [](auto &field, const auto &was, const auto &now) {
+        if (was != now) field = now;
+    };
+    take(current.blocks, before.blocks, after.blocks);
+    take(current.free_ranges, before.free_ranges, after.free_ranges);
+    take(current.next_address, before.next_address, after.next_address);
+    take(current.next_stack_top, before.next_stack_top, after.next_stack_top);
+    take(current.next_uid, before.next_uid, after.next_uid);
+    take(current.thread_priorities, before.thread_priorities, after.thread_priorities);
+    take(current.next_lwmutex_uid, before.next_lwmutex_uid, after.next_lwmutex_uid);
+    take(current.mutexes, before.mutexes, after.mutexes);
+    return current;
+}
+
 void ImportLog::clear() noexcept {
     records_.clear();
     next_ = 0u;

@@ -90,6 +90,20 @@ int main() {
         log3.clear();
         check(!log3.leftover() && log3.size() == 0u, "clear empties the log");
     }
+    {
+        gt::KernelReplayState before, after, current;
+        before.next_stack_top = 0x0A000000u;
+        before.next_uid = 7;
+        after = before;
+        after.next_stack_top = 0x09FF0000u;               // the import changed these two fields
+        after.thread_priorities = {{2, 0x20u}, {9, 0x30u}};
+        current = before;
+        current.next_uid = 8;                             // the decompiled run differs here: kept
+        const gt::KernelReplayState result = gt::apply_kernel_delta(current, before, after);
+        check(result.next_stack_top == 0x09FF0000u && result.thread_priorities == after.thread_priorities,
+              "fields the import changed take its result");
+        check(result.next_uid == 8, "fields it didn't change keep the current value");
+    }
     if (failures == 0) std::puts("import_replay: all tests passed");
     return failures == 0 ? 0 : 1;
 }
