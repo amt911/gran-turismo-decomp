@@ -102,6 +102,14 @@ void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_
     // Called on every present that closes a GPU frame (the game flipped). The software framebuffer shown
     // now is that frame; the GPU image arrives a present or more later (readback), tagged with the vblank
     // it was closed at, and is paired with the software frame kept for that vblank.
+    static const std::uint64_t dump_from = [] {  // GT_GPU_DUMP_FROM=N: nothing before frame N (consecutive frames)
+        const char *text = std::getenv("GT_GPU_DUMP_FROM");
+        return text != nullptr ? std::strtoull(text, nullptr, 10) : 0ull;
+    }();
+    if (frames < dump_from) {
+        ++frames;
+        return;
+    }
     if ((frames++ % dump_every()) == 0u)
         pending[vblank] = {guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height), width,
                            height, frames - 1u};
@@ -112,6 +120,8 @@ void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_
             (void)write_rgb_ppm(numbered(dump_dir, "soft", c.number), c.soft, c.width, c.height);
             const std::vector<std::uint8_t> gpu = downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, c.width, c.height);
             if (!gpu.empty()) (void)write_rgb_ppm(numbered(dump_dir, "gpu", c.number), gpu, c.width, c.height);
+            std::fprintf(stderr, "[gpu-dump] frame %06llu vblank %llu\n", static_cast<unsigned long long>(c.number),
+                         static_cast<unsigned long long>(gpu_vblank));  // GT_GE_LOG=<vblank> traces that frame
         }
         pending.erase(pending.begin(), pending.upper_bound(gpu_vblank));  // older ones will never come
     }

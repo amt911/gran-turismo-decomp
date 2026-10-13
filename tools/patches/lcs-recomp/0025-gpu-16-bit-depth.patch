@@ -1,0 +1,24 @@
+GT patch 0025: the GE z-buffer holds 16-bit integers: truncate the fragment depth as ge_renderer.cpp does,
+so coplanar surfaces (kerbs on the track, distant stands) stop winning and losing the depth test
+from frame to frame. depth_less keeps early testing for GEQUAL/GREATER.
+
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -5,6 +5,8 @@
+ layout(location = 3) in float vFog;
+ layout(location = 0, index = 0) out vec4 outColor;
+ layout(location = 0, index = 1) out vec4 outBlendFactor;  // GT patch 0021: dual-source destination factor
++// GT patch 0025: the written depth only ever rounds down, so the GPU may still test early for GEQUAL/GREATER.
++layout(depth_less) out float gl_FragDepth;
+ 
+ layout(std140, set = 0, binding = 0) uniform DrawUniforms {
+     vec4 row0;
+@@ -155,4 +157,8 @@
+     // GT patch 0022: blend with the unquantized colour and alpha, as the GE does; the stored 16-bit value is
+     // emulated when the target is read back as a texture (storedFramebufferTexel).
+     outColor = clamp(color, 0.0, 1.0);  // (a 565 target's alpha is ignored when read back)
++    // GT patch 0025: the GE's z-buffer holds 16-bit integers (ge_renderer.cpp truncates the interpolated z).
++    // A float depth keeps differences the PSP drops, so coplanar surfaces — the kerbs painted on the track,
++    // distant stands — won and lost the depth test from frame to frame (flicker). Truncate as the GE does.
++    gl_FragDepth = floor(clamp(gl_FragCoord.z, 0.0, 1.0) * 65535.0) / 65535.0;
+ }
