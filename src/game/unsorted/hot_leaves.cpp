@@ -2806,6 +2806,7 @@ GT_DECOMP(0x08B1C374u, gt::game::func_08B1C374, gt::ReturnKind::Void);
 GT_DECOMP(0x08AF4F24u, gt::game::func_08AF4F24, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD9784u, gt::game::func_08AD9784, gt::ReturnKind::Word);
 // Never reached on the three routes: written, registered once one does.
+// func_08AD96A0 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08AD96A0u, gt::game::func_08AD96A0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AB9C48u, gt::game::func_08AB9C48, gt::ReturnKind::Void);
 GT_DECOMP(0x08AB9A9Cu, gt::game::func_08AB9A9C, gt::ReturnKind::Void);
@@ -4224,6 +4225,7 @@ GT_DECOMP(0x088DAA8Cu, gt::game::func_088DAA8C, gt::ReturnKind::Word);
 GT_DECOMP(0x08893674u, gt::game::func_08893674, gt::ReturnKind::Word);
 // Not registered: every case calls a kernel import the isolated diff run cannot replay ("not
 // comparable 22/22" on the race route), so the gate can't check it.
+// func_08B2E2B8 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08B2E2B8u, gt::game::func_08B2E2B8, gt::ReturnKind::Word);
 GT_DECOMP(0x08967538u, gt::game::func_08967538, gt::ReturnKind::Void);
 GT_DECOMP(0x088A9858u, gt::game::func_088A9858, gt::ReturnKind::Float);
@@ -4235,9 +4237,11 @@ GT_DECOMP(0x08955334u, gt::game::func_08955334, gt::ReturnKind::Float);
 GT_DECOMP(0x08ABFAB8u, gt::game::func_08ABFAB8, gt::ReturnKind::Word);
 // Not registered: every case calls a kernel import the isolated diff run cannot replay ("not
 // comparable 22/22" on the race route), so the gate can't check it.
+// func_08AEB930 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08AEB930u, gt::game::func_08AEB930, gt::ReturnKind::Word);
 // Not registered: every case calls a kernel import the isolated diff run cannot replay ("not
 // comparable 22/22" on the race route), so the gate can't check it.
+// func_08AEB908 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08AEB908u, gt::game::func_08AEB908, gt::ReturnKind::Word);
 GT_DECOMP(0x0891126Cu, gt::game::func_0891126C, gt::ReturnKind::Word);
 GT_DECOMP(0x08911284u, gt::game::func_08911284, gt::ReturnKind::Word);
@@ -4717,13 +4721,16 @@ GT_DECOMP(0x08B28D34u, gt::game::func_08B28D34, gt::ReturnKind::Word);
 GT_DECOMP(0x089B883Cu, gt::game::func_089B883C, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
 // in all 58 cases), so the gate can't check it.
+// func_08B2EFF0 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08B2EFF0u, gt::game::func_08B2EFF0, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
 // in all 58 cases), so the gate can't check it.
+// func_08B2EFDC was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08B2EFDCu, gt::game::func_08B2EFDC, gt::ReturnKind::Word);
 GT_DECOMP(0x08B2DBE0u, gt::game::func_08B2DBE0, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable"
 // in all 58 cases), so the gate can't check it.
+// func_08B28CD4 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08B28CD4u, gt::game::func_08B28CD4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B28D04u, gt::game::func_08B28D04, gt::ReturnKind::Word);
 GT_DECOMP(0x0895541Cu, gt::game::func_0895541C, gt::ReturnKind::Word);
@@ -5574,7 +5581,7 @@ GT_DECOMP(0x089273B4u, gt::game::func_089273B4, gt::ReturnKind::Word);
 GT_DECOMP(0x0891C6F4u, gt::game::func_0891C6F4, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so it is
 // untested.
-// GT_DECOMP(0x08B2A908u, gt::game::func_08B2A908, gt::ReturnKind::Word);
+GT_DECOMP(0x08B2A908u, gt::game::func_08B2A908, gt::ReturnKind::Word);
 GT_DECOMP(0x0893656Cu, gt::game::func_0893656C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A618ACu, gt::game::func_08A618AC, gt::ReturnKind::Word);
 GT_DECOMP(0x08A06F7Cu, gt::game::func_08A06F7C, gt::ReturnKind::Word);
@@ -5968,11 +5975,11 @@ GT_DECOMP(0x08AF6CE8u, gt::game::func_08AF6CE8, gt::ReturnKind::Word);
 GT_DECOMP(0x08B20A54u, gt::game::func_08B20A54, gt::ReturnKind::Word);
 GT_DECOMP(0x08B20920u, gt::game::func_08B20920, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so the gate can't check it.
-// GT_DECOMP(0x08AE0968u, gt::game::func_08AE0968, gt::ReturnKind::Word);
+GT_DECOMP(0x08AE0968u, gt::game::func_08AE0968, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so the gate can't check it.
-// GT_DECOMP(0x08AD5624u, gt::game::func_08AD5624, gt::ReturnKind::Word);
+GT_DECOMP(0x08AD5624u, gt::game::func_08AD5624, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so the gate can't check it.
-// GT_DECOMP(0x08AC9470u, gt::game::func_08AC9470, gt::ReturnKind::Word);
+GT_DECOMP(0x08AC9470u, gt::game::func_08AC9470, gt::ReturnKind::Word);
 GT_DECOMP(0x08B24AB8u, gt::game::func_08B24AB8, gt::ReturnKind::Word);
 GT_DECOMP(0x088DA458u, gt::game::func_088DA458, gt::ReturnKind::Word);
 GT_DECOMP(0x089CBFDCu, gt::game::func_089CBFDC, gt::ReturnKind::Word);
@@ -6342,6 +6349,7 @@ GT_DECOMP(0x089BAC14u, gt::game::func_089BAC14, gt::ReturnKind::Word);
 GT_DECOMP(0x08A16E88u, gt::game::func_08A16E88, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
 // all 30 cases), so the gate can't check it.
+// func_089C4558 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x089C4558u, gt::game::func_089C4558, gt::ReturnKind::Word);
 GT_DECOMP(0x089F0B04u, gt::game::func_089F0B04, gt::ReturnKind::Word);
 GT_DECOMP(0x08A6C158u, gt::game::func_08A6C158, gt::ReturnKind::DoubleWord);
@@ -7092,6 +7100,7 @@ GT_DECOMP(0x08932558u, gt::game::func_08932558, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x088A5EE0u, gt::game::func_088A5EE0, gt::ReturnKind::DoubleWord);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
 // all 23 cases), so the gate can't check it.
+// func_08B1C47C was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08B1C47Cu, gt::game::func_08B1C47C, gt::ReturnKind::Word);
 GT_DECOMP(0x08992A4Cu, gt::game::func_08992A4C, gt::ReturnKind::Word);
 GT_DECOMP(0x08936578u, gt::game::func_08936578, gt::ReturnKind::Word);
@@ -7510,7 +7519,7 @@ GT_DECOMP(0x08B2E1F8u, gt::game::func_08B2E1F8, gt::ReturnKind::Word);
 GT_DECOMP(0x08AC0640u, gt::game::func_08AC0640, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so it is
 // untested.
-// GT_DECOMP(0x08925FE4u, gt::game::func_08925FE4, gt::ReturnKind::Word);
+GT_DECOMP(0x08925FE4u, gt::game::func_08925FE4, gt::ReturnKind::Word);
 GT_DECOMP(0x08995714u, gt::game::func_08995714, gt::ReturnKind::Word);
 GT_DECOMP(0x08936544u, gt::game::func_08936544, gt::ReturnKind::Word);
 GT_DECOMP(0x08B207ACu, gt::game::func_08B207AC, gt::ReturnKind::Word);
@@ -7842,12 +7851,15 @@ GT_DECOMP(0x08973CC4u, gt::game::func_08973CC4, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABC990u, gt::game::func_08ABC990, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
 // all 18 cases), so the gate can't check it.
+// func_08A4D2D4 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08A4D2D4u, gt::game::func_08A4D2D4, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
 // all 17 cases), so the gate can't check it.
+// func_08A4D2F8 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x08A4D2F8u, gt::game::func_08A4D2F8, gt::ReturnKind::Word);
 // Not registered: it reaches a kernel import the isolated diff run cannot replay ("not comparable" in
 // all 17 cases), so the gate can't check it.
+// func_089F0AF4 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x089F0AF4u, gt::game::func_089F0AF4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B18A28u, gt::game::func_08B18A28, gt::ReturnKind::Word);
 GT_DECOMP(0x0893273Cu, gt::game::func_0893273C, gt::ReturnKind::Word);
@@ -8201,11 +8213,11 @@ GT_DECOMP(0x088D07C0u, gt::game::func_088D07C0, gt::ReturnKind::Word);
 GT_DECOMP(0x08B18E40u, gt::game::func_08B18E40, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so it is
 // untested.
-// GT_DECOMP(0x08889D4Cu, gt::game::func_08889D4C, gt::ReturnKind::Word);
+GT_DECOMP(0x08889D4Cu, gt::game::func_08889D4C, gt::ReturnKind::Word);
 GT_DECOMP(0x08B0DDDCu, gt::game::func_08B0DDDC, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0"), so it is
 // untested.
-// GT_DECOMP(0x08926D60u, gt::game::func_08926D60, gt::ReturnKind::Word);
+GT_DECOMP(0x08926D60u, gt::game::func_08926D60, gt::ReturnKind::Word);
 GT_DECOMP(0x08B24A0Cu, gt::game::func_08B24A0C, gt::ReturnKind::Word);
 GT_DECOMP(0x0893069Cu, gt::game::func_0893069C, gt::ReturnKind::Word);
 GT_DECOMP(0x08897574u, gt::game::func_08897574, gt::ReturnKind::Word);
@@ -8541,13 +8553,14 @@ GT_DECOMP(0x08AD408Cu, gt::game::func_08AD408C, gt::ReturnKind::Word);
 GT_DECOMP(0x08AB94C4u, gt::game::func_08AB94C4, gt::ReturnKind::Word);
 // func_089FB918 is reached only from inside its generated unit (the harness saw no call), so the gate
 // can't check it.
-// GT_DECOMP(0x089FB918u, gt::game::func_089FB918, gt::ReturnKind::Word);
+GT_DECOMP(0x089FB918u, gt::game::func_089FB918, gt::ReturnKind::Word);
 GT_DECOMP(0x08A7CBA8u, gt::game::func_08A7CBA8, gt::ReturnKind::Word);
 GT_DECOMP(0x08A663C0u, gt::game::func_08A663C0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A17414u, gt::game::func_08A17414, gt::ReturnKind::Word);
 GT_DECOMP(0x089B47ECu, gt::game::func_089B47EC, gt::ReturnKind::Word);
 // func_089B45EC reaches kernel imports the isolated run can't replay (not comparable in all 12 cases), so
 // the gate can't check it.
+// func_089B45EC was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x089B45ECu, gt::game::func_089B45EC, gt::ReturnKind::Word);
 GT_DECOMP(0x089B39DCu, gt::game::func_089B39DC, gt::ReturnKind::Word);
 GT_DECOMP(0x088C4D20u, gt::game::func_088C4D20, gt::ReturnKind::Word);
@@ -31522,19 +31535,19 @@ void func_08897D9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0": only reached from inside its generated unit), so the gate can't check it.
-// GT_DECOMP(0x0895BABCu, gt::game::func_0895BABC, gt::ReturnKind::Word);
+GT_DECOMP(0x0895BABCu, gt::game::func_0895BABC, gt::ReturnKind::Word);
 GT_DECOMP(0x0895A004u, gt::game::func_0895A004, gt::ReturnKind::Void);
 GT_DECOMP(0x0895900Cu, gt::game::func_0895900C, gt::ReturnKind::Void);
 GT_DECOMP(0x08958B94u, gt::game::func_08958B94, gt::ReturnKind::Void);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0": only reached from inside its generated unit), so the gate can't check it.
-// GT_DECOMP(0x0895861Cu, gt::game::func_0895861C, gt::ReturnKind::Void);
+GT_DECOMP(0x0895861Cu, gt::game::func_0895861C, gt::ReturnKind::Void);
 GT_DECOMP(0x08956540u, gt::game::func_08956540, gt::ReturnKind::Void);
 GT_DECOMP(0x089555B4u, gt::game::func_089555B4, gt::ReturnKind::Void);
 GT_DECOMP(0x0894D5A0u, gt::game::func_0894D5A0, gt::ReturnKind::Word);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0": only reached from inside its generated unit), so the gate can't check it.
-// GT_DECOMP(0x08949984u, gt::game::func_08949984, gt::ReturnKind::Void);
+GT_DECOMP(0x08949984u, gt::game::func_08949984, gt::ReturnKind::Void);
 // Not registered: the harness never sees a call to it on the three pad routes ("calls 0": only reached from inside its generated unit), so the gate can't check it.
-// GT_DECOMP(0x089481B8u, gt::game::func_089481B8, gt::ReturnKind::Void);
+GT_DECOMP(0x089481B8u, gt::game::func_089481B8, gt::ReturnKind::Void);
 GT_DECOMP(0x08944484u, gt::game::func_08944484, gt::ReturnKind::Void);
 GT_DECOMP(0x08944418u, gt::game::func_08944418, gt::ReturnKind::Word);
 GT_DECOMP(0x08941510u, gt::game::func_08941510, gt::ReturnKind::Void);
@@ -32608,18 +32621,12 @@ GT_DECOMP(0x089E432Cu, gt::game::func_089E432C, gt::ReturnKind::Void);
 GT_DECOMP(0x089A6684u, gt::game::func_089A6684, gt::ReturnKind::Void);
 GT_DECOMP(0x08984D2Cu, gt::game::func_08984D2C, gt::ReturnKind::Void);
 GT_DECOMP(0x089E460Cu, gt::game::func_089E460C, gt::ReturnKind::Void);
-// func_089F30A0 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089F30A0u, gt::game::func_089F30A0, gt::ReturnKind::Void);
-// func_089F3038 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089F3038u, gt::game::func_089F3038, gt::ReturnKind::Void);
-// func_089F2FD0 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089F2FD0u, gt::game::func_089F2FD0, gt::ReturnKind::Void);
-// func_089F2E98 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089F2E98u, gt::game::func_089F2E98, gt::ReturnKind::Void);
-// func_089F2E30 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089F2E30u, gt::game::func_089F2E30, gt::ReturnKind::Void);
-// func_089F2DC8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089F2DC8u, gt::game::func_089F2DC8, gt::ReturnKind::Void);
+GT_DECOMP(0x089F30A0u, gt::game::func_089F30A0, gt::ReturnKind::Void);
+GT_DECOMP(0x089F3038u, gt::game::func_089F3038, gt::ReturnKind::Void);
+GT_DECOMP(0x089F2FD0u, gt::game::func_089F2FD0, gt::ReturnKind::Void);
+GT_DECOMP(0x089F2E98u, gt::game::func_089F2E98, gt::ReturnKind::Void);
+GT_DECOMP(0x089F2E30u, gt::game::func_089F2E30, gt::ReturnKind::Void);
+GT_DECOMP(0x089F2DC8u, gt::game::func_089F2DC8, gt::ReturnKind::Void);
 GT_DECOMP(0x089F46E4u, gt::game::func_089F46E4, gt::ReturnKind::Void);
 GT_DECOMP(0x089F5098u, gt::game::func_089F5098, gt::ReturnKind::Void);
 GT_DECOMP(0x089F4F4Cu, gt::game::func_089F4F4C, gt::ReturnKind::Void);
@@ -33107,8 +33114,7 @@ GT_DECOMP(0x088A599Cu, gt::game::func_088A599C, gt::ReturnKind::Void);
 GT_DECOMP(0x088D3020u, gt::game::func_088D3020, gt::ReturnKind::Void);
 GT_DECOMP(0x08866434u, gt::game::func_08866434, gt::ReturnKind::Word);
 GT_DECOMP(0x0885ECF4u, gt::game::func_0885ECF4, gt::ReturnKind::Word);
-// func_08B28030 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08B28030u, gt::game::func_08B28030, gt::ReturnKind::Void);
+GT_DECOMP(0x08B28030u, gt::game::func_08B28030, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD023Cu, gt::game::func_08AD023C, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABDC6Cu, gt::game::func_08ABDC6C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A969C8u, gt::game::func_08A969C8, gt::ReturnKind::Void);
@@ -33574,8 +33580,7 @@ GT_DECOMP(0x0885C188u, gt::game::func_0885C188, gt::ReturnKind::Void);
 GT_DECOMP(0x0885C1ACu, gt::game::func_0885C1AC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B27FA8u, gt::game::func_08B27FA8, gt::ReturnKind::Word);
 GT_DECOMP(0x08B083E4u, gt::game::func_08B083E4, gt::ReturnKind::Void);
-// func_0889B5E8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0889B5E8u, gt::game::func_0889B5E8, gt::ReturnKind::Word);
+GT_DECOMP(0x0889B5E8u, gt::game::func_0889B5E8, gt::ReturnKind::Word);
 GT_DECOMP(0x08A0F4D4u, gt::game::func_08A0F4D4, gt::ReturnKind::Void);
 GT_DECOMP(0x08B0E234u, gt::game::func_08B0E234, gt::ReturnKind::Void);
 GT_DECOMP(0x08866654u, gt::game::func_08866654, gt::ReturnKind::Void);
@@ -34673,8 +34678,7 @@ GT_DECOMP(0x088FB970u, gt::game::func_088FB970, gt::ReturnKind::Void);
 GT_DECOMP(0x088F9480u, gt::game::func_088F9480, gt::ReturnKind::Void);
 GT_DECOMP(0x088B4DB4u, gt::game::func_088B4DB4, gt::ReturnKind::Void);
 GT_DECOMP(0x088ABB20u, gt::game::func_088ABB20, gt::ReturnKind::Void);
-// func_089FC750 is never called on the pad routes (compared 0, calls 0), so the gate can\'t check it.
-// GT_DECOMP(0x089FC750u, gt::game::func_089FC750, gt::ReturnKind::Void);
+GT_DECOMP(0x089FC750u, gt::game::func_089FC750, gt::ReturnKind::Void);
 GT_DECOMP(0x089D46E8u, gt::game::func_089D46E8, gt::ReturnKind::Void);
 GT_DECOMP(0x08995A78u, gt::game::func_08995A78, gt::ReturnKind::Void);
 GT_DECOMP(0x089A65C8u, gt::game::func_089A65C8, gt::ReturnKind::Void);
@@ -34690,8 +34694,7 @@ GT_DECOMP(0x089214F0u, gt::game::func_089214F0, gt::ReturnKind::Void);
 // GT_DECOMP(0x08927440u, gt::game::func_08927440, gt::ReturnKind::Void);
 GT_DECOMP(0x08927350u, gt::game::func_08927350, gt::ReturnKind::Word);
 GT_DECOMP(0x089260D8u, gt::game::func_089260D8, gt::ReturnKind::Void);
-// func_08917870 is never called on the pad routes (compared 0, calls 0), so the gate can\'t check it.
-// GT_DECOMP(0x08917870u, gt::game::func_08917870, gt::ReturnKind::Void);
+GT_DECOMP(0x08917870u, gt::game::func_08917870, gt::ReturnKind::Void);
 GT_DECOMP(0x088D9FD8u, gt::game::func_088D9FD8, gt::ReturnKind::Word);
 GT_DECOMP(0x088A1954u, gt::game::func_088A1954, gt::ReturnKind::Word);
 GT_DECOMP(0x088D78D8u, gt::game::func_088D78D8, gt::ReturnKind::Void);
@@ -35835,15 +35838,13 @@ void func_08A13990(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 GT_DECOMP(0x08B20CACu, gt::game::func_08B20CAC, gt::ReturnKind::Word);
-// func_08B1F478 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08B1F478u, gt::game::func_08B1F478, gt::ReturnKind::Void);
+GT_DECOMP(0x08B1F478u, gt::game::func_08B1F478, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABA00Cu, gt::game::func_08ABA00C, gt::ReturnKind::Void);
 GT_DECOMP(0x08A942E4u, gt::game::func_08A942E4, gt::ReturnKind::Void);
 GT_DECOMP(0x089BFDF4u, gt::game::func_089BFDF4, gt::ReturnKind::Void);
 GT_DECOMP(0x08966878u, gt::game::func_08966878, gt::ReturnKind::Void);
 GT_DECOMP(0x08907694u, gt::game::func_08907694, gt::ReturnKind::Word);
-// func_08B2BD24 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08B2BD24u, gt::game::func_08B2BD24, gt::ReturnKind::Void);
+GT_DECOMP(0x08B2BD24u, gt::game::func_08B2BD24, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2B918u, gt::game::func_08B2B918, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1DF7Cu, gt::game::func_08B1DF7C, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1D4DCu, gt::game::func_08B1D4DC, gt::ReturnKind::Void);
@@ -35861,8 +35862,7 @@ GT_DECOMP(0x08B1A7FCu, gt::game::func_08B1A7FC, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1A7A4u, gt::game::func_08B1A7A4, gt::ReturnKind::Word);
 GT_DECOMP(0x08B1A5B4u, gt::game::func_08B1A5B4, gt::ReturnKind::Void);
 GT_DECOMP(0x08B19FA4u, gt::game::func_08B19FA4, gt::ReturnKind::Word);
-// func_08B15F40 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08B15F40u, gt::game::func_08B15F40, gt::ReturnKind::Word);
+GT_DECOMP(0x08B15F40u, gt::game::func_08B15F40, gt::ReturnKind::Word);
 GT_DECOMP(0x08B15B10u, gt::game::func_08B15B10, gt::ReturnKind::Void);
 GT_DECOMP(0x08B15AC8u, gt::game::func_08B15AC8, gt::ReturnKind::Void);
 GT_DECOMP(0x08B14FA8u, gt::game::func_08B14FA8, gt::ReturnKind::Void);
@@ -35906,8 +35906,7 @@ GT_DECOMP(0x08AD0280u, gt::game::func_08AD0280, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACA970u, gt::game::func_08ACA970, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACA948u, gt::game::func_08ACA948, gt::ReturnKind::Word);
 GT_DECOMP(0x08AC9354u, gt::game::func_08AC9354, gt::ReturnKind::Void);
-// func_08AC8C9C is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08AC8C9Cu, gt::game::func_08AC8C9C, gt::ReturnKind::Void);
+GT_DECOMP(0x08AC8C9Cu, gt::game::func_08AC8C9C, gt::ReturnKind::Void);
 GT_DECOMP(0x08AC858Cu, gt::game::func_08AC858C, gt::ReturnKind::Void);
 // func_08AC4398 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
@@ -35929,8 +35928,7 @@ GT_DECOMP(0x08ABDD54u, gt::game::func_08ABDD54, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABDA84u, gt::game::func_08ABDA84, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABD974u, gt::game::func_08ABD974, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABCEB4u, gt::game::func_08ABCEB4, gt::ReturnKind::Void);
-// func_08ABCD64 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08ABCD64u, gt::game::func_08ABCD64, gt::ReturnKind::Void);
+GT_DECOMP(0x08ABCD64u, gt::game::func_08ABCD64, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABC5E0u, gt::game::func_08ABC5E0, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABBB90u, gt::game::func_08ABBB90, gt::ReturnKind::Void);
 // func_08ABCC1C reaches calls the isolated run can't replay (not comparable in all its cases),
@@ -35939,8 +35937,7 @@ GT_DECOMP(0x08ABBB90u, gt::game::func_08ABBB90, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABBC10u, gt::game::func_08ABBC10, gt::ReturnKind::Void);
 GT_DECOMP(0x08ABA5A8u, gt::game::func_08ABA5A8, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABA484u, gt::game::func_08ABA484, gt::ReturnKind::Void);
-// func_08AB9BF4 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08AB9BF4u, gt::game::func_08AB9BF4, gt::ReturnKind::Void);
+GT_DECOMP(0x08AB9BF4u, gt::game::func_08AB9BF4, gt::ReturnKind::Void);
 GT_DECOMP(0x08AB9894u, gt::game::func_08AB9894, gt::ReturnKind::Void);
 GT_DECOMP(0x08AB86B0u, gt::game::func_08AB86B0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AB8644u, gt::game::func_08AB8644, gt::ReturnKind::Void);
@@ -36715,8 +36712,7 @@ GT_DECOMP(0x08965424u, gt::game::func_08965424, gt::ReturnKind::Word);
 GT_DECOMP(0x089CE914u, gt::game::func_089CE914, gt::ReturnKind::Void);
 GT_DECOMP(0x089CCA00u, gt::game::func_089CCA00, gt::ReturnKind::Word);
 GT_DECOMP(0x089CAE40u, gt::game::func_089CAE40, gt::ReturnKind::Void);
-// func_089C6844 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089C6844u, gt::game::func_089C6844, gt::ReturnKind::Word);
+GT_DECOMP(0x089C6844u, gt::game::func_089C6844, gt::ReturnKind::Word);
 GT_DECOMP(0x089C4CC4u, gt::game::func_089C4CC4, gt::ReturnKind::Void);
 GT_DECOMP(0x089C41BCu, gt::game::func_089C41BC, gt::ReturnKind::Void);
 // func_089B8C18 reaches calls the isolated run can't replay (not comparable in all its cases),
@@ -36751,8 +36747,7 @@ GT_DECOMP(0x089300C0u, gt::game::func_089300C0, gt::ReturnKind::Word);
 GT_DECOMP(0x0892C8B8u, gt::game::func_0892C8B8, gt::ReturnKind::Void);
 GT_DECOMP(0x0892BAA8u, gt::game::func_0892BAA8, gt::ReturnKind::Void);
 GT_DECOMP(0x08927550u, gt::game::func_08927550, gt::ReturnKind::Void);
-// func_089273F0 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x089273F0u, gt::game::func_089273F0, gt::ReturnKind::Void);
+GT_DECOMP(0x089273F0u, gt::game::func_089273F0, gt::ReturnKind::Void);
 // func_089272EC is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
 // GT_DECOMP(0x089272ECu, gt::game::func_089272EC, gt::ReturnKind::Void);
 GT_DECOMP(0x08922B98u, gt::game::func_08922B98, gt::ReturnKind::Void);
@@ -36764,8 +36759,7 @@ GT_DECOMP(0x0891FD28u, gt::game::func_0891FD28, gt::ReturnKind::Void);
 GT_DECOMP(0x0891FCD8u, gt::game::func_0891FCD8, gt::ReturnKind::Void);
 // func_0891C840 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
 // GT_DECOMP(0x0891C840u, gt::game::func_0891C840, gt::ReturnKind::Void);
-// func_0891C768 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0891C768u, gt::game::func_0891C768, gt::ReturnKind::Void);
+GT_DECOMP(0x0891C768u, gt::game::func_0891C768, gt::ReturnKind::Void);
 // func_0891C724 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
 // GT_DECOMP(0x0891C724u, gt::game::func_0891C724, gt::ReturnKind::Void);
 GT_DECOMP(0x0891C614u, gt::game::func_0891C614, gt::ReturnKind::Void);
@@ -37542,10 +37536,8 @@ GT_DECOMP(0x088C53C8u, gt::game::func_088C53C8, gt::ReturnKind::Word);
 // GT_DECOMP(0x088E43C0u, gt::game::func_088E43C0, gt::ReturnKind::Void);
 GT_DECOMP(0x088DC7C0u, gt::game::func_088DC7C0, gt::ReturnKind::Void);
 GT_DECOMP(0x088DAFBCu, gt::game::func_088DAFBC, gt::ReturnKind::Void);
-// func_088DAD54 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x088DAD54u, gt::game::func_088DAD54, gt::ReturnKind::Void);
-// func_088DAD14 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x088DAD14u, gt::game::func_088DAD14, gt::ReturnKind::Void);
+GT_DECOMP(0x088DAD54u, gt::game::func_088DAD54, gt::ReturnKind::Void);
+GT_DECOMP(0x088DAD14u, gt::game::func_088DAD14, gt::ReturnKind::Void);
 GT_DECOMP(0x088DA14Cu, gt::game::func_088DA14C, gt::ReturnKind::Void);
 GT_DECOMP(0x088DA0ACu, gt::game::func_088DA0AC, gt::ReturnKind::Void);
 GT_DECOMP(0x088DA064u, gt::game::func_088DA064, gt::ReturnKind::Void);
@@ -37581,16 +37573,13 @@ GT_DECOMP(0x088BA61Cu, gt::game::func_088BA61C, gt::ReturnKind::Word);
 GT_DECOMP(0x088B4100u, gt::game::func_088B4100, gt::ReturnKind::Void);
 GT_DECOMP(0x088AFA88u, gt::game::func_088AFA88, gt::ReturnKind::Void);
 GT_DECOMP(0x088A7608u, gt::game::func_088A7608, gt::ReturnKind::Word);
-// func_088A6C48 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x088A6C48u, gt::game::func_088A6C48, gt::ReturnKind::Void);
+GT_DECOMP(0x088A6C48u, gt::game::func_088A6C48, gt::ReturnKind::Void);
 GT_DECOMP(0x088A6608u, gt::game::func_088A6608, gt::ReturnKind::Word);
 // func_088A5E54 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x088A5E54u, gt::game::func_088A5E54, gt::ReturnKind::Void);
 GT_DECOMP(0x088A5CD0u, gt::game::func_088A5CD0, gt::ReturnKind::Void);
-// func_08863094 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08863094u, gt::game::func_08863094, gt::ReturnKind::Void);
+GT_DECOMP(0x08863094u, gt::game::func_08863094, gt::ReturnKind::Void);
 GT_DECOMP(0x088A5CD8u, gt::game::func_088A5CD8, gt::ReturnKind::Void);
 GT_DECOMP(0x088A5A0Cu, gt::game::func_088A5A0C, gt::ReturnKind::Void);
 GT_DECOMP(0x088A5AE4u, gt::game::func_088A5AE4, gt::ReturnKind::Float);
@@ -37620,18 +37609,15 @@ GT_DECOMP(0x08888370u, gt::game::func_08888370, gt::ReturnKind::Void);
 GT_DECOMP(0x08866FA8u, gt::game::func_08866FA8, gt::ReturnKind::Void);
 GT_DECOMP(0x08866918u, gt::game::func_08866918, gt::ReturnKind::Void);
 GT_DECOMP(0x08866388u, gt::game::func_08866388, gt::ReturnKind::Void);
-// func_08865F70 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08865F70u, gt::game::func_08865F70, gt::ReturnKind::Void);
-// func_08865F54 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08865F54u, gt::game::func_08865F54, gt::ReturnKind::Void);
+GT_DECOMP(0x08865F70u, gt::game::func_08865F70, gt::ReturnKind::Void);
+GT_DECOMP(0x08865F54u, gt::game::func_08865F54, gt::ReturnKind::Void);
 GT_DECOMP(0x08865F04u, gt::game::func_08865F04, gt::ReturnKind::Void);
 GT_DECOMP(0x08865E94u, gt::game::func_08865E94, gt::ReturnKind::Void);
 GT_DECOMP(0x088635CCu, gt::game::func_088635CC, gt::ReturnKind::Void);
 GT_DECOMP(0x08860058u, gt::game::func_08860058, gt::ReturnKind::Void);
 GT_DECOMP(0x0885EFECu, gt::game::func_0885EFEC, gt::ReturnKind::Void);
 GT_DECOMP(0x0885EFE0u, gt::game::func_0885EFE0, gt::ReturnKind::Void);
-// func_0885E424 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0885E424u, gt::game::func_0885E424, gt::ReturnKind::Void);
+GT_DECOMP(0x0885E424u, gt::game::func_0885E424, gt::ReturnKind::Void);
 // func_0885EF5C is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
 // GT_DECOMP(0x0885EF5Cu, gt::game::func_0885EF5C, gt::ReturnKind::Word);
 GT_DECOMP(0x0885EF50u, gt::game::func_0885EF50, gt::ReturnKind::Void);
@@ -39013,9 +38999,7 @@ GT_DECOMP(0x088E7730u, gt::game::func_088E7730, gt::ReturnKind::Void);
 GT_DECOMP(0x088D1E14u, gt::game::func_088D1E14, gt::ReturnKind::Void);
 GT_DECOMP(0x0885EF78u, gt::game::func_0885EF78, gt::ReturnKind::Void);
 GT_DECOMP(0x08895F54u, gt::game::func_08895F54, gt::ReturnKind::Void);
-// func_088D8154 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x088D8154u, gt::game::func_088D8154, gt::ReturnKind::Word);
+GT_DECOMP(0x088D8154u, gt::game::func_088D8154, gt::ReturnKind::Word);
 GT_DECOMP(0x089466A0u, gt::game::func_089466A0, gt::ReturnKind::Void);
 // func_08A563E8 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
@@ -39061,8 +39045,7 @@ GT_DECOMP(0x0897D4ACu, gt::game::func_0897D4AC, gt::ReturnKind::Word);
 // GT_DECOMP(0x089BFB70u, gt::game::func_089BFB70, gt::ReturnKind::Void);
 GT_DECOMP(0x0881C240u, gt::game::func_0881C240, gt::ReturnKind::Word);
 GT_DECOMP(0x088A31B4u, gt::game::func_088A31B4, gt::ReturnKind::Void);
-// func_088D5DF8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x088D5DF8u, gt::game::func_088D5DF8, gt::ReturnKind::Word);
+GT_DECOMP(0x088D5DF8u, gt::game::func_088D5DF8, gt::ReturnKind::Word);
 GT_DECOMP(0x08AAD9C4u, gt::game::func_08AAD9C4, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD454Cu, gt::game::func_08AD454C, gt::ReturnKind::Void);
 GT_DECOMP(0x088F5BD8u, gt::game::func_088F5BD8, gt::ReturnKind::Void);
@@ -39080,8 +39063,7 @@ GT_DECOMP(0x08A7EAD8u, gt::game::func_08A7EAD8, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD36ACu, gt::game::func_08AD36AC, gt::ReturnKind::Void);
 GT_DECOMP(0x08AB3690u, gt::game::func_08AB3690, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x08820C98u, gt::game::func_08820C98, gt::ReturnKind::Void);
-// func_0891E220 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0891E220u, gt::game::func_0891E220, gt::ReturnKind::Void);
+GT_DECOMP(0x0891E220u, gt::game::func_0891E220, gt::ReturnKind::Void);
 GT_DECOMP(0x089187BCu, gt::game::func_089187BC, gt::ReturnKind::Void);
 GT_DECOMP(0x08A93704u, gt::game::func_08A93704, gt::ReturnKind::Void);
 GT_DECOMP(0x08A93DD4u, gt::game::func_08A93DD4, gt::ReturnKind::Void);
@@ -39106,8 +39088,7 @@ GT_DECOMP(0x089271E8u, gt::game::func_089271E8, gt::ReturnKind::Void);
 GT_DECOMP(0x0896432Cu, gt::game::func_0896432C, gt::ReturnKind::Void);
 GT_DECOMP(0x089643BCu, gt::game::func_089643BC, gt::ReturnKind::Void);
 GT_DECOMP(0x089BF400u, gt::game::func_089BF400, gt::ReturnKind::Void);
-// func_08A533CC is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08A533CCu, gt::game::func_08A533CC, gt::ReturnKind::Word);
+GT_DECOMP(0x08A533CCu, gt::game::func_08A533CC, gt::ReturnKind::Word);
 
 // --- batch 61 ---
 
@@ -39885,8 +39866,7 @@ GT_DECOMP(0x089D4648u, gt::game::func_089D4648, gt::ReturnKind::Void);
 GT_DECOMP(0x08A0ACD0u, gt::game::func_08A0ACD0, gt::ReturnKind::Void);
 GT_DECOMP(0x0881BE7Cu, gt::game::func_0881BE7C, gt::ReturnKind::Void);
 GT_DECOMP(0x0884DB04u, gt::game::func_0884DB04, gt::ReturnKind::Void);
-// func_0891E0F8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0891E0F8u, gt::game::func_0891E0F8, gt::ReturnKind::Void);
+GT_DECOMP(0x0891E0F8u, gt::game::func_0891E0F8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A26B98u, gt::game::func_08A26B98, gt::ReturnKind::Word);
 GT_DECOMP(0x08AB69B0u, gt::game::func_08AB69B0, gt::ReturnKind::Word);
 // func_08A7C194 reaches calls the isolated run can't replay (not comparable in all its cases),
@@ -39898,8 +39878,7 @@ GT_DECOMP(0x088982C4u, gt::game::func_088982C4, gt::ReturnKind::Void);
 GT_DECOMP(0x088CEE6Cu, gt::game::func_088CEE6C, gt::ReturnKind::Void);
 GT_DECOMP(0x08918298u, gt::game::func_08918298, gt::ReturnKind::Void);
 GT_DECOMP(0x088D29B0u, gt::game::func_088D29B0, gt::ReturnKind::Void);
-// func_08928920 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08928920u, gt::game::func_08928920, gt::ReturnKind::Void);
+GT_DECOMP(0x08928920u, gt::game::func_08928920, gt::ReturnKind::Void);
 GT_DECOMP(0x08959F54u, gt::game::func_08959F54, gt::ReturnKind::Void);
 GT_DECOMP(0x0888B3E0u, gt::game::func_0888B3E0, gt::ReturnKind::Void);
 // func_08ABA868 reaches calls the isolated run can't replay (not comparable in all its cases),
@@ -39907,17 +39886,13 @@ GT_DECOMP(0x0888B3E0u, gt::game::func_0888B3E0, gt::ReturnKind::Void);
 // GT_DECOMP(0x08ABA868u, gt::game::func_08ABA868, gt::ReturnKind::Void);
 GT_DECOMP(0x0880F100u, gt::game::func_0880F100, gt::ReturnKind::Void);
 GT_DECOMP(0x08865D1Cu, gt::game::func_08865D1C, gt::ReturnKind::Void);
-// func_08893A2C is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x08893A2Cu, gt::game::func_08893A2C, gt::ReturnKind::Void);
+GT_DECOMP(0x08893A2Cu, gt::game::func_08893A2C, gt::ReturnKind::Void);
 GT_DECOMP(0x08910FA0u, gt::game::func_08910FA0, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACB6A0u, gt::game::func_08ACB6A0, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACB0D8u, gt::game::func_08ACB0D8, gt::ReturnKind::Void);
-// func_0888A600 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x0888A600u, gt::game::func_0888A600, gt::ReturnKind::Void);
-// func_088F2728 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x088F2728u, gt::game::func_088F2728, gt::ReturnKind::Void);
-// func_088F2AF8 is never called on the pad routes (compared 0, calls 0), so the gate can't check it.
-// GT_DECOMP(0x088F2AF8u, gt::game::func_088F2AF8, gt::ReturnKind::Void);
+GT_DECOMP(0x0888A600u, gt::game::func_0888A600, gt::ReturnKind::Void);
+GT_DECOMP(0x088F2728u, gt::game::func_088F2728, gt::ReturnKind::Void);
+GT_DECOMP(0x088F2AF8u, gt::game::func_088F2AF8, gt::ReturnKind::Void);
 GT_DECOMP(0x089721F8u, gt::game::func_089721F8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A0E61Cu, gt::game::func_08A0E61C, gt::ReturnKind::Void);
 GT_DECOMP(0x089A60A4u, gt::game::func_089A60A4, gt::ReturnKind::Void);
@@ -40481,9 +40456,7 @@ GT_DECOMP(0x08ABBFD8u, gt::game::func_08ABBFD8, gt::ReturnKind::Void);
 // so the gate can't check it.
 // GT_DECOMP(0x08B102D0u, gt::game::func_08B102D0, gt::ReturnKind::Void);
 GT_DECOMP(0x088A220Cu, gt::game::func_088A220C, gt::ReturnKind::Word);
-// func_08B335F0 reaches calls the isolated run can't replay (not comparable in all its cases),
-// so the gate can't check it.
-// GT_DECOMP(0x08B335F0u, gt::game::func_08B335F0, gt::ReturnKind::Word);
+GT_DECOMP(0x08B335F0u, gt::game::func_08B335F0, gt::ReturnKind::Word);
 GT_DECOMP(0x08A18010u, gt::game::func_08A18010, gt::ReturnKind::Void);
 GT_DECOMP(0x088948F4u, gt::game::func_088948F4, gt::ReturnKind::Word);
 GT_DECOMP(0x0885E1F0u, gt::game::func_0885E1F0, gt::ReturnKind::Void);
@@ -40652,3 +40625,223 @@ GT_DECOMP(0x08B28628u, gt::game::func_08B28628, gt::ReturnKind::Word);
 GT_DECOMP(0x08A057F0u, gt::game::func_08A057F0, gt::ReturnKind::Void);
 GT_DECOMP(0x08A2240Cu, gt::game::func_08A2240C, gt::ReturnKind::Void);
 GT_DECOMP(0x089C5A28u, gt::game::func_089C5A28, gt::ReturnKind::Void);
+
+
+// --- batch 64 ---
+// (Also re-registers 49 earlier functions the import record/replay harness can now compare.)
+
+namespace gt::game {
+
+// func_08B2B4D8(alignment, size) -> the block func_08B35840(alignment, size) gives; while it gives none: func_08B2E064() and, the first time, the
+// retry mode func_08B2B490(1) (and func_08B2B490(-1) at the end).
+void func_08B2B4D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t alignment = ctx.gpr[4], size = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    bool retrying = false;
+    std::uint32_t block;
+    while ((block = call_guest(rt, ctx, 0x08B35840u, {alignment, size})) == 0u) {
+        (void)call_guest(rt, ctx, 0x08B2E064u, {});
+        if (!retrying) {
+            retrying = true;
+            (void)call_guest(rt, ctx, 0x08B2B490u, {1u});
+        }
+    }
+    if (retrying) (void)call_guest(rt, ctx, 0x08B2B490u, {0xFFFFFFFFu});
+    ctx.gpr[2] = block;
+}
+
+// func_08B2B5E0(size): the same with func_08B35DA0(size).
+void func_08B2B5E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t size = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    bool retrying = false;
+    std::uint32_t block;
+    while ((block = call_guest(rt, ctx, 0x08B35DA0u, {size})) == 0u) {
+        (void)call_guest(rt, ctx, 0x08B2E064u, {});
+        if (!retrying) {
+            retrying = true;
+            (void)call_guest(rt, ctx, 0x08B2B490u, {1u});
+        }
+    }
+    if (retrying) (void)call_guest(rt, ctx, 0x08B2B490u, {0xFFFFFFFFu});
+    ctx.gpr[2] = block;
+}
+
+// func_08B1B92C(a, b, c, flag) -> the thread record func_08B2E7DC(a, b, c) makes; its byte +0xC = flag, then func_08B2E214(it).
+void func_08B1B92C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t flag = ctx.gpr[7] & 255u;
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t record = call_guest(rt, ctx, 0x08B2E7DCu, {ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    rt.memory().store8(record + 12u, flag);
+    (void)call_guest(rt, ctx, 0x08B2E214u, {record});
+    ctx.gpr[2] = record;
+}
+
+// func_08B2E6DC() -> the thread record of the current thread (the word of the table at 0x08D68DC0, 12-byte entries indexed by func_08B2E13C(&_)),
+// read with interrupts suspended (func_08C7A888 / func_08C7A8A8); func_08C7A9E8 (the thread id import; tail call) without one.
+void func_08B2E6DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    std::uint32_t record;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        const std::uint32_t flags = call_guest(rt, ctx, 0x08C7A888u, {});
+        const std::uint32_t index = call_guest(rt, ctx, 0x08B2E13Cu, {frame.at(0u)});
+        record = static_cast<std::int32_t>(index) < 0 ? 0u : word(rt, 0x08D68DC0u + index * 12u);
+        (void)call_guest(rt, ctx, 0x08C7A8A8u, {flags});
+    }
+    ctx.gpr[2] = record;
+    if (record != 0u) return;
+    tail_call(ctx, 0x08C7A9E8u, {});
+}
+
+// func_08B33688(): once (the word 0x08D69208 not positive): 0x08D69204 = func_08C7B118(), 0x08D69208 = func_08B2ECAC(0x08CB54DC, 0x08B33624, 0),
+// then func_08C7B130(it) (tail call).
+void func_08B33688(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    if (static_cast<std::int32_t>(word(rt, 0x08D69208u)) > 0) return;
+    std::uint32_t handle;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        const std::uint32_t value = call_guest(rt, ctx, 0x08C7B118u, {});
+        rt.memory().store32(0x08D69204u, value);
+        handle = call_guest(rt, ctx, 0x08B2ECACu, {0x08CB54DCu, 0x08B33624u, 0u});
+        rt.memory().store32(0x08D69208u, handle);
+    }
+    tail_call(ctx, 0x08C7B130u, {handle});
+}
+
+// func_08B2DD2C(): once (the word 0x08D68D64 not positive): 0x08D68D64 = func_08B2ECAC(0x08CB546C, 0x08B2DC98, 0), 0x08CE0C78 = func_08C7AF60(-1, it).
+void func_08B2DD2C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    if (static_cast<std::int32_t>(word(rt, 0x08D68D64u)) > 0) return;
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t handle = call_guest(rt, ctx, 0x08B2ECACu, {0x08CB546Cu, 0x08B2DC98u, 0u});
+    rt.memory().store32(0x08D68D64u, handle);
+    rt.memory().store32(0x08CE0C78u, call_guest(rt, ctx, 0x08C7AF60u, {0xFFFFFFFFu, handle}));
+}
+
+// func_08B17924(): the words 0x08D62B40 / 0x08D62B3C (when 0) = func_08B1B92C / func_08B1B96C(a descriptor, ., func_08B2E134(func_08B2E314(3, 2 / -1)),
+// 0) with the descriptors {0x08B17444, 0x08D6112C, 0, 10240} / {0x08B174C8, 0x08D6112C}.
+void func_08B17924(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x20u);
+    if (word(rt, 0x08D62B40u) == 0u) {
+        rt.memory().store32(frame.at(0u), 0x08B17444u);
+        rt.memory().store32(frame.at(4u), 0x08D6112Cu);
+        rt.memory().store32(frame.at(12u), 10240u);
+        rt.memory().store32(frame.at(8u), 0u);
+        const std::uint32_t handle = call_guest(rt, ctx, 0x08B2E314u, {3u, 2u});
+        const std::uint32_t value = call_guest(rt, ctx, 0x08B2E134u, {handle});
+        rt.memory().store32(0x08D62B40u, call_guest(rt, ctx, 0x08B1B92Cu, {frame.at(0u), frame.at(8u), value, 0u}));
+    }
+    if (word(rt, 0x08D62B3Cu) == 0u) {
+        rt.memory().store32(frame.at(12u), 0x08D6112Cu);
+        rt.memory().store32(frame.at(8u), 0x08B174C8u);
+        const std::uint32_t handle = call_guest(rt, ctx, 0x08B2E314u, {3u, 0xFFFFFFFFu});
+        const std::uint32_t value = call_guest(rt, ctx, 0x08B2E134u, {handle});
+        rt.memory().store32(0x08D62B3Cu, call_guest(rt, ctx, 0x08B1B96Cu, {frame.at(8u), value, 0u}));
+    }
+}
+
+// func_08AD0900(): func_08B1A8BC(0x08AD093C), then func_08C7A8C0(func_08B2ECAC(0x08CB4A18, 0x08AD08D8, 0)) (tail call).
+void func_08AD0900(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    std::uint32_t handle;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call_guest(rt, ctx, 0x08B1A8BCu, {0x08AD093Cu});
+        handle = call_guest(rt, ctx, 0x08B2ECACu, {0x08CB4A18u, 0x08AD08D8u, 0u});
+    }
+    tail_call(ctx, 0x08C7A8C0u, {handle});
+}
+
+// func_08B09448(x): the word 0x08D4744C = func_08B2E7DC(&{0x08B098A8, 8192-byte stack, 0}, ., func_08B2E134(func_08B2E314(3, -6))) with the
+// local {0, 8192, 0x08B098A8, x}; returns func_08B2E214(it).
+void func_08B09448(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t x = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x20u);
+    rt.memory().store32(frame.at(12u), x);
+    rt.memory().store32(frame.at(4u), 8192u);
+    rt.memory().store32(frame.at(8u), 0x08B098A8u);
+    rt.memory().store32(frame.at(0u), 0u);
+    const std::uint32_t handle = call_guest(rt, ctx, 0x08B2E314u, {3u, 0xFFFFFFFAu});
+    const std::uint32_t value = call_guest(rt, ctx, 0x08B2E134u, {handle});
+    const std::uint32_t record = call_guest(rt, ctx, 0x08B2E7DCu, {frame.at(8u), frame.at(0u), value});
+    rt.memory().store32(0x08D4744Cu, record);
+    ctx.gpr[2] = call_guest(rt, ctx, 0x08B2E214u, {record});
+}
+
+// func_08B11F8C(_, a, b) -> the handle func_08B33C0C(a, 1, 0) when func_08B33B30(it, ., b, 0, 0) says its second word isn't negative (else -1 after
+// func_08B33A24(it)); -1 for a negative handle.
+void func_08B11F8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t a = ctx.gpr[5], b = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t handle = call_guest(rt, ctx, 0x08B33C0Cu, {a, 1u, 0u, ctx.gpr[7]});
+    ctx.gpr[2] = 0xFFFFFFFFu;
+    if (static_cast<std::int32_t>(handle) < 0) return;
+    const GuestResult result = call_guest(rt, ctx, 0x08B33B30u, {handle, 1u, b, 0u, 0u}, {});
+    if (static_cast<std::int32_t>(result.v1) >= 0) {
+        ctx.gpr[2] = handle;
+        return;
+    }
+    (void)call_guest(rt, ctx, 0x08B33A24u, {handle});
+}
+
+
+// func_08B2E7DC(info, params, prio) -> a new 24-byte thread record: a thread (name from func_08B37640(.., "%s", counter 0x08D773FC + 1)) is created
+// with entry 0x08B2E620, priority func_08B2E2C0(prio) and a stack of 5120 or (params +0x4 rounded up to 16) + 1024 bytes (func_08C7AA18, retried with
+// func_08B2E064 while it fails with -1), then started/queried (func_08C7AA80 on a 108-byte block) and the record filled from the info.
+void func_08B2E7DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t info = ctx.gpr[4], params = ctx.gpr[5];
+    GuestFrame frame(ctx, 0xB0u);
+    const std::uint32_t priority = call_guest(rt, ctx, 0x08B2E2C0u, {ctx.gpr[6]});
+    std::uint32_t stack = 5120u;
+    const std::uint32_t requested = word(rt, params + 4u);
+    if (requested != 0u) stack = ((requested + 15u) & ~15u) + 1024u;
+    const std::uint32_t flags = call_guest(rt, ctx, 0x08C7A888u, {});
+    const std::uint32_t counter = word(rt, 0x08D773FCu) + 1u;
+    rt.memory().store32(0x08D773FCu, counter);
+    (void)call_guest(rt, ctx, 0x08C7A8A8u, {flags});
+    (void)call_guest(rt, ctx, 0x08B37640u, {frame.at(0u), 0x08CB547Cu, counter});
+    std::uint32_t thread;
+    for (;;) {
+        thread = call_guest(rt, ctx, 0x08C7AA18u, {frame.at(0u), 0x08B2E620u, priority, stack, 0u, 0u});
+        if (thread != 0xFFFFFFFFu) break;
+        (void)call_guest(rt, ctx, 0x08B2E064u, {});
+    }
+    (void)call_guest(rt, ctx, 0x08B36018u, {frame.at(32u), 0u, 108u});
+    rt.memory().store32(frame.at(32u), 108u);
+    (void)call_guest(rt, ctx, 0x08C7AA80u, {thread, frame.at(32u)});
+    const std::uint32_t low = word(rt, frame.at(80u)), high = word(rt, frame.at(84u));
+    const std::uint32_t record = call_guest(rt, ctx, 0x08B62344u, {24u});
+    (void)call_guest(rt, ctx, 0x08B1BA0Cu, {record, 0u});
+    rt.memory().store32(record + 20u, high);
+    rt.memory().store32(record + 4u, word(rt, info));
+    rt.memory().store32(record + 8u, word(rt, info + 4u));
+    rt.memory().store32(record + 16u, low);
+    rt.memory().store32(record, thread);
+    rt.memory().store8(record + 13u, 0u);
+    ctx.gpr[2] = record;
+}
+
+} // namespace gt::game
+
+
+GT_DECOMP(0x08B2B4D8u, gt::game::func_08B2B4D8, gt::ReturnKind::Word);
+GT_DECOMP(0x08B2B5E0u, gt::game::func_08B2B5E0, gt::ReturnKind::Word);
+// func_08B1B92C reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x08B1B92Cu, gt::game::func_08B1B92C, gt::ReturnKind::Word);
+GT_DECOMP(0x08B2E6DCu, gt::game::func_08B2E6DC, gt::ReturnKind::Word);
+// func_08B33688 reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x08B33688u, gt::game::func_08B33688, gt::ReturnKind::Void);
+// func_08B2DD2C reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x08B2DD2Cu, gt::game::func_08B2DD2C, gt::ReturnKind::Void);
+// func_08B17924 reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x08B17924u, gt::game::func_08B17924, gt::ReturnKind::Void);
+// func_08AD0900 reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x08AD0900u, gt::game::func_08AD0900, gt::ReturnKind::Void);
+// func_08B09448 reaches calls the isolated run can't replay (not comparable in all its cases),
+// so the gate can't check it.
+// GT_DECOMP(0x08B09448u, gt::game::func_08B09448, gt::ReturnKind::Word);
+GT_DECOMP(0x08B11F8Cu, gt::game::func_08B11F8C, gt::ReturnKind::Word);
+GT_DECOMP(0x08B2E7DCu, gt::game::func_08B2E7DC, gt::ReturnKind::Word);
