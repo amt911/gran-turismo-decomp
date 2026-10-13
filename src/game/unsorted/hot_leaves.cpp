@@ -32904,10 +32904,6 @@ void func_08B28AA4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = call_guest(rt, ctx, 0x08B28768u, {self, a, b, c, d});
 }
 
-namespace {
-
-
-} // namespace
 
 
 // func_08B27FA8(this) -> the vtable: constructor — base func_08B27250, vtable 0x08CD9678, +0xA4 cleared.

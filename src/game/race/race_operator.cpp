@@ -7,9 +7,9 @@
 // replace the recompiled originals; the ones commented out at the end are never compared on their own by
 // the pad routes (the harness replays nested calls), so the gate can't verify them.
 //
-// Modding: window_max, the memory plan and the series course codes are read from here; a mod that wants a
-// different series or window count changes the readers. Keep the original behaviour for the differential
-// gate and make such changes opt-in.
+// Modding: window_max, the memory plan and the series course codes live in RaceOperatorData; most of their
+// readers here aren't verified by the gate yet (see the unregistered list at the end). Keep the original
+// behaviour for the differential gate and make changes opt-in.
 
 #include "decomp_registry.hpp"
 #include "gt/game/race_operator.hpp"
@@ -99,7 +99,7 @@ void get_target_slot(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0xFFFFFFFFu;
 }
 
-// Byte setters on the object +0x0: race_parameter::set_use_launch_data (+0x60), race_parameter::set_penalty_level (+0x48), set_with_ghost (+0x18) = v.
+// set_with_ghost(this, v): the byte with_ghost (+0x18) of the data = v.
 void set_with_ghost(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { rt.memory().store8(word(rt, ctx.gpr[4]) + 24u, ctx.gpr[5] & 255u); }
 
 // build_race(this) -> func_08861B20(the word +0x4, the record +0x7C, +0x80, +0x84, +0x88 when the byte +0x19 is set) of the
@@ -125,16 +125,16 @@ void is_online(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = call_guest(rt, ctx, 0x088D4C9Cu, {object});
 }
 
-// set_race_parameter(this, flag): func_088D4824(the member +0x7C of the object +0x0) when flag is set (tail call).
+// set_race_parameter(this, index): func_088D4824(the member +0x7C of the object +0x0) unless index is 0 (tail call;
+// the attribute handler func_08828494 passes 0 or the race parameter's index from 0x08846E50).
 void set_race_parameter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (ctx.gpr[5] == 0u) return;
     tail_call(ctx, 0x088D4824u, {word(rt, word(rt, ctx.gpr[4]) + 124u)});
 }
 
+// set_game_condition / set_gadget_condition(this, ...): func_08894098 / func_08893C40(the member +0x80 / +0x84 of the
+// object +0x0, ...) (tail calls).
 void set_game_condition(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08894098u, {word(rt, word(rt, ctx.gpr[4]) + 128u)}); }
-
-// set_gadget_condition / set_game_condition(this, ...): func_08893C40 / func_08894098(the member +0x84 / +0x80 of the object +0x0, ...)
-// (tail calls).
 void set_gadget_condition(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08893C40u, {word(rt, word(rt, ctx.gpr[4]) + 132u)}); }
 
 // get_account_car_parameter(this, i): table_entry_tail into func_0885D54C.
@@ -168,8 +168,6 @@ void func_0885D4CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     ctx.gpr[2] = result;
 }
-
-// get_account_car_parameter / get_account_fixed_car_parameter: `next`(entry i of the 392-byte table the list (+0x0) holds, i x 8, list).
 
 
 // attribute window_max
@@ -376,9 +374,6 @@ RACE_OPERATOR(0x0885C380u, get_memory_assign_standard, Word);
 // RACE_OPERATOR(0x0885C3BCu, get_memory_assign_for_replay, Word);
 RACE_OPERATOR(0x0885C38Cu, get_memory_assign_with_ghost, Word);
 // RACE_OPERATOR(0x0885C398u, get_memory_assign_many_players, Word);
-// Not registered: calls 0 in the fast and full gates. The pad routes reach them only inside their (decompiled)
-// callers' own harness cases, where nested calls run the recompiled originals, so nothing verifies them; they
-// run as the recompiled originals.
 RACE_OPERATOR(0x0885BBF0u, get_target_slot, Word);
 RACE_OPERATOR(0x0885BD3Cu, build_race, Word);
 RACE_OPERATOR(0x0885BE14u, is_online, Word);

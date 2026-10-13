@@ -22,7 +22,7 @@ namespace gt::game {
 // One participant: 392 bytes (the stride of every access: 0x0885C0E8, 0x0885C188, 0x0885BBF0 ...).
 struct RaceOperatorSlot : guest::Layout {
     GT_FIELD(std::uint8_t, unk_16, 0x16);               // 0x0885D4CC: the slot counts for getTargetSlot when set ...
-    GT_FIELD(std::uint8_t, unk_17, 0x17);               // ... and this one is clear and the car is not a target
+    GT_FIELD(std::uint8_t, unk_17, 0x17);               // ... and this one is clear: then it returns the car's CarParameter::target
     GT_FIELD(std::int32_t, account_point, 0x18);        // MRaceOperator::setAccountPoint / getAccountPoint
     // MRaceOperator::setAccountPersonalID / getAccountPersonalID: a 64-bit value.
     GT_FIELD(std::uint32_t, account_personal_id_low, 0x38);
