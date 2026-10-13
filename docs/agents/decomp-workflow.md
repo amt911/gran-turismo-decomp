@@ -131,13 +131,44 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
   into the recompiled original and the function shows `calls 0` (FINDINGS). Only the units that
   change are rewritten.
 
-## Interop with guest memory — open, decided in the Phase 3 spec
+## Interop with guest memory — typed views (`include/gt/guest.hpp`)
 
 Decompiled code runs next to recompiled code that keeps every game object in **guest memory** (32-bit
-PSP addresses; PSPRecomp has `guest_memory.hpp`). Decompiled code must read and write that same memory
-until the last recompiled function is gone. The options (typed guest-pointer wrappers, a fixed low
-host mapping with 32-bit pointers, a 32-bit host build) each trade readability, portability and speed
-— the spec chooses, with numbers. Until then, don't write decompiled code that assumes host pointers.
+PSP addresses). Decided 2026-10-13 (`docs/superpowers/specs/2026-10-13-named-subsystem-race-parameter-design.md`):
+a struct is declared once as a **layout**, and touched through a **view** of it:
+
+```cpp
+struct RaceParameter : gt::guest::Layout {
+    GT_FIELD(gt::guest::be16, race_type, 0x04);          // evidence next to every named field
+    GT_ARRAY(std::uint8_t, launch_speed, 0x61, 1, 5);
+};
+gt::guest::View<RaceParameter> race(rt.memory(), address);
+race.race_type() = 3;   // big-endian store at address + 4
+```
+
+- Accesses go through `GuestMemory`, as the recompiled code's do: no host pointers, same on every
+  platform. `be16`/`be32` fields are GT's big-endian ones; a field of a layout type is a nested view;
+  `Pointer<T>` is a field holding a guest address (`*field` / `field->x` follow it).
+- New decompiled code that belongs to a named subsystem uses layouts. Old offset code
+  (`word(rt, x + 0x30)`) is rewritten when it moves into a subsystem, not before.
+
+## Naming a subsystem — the recipe (first done: RaceParameter)
+
+1. **Find the evidence.** GT registers each Adhoc script class's methods (`0x08B87108`) and
+   attributes (`0x08B878E8`) with their names: dump the name → handler table from the registration
+   function (string address + handler per call), then decode each handler for the engine functions
+   it calls. The engine accessor's offset names the field. Natives are already in
+   `config/symbol_addrs.txt` (tools/adhoc_symbols.py); attribute handlers are added by hand.
+2. **Write the layout** in `include/gt/game/<subsystem>.hpp`. Each named field carries its evidence
+   chain (attribute/method → handler → engine function → offset). Fields without evidence keep `unk_XX`.
+   Array lengths come from the gap to the next field, and the comment says so.
+3. **Write the file** `src/game/<area>/<subsystem>.cpp`: one function per engine function, named after
+   GT's attribute or method, written against the layout. Move the subsystem's functions out of
+   `src/game/unsorted/` (their `GT_DECOMP` moves with them). In the comments of their callers, replace
+   `func_X` with the new name.
+4. **Name them** in `config/symbol_addrs.txt` (`RaceParameter::race_type = 0x088D62FC; // evidence`).
+5. **Gate as usual:** fast gate, sabotage (a bump in the shared accessor reaches every function),
+   full gate. Functions the routes never call stay written but unregistered, with that reason.
 
 ## GCC/Allegrex specifics to keep in mind
 
