@@ -24,7 +24,7 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 >   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
 > - **💾 Las partidas se guardan y se cargan** (`gt_play` las conserva en `build/savedata/`).
 > - **Pendiente visible:** el audio de los vídeos; el backend Vulkan de la GE (hoy se dibuja por software).
-> - **Decompilación (Fase 3-4):** 4.509 funciones decompiladas y probadas contra el original con el
+> - **Decompilación (Fase 3-4):** 4.510 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `bsearch`, la familia printf (`sprintf`, `snprintf`, `vsprintf`, `vsnprintf` y sus «sinks»), y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;
 >   scripts: `MUnit` (8), `MRandom.GetValue`, `Object.toInt/toFloat/defined`, `Math.clamp`,
@@ -42,9 +42,9 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 
 <!-- progress:start -->
 ```text
-FUNCIONES   ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  19.41 %  4505 / 23208
-BYTES       ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   9.45 %  394348 / 4175084
-CON NOMBRE  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   5.91 %  1371 / 23208
+FUNCIONES   ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  19.42 %  4506 / 23208
+BYTES       ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   9.45 %  394364 / 4175084
+CON NOMBRE  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   5.92 %  1373 / 23208
 ```
 <!-- progress:end -->
 
