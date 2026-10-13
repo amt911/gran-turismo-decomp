@@ -85,8 +85,8 @@ void set_two_fields(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 #define GT_DECOMP_PTR_SET_FLOAT(e, o, i) GT_DECOMP_CHAINED_(ptr_set_float, gt::ReturnKind::Word, e, o, i)
 #define GT_DECOMP_SET_TWO_FIELDS(e, o, i) GT_DECOMP_CHAINED_(set_two_fields, gt::ReturnKind::Void, e, o, i)
 
-GT_DECOMP_PTR_MEMBER_ADDRESS(0x0885C380u, 0, 144);
-GT_DECOMP_PTR_MEMBER_ADDRESS(0x0885C38Cu, 0, 256);
+// 0x0885C380: gt::game::race_operator::get_memory_assign_standard (src/game/race/race_operator.cpp).
+// 0x0885C38C: gt::game::race_operator::get_memory_assign_with_ghost.
 GT_DECOMP_PTR_MEMBER_ADDRESS(0x0886B438u, 4, 136);
 GT_DECOMP_PTR_MEMBER_ADDRESS(0x088723E8u, 92, 8);
 GT_DECOMP_PTR_MEMBER_ADDRESS(0x088F4AA0u, 0, 2064);

@@ -41,8 +41,6 @@ constexpr std::uint32_t kArgumentAsRaceSound = 0x08835BD8u;  // (holder *out, ar
 constexpr std::uint32_t kOrganizerSetRaceSound = 0x08829538u;   // (organizer *, holder *)
 constexpr std::uint32_t kArgumentAsSoundContext = 0x08A22050u;  // (holder *out, argv)
 constexpr std::uint32_t kOrganizerSetSoundContext = 0x088294D8u; // (organizer *, holder *)
-constexpr std::uint32_t kSelfAsRaceOperator = 0x088248E4u;   // (holder *out) [a1 = self]
-constexpr std::uint32_t kRaceOperatorSetOrganizer = 0x0885BB9Cu; // (operator engine object, organizer object)
 constexpr std::uint32_t kLoadContainer = 0x08808F2Cu;        // (holder *out, argc, argv, is_array, element factory)
 constexpr std::uint32_t kCarArrayElement = 0x08808640u;      // element factory of loadCarArray
 constexpr std::uint32_t kCourseMapElement = 0x088085B8u;     // element factory of loadCourseMap
@@ -55,10 +53,7 @@ constexpr std::uint32_t kGameRecordStructure = 0x08CE28E4u;  // global: the game
 constexpr std::uint32_t kHolderCopyRecord = 0x08A53224u;     // holder copy (an instance used here)
 constexpr std::uint32_t kArgumentAsRecord = 0x08A57854u;     // (holder *out, argv): argument as STRecord
 constexpr std::uint32_t kInitializeGameRecord = 0x08805D9Cu; // (record data)
-constexpr std::uint32_t kEngineObject = 0x14u;               // MRaceOperator: its engine object
 constexpr std::uint32_t kCarParameterCarCode = 0x088A5EE0u;  // (engine object) -> 64-bit car code
-constexpr std::uint32_t kRaceOperatorTargetSlot = 0x0885BBF0u;  // (operator engine object, index) -> slot
-constexpr std::uint32_t kRaceOperatorIsOnline = 0x0885BE14u;    // (operator engine object) -> bool
 constexpr std::uint32_t kSelfAsMusic = 0x08A3A9D0u;          // (holder *out) [a1 = self]
 constexpr std::uint32_t kMusicIsPlaying = 0x08A3A788u;       // (music *) -> int
 constexpr std::uint32_t kOrganizerEntryMax = 0x0885EC1Cu;    // (organizer core) -> int
@@ -76,13 +71,6 @@ constexpr std::uint32_t kSelfAsRaceParameter = 0x08847008u;  // (holder *out) [a
 constexpr std::uint32_t kRaceParameterCore = 0x08846E50u;    // (race parameter *) -> engine object
 constexpr std::uint32_t kRaceParameterSetLaunchPosition = 0x088D59A0u;  // (core, a, b)
 constexpr std::uint32_t kRaceParameterSetLaunchSpeed = 0x088D4E3Cu;     // (core, a, (u8)b)
-constexpr std::uint32_t kRaceOperatorSlotCarParameter = 0x0885C188u;    // (engine, slot) -> car parameter or 0
-constexpr std::uint32_t kRaceOperatorSlotDriverParameter = 0x0885C228u; // (engine, slot, index) -> driver parameter or 0
-constexpr std::uint32_t kRaceOperatorIsTheater = 0x0885C35Cu;
-constexpr std::uint32_t kRaceOperatorClear = 0x0885C3C8u;
-constexpr std::uint32_t kRaceOperatorCheckIn = 0x0885D010u;
-constexpr std::uint32_t kRaceOperatorAllocateResource = 0x0885BFE0u;
-constexpr std::uint32_t kWrapCarParameter = 0x08857EE4u;      // (holder *out, car parameter *, 0)
 constexpr std::uint32_t kOrganizerSetDrivingLineDisp = 0x0885E1F0u;   // (core, entry, bool)
 constexpr std::uint32_t kOrganizerSetCameraTarget = 0x0885E6E0u;      // (core, a, b)
 constexpr std::uint32_t kRaceStateEntryControlType = 0x088DC858u;     // (race state, entry) -> int
@@ -214,20 +202,6 @@ void MOrganizer_setSoundContext(psprecomp::Runtime &rt, psprecomp::AllegrexConte
     organizer_set(rt, ctx, kArgumentAsSoundContext, kOrganizerSetSoundContext);
 }
 
-// MRaceOperator.setOrganizer(organizer): with at least one argument.
-void MRaceOperator_setOrganizer(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    std::uint32_t engine = 0u;
-    with_self(rt, ctx, kSelfAsRaceOperator, [&](std::uint32_t op) { engine = rt.memory().load32(op + kEngineObject); });
-    GuestFrame frame(ctx, 0x20u);
-    const std::uint32_t organizer = frame.at(0x0u);
-    (void)call_guest(rt, ctx, kAsOrganizer, {organizer, argv});
-    const std::uint32_t core = call_guest(rt, ctx, kOrganizerCore, {rt.memory().load32(organizer)});
-    (void)call_guest(rt, ctx, kRaceOperatorSetOrganizer, {engine, core});
-    destroy(rt, ctx, organizer);
-}
 
 
 // loadCarArray(...) / loadCourseMap(...): the shared loader, building an array of cars or a map of
@@ -283,33 +257,8 @@ void MCarParameter_getCarCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     return_long(rt, ctx, result, frame.at(0u), code.v0, code.v1);
 }
 
-// MRaceOperator's engine object (self as MRaceOperator, +0x14; the holder is dropped first).
-std::uint32_t race_operator(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    std::uint32_t engine = 0u;
-    with_self(rt, ctx, kSelfAsRaceOperator, [&](std::uint32_t op) { engine = rt.memory().load32(op + kEngineObject); });
-    return engine;
-}
 
-// MRaceOperator.getTargetSlot(index) -> integer, with at least one argument.
-void MRaceOperator_getTargetSlot(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    const std::uint32_t engine = race_operator(rt, ctx);
-    const auto index = static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(argv)));
-    const std::uint32_t slot = call_guest(rt, ctx, kRaceOperatorTargetSlot, {engine, index});
-    GuestFrame frame(ctx, 0x20u);
-    return_integer(rt, ctx, result, frame.at(0u), slot);
-}
 
-// MRaceOperator.isOnline() -> boolean.
-void MRaceOperator_isOnline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const std::uint32_t online = call_guest(rt, ctx, kRaceOperatorIsOnline, {race_operator(rt, ctx)});
-    GuestFrame frame(ctx, 0x20u);
-    return_bool(rt, ctx, result, frame.at(0u), online);
-}
 
 // MMusic.isPlaying() -> integer (the engine's state, not a boolean).
 void MMusic_isPlaying(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -326,15 +275,6 @@ std::uint32_t organizer_core(psprecomp::Runtime &rt, psprecomp::AllegrexContext 
 }
 
 
-// *result = the holder `wrap(out, object)` fills.
-void return_wrapped(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t wrap,
-                    std::uint32_t object) {
-    GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t out = frame.at(0u);
-    (void)call_guest(rt, ctx, wrap, {out, object});
-    if (result != out) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(out)});
-    destroy(rt, ctx, out);
-}
 
 // MOrganizer.getEntryMaxAtCurrentRace() -> integer; canEnterCourse() -> boolean.
 void MOrganizer_getEntryMaxAtCurrentRace(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -501,45 +441,6 @@ void MMenuGameObjectManager_start(psprecomp::Runtime &rt, psprecomp::AllegrexCon
 }
 
 
-// --- MRaceOperator: the race's operator (self as MRaceOperator, engine object at +0x14) ---
-void MRaceOperator_getTargetCarParameter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 0) return;
-    const std::uint32_t engine = race_operator(rt, ctx);
-    const auto slot = static_cast<std::int32_t>(call_guest(rt, ctx, kRaceOperatorTargetSlot, {engine, int_argument(rt, ctx, argv, 0u)}));
-    if (slot < 0) return;
-    const std::uint32_t car = call_guest(rt, ctx, kRaceOperatorSlotCarParameter, {engine, static_cast<std::uint32_t>(slot)});
-    if (car == 0u) return;
-    GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t out = frame.at(0u);
-    (void)call_guest(rt, ctx, kWrapCarParameter, {out, car, 0u});
-    if (result != out) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(out)});
-    destroy(rt, ctx, out);
-}
-void MRaceOperator_getTargetDriverParameter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t result = ctx.gpr[4];
-    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
-    const std::uint32_t argv = ctx.gpr[7];
-    if (argc <= 1) return;
-    const std::uint32_t engine = race_operator(rt, ctx);
-    const auto slot = static_cast<std::int32_t>(call_guest(rt, ctx, kRaceOperatorTargetSlot, {engine, int_argument(rt, ctx, argv, 0u)}));
-    if (slot < 0) return;
-    const std::uint32_t driver = call_guest(rt, ctx, kRaceOperatorSlotDriverParameter,
-                                            {engine, static_cast<std::uint32_t>(slot), int_argument(rt, ctx, argv, 1u)});
-    if (driver != 0u) return_wrapped(rt, ctx, result, kWrapDriverParameter, driver);
-}
-void race_operator_bool(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t query) {
-    const std::uint32_t result = ctx.gpr[4];
-    return_boolean(rt, ctx, result, call_guest(rt, ctx, query, {race_operator(rt, ctx)}));
-}
-void MRaceOperator_isTheater(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { race_operator_bool(rt, ctx, kRaceOperatorIsTheater); }
-void MRaceOperator_checkIn(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { race_operator_bool(rt, ctx, kRaceOperatorCheckIn); }
-void MRaceOperator_allocateResource(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { race_operator_bool(rt, ctx, kRaceOperatorAllocateResource); }
-void MRaceOperator_clear(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    (void)call_guest(rt, ctx, kRaceOperatorClear, {race_operator(rt, ctx)});
-}
 
 // --- MOrganizer ---
 void MOrganizer_setDrivingLineDispFlag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -800,8 +701,6 @@ GT_DECOMP(0x0882A3D0u, gt::adhoc::game::MOrganizer_disableRenderingRace, gt::Ret
 // Not comparable yet (reads files inside a case), so not swapped in: GT_DECOMP(0x08854A78u, gt::adhoc::game::MCarParameter_beginPartsChange, gt::ReturnKind::Void);
 GT_DECOMP(0x08854ACCu, gt::adhoc::game::MCarParameter_endPartsChange, gt::ReturnKind::Void);
 GT_DECOMP(0x088558F8u, gt::adhoc::game::MCarParameter_getCarCode, gt::ReturnKind::Void);
-GT_DECOMP(0x0882689Cu, gt::adhoc::game::MRaceOperator_getTargetSlot, gt::ReturnKind::Void);
-GT_DECOMP(0x08826070u, gt::adhoc::game::MRaceOperator_isOnline, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3B220u, gt::adhoc::game::MMusic_isPlaying, gt::ReturnKind::Void);
 GT_DECOMP(0x0882FE1Cu, gt::adhoc::game::MOrganizer_getEntryMaxAtCurrentRace, gt::ReturnKind::Void);
 GT_DECOMP(0x0882F498u, gt::adhoc::game::MOrganizer_canEnterCourse, gt::ReturnKind::Void);
@@ -823,7 +722,6 @@ GT_DECOMP(0x0884F7B4u, gt::adhoc::game::CarSettings_endSetting, gt::ReturnKind::
 GT_DECOMP(0x0884D9F0u, gt::adhoc::game::MCarDriverParameter_setDefault, gt::ReturnKind::Void);
 GT_DECOMP(0x088297E8u, gt::adhoc::game::MOrganizer_setRaceSound, gt::ReturnKind::Void);
 GT_DECOMP(0x08829868u, gt::adhoc::game::MOrganizer_setSoundContext, gt::ReturnKind::Void);
-GT_DECOMP(0x08824E88u, gt::adhoc::game::MRaceOperator_setOrganizer, gt::ReturnKind::Void);
 GT_DECOMP(0x08805FD0u, gt::adhoc::game::CreateGameRecordStructure, gt::ReturnKind::Void);
 GT_DECOMP(0x08A4C848u, gt::adhoc::game::pdistd_IsDebugVersion, gt::ReturnKind::Void);
 // Not comparable: the loader reads files (sceIo), which a harness case can't replay.
@@ -833,12 +731,6 @@ GT_DECOMP(0x0880C2D4u, gt::adhoc::game::MSceneFace_setClearColorBuffer, gt::Retu
 GT_DECOMP(0x08A27F20u, gt::adhoc::game::MProductInformation_GetParentalLevel, gt::ReturnKind::Void);
 GT_DECOMP(0x08A35648u, gt::adhoc::game::MSound_stopMusic, gt::ReturnKind::Void);
 GT_DECOMP(0x08806384u, gt::adhoc::game::InitializeGameRecord, gt::ReturnKind::Void);
-GT_DECOMP(0x08826968u, gt::adhoc::game::MRaceOperator_getTargetCarParameter, gt::ReturnKind::Void);
-GT_DECOMP(0x088270E8u, gt::adhoc::game::MRaceOperator_getTargetDriverParameter, gt::ReturnKind::Void);
-GT_DECOMP(0x08825FE4u, gt::adhoc::game::MRaceOperator_isTheater, gt::ReturnKind::Void);
-GT_DECOMP(0x08824CB0u, gt::adhoc::game::MRaceOperator_clear, gt::ReturnKind::Void);
-// Not comparable yet (waits on the UMD drive: sceUmdWaitDriveStat), so not swapped in: GT_DECOMP(0x08825AE8u, gt::adhoc::game::MRaceOperator_checkIn, gt::ReturnKind::Void);
-// Not comparable yet (creates threads: sceKernelCreateThread), so not swapped in: GT_DECOMP(0x08825B74u, gt::adhoc::game::MRaceOperator_allocateResource, gt::ReturnKind::Void);
 GT_DECOMP(0x0882BFA0u, gt::adhoc::game::MOrganizer_setDrivingLineDispFlag, gt::ReturnKind::Void);
 GT_DECOMP(0x0882AFB4u, gt::adhoc::game::MOrganizer_setCameraTarget, gt::ReturnKind::Void);
 GT_DECOMP(0x0882FEB0u, gt::adhoc::game::MOrganizer_getEntryControlType, gt::ReturnKind::Void);

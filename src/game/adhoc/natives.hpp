@@ -8,6 +8,7 @@
 namespace gt::adhoc {
 
 inline constexpr std::uint32_t kHolderDestroyFunction = 0x08A5B9ECu;
+inline constexpr std::uint32_t kHolderResetFunction = 0x08A5BAD8u;
 
 inline void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroyFunction, {holder});
@@ -48,6 +49,16 @@ inline void return_int(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, 
 inline void return_boolean(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t value) {
     GuestFrame frame(ctx, 0x10u);
     return_bool(rt, ctx, result, frame.at(0u), value);
+}
+
+// *result = the holder `wrap(out, object)` fills.
+inline void return_wrapped(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t wrap,
+                    std::uint32_t object) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t out = frame.at(0u);
+    (void)call_guest(rt, ctx, wrap, {out, object});
+    if (result != out) (void)call_guest(rt, ctx, kHolderResetFunction, {result, rt.memory().load32(out)});
+    destroy(rt, ctx, out);
 }
 
 } // namespace gt::adhoc
