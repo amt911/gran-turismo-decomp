@@ -264,6 +264,11 @@ the line says otherwise.
   their count at `+0x04`, `window_max` at `+0x0C`, the series (`+0x30`, `+0x34`, 64-bit course codes from `+0x38`),
   the race parameter at `+0x7C` and six 28-byte memory-plan blocks from `+0x90`. *(verified: the engine functions
   the attribute handlers call, `src/game/race/race_operator.cpp`)*
+- MOrganizer (initializer `0x0882C2A8`): 161 methods and 12 attributes. The engine handle's first word points to a
+  block of more than 17,000 bytes whose members are objects of their own: `+0x5AC` the session object most queries go
+  through, `+0x5B4` the entries' list, `+0x5CC` the camera, `+0x600` the race display, `+0x3F58` the pause object,
+  `+0x3F80` the replay buffer, `+0x3F88` the game condition, `+0x3F98` the sound target. *(verified: the engine
+  functions the natives call, `src/game/race/organizer.cpp`)*
 - **Inside a harness case, nested calls run the recompiled originals**, so a decompiled child is not
   exercised by its decompiled parent's cases (a value sabotage of such an engine function went
   undetected). A child gets its own cases when the routes reach it outside the parent's cases (the

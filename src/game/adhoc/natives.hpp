@@ -61,4 +61,18 @@ inline void return_wrapped(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     destroy(rt, ctx, out);
 }
 
+// The common shape of argument-less natives: self as the engine class, its engine object (`core_of`), then
+// `engine(core)` — called after the holder is dropped (`DropFirst::yes`) or before (`DropFirst::no`), as each
+// original does.
+enum class DropFirst { no, yes };
+inline void core_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t self_as, std::uint32_t core_of,
+               std::uint32_t engine, DropFirst drop_first) {
+    std::uint32_t core = 0u;
+    with_self(rt, ctx, self_as, [&](std::uint32_t object) {
+        core = call_guest(rt, ctx, core_of, {object});
+        if (drop_first == DropFirst::no) (void)call_guest(rt, ctx, engine, {core});
+    });
+    if (drop_first == DropFirst::yes) (void)call_guest(rt, ctx, engine, {core});
+}
+
 } // namespace gt::adhoc
