@@ -665,6 +665,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       confirma que toda región se ejecutó. Cada `call_guest` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 50.
       **5.277 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 71 integrado: ver el PR #185).
       Fuera por ahora: 6 «pair call B», 23 «init handle» y 10 inicializadores de nodo (familias de los lotes 59/66).
+- [x] **Lote 75 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_75.cpp`, 39 registradas de 61 escritas; sondeo del lote 70, `--exclude-ref origin/decomp/hot-batch-73 --exclude-ref origin/decomp/hot-batch-74`):
+      hojas de 2 instrucciones (devolver el primer argumento ×6, salto a otra función, `a1 = 0/1` + salto, `a0 += n` + salto, `a0 = *(a0+n)` + salto, constante, vacía),
+      «load, then call» (7), «store vtable» (4), «call, then tail» (10 y variantes), «record query» (15, 3), «function-local static» (9), «swap and jump» (2),
+      «uso del objeto de un holder» (19), fábricas de objetos (2 + 2) y los 2 «organizer getter» de 37 instrucciones que el lote 74 dejó fuera (helper propio en el lote; la plantilla de `organizer.cpp` vive en un espacio de nombres anónimo).
+      Filas generadas con `--cpp` y releídas con `--check` (53 coinciden con sus propias palabras, 0 sin analizar). Ramas no tomadas (objeto nulo, `out` igual al holder local) leídas contra el asm.
+      Sabotajes detectados en las 40 comparadas; `func_08B77BF4` queda sin registrar porque `contract_audit` marca tres llamadores que leen v1. 21 escritas sin registrar (compared 0 en las cinco rutas rápidas).
+      Fuera: «clamp step», «range erase» y «holder conversion» sin registrar desde el lote 74, `func_08825AE8`/`func_08825B74` (UMD y hilos), los setters de organizer ya listados como compared 0.
+      **5.316 funciones** sobre `main` (5.277); los PR #186 y #188 tendrán que rebasar los recuentos al integrarse.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
