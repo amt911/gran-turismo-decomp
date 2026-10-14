@@ -205,16 +205,15 @@ def template_functions(source: str) -> dict[int, str]:
     return found
 
 
-def sabotage_targets(source: str, targets: set[int]) -> tuple[list[str], set[int]]:
-    """The bodies to sabotage for `targets`, and every registration those bumps reach: a template body is shared
-    by all its instances, so all of them are sabotaged (attribution must know, or it would credit a target with
-    a sibling's mismatch)."""
-    named = registered_names(source)
-    templates = template_functions(source)
-    names = sorted({named[a] for a in targets if a in named} | {templates[a] for a in targets if a in templates})
-    shared = {templates[a] for a in targets if a in templates}
-    affected = set(targets) | {a for a, function in templates.items() if function in shared}
-    return names, affected
+def sabotage_targets(source: str, targets: set[int]) -> tuple[list[str], set[int], list[int]]:
+    """The bodies to sabotage for `targets`, every registration those bumps reach, and the targets with no body
+    the tool can find. A body may be shared — a template's instances, or a named registration of the same
+    function — and every registration of it is sabotaged, so attribution must count them all as culprits."""
+    function_of = {**template_functions(source), **registered_names(source)}
+    names = sorted({function_of[a] for a in targets if a in function_of})
+    affected = set(targets) | {a for a, function in function_of.items() if function in names}
+    unresolved = sorted(a for a in targets if a not in function_of)
+    return names, affected, unresolved
 
 
 def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
@@ -445,7 +444,10 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  
     Returns the run's mismatching cases and every registration the bumps reached (template instances share a
     body), or None when the sabotaged build didn't run."""
     original = file.read_text()
-    names, affected = sabotage_targets(original, targets)
+    names, affected, unresolved = sabotage_targets(original, targets)
+    if unresolved:
+        print("no body to sabotage in", file, "for:", ", ".join(f"0x{a:08X}" for a in unresolved),
+              "(bump it by hand: a C++ template function, or a macro defined in a header)")
     sabotaged, missing = sabotage(original, names)
     if missing:
         print("not found in", file, ":", ", ".join(missing))

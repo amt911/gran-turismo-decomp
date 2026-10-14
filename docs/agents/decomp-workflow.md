@@ -98,15 +98,17 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   4. **Sabotage, fast gate**: `tools.decomp_gate sabotage` inserts, as the **first** statement of every
      listed function, a bump of s0 (`ctx.gpr[16] += 1u;`) and of a kernel-region RAM word
      (`SABOTAGE_WORD`; a caller restoring s0 erases the s0 bump of a function reached only nested —
-     FINDINGS), runs the fast gate and restores the file. Template instances (`GT_DECOMP_CONSTRUCT(0x..u, …)` and
-     the like, no name of their own) are handled too: the tool finds the shared body their macro registers,
-     sabotages it — so every installed instance of it is sabotaged — and only credits a target with a case where it
-     was the one sabotaged registration. (C++ template functions such as `set_boost_param<N>` still need a hand bump.) s0 is callee-saved and always compared, and a bump at entry
-     survives early returns, guest calls and tail calls — sabotaging the return value at the end
-     missed functions whose routes only took an early return, and tail callees overwrite v0. Add,
+     FINDINGS), runs the fast gate and restores the file. s0 is callee-saved and always compared, and a
+     bump at entry survives early returns, guest calls and tail calls — sabotaging the return value at the
+     end missed functions whose routes only took an early return, and tail callees overwrite v0. Add,
      don't XOR: a function that calls another sabotaged one directly would flip s0 twice and pass
      (FINDINGS). Every function must be pinned by `tools.decomp_gate sabotage`; never land one whose
      sabotage was not detected.
+     - **Template instances** (`GT_DECOMP_CONSTRUCT(0x..u, …)` and the like, no name of their own) are
+       handled too: the tool finds the shared body their macro registers and sabotages it — so every
+       installed registration of that body is sabotaged — and only credits a target with a case where it
+       was the one sabotaged registration. Targets it can't resolve (a C++ template function such as
+       `set_boost_param<N>`, a macro defined in a header) are listed: bump those by hand.
   5. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are

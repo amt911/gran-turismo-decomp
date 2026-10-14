@@ -272,6 +272,20 @@ def test_template_instances_map_to_the_shared_body_their_macro_registers():
 
 
 def test_sabotage_targets_name_the_shared_body_and_list_every_instance_it_affects():
-    names, affected = gate.sabotage_targets(TEMPLATES, {0x08800020, 0x08800050})
+    names, affected, _ = gate.sabotage_targets(TEMPLATES, {0x08800020, 0x08800050})
     assert names == ["member_address", "named"]
     assert affected == {0x08800020, 0x08800030, 0x08800050}  # 0x...30 shares the sabotaged body
+
+
+def test_a_named_registration_of_a_shared_body_counts_as_affected_and_unresolvable_targets_are_reported():
+    source = TEMPLATES + "GT_DECOMP(0x08800060u, gt::core::member_address, gt::ReturnKind::Word);\n"
+    names, affected, unresolved = gate.sabotage_targets(source, {0x08800020, 0x08800099})
+    assert names == ["member_address"]
+    assert affected == {0x08800020, 0x08800030, 0x08800060, 0x08800099}
+    assert unresolved == [0x08800099]
+
+
+def test_a_case_holding_a_target_and_its_template_sibling_does_not_credit_the_target():
+    cases = {(0x08800020, frozenset({0x08800030})), (0x08800030, frozenset())}
+    affected = {0x08800020, 0x08800030}
+    assert gate.attributed(affected, cases) & {0x08800020} == set()
