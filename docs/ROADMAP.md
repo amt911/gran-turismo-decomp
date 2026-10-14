@@ -558,6 +558,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       barajadores de argumentos. Ninguna tiene saltos condicionales (comprobado en el asm), así que el gate ve todos los caminos.
       Los ayudantes comunes (`word`, `put`, `psp_mul`, `kGu*`) pasan a `include/gt/game/hot_common.hpp`.
       Sabotajes detectados en las 60. **4.765 funciones, 0 discrepancias.**
+- [x] **Lote 60 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_60.cpp`, 30 registradas + `func_08A61E3C` con v0 corregido):
+      funciones con ramas o bucles que las rutas alcanzan. El gate solo prueba los caminos que recorren los casos comparados, así que cada función
+      lista en un comentario las ramas que las rutas no toman y que se compararon con el asm a mano (la medición de cobertura,
+      `GT_HOT_COVERAGE` en `include/gt/game/hot_common.hpp`, encontró dos errores de ramas no cubiertas: `func_088A9A50` y `func_08955428`).
+      Sabotajes detectados en las 30. **4.795 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
