@@ -3101,6 +3101,7 @@ void func_08A5D638(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08A61E3C(this, const holder *h): the holder at +0x4C = *h (unless it is that holder).
 void func_08A61E3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t mine = ctx.gpr[4] + 0x4Cu;
+    ctx.gpr[2] = mine;  // v0 holds the address when it returns, and at the tail call
     if (mine != ctx.gpr[5]) tail_call(ctx, kHolderResetGame, {mine, word(rt, ctx.gpr[5])});
 }
 
@@ -3236,7 +3237,7 @@ GT_DECOMP(0x08969330u, gt::game::func_08969330, gt::ReturnKind::Word);
 GT_DECOMP(0x08A6C4FCu, gt::game::func_08A6C4FC, gt::ReturnKind::Word);
 GT_DECOMP(0x08A5D6D0u, gt::game::func_08A5D6D0, gt::ReturnKind::Void);
 GT_DECOMP(0x08A5D638u, gt::game::func_08A5D638, gt::ReturnKind::Void);
-GT_DECOMP(0x08A61E3Cu, gt::game::func_08A61E3C, gt::ReturnKind::Void);
+GT_DECOMP(0x08A61E3Cu, gt::game::func_08A61E3C, gt::ReturnKind::Word);
 GT_DECOMP(0x08A5D460u, gt::game::func_08A5D460, gt::ReturnKind::Void);
 GT_DECOMP(0x08B29034u, gt::game::func_08B29034, gt::ReturnKind::Word);
 GT_DECOMP(0x08A009BCu, gt::game::func_08A009BC, gt::ReturnKind::Void);
