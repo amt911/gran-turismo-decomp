@@ -665,6 +665,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       confirma que toda región se ejecutó. Cada `call_guest` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 50.
       **5.277 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 71 integrado: ver el PR #185).
       Fuera por ahora: 6 «pair call B», 23 «init handle» y 10 inicializadores de nodo (familias de los lotes 59/66).
+- [x] **Lote 74 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_74.cpp`, 46 registradas de 55 escritas; sondeo del lote 70, `--exclude-ref origin/decomp/hot-batch-73`):
+      6 accesores de contenedor vacío de 32 instrucciones (los de palabras distintas a las del lote 68: otros estáticos y un desplazamiento distinto, guarda + 8 / + 24; leído uno
+      entero contra el asm y el resto con la misma plantilla), 8 «target setting» de 68 instrucciones (`func_088492F8`) y 2 de la variante booleana de 62, 5 «getter, luego setter
+      con el valor» (47), 3 «static record» (44), 2 «map find», 2 «getter, luego setter con argumentos», 2 «static linked object», 2 «destroy range», 4 «call with a constant»,
+      3 «convert, then tail», 1 «holder conversion», 5 «base constructor, luego dos stores» (el segundo store en +16, no +8) y 1 «range erase». Las filas se generan con `--cpp`
+      y se releen con `--check` (46 coinciden con sus propias palabras, 0 sin analizar). Ramas no tomadas (`member_function` virtual, `null_check`, `map_find`, el guarda que
+      otro construye) leídas contra el asm y listadas en los comentarios. Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`.
+      Sabotajes detectados en las 46, `contract_audit` 0. Escritas pero sin registrar: 5 «clamp step» y 2 «range erase» (ningún caso comparado cambió memoria) y 2 «holder
+      conversion» (su única llamada es «no comparable»). Fuera por ahora: los 4 «organizer» de 37 instrucciones (plantilla en `organizer.cpp`), `func_08C0BC20` y `func_08BC48B4` (sin
+      registrar desde el lote 67 por la misma razón) y las familias de 2-3 miembros de menos de 30 instrucciones.
+      **5.323 funciones, 0 discrepancias** (puerta completa: 4.731 comparadas en las cinco rutas, 592 sin comparar; sobre `main`, sin el lote 73 del PR #186).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
