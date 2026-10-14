@@ -189,6 +189,142 @@ void func_08B54760(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GT_COVER("08B54760:run");
 }
 
+// func_08BD2DC4(a, n): n when it is not negative, else func_08AF2954(a, n) (tail call, v0 holds n meanwhile).
+void func_08BD2DC4(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = ctx.gpr[5];
+    if (static_cast<std::int32_t>(ctx.gpr[5]) >= 0) { GT_COVER("08BD2DC4:non-negative"); return; }
+    GT_COVER("08BD2DC4:negative");
+    tail_call(ctx, 0x08AF2954u, {});
+}
+
+// func_0886B444(this, i) -> bit i of the mask at the word +0x32C of the object at +4, for 0 <= i < 14; else 0.
+void func_0886B444(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t object = word(rt, ctx.gpr[4] + 4u);
+    const auto i = static_cast<std::int32_t>(ctx.gpr[5]);
+    if (i < 0) { GT_COVER("0886B444:negative"); ctx.gpr[2] = 0u; return; }
+    if (i >= 14) { GT_COVER("0886B444:high"); ctx.gpr[2] = 0u; return; }
+    GT_COVER("0886B444:in-range");
+    const std::uint32_t mask = word(rt, object + 812u + static_cast<std::uint32_t>((i >> 5) << 2));
+    ctx.gpr[2] = (static_cast<std::int32_t>(mask) >> (i & 31)) & 1;
+}
+
+// func_08B856B0(first, last): func_08A5B9EC(p) for each word p in [first, last) (nothing when first == last).
+void func_08B856B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t first = ctx.gpr[4], last = ctx.gpr[5];
+    if (first == last) { GT_COVER("08B856B0:empty"); return; }
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t p = first;
+    do {
+        GT_COVER("08B856B0:element");
+        ctx.gpr[2] = call_guest(rt, ctx, 0x08A5B9ECu, {p});
+        p += 4u;
+    } while (last != p);
+}
+
+// func_08C2AE8C(first, last): for each 12-byte element [first, last): func_08A5B9EC(p + 8), then func_08A69D68(p).
+void func_08C2AE8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t first = ctx.gpr[4], last = ctx.gpr[5];
+    if (first == last) { GT_COVER("08C2AE8C:empty"); return; }
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t p = first;
+    do {
+        GT_COVER("08C2AE8C:element");
+        (void)call_guest(rt, ctx, 0x08A5B9ECu, {p + 8u});
+        ctx.gpr[2] = call_guest(rt, ctx, 0x08A69D68u, {p});
+        p += 12u;
+    } while (last != p);
+}
+
+// func_08955428(this) -> 1 when the halfword +0x2A6 of the object at +12 is not below the signed halfword +0x58E of the object at +8
+// and that object's byte +0x579 is set, else 0.
+void func_08955428(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t other = word(rt, ctx.gpr[4] + 12u), owner = word(rt, ctx.gpr[4] + 8u);
+    const auto left = static_cast<std::int32_t>(rt.memory().load16(other + 678u));
+    const auto right = static_cast<std::int32_t>(static_cast<std::int16_t>(rt.memory().load16(owner + 1422u)));
+    std::uint32_t answer = 0u;
+    if (left < right) {
+        GT_COVER("08955428:below");
+    } else if (rt.memory().load8(owner + 1401u) == 0u) {
+        GT_COVER("08955428:unset");
+    } else {
+        GT_COVER("08955428:yes");
+        answer = 1u;
+    }
+    ctx.gpr[2] = answer;
+}
+
+// func_088A922C(this) -> whether the object at +12 exists and func_08955428(it) holds.
+void func_088A922C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t object = word(rt, ctx.gpr[4] + 12u);
+    std::uint32_t answer = 0u;
+    if (object != 0u) {
+        GuestFrame frame(ctx, 0x10u);
+        answer = call_guest(rt, ctx, 0x08955428u, {object}) != 0u ? 1u : 0u;
+        GT_COVER(answer != 0u ? "088A922C:true" : "088A922C:false");
+    } else {
+        GT_COVER("088A922C:no-object");
+    }
+    ctx.gpr[2] = answer;
+}
+
+// func_08B64654(p): func_08B35254(p) (the free) unless p is null (tail call).
+void func_08B64654(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    if (ctx.gpr[4] == 0u) { GT_COVER("08B64654:null"); return; }
+    GT_COVER("08B64654:free");
+    tail_call(ctx, 0x08B35254u, {});
+}
+
+// func_08BB16EC(begin, end, p): every byte of [begin, end) = the signed byte *p (nothing when begin == end).
+void func_08BB16EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    std::uint32_t begin = ctx.gpr[4];
+    const std::uint32_t end = ctx.gpr[5];
+    const std::uint32_t value = word(rt, ctx.gpr[6]);
+    ctx.gpr[6] = value;
+    if (begin == end) { GT_COVER("08BB16EC:empty"); return; }
+    const auto byte = static_cast<std::uint8_t>(value);
+    ctx.gpr[6] = static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(byte)));
+    do {
+        GT_COVER("08BB16EC:byte");
+        rt.memory().store8(begin, byte);
+        ++begin;
+    } while (begin != end);
+    ctx.gpr[4] = begin;
+}
+
+// func_0887F144(this) -> whether the byte +0x20 is set and func_08881FF0(the word +0x74) answers nonzero.
+void func_0887F144(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    std::uint32_t answer = 0u;
+    if (rt.memory().load8(ctx.gpr[4] + 32u) != 0u) {
+        GuestFrame frame(ctx, 0x10u);
+        answer = call_guest(rt, ctx, 0x08881FF0u, {word(rt, ctx.gpr[4] + 116u)}) != 0u ? 1u : 0u;
+        GT_COVER(answer != 0u ? "0887F144:true" : "0887F144:false");
+    } else {
+        GT_COVER("0887F144:unset");
+    }
+    ctx.gpr[2] = answer;
+}
+
+// func_08AB856C(this) -> func_08AB8430(this, 0), or the constant 0x08C90518 when that answers 0.
+void func_08AB856C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t result = call_guest(rt, ctx, 0x08AB8430u, {ctx.gpr[4], 0u});
+    GT_COVER(result != 0u ? "08AB856C:found" : "08AB856C:default");
+    ctx.gpr[2] = result != 0u ? result : 0x08C90518u;
+}
+
+// func_08B4BAF8(out, v, angle): out = (v.xyz * s, c) where (s, c) come from func_08B498AC(angle * 0.5) (a half-angle quaternion).
+void func_08B4BAF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], v = ctx.gpr[5];
+    const float half = psp_mul(ctx.fpr[12], 0.5f);
+    GuestFrame frame(ctx, 0x20u);
+    (void)call_guest(rt, ctx, 0x08B498ACu, {frame.at(0u), frame.at(4u)}, {half});
+    const float s = float_at(rt, frame.at(0u)), c = float_at(rt, frame.at(4u));
+    put_float(rt, out, psp_mul(float_at(rt, v), s));
+    put_float(rt, out + 4u, psp_mul(float_at(rt, v + 4u), s));
+    put_float(rt, out + 12u, c);
+    put_float(rt, out + 8u, psp_mul(float_at(rt, v + 8u), s));
+}
+
 } // namespace hot_batch_60
 } // namespace gt::game
 
@@ -207,4 +343,15 @@ HOT60(0x08C1CCD0u, func_08C1CCD0, Word);
 HOT60(0x08C24F04u, func_08C24F04, Word);
 HOT60(0x08BEDDC4u, func_08BEDDC4, Word);
 HOT60(0x08B54760u, func_08B54760, DoubleWord);
+HOT60(0x08BD2DC4u, func_08BD2DC4, Word);
+HOT60(0x0886B444u, func_0886B444, Word);
+HOT60(0x08B856B0u, func_08B856B0, Word);
+HOT60(0x08C2AE8Cu, func_08C2AE8C, Word);
+HOT60(0x08955428u, func_08955428, Word);
+HOT60(0x088A922Cu, func_088A922C, Word);
+HOT60(0x08B64654u, func_08B64654, Word);
+HOT60(0x08BB16ECu, func_08BB16EC, Word);
+HOT60(0x0887F144u, func_0887F144, Word);
+HOT60(0x08AB856Cu, func_08AB856C, Word);
+HOT60(0x08B4BAF8u, func_08B4BAF8, Void);
 #undef HOT60
