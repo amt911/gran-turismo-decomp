@@ -595,8 +595,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         ~30 kHz. Ahora un frame que solo dibuja en los dos búferes de pantalla se descarta si la GPU no acaba en
         4 ms (como mucho dos seguidos): con `GT_SIM_GPU_MS=20`, el juego espera un 33 % en vez de un 88 % y el sonido
         sale a 42,6 kHz en vez de 30,1; con una GPU rápida apenas se descartan.
-  - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
-        pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
+  - [x] **`NativeGE=true` por defecto** (2026-10-14): la carrera y los menús salen como el software (gate ×1 de la
+        carrera: ~93 % de frames idénticos píxel a píxel; garaje 1776/1813) y con poca CPU. Se adelanta al criterio
+        del spec (gate verde en las tres rutas): el concesionario sigue difiriendo en los reflejos del coche
+        (515/1763; descartados como causa: transformación en GPU, fórmulas de mezcla, stencil y alias de destinos).
+  - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario y transiciones de
+        pantalla que GT escribe con la CPU (escritura de vuelta, fase 3).
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.
       Dos hilos esperan cada vblank y el ritmo se aplicaba por llamada; ahora se ata el tiempo del
       juego al reloj (1,00×, audio a 44,1 kHz; `GT_PERF_LOG=1` lo mide). Los hilos ociosos del

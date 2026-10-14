@@ -148,9 +148,9 @@ build/gt_play
   Q / E = L / R · Escape = START · V = SELECT · F10 = ajustes del host · F11 = pantalla completa.
 - **Mando:** gatillo derecho / A = acelerar, gatillo izquierdo / X = frenar, stick izquierdo = girar.
 - Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` al compilar): escala de la ventana,
-  FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
-  de la GE (`NativeGE=true`) aún no está adaptado a GT.
-- **GPU (alta resolución y fluido):** en `build/gt_play.ini` pon `NativeGE=true` en `[Rendering]`. Con
+  FPS, controles. La GE se dibuja en la GPU (`NativeGE=true`, por defecto); `NativeGE=false` vuelve al
+  rasterizador por software (480x272, unos dos núcleos de CPU solo para dibujar).
+- **GPU (alta resolución y fluido, por defecto):** `NativeGE=true` en `[Rendering]` de `build/gt_play.ini`. Con
   `InternalResolutionMode=Window` (el valor por defecto) la resolución interna sigue a la ventana: el
   menor múltiplo entero de 480x272 que la cubre (1080p: x4), también al redimensionar o en pantalla
   completa; la terminal escribe `[vulkan] internal resolution ...` en cada cambio. En GPUs modestas

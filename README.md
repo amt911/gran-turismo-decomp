@@ -23,7 +23,8 @@ un binario idéntico byte a byte (los compiladores exactos de Sony no son públi
 > - **🔊 Con sonido:** efectos y motor (la mezcla SAS) y la **música** (Atrac3+ decodificada desde los
 >   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
 > - **💾 Las partidas se guardan y se cargan** (`gt_play` las conserva en `build/savedata/`).
-> - **Pendiente visible:** el audio de los vídeos; el backend Vulkan de la GE (hoy se dibuja por software).
+> - **Pendiente visible:** el audio de los vídeos; los reflejos del coche en el concesionario con la GPU (la GE se
+>   dibuja en la GPU por defecto desde el 2026-10-14; `NativeGE=false` vuelve al software).
 > - **Decompilación (Fase 3-4):** 4.608 funciones decompiladas y probadas contra el original con el
 >   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
 >   `strchrnul`, `bsearch`, la familia printf (`sprintf`, `snprintf`, `vsprintf`, `vsnprintf` y sus «sinks»), y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;
