@@ -1,0 +1,22 @@
+GT patch 0034: only a new render target starts cleared. The PSP never clears a framebuffer between frames: a
+frame that redraws part of the screen keeps the rest, and clearing the shown buffer every frame made those frames
+black around what was redrawn (a black flash between menus, flickering pieces). GT_GPU_CLEAR_DISPLAY=1 restores
+the old per-frame clear.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -1254,8 +1254,13 @@
+     if (s.current_target == &target && s.pass_open) return true;
+     end_pass(s);
+     const bool first_ever = target.last_render_epoch == 0u;
++    // GT patch 0034: only a new target starts cleared. The PSP never clears a framebuffer between frames: a frame
++    // that redraws part of the screen (a cursor over the last menu picture, HUD pieces) keeps the rest, and
++    // clearing the shown buffer every frame made those frames black around what was redrawn (the flash between
++    // menus, flickering pieces). GT_GPU_CLEAR_DISPLAY=1 restores the old per-frame clear.
++    static const bool clear_display = [] { const char *v = std::getenv("GT_GPU_CLEAR_DISPLAY"); return v != nullptr && *v != '0'; }();
+     const bool first_this_frame = target.last_render_epoch != s.frame_epoch;
+-    if (first_ever || (first_this_frame && target.address == s.display_framebuffer))
++    if (first_ever || (clear_display && first_this_frame && target.address == s.display_framebuffer))
+         clear_image(s.command, target.color.image, target.color.layout, false);
+     if (!s.shared_depth_initialized) {
+         clear_image(s.command, s.shared_depth, s.shared_depth_layout, true);
