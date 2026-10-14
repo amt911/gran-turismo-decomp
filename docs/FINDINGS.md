@@ -1264,3 +1264,19 @@ would fit in 70 % of it (`budget_scale_cap`, unit-tested in host/tests/internal_
 runs have no swapchain (no Window mode), so this one is checked on a real window — the laptop.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0033-gpu-stale-render-targets.patch, config/gt_play.ini
+
+## The GPU path cleared the shown framebuffer every frame; the PSP never does
+
+**Symptom.** With `NativeGE=true`: a black frame between menus (only the cursor drawn), "the picture flickers"
+and pieces flicker (laptop report); in the GPU gate, isolated frames 0.71–0.73 different from the software
+rasterizer at menu transitions.
+**Cause.** lcs-recomp's backend (written for GTA, which redraws the whole screen) cleared the display target at
+the start of every frame. The PSP keeps a framebuffer's contents until something draws over them; GT redraws only
+part of the screen in some frames (a cursor over the last menu picture).
+**Fix / workaround.** lcs-recomp patch 0034: only a new target starts cleared (`GT_GPU_CLEAR_DISPLAY=1` restores
+the old clear). GPU gate: race isolated spikes 3 → 0 and mean difference 0.0445 → 0.0429; dealer unchanged; one
+garage fade frame differs in its darkening (0.33), where the previous run matched.
+Also patch 0035: the present shader clamps its bilinear filter to the shown crop — the last row blended in what
+lay outside the picture in the larger target, a thin line of changing colour at the bottom of the window.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0034-gpu-keep-display-contents.patch, 0035-present-filter-inside-crop.patch

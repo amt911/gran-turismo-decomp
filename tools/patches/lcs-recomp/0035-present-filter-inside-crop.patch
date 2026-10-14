@@ -1,0 +1,19 @@
+GT patch 0035: the present shader keeps its filter inside the shown crop: bilinear filtering at the last row or
+column blended in what lay just outside the picture in the larger target (a thin line along the bottom edge whose
+colour changed with other draws' leftovers).
+
+--- a/lcs/host/vulkan/present.frag
++++ b/lcs/host/vulkan/present.frag
+@@ -9,6 +9,11 @@
+ layout(location = 0) out vec4 color;
+ 
+ void main() {
+-    vec4 texel = texture(image, uv * (push.uvScale.x == 0.0 ? vec2(1.0) : push.uvScale));
++    // GT patch 0035: keep the filter inside the shown crop. The target is larger than the picture (power-of-two
++    // space), and bilinear filtering at the last row or column blended in whatever lay just outside it: a thin
++    // line along the bottom edge whose colour changed with what other draws had left there.
++    vec2 crop = push.uvScale.x == 0.0 ? vec2(1.0) : push.uvScale;
++    vec2 halfTexel = 0.5 / vec2(textureSize(image, 0));
++    vec4 texel = texture(image, clamp(uv * crop, halfTexel, crop - halfTexel));
+     color = push.opaque != 0u ? vec4(texel.rgb, 1.0) : texel;
+ }
