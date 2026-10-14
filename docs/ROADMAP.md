@@ -594,6 +594,16 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (lower_bound de un árbol) escrita sin registrar: ninguna ruta la llama. Sabotajes detectados en las 34. **4.916 funciones, 0 discrepancias**
       (puerta rápida: 34 comparadas en las cinco rutas; la completa llega a pocas del menú: las rutas dealer/garage/buy/options apenas salen
       del título con todas las funciones instaladas).
+- [x] **Lote 65 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_65.cpp`, 34 registradas, sondeo de llamadas con las cinco rutas):
+      thunks de punteros a método miembro, bucles «llama a una función en cada elemento de un rango» (pasos de 8, 0x30, 0x40, 0x60), copias de
+      elementos que saltan un destino nulo, destructores que sueltan un holder por su vtable (con y sin cola a `operator delete`), borrado recursivo
+      de nodos de árbol, siete instancias del paso de acotado de `func_08C4045C` (mismas instrucciones, comparadas una a una) y un relleno de
+      `func_08A590CC`. Cobertura de ramas con `tools.decomp_gate coverage`; cada rama no tomada se comparó con el asm a mano leyendo el DESTINO del
+      salto (varias rutas solo ven rangos vacíos, punteros no nulos o un holder siempre presente: el comentario de cada función lo dice).
+      Escritas sin registrar: `func_08BDADAC` (ninguna ruta la llama) y siete que escriben memoria sin que ningún caso comparado la cambie
+      (`func_08C15F9C`, `func_08C4B568`, `func_08C4B740/7A0/800/860`, `func_088824F8`, y las instancias `func_08C40FA4` / `func_08C413DC`).
+      Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 34.
+      **4.950 funciones, 0 discrepancias** (puerta completa: 4.408 comparadas en las cinco rutas, 542 sin comparar).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
