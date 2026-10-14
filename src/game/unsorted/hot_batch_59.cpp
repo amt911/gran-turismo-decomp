@@ -7,6 +7,7 @@
 // code does. Written from the asm; the generated code was only a reading aid.
 
 #include "decomp_registry.hpp"
+#include "gt/game/hot_common.hpp"
 #include "guest_call.hpp"
 
 #include <bit>
@@ -18,19 +19,13 @@ namespace gt::game {
 namespace hot_batch_59 {
 namespace {
 
+using namespace gt::game::hot;
+
 constexpr std::uint32_t kAssignHolder = 0x08A61584u;  // (dest *holder, source *holder)
 constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;
 constexpr std::uint32_t kFree = 0x08A5BC54u;          // (object, size, alignment)
 
-std::uint32_t word(psprecomp::Runtime &rt, std::uint32_t address) { return rt.memory().load32(address); }
-void put(psprecomp::Runtime &rt, std::uint32_t address, std::uint32_t value) { rt.memory().store32(address, value); }
-float float_at(psprecomp::Runtime &rt, std::uint32_t address) { return std::bit_cast<float>(rt.memory().load32(address)); }
 
-// The FPU's multiply: inf * 0 is the PSP's default NaN (0x7FC00000), not the host's (0xFFC00000).
-float psp_mul(float a, float b) {
-    if ((std::isinf(a) && b == 0.0f) || (std::isinf(b) && a == 0.0f)) return std::bit_cast<float>(0x7FC00000u);
-    return a * b;
-}
 
 // The tail of the value-building wrappers: dest = holder (assign), then the local holder is destroyed; v0 is the destroy's.
 void finish_holder(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t holder) {
@@ -411,7 +406,7 @@ void func_08AF4604(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_0886EB08(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t o = ctx.gpr[4];
     const float x = ctx.fpr[12];
-    { GuestFrame frame(ctx, 0x20u); (void)call_guest(rt, ctx, 0x0887C5A4u, {o + 100u}, {x}); }
+    { GuestFrame frame(ctx, 0x20u); ctx.gpr[2] = call_guest(rt, ctx, 0x0887C5A4u, {o + 100u}, {x}).v0; }
     tail_call(ctx, 0x0886F86Cu, {word(rt, o + 112u) + 100u});
 }
 // func_0886DEB8(o, x): func_0887C5A4(o + 100) and func_0886F86C(inner + 20) with x, then func_08873E94(inner + 40) with x (tail call).
@@ -421,7 +416,7 @@ void func_0886DEB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     {
         GuestFrame frame(ctx, 0x20u);
         (void)call_guest(rt, ctx, 0x0887C5A4u, {o + 100u}, {x});
-        (void)call_guest(rt, ctx, 0x0886F86Cu, {word(rt, o + 112u) + 20u}, {x});
+        ctx.gpr[2] = call_guest(rt, ctx, 0x0886F86Cu, {word(rt, o + 112u) + 20u}, {x}).v0;  // v0 holds this call's result at the tail call
     }
     tail_call(ctx, 0x08873E94u, {word(rt, o + 112u) + 40u});
 }
@@ -432,7 +427,7 @@ void func_0887EDF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     {
         GuestFrame frame(ctx, 0x20u);
         (void)call_guest(rt, ctx, 0x0887C5A4u, {o + 100u}, {x});
-        (void)call_guest(rt, ctx, 0x088824B8u, {word(rt, o + 116u)}, {x});
+        ctx.gpr[2] = call_guest(rt, ctx, 0x088824B8u, {word(rt, o + 116u)}, {x}).v0;  // v0 holds this call's result at the tail call
     }
     tail_call(ctx, 0x0886F86Cu, {word(rt, o + 116u) + 20u});
 }
@@ -480,11 +475,8 @@ HOT59(0x08C298A4u, func_08C298A4, Word);
 HOT59(0x08C1EB60u, func_08C1EB60, Word);
 HOT59(0x08C0C284u, func_08C0C284, Word);
 HOT59(0x08B7DF7Cu, func_08B7DF7C, Word);
-HOT59(0x08B7DC1Cu, func_08B7DC1C, Word);
+HOT59(0x08B7DC1Cu, func_08B7DC1C, DoubleWord);
 HOT59(0x08B7E4CCu, func_08B7E4CC, Word);
-HOT59(0x08B28CD4u, func_08B28CD4, Word);
-HOT59(0x08B1B99Cu, func_08B1B99C, Word);
-HOT59(0x08AD95A0u, func_08AD95A0, Word);
 HOT59(0x08C00FC0u, func_08C00FC0, Word);
 HOT59(0x08C31A00u, func_08C31A00, Word);
 HOT59(0x08BF7C60u, func_08BF7C60, Word);
@@ -493,7 +485,6 @@ HOT59(0x08B8C564u, func_08B8C564, Word);
 HOT59(0x08C31AA8u, func_08C31AA8, Word);
 HOT59(0x08B887E4u, func_08B887E4, Word);
 HOT59(0x088A8E08u, func_088A8E08, Word);
-HOT59(0x08B34DC0u, func_08B34DC0, Word);
 HOT59(0x0880B750u, func_0880B750, Word);
 HOT59(0x0880BB38u, func_0880BB38, Word);
 HOT59(0x08C2486Cu, func_08C2486C, Word);
@@ -505,4 +496,10 @@ HOT59(0x0886DEB8u, func_0886DEB8, Word);
 HOT59(0x0887EDF4u, func_0887EDF4, Word);
 HOT59(0x08B851D0u, virtual_of_second, Word);
 HOT59(0x08B87514u, virtual_of_second, Word);
+// Written but not registered: compared 0 in every fast run (no route calls func_08AD95A0, func_08B28CD4, func_08B34DC0 or
+// func_08B1B99C from outside their generated unit), so nothing could verify them.
+// HOT59(0x08AD95A0u, func_08AD95A0, Word);
+// HOT59(0x08B28CD4u, func_08B28CD4, Word);
+// HOT59(0x08B34DC0u, func_08B34DC0, Word);
+// HOT59(0x08B1B99Cu, func_08B1B99C, Word);
 #undef HOT59
