@@ -615,6 +615,15 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       «no comparable» por ruta, 0 comparados) y `func_08BE6D44`, `func_08C4B3C0` (escriben memoria y ningún caso comparado la cambió).
       Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal` (t0-t3 incluidos). Sabotajes detectados
       en las 39. **4.989 funciones, 0 discrepancias** (puerta completa: 4.444 comparadas en las cinco rutas, 545 sin comparar).
+- [x] **Lote 68 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_68.cpp`, 44 registradas; sondeo de llamadas con `GT_PROBE_SYMBOLS`
+      sobre todas las funciones sin hacer de hasta 70 instrucciones, en las cinco rutas): termina familias de forma ya decompilada (lotes 59, 63 y 66) con
+      el patrón existente y las constantes y destinos de llamada leídos de las palabras de cada miembro, tras comparar cada miembro con su plantilla
+      palabra a palabra (solo difieren constantes reubicadas y el destino del jal/j): 7 «pair call A», 6 «pair call B», 6 inicializadores de nodo con tail
+      call, 3 pasos de acotado, 6 «llama con una constante» (dos trabajadores distintos) y 16 accesores de un contenedor estático vacío.
+      Cobertura de ramas con `tools.decomp_gate coverage`; cada rama no tomada se comparó con el asm a mano (el paso de acotado: ramas de otros límites; el
+      contenedor: `func_08B6441C` devolviendo 0). Escrita sin registrar: `func_08C401C4` (escribe memoria y ninguno de sus 49 casos la cambió).
+      Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 44.
+      **5.033 funciones sobre `main`, 0 discrepancias** (el lote 67, PR #175, suma las suyas al fusionarse).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
