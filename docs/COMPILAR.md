@@ -222,14 +222,14 @@ muestra la primera diferencia (registro o byte de RAM, con los argumentos de la 
 toca. Para que lleguen casos de más partes del juego, deja que llegue al menú:
 `GT_PAD="3300:START" build/gt_native --max-seconds 150 --decomp diff --decomp-cases 32`.
 
-**Las cuatro rutas con las que se verifica todo** están en `config/pad_routes/`: `race.pad` (hasta la
+**Las cinco rutas con las que se verifica todo** están en `config/pad_routes/`: `race.pad` (hasta la
 carrera, 600 s), `dealer.pad` (concesionarios y ficha de un coche, 300 s), `garage.pad` (récords,
 garaje, Theatre y la lista de circuitos, 310 s) y `buy.pad` (compra un coche y lo añade a Favoritos,
-150 s). Cada función registrada debe salir sin discrepancias en todas
+150 s) y `options.pad` (cambia las unidades a CH, ft-lb y km/h, las guarda y abre el concesionario, 240 s). Cada función registrada debe salir sin discrepancias en todas
 (`.venv/bin/python -m tools.decomp_gate full TAG` las lanza):
 
 ```bash
-for r in race:600 dealer:300 garage:310 buy:150; do
+for r in race:600 dealer:300 garage:310 buy:150 options:240; do
   GT_PAD=$(grep -v '^#' config/pad_routes/${r%:*}.pad) build/gt_native --max-seconds ${r#*:} --decomp diff \
     | grep -c "mismatched [1-9]"   # 0 en cada ruta
 done

@@ -29,8 +29,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 ROUTES = {
-    "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110)),
-    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 150)),
+    "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230)),
+    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 150), ("options", 240)),
 }
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.

@@ -4,6 +4,7 @@
 // the keyboard/gamepad).
 #include "pad_script.hpp"
 
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -13,7 +14,8 @@
 namespace gt {
 namespace {
 
-std::uint64_t g_vblanks = 0u;  // vblank waits so far
+// Vblank waits so far: ticked by the main thread, read by frame dumps on the GE worker thread too.
+std::atomic<std::uint64_t> g_vblanks{0u};
 
 struct PadPress {
     std::uint64_t vblank;
@@ -61,12 +63,15 @@ const std::vector<PadPress> &pad_script() {
 
 } // namespace
 
-void pad_script_tick() { ++g_vblanks; }
+void pad_script_tick() { g_vblanks.fetch_add(1u, std::memory_order_relaxed); }
+
+std::uint64_t pad_script_vblanks() { return g_vblanks.load(std::memory_order_relaxed); }
 
 std::uint32_t scripted_buttons() {
     std::uint32_t buttons = 0u;
+    const std::uint64_t now = g_vblanks.load(std::memory_order_relaxed);
     for (const PadPress &press : pad_script())
-        if (g_vblanks >= press.vblank && g_vblanks < press.vblank + press.frames) buttons |= press.buttons;
+        if (now >= press.vblank && now < press.vblank + press.frames) buttons |= press.buttons;
     return buttons;
 }
 

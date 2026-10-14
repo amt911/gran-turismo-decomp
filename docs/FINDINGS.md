@@ -1099,3 +1099,47 @@ car.
 
 Found: 2026-10-14 · tools/src/lcs-recomp/lcs/host/ge_gpu_backend_vulkan.cpp, ge_renderer.cpp
 
+
+## GPU: the menu's "Single Player" label drawn on the kerbs, an old track map in the race
+
+**Symptom.** With `NativeGE=true` a track's kerbs showed the main menu's "Single Player" label, and the race's
+track map was another circuit's (GPU gate, race route: 1012/1088 frames equal to the software rasterizer).
+**Cause.** The GPU texture cache keys a texture by its address, size and format plus a content signature, and
+for textures over 4 KiB the signature hashed only 16 samples of 64 bytes. GT loads a new texture where an old one
+of the same size was; when the samples matched (blank borders, transparent areas), the cache kept the old image.
+**Fix / workaround.** lcs-recomp patch 0027 hashes every byte, in four multiply lanes. Once per texture per frame
+(or after a block transfer writes it): GE wait in a race stayed at ~7 %. GPU gate race: 1129/1129 equal.
+**Why it isn't obvious.** Sampled hashes are a common emulator trade-off and work until two textures share
+the sampled bytes; the software rasterizer reads the memory directly, so it never shows the bug.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0027-gpu-whole-texture-signature.patch
+
+## GT_PAD times are vblank waits, not presented frames
+
+**Symptom.** A new pad route that worked step by step went astray when extended: presses landed in a loading
+screen or in the wrong menu, and the frame-dump numbers didn't line up with the times in `GT_PAD`.
+**Cause.** `GT_PAD` counts vblank waits (`pad_script_tick`); `GT_FRAME_DUMP` numbers presented frames. The menus
+present one frame per two vblank waits, and loads run thousands of waits with few presents, so the two clocks
+drift apart (in the Options route, frame 6500 was vblank 13 448). A press timed by frame number fires early.
+**Fix / workaround.** Frame dumps now print `[frame-dump] frame N vblank V` on stderr: time presses by `V`.
+Also in the Options menu, a second DOWN from the last row selects *Reset to default* and then *Cancel*, and
+leaving asks "Save changes?" (one more CROSS).
+**Why it isn't obvious.** In the first minute (logos, title) the two counts are close, so early routes worked.
+
+Found: 2026-10-14 · host/pad_script.cpp, host/frame_dump.cpp, config/pad_routes/options.pad
+## Movies broke up: the decoder dropped every picture it was handed while still holding one
+
+**Symptom.** The intro movie (and the others) showed smeared, blocky pictures, and the log filled with
+`[h264] deblocking filter parameters … out of range` / `no frame!` / `concealing … errors` (78 lines in 90 s).
+**Cause.** `MovieDecoder` feeds each 2048-byte ring packet through the H.264 parser and `avcodec_send_packet`.
+GT's movies have small pictures, so one packet often completes several; while the decoder still holds an
+undelivered picture, `avcodec_send_packet` answers `EAGAIN`, and the return value was ignored — that picture was
+lost, and every picture predicted from it decoded from the wrong reference. The bytes were right: the same
+elementary stream, dumped and decoded by the `ffmpeg` CLI, has no errors.
+**Fix / workaround.** On `EAGAIN` the decoder takes the waiting picture out (kept in a queue `next_frame` serves
+first) and sends the packet again. `host/tests/movie_decoder_test.cpp` (synthetic libx264 stream, several
+pictures per packet): 4/60 → 59/60 pictures. In the game: 0 decoder errors.
+**Why it isn't obvious.** The demuxer was the suspect, and a stream dump decodes cleanly; only the send/receive
+contract of libavcodec explains why the same bytes fail inside the game.
+
+Found: 2026-10-14 · host/movie_decoder.cpp

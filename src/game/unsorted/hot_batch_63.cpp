@@ -5,7 +5,7 @@
 // addresses as names. Written from the asm; the generated code was only a reading aid.
 //
 // Families in this batch (same body, other constants): the range-copy / fill loops over func_08A6972C and func_08A76ABC, the
-// "call the virtual destructor of every element" loops (strides 40 / 48 / 64), the clamp pair func_08C4045C / func_08C3FEB8 and the
+// "call the virtual destructor of every element" loops (strides 40 / 48), the clamp pair func_08C4045C / func_08C3FEB8 and the
 // singleton accessors of an empty ordered container (a function-local static with a guard byte, table below).
 
 #include "decomp_registry.hpp"
@@ -464,7 +464,7 @@ void func_08B522BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = result;
 }
 
-// func_08BE5C0C & co. (first, last): vtable[0](element) on each element of [first, last), the elements `stride` bytes apart (40 / 48 / 64).
+// func_08BE5C0C & co. (first, last): vtable[0](element) on each element of [first, last), the elements `stride` bytes apart (40 / 48).
 void func_08BE5C0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { destroy_range(rt, ctx, 40u); }
 void func_08BE593C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { destroy_range(rt, ctx, 40u); }
 void func_08BE5BC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { destroy_range(rt, ctx, 48u); }

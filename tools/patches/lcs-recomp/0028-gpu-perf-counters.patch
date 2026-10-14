@@ -1,0 +1,156 @@
+GT patch 0028: GT_PERF_LOG measures the GPU: Vulkan timestamps around each frame's command buffer (GPU ms per
+frame), the time the GE thread blocks on the previous frame's fence, render passes, full target copies and texture
+upload bytes, taken by ge_gpu_backend_take_perf().
+
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -409,6 +409,17 @@
+ void ge_gpu_backend_display_logical_size(std::uint32_t &width, std::uint32_t &height) noexcept;
+ 
+ [[nodiscard]] bool ge_gpu_backend_finish_color_frame(std::uint64_t vblank) noexcept;
++// GT patch 0028: what the GPU did since the last call (GT_PERF_LOG): GPU time from timestamp queries, how long the
++// GE thread blocked on the previous frame's fence, render passes, full target copies and texture upload bytes.
++struct GeGpuPerf {
++    double gpu_ms{};
++    double fence_wait_ms{};
++    std::uint64_t frames{};
++    std::uint64_t passes{};
++    std::uint64_t target_copies{};
++    std::uint64_t upload_bytes{};
++};
++GeGpuPerf ge_gpu_backend_take_perf() noexcept;
+ 
+ // The list-split flush sets this false. Only the present finish is shown.
+ inline bool &ge_finish_shows_this_frame() noexcept {
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -223,6 +223,10 @@
+     // GT patch 0026: signalled when the GPU finishes the pending submit, so the end of a frame can tell whether
+     // the GPU is still busy without waiting for it.
+     VkFence frame_fence{};
++    VkQueryPool timestamps{};          // GT patch 0028: two per frame, start and end
++    double timestamp_period_ns{};
++    bool timestamps_pending{};
++    GeGpuPerf perf{};
+     std::uint64_t frames_dropped{};
+     std::uint32_t consecutive_drops{};
+     // GT patch 0026: the two framebuffers shown last (sceDisplaySetFrameBuf: GT's front and back buffer). A
+@@ -1134,6 +1138,7 @@
+     begin.clearValueCount = 2u;
+     begin.pClearValues = clears;
+     vkCmdBeginRenderPass(s.command, &begin, VK_SUBPASS_CONTENTS_INLINE);
++    ++s.perf.passes;  // GT patch 0028
+     VkViewport viewport{};
+     viewport.width = static_cast<float>(s.target_width);
+     viewport.height = static_cast<float>(s.target_height);
+@@ -1165,6 +1170,7 @@
+     region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+     region.dstSubresource.layerCount = 1u;
+     region.extent = {s.target_width, s.target_height, 1u};
++    ++s.perf.target_copies;  // GT patch 0028
+     vkCmdCopyImage(s.command, target.color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    target.snapshot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1u, &region);
+     transition_image(s.command, target.snapshot.image, target.snapshot.layout,
+@@ -1220,6 +1226,7 @@
+         mip_width = std::max(1u, mip_width >> 1u);
+         mip_height = std::max(1u, mip_height >> 1u);
+     }
++    s.perf.upload_bytes += texture.rgba8.size();  // GT patch 0028
+     vkCmdCopyBufferToImage(s.command, staging.buffer, texture.gpu.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                            static_cast<std::uint32_t>(regions.size()), regions.data());
+     transition_image(s.command, texture.gpu.image, texture.gpu.layout,
+@@ -2186,12 +2193,23 @@
+     static const double simulated_ms = [] { const char *v = std::getenv("GT_SIM_GPU_MS"); return v ? std::atof(v) : 0.0; }();
+     if (simulated_ms > 0.0) std::this_thread::sleep_until(s.submit_time + std::chrono::microseconds(static_cast<long long>(simulated_ms * 1000.0)));
+     // GT patch 0026: the pending submit's fence, not the whole queue.
++    const auto wait_begin = std::chrono::steady_clock::now();
+     const VkResult waited = vkWaitForFences(s.device, 1u, &s.frame_fence, VK_TRUE, UINT64_MAX);
++    s.perf.fence_wait_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - wait_begin).count();
+     if (waited != VK_SUCCESS) {
+         log_frame_failure(s, "vkWaitForFences", waited);
+         return false;
+     }
+     vkResetFences(s.device, 1u, &s.frame_fence);
++    if (s.timestamps_pending) {  // GT patch 0028
++        std::uint64_t ticks[2]{};
++        if (vkGetQueryPoolResults(s.device, s.timestamps, 0u, 2u, sizeof ticks, ticks, sizeof ticks[0],
++                                  VK_QUERY_RESULT_64_BIT) == VK_SUCCESS && ticks[1] >= ticks[0]) {
++            s.perf.gpu_ms += static_cast<double>(ticks[1] - ticks[0]) * s.timestamp_period_ns / 1e6;
++            ++s.perf.frames;
++        }
++        s.timestamps_pending = false;
++    }
+     if (s.pending_readback && s.readback_mapped != nullptr && s.pending_readback_bytes != 0u) {
+         s.frame_rgba.resize(s.pending_readback_bytes);
+         std::memcpy(s.frame_rgba.data(), s.readback_mapped, s.pending_readback_bytes);
+@@ -2377,6 +2395,9 @@
+     if (s.render_pass) vkDestroyRenderPass(s.device, s.render_pass, nullptr);
+     if (s.command) vkFreeCommandBuffers(s.device, s.pool, 1u, &s.command);
+     if (s.frame_fence) vkDestroyFence(s.device, s.frame_fence, nullptr);  // GT patch 0026
++    if (s.timestamps) vkDestroyQueryPool(s.device, s.timestamps, nullptr);  // GT patch 0028
++    s.timestamps = VK_NULL_HANDLE;
++    s.timestamps_pending = false;
+     s.frame_fence = VK_NULL_HANDLE;
+     if (s.pool) vkDestroyCommandPool(s.device, s.pool, nullptr);
+     if (s.device) vkDestroyDevice(s.device, nullptr);
+@@ -2695,6 +2716,17 @@
+         error = "vkCreateFence failed";
+         return false;
+     }
++    {  // GT patch 0028: GPU time per frame for GT_PERF_LOG; without it the log just shows none.
++        VkPhysicalDeviceProperties properties{};
++        vkGetPhysicalDeviceProperties(s.physical, &properties);
++        s.timestamp_period_ns = properties.limits.timestampPeriod;
++        VkQueryPoolCreateInfo query_info{};
++        query_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
++        query_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
++        query_info.queryCount = 2u;
++        if (s.timestamp_period_ns <= 0.0 || vkCreateQueryPool(s.device, &query_info, nullptr, &s.timestamps) != VK_SUCCESS)
++            s.timestamps = VK_NULL_HANDLE;
++    }
+     s.report.command_pool_created = true;
+ 
+     VkAttachmentDescription attachments[2]{};
+@@ -2942,6 +2974,14 @@
+ }
+ 
+ bool ge_gpu_backend_active() noexcept { return state().enabled; }
++
++GeGpuPerf ge_gpu_backend_take_perf() noexcept {  // GT patch 0028
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    const GeGpuPerf taken = s.perf;
++    s.perf = GeGpuPerf{};
++    return taken;
++}
+ bool ge_gpu_backend_transfer_ready() noexcept { return state().enabled; }
+ bool ge_gpu_backend_graphics_ready() noexcept { return state().enabled; }
+ 
+@@ -3563,6 +3603,10 @@
+     const VkResult reset = vkResetCommandBuffer(s.command, 0);
+     if (reset != VK_SUCCESS) log_frame_failure(s, "vkResetCommandBuffer", reset);
+     const VkResult begun = reset == VK_SUCCESS ? vkBeginCommandBuffer(s.command, &begin) : reset;
++    if (begun == VK_SUCCESS && s.timestamps != VK_NULL_HANDLE) {  // GT patch 0028
++        vkCmdResetQueryPool(s.command, s.timestamps, 0u, 2u);
++        vkCmdWriteTimestamp(s.command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.timestamps, 0u);
++    }
+     if (begun != VK_SUCCESS) {
+         log_frame_failure(s, "vkBeginCommandBuffer", begun);
+         s.vertices.clear();
+@@ -3769,6 +3813,8 @@
+         transition_image(s.command, display->color.image, display->color.layout,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
+     }
++    if (s.timestamps != VK_NULL_HANDLE)  // GT patch 0028
++        vkCmdWriteTimestamp(s.command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.timestamps, 1u);
+     const VkResult ended = vkEndCommandBuffer(s.command);
+     if (ended != VK_SUCCESS) log_frame_failure(s, "vkEndCommandBuffer", ended);
+     bool submitted = false;
+@@ -3800,6 +3846,7 @@
+                 // The next finish waits, so this GPU work overlaps the next list.
+                 submitted = true;
+                 s.submit_pending = true;
++                s.timestamps_pending = s.timestamps != VK_NULL_HANDLE;  // GT patch 0028
+                 s.submit_time = std::chrono::steady_clock::now();
+                 if (present_this_frame) {
+                     const VkResult presented = queue_present(s);
