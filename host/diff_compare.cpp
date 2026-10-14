@@ -68,6 +68,32 @@ std::optional<std::string> first_difference(const EndState &original, const EndS
     return "RAM at " + hex32(original.ram_base + static_cast<std::uint32_t>(*first)) + bytes;
 }
 
+std::optional<std::string> first_page_difference(std::span<const PageImages> pages, std::size_t page_size,
+                                                 std::uint32_t ignore_begin, std::uint32_t ignore_end) {
+    const auto ignored = [&](std::uint32_t address) { return address >= ignore_begin && address < ignore_end; };
+    std::optional<std::uint32_t> first;
+    std::uint8_t first_original = 0u, first_decompiled = 0u;
+    std::size_t differing = 0;
+    for (const PageImages &page : pages) {
+        if (!first && std::memcmp(page.original, page.decompiled, page_size) == 0) continue;
+        for (std::size_t i = 0; i < page_size; ++i) {
+            const std::uint32_t address = page.address + static_cast<std::uint32_t>(i);
+            if (page.original[i] == page.decompiled[i] || ignored(address)) continue;
+            if (!first) {
+                first = address;
+                first_original = page.original[i];
+                first_decompiled = page.decompiled[i];
+            }
+            ++differing;
+        }
+    }
+    if (!first) return std::nullopt;
+    char bytes[64];
+    std::snprintf(bytes, sizeof bytes, ": original %02X, decompiled %02X (%zu bytes differ)", first_original,
+                  first_decompiled, differing);
+    return "RAM at " + hex32(*first) + bytes;
+}
+
 std::optional<std::size_t> first_byte_difference(std::span<const std::uint8_t> a, std::span<const std::uint8_t> b,
                                                  std::size_t skip_begin, std::size_t skip_end) {
     constexpr std::size_t kBlock = 4096u;

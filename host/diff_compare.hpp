@@ -41,6 +41,18 @@ enum class ReturnKind { Void, Word, DoubleWord, Float };
                                                                std::span<const std::uint8_t> b,
                                                                std::size_t skip_begin, std::size_t skip_end);
 
+// One RAM page either run of a case wrote: its guest address and the bytes each run left there (page_size each).
+struct PageImages {
+    std::uint32_t address;
+    const std::uint8_t *original;
+    const std::uint8_t *decompiled;
+};
+
+// first_difference's RAM comparison over only the pages either run wrote, sorted by address — the rest of RAM
+// is the case's entry state in both runs. Same message, same ignored range [ignore_begin, ignore_end).
+[[nodiscard]] std::optional<std::string> first_page_difference(std::span<const PageImages> pages, std::size_t page_size,
+                                                               std::uint32_t ignore_begin, std::uint32_t ignore_end);
+
 // Hex addresses (with or without 0x, any case) separated by commas or whitespace, as GT_DECOMP_ONLY
 // takes them. nullopt when any token isn't a 32-bit hex number, so a typo can't silently select nothing.
 [[nodiscard]] std::optional<std::unordered_set<std::uint32_t>> parse_address_list(std::string_view text);

@@ -67,7 +67,10 @@ never per function. Settings measured and decided by the user on 2026-10-12:
     uncapped race compares the same batch functions with the same case count as the full 600 s run
     (measured 2026-10-12).
   - **Full gate (once, before the PR):** every function, real time, race 600 s, dealer 300 s, garage
-    310 s, buy 150 s, options 240 s — ~11 min. It is the regression check for everything already landed.
+    310 s, buy 150 s, options 240 s — ~11 min. It is the regression check for everything already landed. Since
+    2026-10-14 a case copies and compares only the RAM pages its runs write (`host/dirty_pages.hpp`), so the
+    game keeps real time with every function installed and the menu routes reach their menus again
+    (before, they never left the title screen — FINDINGS).
 - **The tool:** `.venv/bin/python -m tools.decomp_gate fast TAG --only <addresses or @file>`, `full TAG`,
   `sabotage TAG --file <source> --only ...` (bumps s0 and a RAM word in the listed functions, runs the fast gate,
   restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).

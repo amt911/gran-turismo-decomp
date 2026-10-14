@@ -72,6 +72,7 @@ add_library(gt_host_objs OBJECT
     host/psmf_hle.cpp
     host/ps_demux.cpp
     host/movie_decoder.cpp
+    host/dirty_pages.cpp
     host/pgf.cpp
     host/font_hle.cpp
     host/atrac_decoder.cpp
@@ -168,6 +169,10 @@ enable_testing()
 add_executable(host_tests host/tests/diff_compare_test.cpp host/diff_compare.cpp)
 target_include_directories(host_tests PRIVATE host)
 add_test(NAME diff_compare COMMAND host_tests)
+add_executable(dirty_pages_tests host/tests/dirty_pages_test.cpp host/dirty_pages.cpp)
+target_include_directories(dirty_pages_tests PRIVATE host)
+target_link_libraries(dirty_pages_tests PRIVATE Threads::Threads)
+add_test(NAME dirty_pages COMMAND dirty_pages_tests)
 add_executable(import_replay_tests host/tests/import_replay_test.cpp host/import_replay.cpp)
 target_include_directories(import_replay_tests PRIVATE host)
 add_test(NAME import_replay COMMAND import_replay_tests)
