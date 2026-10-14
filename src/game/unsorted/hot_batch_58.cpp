@@ -5,6 +5,7 @@
 // hot_batch_57.cpp. Written from the asm; the generated code was only a reading aid.
 
 #include "decomp_registry.hpp"
+#include "gt/game/hot_common.hpp"
 #include "guest_call.hpp"
 
 #include <bit>
@@ -15,22 +16,10 @@ namespace gt::game {
 namespace hot_batch_58 {
 namespace {
 
-constexpr std::uint32_t kGuState = 0x08D6CE00u;
-constexpr std::uint32_t kGuFlags = kGuState + 0x6Cu;
-constexpr std::uint32_t kGuListPointer = kGuState + 0x5Cu;
-constexpr std::uint32_t kGuCommandBlock = 0x08D6D0E0u;
-constexpr std::uint32_t kGuBlock2 = 0x08D6DE70u;
+using namespace gt::game::hot;
 
-std::uint32_t word(psprecomp::Runtime &rt, std::uint32_t address) { return rt.memory().load32(address); }
-void put(psprecomp::Runtime &rt, std::uint32_t address, std::uint32_t value) { rt.memory().store32(address, value); }
-float float_at(psprecomp::Runtime &rt, std::uint32_t address) { return std::bit_cast<float>(rt.memory().load32(address)); }
-void put_float(psprecomp::Runtime &rt, std::uint32_t address, float value) { rt.memory().store32(address, std::bit_cast<std::uint32_t>(value)); }
 
-// The FPU's multiply: inf * 0 is the PSP's default NaN (0x7FC00000), not the host's (0xFFC00000).
-float psp_mul(float a, float b) {
-    if ((std::isinf(a) && b == 0.0f) || (std::isinf(b) && a == 0.0f)) return std::bit_cast<float>(0x7FC00000u);
-    return a * b;
-}
+
 
 // Appends `count` words to the display list.
 void append(psprecomp::Runtime &rt, std::uint32_t first, std::uint32_t second = 0u, bool two = false) {

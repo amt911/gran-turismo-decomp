@@ -552,6 +552,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       64 bits, escritores de la lista de dibujo y los `lower_bound` / `find` de `std::map` con claves de 32 bits (13 instancias
       en tres cuerpos compartidos). `GT_DECOMP_PTR_*` y `FREE_LIST_PUSH` con constantes decodificadas de cada función. Sabotajes
       detectados en las 97 (las plantillas, saboteando a mano el cuerpo compartido). **4.705 funciones (con el resto de `main`), 0 discrepancias.**
+- [x] **Lote 59 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_59.cpp`, 60 registradas): las funciones con llamadas que
+      dejó el lote 58 — inicializadores de nodo con salto final (11), envoltorios que construyen un valor en un holder local (11),
+      getters float que llaman a una rutina de maquetación (6), borrados de rango de un vector (4), destructores pequeños y
+      barajadores de argumentos. Ninguna tiene saltos condicionales (comprobado en el asm), así que el gate ve todos los caminos.
+      Los ayudantes comunes (`word`, `put`, `psp_mul`, `kGu*`) pasan a `include/gt/game/hot_common.hpp`.
+      Sabotajes detectados en las 60. **4.765 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
