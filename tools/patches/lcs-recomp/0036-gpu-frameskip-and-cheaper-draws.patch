@@ -120,22 +120,28 @@
          job.occurrence_indices.swap(occurrence_indices);
 --- a/lcs/host/ge_gpu_backend_vulkan.cpp
 +++ b/lcs/host/ge_gpu_backend_vulkan.cpp
-@@ -3603,6 +3603,39 @@
+@@ -3603,6 +3603,45 @@
          for (const GeGpuVertex &source : vertices) s.vertices.push_back(make_upload_vertex(source));
      }
      const std::uint32_t logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
 +    // GT patch 0036: GT sends ~10,000 small draws a frame, runs of them with the same state (an object's parts).
 +    // A triangle list with the same descriptor and transform as the batch before joins it: one draw of both lists
 +    // in order covers the same pixels in the same order, and every per-draw cost (batch, state, uniforms,
-+    // recording) is paid once. Strips and fans keep their own batch.
++    // recording) is paid once. Strips and fans keep their own batch. A draw that samples a render target never
++    // joins: each such batch snapshots its target first, so a merged second list would miss the first one's pixels.
++    // The vertex count is the only descriptor field allowed to differ.
 +    if (transform.primitive == 3u && !s.batches.empty()) {
 +        Batch &last = s.batches.back();
 +        const bool feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
 +        constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
-+        if (last.hardware_transform && last.transform.primitive == 3u && last.indexed == indexed &&
-+            last.framebuffer_feedback == feedback && last.feedback_address == (draw.texture_address & 0x001FFFF0u) &&
-+            std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
-+            std::memcmp(&last.draw, &draw, sizeof draw) == 0) {
++        constexpr std::size_t kCountBegin = offsetof(GeGpuDrawDescriptor, vertex_count);
++        constexpr std::size_t kCountEnd = kCountBegin + sizeof(draw.vertex_count);
++        const auto *last_bytes = reinterpret_cast<const unsigned char *>(&last.draw);
++        const auto *draw_bytes = reinterpret_cast<const unsigned char *>(&draw);
++        if (!feedback && last.hardware_transform && !last.framebuffer_feedback && last.transform.primitive == 3u &&
++            last.indexed == indexed && std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
++            std::memcmp(last_bytes, draw_bytes, kCountBegin) == 0 &&
++            std::memcmp(last_bytes + kCountEnd, draw_bytes + kCountEnd, sizeof draw - kCountEnd) == 0) {
 +            if (indexed && last.first_index + last.index_count == first_index) {
 +                const std::uint32_t shift = first_vertex - last.first_vertex;
 +                for (std::size_t i = first_index; i < s.indices.size(); ++i) s.indices[i] += shift;
