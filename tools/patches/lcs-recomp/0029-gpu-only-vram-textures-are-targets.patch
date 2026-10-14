@@ -1,0 +1,76 @@
+GT patch 0029: only a texture in VRAM can be a render target. Targets are keyed by their 21-bit VRAM offset, and
+masking a main-RAM texture address to 21 bits matched whatever target sat at the same offset: GT's kerbs drew the
+menu's "Single Player" label and the race's track map an old picture.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -632,6 +632,15 @@
+     return found == s.targets.end() ? nullptr : &found->second;
+ }
+ 
++// GT patch 0029: the render target a texture reads, if any. Targets are keyed by their VRAM offset (the GE's
++// framebuffer pointer is one); a texture address is a full guest address, and only one in VRAM (0x04xxxxxx and
++// its mirrors) can be a target. Masking a main-RAM texture down to 21 bits matched whatever target sat at the
++// same offset: GT's kerbs drew the menu's "Single Player" label, the race's track map an old picture.
++Target *texture_target(VulkanState &s, std::uint32_t texture_address) {
++    if ((texture_address & 0x0F000000u) != 0x04000000u) return nullptr;
++    return find_target(s, texture_address);
++}
++
+ // GT patch 0022: the shown part of the display target, in image pixels.
+ std::uint32_t crop_width(const VulkanState &s) noexcept {
+     return std::max<std::uint32_t>(1u, std::min(s.target_width, static_cast<std::uint32_t>(
+@@ -3175,7 +3184,7 @@
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled || !draw.texture_enabled || draw.texture_format > 10u ||
+         draw.texture_width == 0u || draw.texture_height == 0u) return false;
+-    if (find_target(s, draw.texture_address) != nullptr) {
++    if (texture_target(s, draw.texture_address) != nullptr) {
+         ++s.report.texture_cache_hits;
+         return false;
+     }
+@@ -3208,7 +3217,7 @@
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled || !draw.texture_enabled || draw.texture_width == 0u || draw.texture_height == 0u)
+         return false;
+-    if (find_target(s, draw.texture_address) != nullptr) return false;
++    if (texture_target(s, draw.texture_address) != nullptr) return false;
+     // GT patch 0023: tiny textures (glyphs, icons the CPU redraws between draws, up to 64x64) are re-checked on every
+     // draw; larger ones once per frame or after a block transfer writes them.
+     const std::uint64_t texels = static_cast<std::uint64_t>(std::max(draw.texture_buffer_width, draw.texture_width)) *
+@@ -3224,7 +3233,7 @@
+ bool ge_gpu_backend_is_framebuffer_feedback_texture(const GeGpuDrawDescriptor &draw) noexcept {
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+-    return s.enabled && draw.texture_enabled && find_target(s, draw.texture_address) != nullptr;
++    return s.enabled && draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
+ }
+ 
+ GeGpuWidescreenHud ge_gpu_backend_widescreen_hud(const GeGpuDrawDescriptor &draw) noexcept {
+@@ -3252,7 +3261,7 @@
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     if (!s.enabled || !draw.texture_enabled) return false;
+-    if (find_target(s, draw.texture_address) != nullptr) return true;
++    if (texture_target(s, draw.texture_address) != nullptr) return true;
+     const auto found = s.textures.find(texture_key(draw));
+     if (found == s.textures.end()) return false;
+     // GT patch 0024: a texture decoded for this draw has no Vulkan image yet — it is created and uploaded
+@@ -3343,7 +3352,7 @@
+     batch.first_vertex = first;
+     batch.vertex_count = static_cast<std::uint32_t>(triangle_vertices.size());
+     batch.feedback_address = draw.texture_address & 0x001FFFF0u;
+-    batch.framebuffer_feedback = draw.texture_enabled && find_target(s, batch.feedback_address) != nullptr;
++    batch.framebuffer_feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;  // GT patch 0029
+     s.batches.push_back(batch);
+     ++s.report.game_draw_calls;
+     s.report.game_triangles += triangle_vertices.size() / 3u;
+@@ -3400,7 +3409,7 @@
+     batch.hardware_transform = true;
+     batch.transform = transform;
+     batch.feedback_address = draw.texture_address & 0x001FFFF0u;
+-    batch.framebuffer_feedback = draw.texture_enabled && find_target(s, batch.feedback_address) != nullptr;
++    batch.framebuffer_feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;  // GT patch 0029
+     s.batches.push_back(batch);
+     s.report.game_draw_calls += logical;
+     s.report.game_triangles += transform.primitive == 4u

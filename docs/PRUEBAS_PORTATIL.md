@@ -16,52 +16,26 @@ git log --oneline -1                   # pega esta línea junto con los resultad
 `config/gt_play.ini` se copia junto a `build/gt_play` al compilar: los cambios de las pruebas se hacen en
 **`build/gt_play.ini`** (o en otro fichero con `PSPRECOMP_CONFIG=<ruta>`).
 
-## 1. Pianos y minimapa (arreglo de #163)
+## 1. Pianos y minimapa (arreglo de la PR del parche 0029)
 
-Con `NativeGE=true`: Single Player → una carrera.
+El arreglo anterior (#163) no era la causa: la textura se leía de un render target viejo del menú.
 
-- [ ] ¿Los pianos rojos y blancos se ven con sus rayas, sin el texto "Single Player"?
-- [ ] ¿El minimapa de arriba a la izquierda es el del circuito en el que estás?
+- [ ] Con `NativeGE=true`, en la primera carrera: ¿los pianos rojos y blancos se ven con sus rayas, sin el texto
+      "Single Player"?
+- [ ] ¿El minimapa de arriba a la izquierda es el del circuito?
 
-## 2. ¿Cuánto tarda la gráfica por frame? (medición de #164)
+## 2. Tiempo de GPU con batería (medición de #164)
 
-Con `NativeGE=true`, **enchufado y luego con batería**, en la misma carrera:
+Ya tengo x4 enchufado (14 ms de GPU por frame en carrera). Falta el mismo log **con batería**, en la misma carrera:
 
 ```bash
-GT_PERF_LOG=1 build/gt_play 2>&1 | tee perf_gpu_x4.txt
+GT_PERF_LOG=1 build/gt_play 2>&1 | grep '^\[perf\]' | tee perf_gpu_x4_bateria.txt
 ```
 
-Pásame solo las líneas `[perf]` de la carrera (unos 30 s conduciendo). Ahora salen dos por cada 5 s: la de
-siempre y otra que empieza por `[perf]   GPU … ms/frame`.
+Déjalo en `my_tests/`. (Las pruebas x2/x1 ya no hacen falta: voy a reducir el coste por píxel y a añadir resolución
+automática; te pediré medir de nuevo cuando esté.)
 
-Repite con la resolución interna fija a x2 y a x1. En `build/gt_play.ini`:
-
-```ini
-InternalResolutionMode=Scale
-InternalScale=2      ; luego 1
-```
-
-| Prueba | Enchufado | Batería |
-| --- | --- | --- |
-| Window (x4 a 1080p) | | |
-| Scale x2 | | |
-| Scale x1 | | |
-
-Con esto sé si la gráfica integrada es el límite (el tiempo de GPU por frame baja mucho con la resolución) o no.
-
-## 3. Parpadeo / vibración con NativeGE=true
-
-- [ ] ¿Vibra la imagen entera (como un temblor de un píxel) o parpadean cosas sueltas (pianos, bordes,
-      el HUD)? ¿En qué pantalla o en qué parte del circuito?
-- [ ] ¿Pasa también con `InternalScale=1`?
-
-## 4. Vídeos (arreglo de la PR de vídeos)
-
-- [ ] ¿El vídeo de la intro (y los demás) se ve limpio, sin bloques ni manchas?
-- [ ] ¿Siguen saliendo líneas `[h264 @ …]` en la terminal? (deberían ser 0)
-- [ ] ¿El audio de los vídeos va sincronizado con la imagen?
-
-## 5. Velocidad del coche
+## 3. Velocidad del coche
 
 El reloj del juego va bien (`guest time 1.00x` en tus logs). Para comparar con la consola o con PPSSPP:
 
