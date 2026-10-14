@@ -4,6 +4,7 @@ Usage (from the repository root):
   .venv/bin/python -m tools.decomp_gate fast TAG --only 0xADDR,0xADDR...|@file   # listed functions, uncapped
   .venv/bin/python -m tools.decomp_gate full TAG                                 # everything, real time
   .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ... [--also ...]  # s0 bump, fast gate
+  .venv/bin/python -m tools.decomp_gate coverage TAG --only 0xADDR,...|@file     # fast gate + which branches it took
   .venv/bin/python -m tools.decomp_gate report TAG                               # re-read a run's logs
 
 `fast` and `full` regenerate the recompiled code (tools.recomp: registrations are boundaries), build, and
@@ -18,6 +19,8 @@ regression check over everything; script-driven functions are often reached only
 from __future__ import annotations
 
 import argparse
+import json
+import shutil
 import re
 import subprocess
 import sys
@@ -372,12 +375,26 @@ def route_problem(text: str, exit_code: str) -> str | None:
     return None
 
 
-def _run_gate(kind: str, tag: str, only: list[int] | None) -> int:  # pragma: no cover - drives the build
+def coverage_left_configured(cmake_cache: str) -> bool:
+    """Whether build/CMakeCache.txt still instruments sources for coverage (a coverage run killed before it could
+    put the build back): a normal gate would then build them instrumented."""
+    match = re.search(r"^GT_COVERAGE_FILES:[A-Z]+=(.*)$", cmake_cache, re.MULTILINE)
+    return bool(match and match[1].strip())
+
+
+def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover - drives the build
+              extra_env: dict[str, str] | None = None) -> int:
     env = None
-    if only is not None:
+    if only is not None or extra_env:
         import os
-        env = dict(os.environ, GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
+        env = dict(os.environ, **(extra_env or {}))
+        if only is not None:
+            env.update(GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
     clear_run(tag, Path("recomp/analysis"))
+    cache = Path("build/CMakeCache.txt")
+    if not (extra_env or {}).get("LLVM_PROFILE_FILE") and cache.exists() and coverage_left_configured(cache.read_text()):
+        print("warning: build/ still instruments sources for coverage (a coverage run was killed?); reconfigure with "
+              "`cmake -S . -B build -DGT_COVERAGE_FILES=` before trusting timings")
     if subprocess.run([sys.executable, "-m", "tools.contract_audit"], stdout=subprocess.DEVNULL).returncode == 1:
         print("contract audit: a GT_DECOMP_NESTED function has a caller reading a register its ReturnKind leaves "
               "uncompared (.venv/bin/python -m tools.contract_audit)")
@@ -490,6 +507,43 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     return 0 if not undetected else 1
 
 
+def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - reconfigures, builds, runs
+    """The fast gate over `only` with the sources that register it built with LLVM coverage; prints, per function,
+    the branches no compared case took and the code regions that never ran. The build is put back afterwards."""
+    from tools import gate_coverage
+    files = gate_coverage.source_files(only, Path("src"), _REGISTRATION)
+    if not files:
+        print("coverage: none of those addresses is registered in src/")
+        return 2
+    directory = Path("build/coverage").resolve()
+    shutil.rmtree(directory, ignore_errors=True)
+    directory.mkdir(parents=True)
+    configure = ["cmake", "-S", ".", "-B", "build"]
+    subprocess.run([*configure, gate_coverage.cmake_files_argument(files, Path.cwd())], check=True, stdout=subprocess.DEVNULL)
+    try:
+        status = _run_gate("fast", tag, only, {"LLVM_PROFILE_FILE": str(directory / "%p.profraw")})
+        raw = sorted(directory.glob("*.profraw"))
+        if not raw:
+            print("coverage: the run wrote no profile (did it end before the executable exited normally?)")
+            return 2
+        if len(raw) < len(ROUTES["fast"]):
+            print(f"warning: only {len(raw)} of {len(ROUTES['fast'])} routes wrote a profile (a route killed by its "
+                  "timeout writes none): the report covers fewer runs than the gate")
+        merged = directory / "merged.profdata"
+        subprocess.run(["llvm-profdata", "merge", "-sparse", *map(str, raw), "-o", str(merged)], check=True)
+        exported = subprocess.run(["llvm-cov", "export", "build/gt_native", f"-instr-profile={merged}", *map(str, files)],
+                                  check=True, capture_output=True, text=True).stdout
+        document = json.loads(exported)
+        gate_coverage.demangle_names(document, lambda names: subprocess.run(
+            ["llvm-cxxfilt"], input="\n".join(names), capture_output=True, text=True, check=True).stdout.splitlines())
+        functions = gate_coverage.uncovered(document, map(str, files))
+        wanted = set(only)
+        print(gate_coverage.format_report([f for f in functions if f.address is None or f.address in wanted]))
+        return status
+    finally:
+        subprocess.run([*configure, "-DGT_COVERAGE_FILES="], stdout=subprocess.DEVNULL)
+
+
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser = argparse.ArgumentParser(prog="tools.decomp_gate", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -504,6 +558,9 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     sab.add_argument("--only", required=True)
     sab.add_argument("--also", default="", help="installed but not sabotaged (e.g. the decompiled callers of "
                                                 "functions reached only nested)")
+    cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
+    cov.add_argument("tag")
+    cov.add_argument("--only", required=True)
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -511,6 +568,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
         return _run_gate("fast", args.tag, parse_only(args.only))
     if args.command == "full":
         return _run_gate("full", args.tag, None)
+    if args.command == "coverage":
+        return _coverage_run(args.tag, parse_only(args.only))
     if args.command == "sabotage":
         return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else ())
     return _report(args.tag)

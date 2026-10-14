@@ -111,6 +111,12 @@ never per function. Settings measured and decided by the user on 2026-10-12:
        `set_boost_param<N>`, a macro defined in a header) are listed: bump those by hand.
   5. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
+- **Branches the gate did not take** (`tools.decomp_gate coverage TAG --only ...`): the fast gate proves only the paths its
+  compared cases take. The coverage run builds the sources that register those functions with LLVM source-based
+  coverage (CMake `GT_COVERAGE_FILES`, reset afterwards), runs the fast gate and prints per function the branch outcomes no
+  case took and the code regions that never ran. Compare each such path with the asm by hand and list it in the function's
+  comment ("Branches the routes do not take (checked against the asm by hand): ..."). Read the branch **target** block, not
+  only the delay slot: a value set in a delay slot is the result only if the target does not overwrite it.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape
