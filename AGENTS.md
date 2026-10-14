@@ -358,6 +358,8 @@ Detail and the incidents behind each one: [lessons](docs/agents/lessons.md).
 - **One checkout per agent**; **no stacked PRs** (the upper one merges into the lower branch, not main);
   integrate by merge, never rebase + force push.
 - **Names only with GT evidence**, written next to the name; review every PR before merging.
+- **A slow GPU drops pictures, never game speed**; **the gate only proves the paths it runs** (check the
+  others against the asm); **profile, then measure the fix** before keeping an optimisation.
 
 ## Working rules
 
