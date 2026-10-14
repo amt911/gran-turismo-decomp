@@ -118,8 +118,10 @@ void gpu_frame_dump(psprecomp::Runtime &runtime, std::span<const std::byte> gpu_
             const Captured &c = twin->second;
             std::filesystem::create_directories(dump_dir);
             (void)write_rgb_ppm(numbered(dump_dir, "soft", c.number), c.soft, c.width, c.height);
-            const std::vector<std::uint8_t> gpu = downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, c.width, c.height);
-            if (!gpu.empty()) (void)write_rgb_ppm(numbered(dump_dir, "gpu", c.number), gpu, c.width, c.height);
+            static const bool full = std::getenv("GT_GPU_DUMP_FULL") != nullptr;  // the internal resolution, not 480x272
+            const std::uint32_t out_width = full ? gpu_width : c.width, out_height = full ? gpu_height : c.height;
+            const std::vector<std::uint8_t> gpu = downsample_rgba_box(gpu_rgba, gpu_width, gpu_height, out_width, out_height);
+            if (!gpu.empty()) (void)write_rgb_ppm(numbered(dump_dir, "gpu", c.number), gpu, out_width, out_height);
             std::fprintf(stderr, "[gpu-dump] frame %06llu vblank %llu\n", static_cast<unsigned long long>(c.number),
                          static_cast<unsigned long long>(gpu_vblank));  // GT_GE_LOG=<vblank> traces that frame
         }
