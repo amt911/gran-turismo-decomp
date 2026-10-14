@@ -1280,3 +1280,22 @@ Also patch 0035: the present shader clamps its bilinear filter to the shown crop
 lay outside the picture in the larger target, a thin line of changing colour at the bottom of the window.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0034-gpu-keep-display-contents.patch, 0035-present-filter-inside-crop.patch
+
+## The frameskip only skipped software rasterizing; with the GPU on, a slow CPU never caught up
+
+**Symptom.** Laptop on battery, `NativeGE=true`: the race at ~27 shown fps with uneven pacing, audio produced at
+13–14 kHz instead of 44.1 kHz (it stutters and cuts out), `GE wait` 74 % and `frameskip 26/s` in the perf log —
+the frameskip was on most frames yet nothing got faster. Reproduced on the desktop by pinning gt_play to two
+cores (`taskset -c 0,1`): race audio 32–35 kHz with `GT_FRAMESKIP=0`.
+**Cause.** `g_frameskip` was read only by the software rasterizer. On the GPU path every draw of a skipped frame
+was still decoded, accumulated and recorded, so the GE worker (the bottleneck: the game thread waits for it before
+each list) did the same work whether the frame was skipped or not.
+**Fix / workaround.** lcs-recomp patch 0036: when the frameskip is on, a draw into one of the two shown screens
+only advances the GE's vertex/index pointer (render-to-texture draws still run). The backend presents only frames
+that drew into the display target, so the window keeps the last picture. Two cores, race: audio 44 kHz, GE wait
+27–37 % (was 59–62 %), GE frames 75–78/s (was 53–64). The same patch cuts per-draw CPU: a job prepared and
+committed at once points at the caller's state instead of copying several KB, and a triangle list with the same
+descriptor and transform as the previous batch joins it (gperftools race samples 36,677 → 35,323, `tools/ge_profile.sh`).
+The GPU gate runs with `GT_FRAMESKIP=0`, so the frameskip is checked on the laptop; the batch merging is in the gate.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0036-gpu-frameskip-and-cheaper-draws.patch
