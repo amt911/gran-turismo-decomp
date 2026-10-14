@@ -59,15 +59,15 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 - **Batch size: ~80 functions** (60–100). Fewer wastes gate time; many more makes a red gate slow to
   bisect. One branch `decomp/hot-leaves-N`, one PR per batch.
 - **Two gates.** The routes always run in parallel, in one memory scope (each `gt_native --decomp
-  diff` is ~290 MB): race, dealer, garage, buy, each
+  diff` is ~290 MB): race, dealer, garage, buy, options, each
   `GT_PAD=$(grep -v '^#' config/pad_routes/<route>.pad) build/gt_native --max-seconds <s> --decomp diff`.
   - **Fast gate (while iterating on a batch):** `GT_DECOMP_ONLY=<the batch's addresses, comma-separated>
-    LCS_UNCAPPED=1`, routes at race 200 s, dealer 100 s, garage 103 s, buy 110 s — ~5 min with the build. With
+    LCS_UNCAPPED=1`, routes at race 200 s, dealer 100 s, garage 103 s, buy 110 s, options 230 s — ~5 min with the build. With
     only the batch installed the game isn't slowed by the other ~2,000 functions' cases, and a 200 s
     uncapped race compares the same batch functions with the same case count as the full 600 s run
     (measured 2026-10-12).
   - **Full gate (once, before the PR):** every function, real time, race 600 s, dealer 300 s, garage
-    310 s — ~11 min. It is the regression check for everything already landed.
+    310 s, buy 150 s, options 240 s — ~11 min. It is the regression check for everything already landed.
 - **The tool:** `.venv/bin/python -m tools.decomp_gate fast TAG --only <addresses or @file>`, `full TAG`,
   `sabotage TAG --file <source> --only ...` (bumps s0 and a RAM word in the listed functions, runs the fast gate,
   restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).

@@ -1113,3 +1113,17 @@ of the same size was; when the samples matched (blank borders, transparent areas
 the sampled bytes; the software rasterizer reads the memory directly, so it never shows the bug.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0027-gpu-whole-texture-signature.patch
+
+## GT_PAD times are vblank waits, not presented frames
+
+**Symptom.** A new pad route that worked step by step went astray when extended: presses landed in a loading
+screen or in the wrong menu, and the frame-dump numbers didn't line up with the times in `GT_PAD`.
+**Cause.** `GT_PAD` counts vblank waits (`pad_script_tick`); `GT_FRAME_DUMP` numbers presented frames. The menus
+present one frame per two vblank waits, and loads run thousands of waits with few presents, so the two clocks
+drift apart (in the Options route, frame 6500 was vblank 13 448). A press timed by frame number fires early.
+**Fix / workaround.** Frame dumps now print `[frame-dump] frame N vblank V` on stderr: time presses by `V`.
+Also in the Options menu, a second DOWN from the last row selects *Reset to default* and then *Cancel*, and
+leaving asks "Save changes?" (one more CROSS).
+**Why it isn't obvious.** In the first minute (logos, title) the two counts are close, so early routes worked.
+
+Found: 2026-10-14 · host/pad_script.cpp, host/frame_dump.cpp, config/pad_routes/options.pad
