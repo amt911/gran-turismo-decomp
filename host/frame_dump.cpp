@@ -3,6 +3,7 @@
 #include "frame_dump.hpp"
 
 #include "image_ppm.hpp"
+#include "pad_script.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -65,7 +66,8 @@ std::filesystem::path numbered(const char *directory, const char *prefix, std::u
 } // namespace
 
 // GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N, default 60): every Nth presented frame is written as
-// <dir>/frame_NNNNNN.ppm from the guest display framebuffer. The images are game output: keep the
+// <dir>/frame_NNNNNN.ppm from the guest display framebuffer, and stderr says at which vblank: GT_PAD times
+// count vblank waits, which run ahead of presented frames during loads. The images are game output: keep the
 // directory out of git (recomp/ is ignored).
 void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::uint32_t buffer_width,
                 std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height) {
@@ -76,6 +78,8 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
     if (rgb.empty()) return;
     std::filesystem::create_directories(dump_dir);
     (void)write_rgb_ppm(numbered(dump_dir, "frame", presented - 1u), rgb, width, height);
+    std::fprintf(stderr, "[frame-dump] frame %06llu vblank %llu\n", static_cast<unsigned long long>(presented - 1u),
+                 static_cast<unsigned long long>(pad_script_vblanks()));
 }
 
 // GT_GPU_DUMP=<dir> (+ GT_FRAME_EVERY, GT_GPU_DUMP_FROM=N to start at frame N, GT_GPU_DUMP_FULL=1 to keep the GPU

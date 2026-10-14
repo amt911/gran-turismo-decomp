@@ -63,6 +63,8 @@ const std::vector<PadPress> &pad_script() {
 
 void pad_script_tick() { ++g_vblanks; }
 
+std::uint64_t pad_script_vblanks() { return g_vblanks; }
+
 std::uint32_t scripted_buttons() {
     std::uint32_t buttons = 0u;
     for (const PadPress &press : pad_script())
