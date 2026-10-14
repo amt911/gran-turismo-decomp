@@ -7,6 +7,7 @@
 
 #include "decomp_registry.hpp"
 #include "diff_compare.hpp"
+#include "dirty_pages.hpp"
 #include "psprecomp/common.hpp"
 
 #include <algorithm>
@@ -154,7 +155,8 @@ struct InCase {
     }
 };
 
-// RAM snapshots reuse a few 32 MiB buffers: allocating (and faulting in) a fresh one per snapshot
+// Whole-RAM snapshots, now only around a recorded import (record_import). They reuse a few 32 MiB buffers:
+// allocating (and faulting in) a fresh one per snapshot
 // cost more than the copy.
 std::vector<std::vector<std::uint8_t>> g_spare_buffers;
 
@@ -169,13 +171,18 @@ std::vector<std::uint8_t> snapshot_ram(const psprecomp::Runtime &rt) {
     return ram;
 }
 
+// The RAM pages a case's runs write (host/dirty_pages.hpp): a case copies, restores and compares only those,
+// not all 32 MiB — with every function installed, whole-RAM copies slowed the game to a few frames a second.
+DirtyPages g_pages;
+
+// The imports allowed in a case (host/main.cpp) write guest RAM through GuestMemory, which faults on a protected
+// page like any store. One that wrote through a system call would fail (EFAULT) instead: before running such an
+// import in a case, call g_pages.materialize().
+
 void recycle(std::vector<std::uint8_t> &&ram) {
     if (g_spare_buffers.size() < 4u) g_spare_buffers.push_back(std::move(ram));
 }
 
-void restore_ram(psprecomp::Runtime &rt, const std::vector<std::uint8_t> &ram) {
-    rt.memory().copy_in(kRamBase, ram);
-}
 
 std::array<std::uint32_t, 32> fpr_bits(const psprecomp::AllegrexContext &ctx) {
     std::array<std::uint32_t, 32> bits{};
@@ -435,7 +442,15 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ~SentinelBack() { if (!keep) g_free_sentinels.push_back(g_sentinel); }
     } sentinel_back;
     const psprecomp::AllegrexContext entry_ctx = ctx;
-    auto entry_ram = snapshot_ram(rt);
+    std::uint8_t *const ram = rt.memory().raw_pointer(kRamBase, kRamSize);
+    if (ram == nullptr) {
+        rt.stop("diff harness: guest RAM is not one host block");
+        return;
+    }
+    g_pages.begin(ram, kRamSize);  // the entry state: each page is saved when a run first writes it
+    struct PagesEnd {
+        ~PagesEnd() { g_pages.end(); }
+    } pages_end;
     const KernelReplayState allocator_before = save_kernel_replay_state();
 
     psprecomp::AllegrexContext original_ctx = entry_ctx;
@@ -457,7 +472,6 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (g_log.size() != 0u && !rt.stopped()) {
             // A recorded import already ran for real: don't run the call again. Continue live from where
             // the isolated run stopped — or, when the kernel refused an import, from just before it.
-            recycle(std::move(entry_ram));
             if (original_refused && !g_before_import) {
                 rt.stop(std::string("diff harness: the kernel refused a call in ") + entry.info.name +
                         " outside an import gate; the case can't resume live");
@@ -477,18 +491,46 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                     " ran an import without its gate; the case can neither be re-run nor continued");
             return;
         }
-        restore_ram(rt, entry_ram);
+        g_pages.restore_pristine();
         restore_kernel_replay_state(allocator_before);
-        recycle(std::move(entry_ram));
+        g_pages.end();
         entry.original(rt, ctx);  // no recordable import ran yet: replay the call normally
         return;
     }
     original_ctx.gpr[31] = entry_ctx.gpr[31];
-    EndState original = end_state(original_ctx, snapshot_ram(rt), entry_ctx.gpr[29]);
+    const EndState original = end_state(original_ctx, {}, entry_ctx.gpr[29]);
     const KernelReplayState allocator_original = save_kernel_replay_state();
+    // The pages the original wrote, as it left them.
+    constexpr std::size_t kPage = DirtyPages::kPageSize;
+    const std::vector<std::size_t> original_pages = g_pages.ever_written();
+    static std::vector<std::uint8_t> original_bytes;
+    static std::vector<std::int32_t> original_slot;  // page -> index in original_pages, or -1
+    original_bytes.resize(original_pages.size() * kPage);
+    original_slot.assign(g_pages.page_count(), -1);
+    for (std::size_t i = 0; i < original_pages.size(); ++i) {
+        std::memcpy(original_bytes.data() + i * kPage, g_pages.page_address(original_pages[i]), kPage);
+        original_slot[original_pages[i]] = static_cast<std::int32_t>(i);
+    }
+    const auto original_image = [&](std::size_t page) -> const std::uint8_t * {
+        const std::int32_t slot = original_slot[page];
+        return slot >= 0 ? original_bytes.data() + static_cast<std::size_t>(slot) * kPage : g_pages.pristine_page(page);
+    };
+    // The game continues with the original's result, so diff mode never changes the run: every page either
+    // run wrote gets the original's bytes back (the entry bytes where only the decompiled run wrote).
+    const auto keep_original_result = [&] {
+        g_pages.disarm();
+        for (const std::size_t page : g_pages.ever_written()) {
+            std::size_t begin = 0, end = 0;
+            g_pages.page_span(page, begin, end);
+            const std::size_t offset = static_cast<std::size_t>(ram + begin - g_pages.page_address(page));
+            std::memcpy(ram + begin, original_image(page) + offset, end - begin);
+        }
+        restore_kernel_replay_state(allocator_original);
+    };
 
-    restore_ram(rt, entry_ram);
+    g_pages.restore_pristine();
     restore_kernel_replay_state(allocator_before);
+    g_pages.rearm();
     psprecomp::AllegrexContext decompiled_ctx = entry_ctx;
     decompiled_ctx.gpr[31] = g_sentinel;
     bool decompiled_ran = false;
@@ -516,29 +558,36 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         decompiled_fault = error.what();
         decompiled_ran = true;
     }
+    g_pages.disarm();  // what the runs wrote is known; comparing and restoring write nothing tracked
     if (!decompiled_ran) {
         ++entry.skipped;
         // the decompiled run (or its tail target) left what the harness can replay: keep the original's
         if (entry.first_skip.empty()) entry.first_skip = "decompiled: " + g_last_stop;
-        restore_ram(rt, original.ram);
-        restore_kernel_replay_state(allocator_original);
-        recycle(std::move(entry_ram));
-        recycle(std::move(original.ram));
+        keep_original_result();
         ctx = original_ctx;
         ctx.pc = entry_ctx.gpr[31];
         return;
     }
     decompiled_ctx.gpr[31] = entry_ctx.gpr[31];
-    EndState decompiled = end_state(decompiled_ctx, snapshot_ram(rt), entry_ctx.gpr[29]);
+    const EndState decompiled = end_state(decompiled_ctx, {}, entry_ctx.gpr[29]);
 
     ++entry.compared;
-    const std::size_t skip_begin = original.ignore_begin - kRamBase;
-    const std::size_t skip_end = original.ignore_end - kRamBase;
-    if (first_byte_difference(entry_ram, original.ram, skip_begin, skip_end)) ++entry.informative;
+    // Every page either run wrote, by address; the rest of RAM is the entry state in both runs.
+    std::vector<std::size_t> pages = g_pages.ever_written();
+    std::sort(pages.begin(), pages.end());
+    const auto guest_address = [&](std::size_t page) {
+        return kRamBase + static_cast<std::uint32_t>(g_pages.page_address(page) - ram);
+    };
+    std::vector<PageImages> written, by_original;
+    for (const std::size_t page : pages) {
+        written.push_back({guest_address(page), original_image(page), g_pages.page_address(page)});
+        if (original_slot[page] >= 0) by_original.push_back({guest_address(page), g_pages.pristine_page(page), original_image(page)});
+    }
+    if (first_page_difference(by_original, kPage, original.ignore_begin, original.ignore_end)) ++entry.informative;
     auto difference = !replay_error.empty() ? std::optional<std::string>("import replay: " + replay_error)
-                      : decompiled_fault.empty()
-                          ? first_difference(original, decompiled, entry.info.returns)
-                          : std::optional<std::string>("decompiled run faulted: " + decompiled_fault);
+                      : !decompiled_fault.empty() ? std::optional<std::string>("decompiled run faulted: " + decompiled_fault)
+                                                  : first_difference(original, decompiled, entry.info.returns);
+    if (!difference) difference = first_page_difference(written, kPage, original.ignore_begin, original.ignore_end);
     if (!difference && save_kernel_replay_state() != allocator_original)
         difference = "kernel state differs (memory blocks or thread priorities)";
     if (difference) {
@@ -567,12 +616,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             if (nested != &entry) ++nested->nested_equal;
     }
 
-    // The game continues with the original's result, so diff mode never changes the run.
-    restore_ram(rt, original.ram);
-    restore_kernel_replay_state(allocator_original);
-    recycle(std::move(entry_ram));
-    recycle(std::move(original.ram));
-    recycle(std::move(decompiled.ram));
+    keep_original_result();
     ctx = original_ctx;
     ctx.pc = entry_ctx.gpr[31];
 }

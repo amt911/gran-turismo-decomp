@@ -662,6 +662,24 @@ the full gate once before the PR (`docs/agents/decomp-workflow.md` § Working in
 
 Found: 2026-10-12 · host/diff_harness.cpp
 
+**Update 2026-10-14 — fixed.** With ~4,900 functions installed the full gate had become far worse than 0.7×:
+the menu routes advanced 1–5 vblanks a second (120 at real time), so in 150–300 s dealer, garage, buy and
+options never left the title screen and compared only boot functions — the full gate was no regression check
+for the menus. The harness now write-protects guest RAM for each case (`host/dirty_pages.hpp`): the first
+write to a page faults, the handler saves the page and lets the write through, and the case copies, restores
+and compares only the pages either run wrote (`gt::first_page_difference`, same message as the whole-RAM
+compare). The buy route in diff mode with every function: 1–5 → ~120 vblanks/s, 1,258 → 2,933 functions
+compared in 90 s, 0 mismatched. Checks that it still sees what it must: the batch-63 sabotage (23/23
+registered functions detected), a decompiled run that skips a store the original makes ("RAM at 0x09FCFBD8 …
+4 bytes differ") and one that writes a page the original doesn't touch ("RAM at 0x08000F80").
+A first version also saved every page before each import a case runs (an HLE writing guest RAM through a
+system call would get EFAULT on a protected page instead of a fault); nearly every case calls a timer or
+lock import, so that copied 32 MiB per case again and gained nothing. The imports allowed in a case write
+through `GuestMemory`, so they fault like any store; `host/main.cpp` says so next to the lists.
+The first full gate at real time compared 4,364 of 4,882 functions (2,474 before) and found a bug the old
+gate never reached: `func_08A15D54` (dealer and options menus) called `func_08A15800` without the `a3 = 0` its
+delay slot sets, and that callee reads `a3 & 0xFF` — fixed in the same change.
+
 ### A callee that leaves v0 alone returns the caller's v0
 
 **Symptom.** A decompiled function mismatches only in v0. The original returns a value its own code

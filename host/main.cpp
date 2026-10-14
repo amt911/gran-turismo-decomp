@@ -125,7 +125,9 @@ int main(int argc, char **argv) {
         runtime.cpu().set_gpr(28, module->gp);
 
         // NIDs whose HLE only touches guest RAM and the snapshotted kernel state: they run in both runs of a
-        // harness case (see gt::ImportStub).
+        // harness case (see gt::ImportStub). Both lists: the HLE must write guest RAM through GuestMemory, never
+        // with a system call into it — a case write-protects RAM to see which pages change (host/dirty_pages.hpp),
+        // and a system call would fail on a protected page instead of faulting.
         static const std::unordered_set<std::uint32_t> kReplaySafeNids{
             0xBEA46419u, 0x1FC64E09u, 0x15B6446Bu, 0xDC692EE3u,  // Lock/LockCB/Unlock/TryLock LwMutex
             0x092968F4u, 0x5F10D406u,                            // CpuSuspendIntr / CpuResumeIntr

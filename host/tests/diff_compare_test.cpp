@@ -2,6 +2,7 @@
 #include "diff_compare.hpp"
 
 #include <utility>
+#include <vector>
 
 #include <cstdio>
 #include <cstdlib>
@@ -106,6 +107,39 @@ int main() {
                   message->find("ptr_member_address") != std::string::npos &&
                   message->find("get_memory_assign_with_ghost") != std::string::npos,
               "an address registered twice is reported with both names");
+    }
+    {
+        // The page-wise RAM comparison (only the pages either run wrote) says exactly what the whole-RAM
+        // comparison says, ignored dead-stack range included.
+        constexpr std::size_t kPage = 4096u, kPages = 16u;
+        std::vector<std::uint8_t> original(kPage * kPages), decompiled;
+        std::uint32_t seed = 12345u;
+        for (auto &b : original) b = static_cast<std::uint8_t>((seed = seed * 1103515245u + 12345u) >> 24u);
+        const auto both = [&](std::vector<std::size_t> changed, std::uint32_t ignore_begin, std::uint32_t ignore_end) {
+            decompiled = original;
+            for (std::size_t at : changed) decompiled[at] ^= 0x5Au;
+            gt::EndState a, b;
+            a.ram = original;
+            b.ram = decompiled;
+            a.ignore_begin = b.ignore_begin = ignore_begin;
+            a.ignore_end = b.ignore_end = ignore_end;
+            const auto whole = gt::first_difference(a, b, gt::ReturnKind::Void);
+            std::vector<gt::PageImages> pages;
+            for (std::size_t p = 0; p < kPages; ++p)
+                if (p == 1u || p == 3u || p == 4u || p == 9u || p == 15u)  // the pages "written": a superset of the changes
+                    pages.push_back({0x08000000u + static_cast<std::uint32_t>(p * kPage), original.data() + p * kPage,
+                                     decompiled.data() + p * kPage});
+            const auto sparse = gt::first_page_difference(pages, kPage, ignore_begin, ignore_end);
+            return whole == sparse;
+        };
+        check(both({}, 0u, 0u), "page-wise: equal pages, no difference");
+        check(both({3u * kPage + 17u}, 0u, 0u), "page-wise: one byte reported as the whole compare does");
+        check(both({4u * kPage + 5u, 9u * kPage + 100u, 15u * kPage + 4095u}, 0u, 0u),
+              "page-wise: first address and the count of differing bytes after it");
+        check(both({4u * kPage + 5u, 9u * kPage + 100u}, 0x08000000u + 4u * kPage, 0x08000000u + 4u * kPage + 64u),
+              "page-wise: the ignored range is skipped");
+        check(both({4u * kPage + 70u}, 0x08000000u + 4u * kPage, 0x08000000u + 4u * kPage + 64u),
+              "page-wise: bytes after the ignored range count");
     }
     if (failures == 0) std::puts("diff_compare_test: all passed");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
