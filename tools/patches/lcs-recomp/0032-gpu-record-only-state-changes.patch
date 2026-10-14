@@ -1,0 +1,105 @@
+GT patch 0032: record only state changes. A race records ~10,000 draws a frame, mostly with the state of the
+draw before, and the driver's CPU time was 13 % of the process. The geometry buffer is bound once per frame;
+the pipeline, scissor and blend constants only when they change; a draw with the same uniforms and texture as
+the draw before reuses its uniform slot and descriptor binding. What is drawn is the same.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -3826,6 +3826,19 @@
+     bool touched_display = false;
+     std::uint32_t executed = 0u;
+     std::uint32_t uniform_slot = 0u;
++    // GT patch 0032: a race records ~10,000 draws a frame, mostly with the state of the draw before; bound state
++    // persists through the command buffer, so only changes are recorded (the driver's CPU time was 13 % of the
++    // process). The geometry buffer is one for the whole frame: bound once.
++    VkPipeline bound_pipeline = VK_NULL_HANDLE;
++    bool geometry_bound = false;
++    bool indices_bound = false;
++    bool scissor_set = false;
++    VkRect2D bound_scissor{};
++    bool blend_constants_set = false;
++    float bound_blend_constants[4]{};
++    bool descriptors_bound = false;  // the set and the uniform slot of the last draw, reused when identical
++    VkDescriptorSet bound_set = VK_NULL_HANDLE;
++    DrawUniforms bound_uniforms{};
+     for (const Batch &batch : s.batches) {
+         if (uniform_slot >= kMaxDraws) break;
+         Target *target = find_target(s, batch.draw.framebuffer_address);
+@@ -3840,11 +3853,18 @@
+         const bool ccw = cull && batch.transform.accept_counter_clockwise;
+         VkPipeline pipeline = pipeline_for(s, batch.draw, strip, cull, ccw, error);
+         if (pipeline == VK_NULL_HANDLE) continue;
+-        vkCmdBindPipeline(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+-        VkDeviceSize offset = 0u;
+-        vkCmdBindVertexBuffers(s.command, 0u, 1u, &s.geometry, &offset);
+-        if (batch.indexed) {
++        if (pipeline != bound_pipeline) {  // GT patch 0032
++            vkCmdBindPipeline(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
++            bound_pipeline = pipeline;
++        }
++        if (!geometry_bound) {
++            VkDeviceSize offset = 0u;
++            vkCmdBindVertexBuffers(s.command, 0u, 1u, &s.geometry, &offset);
++            geometry_bound = true;
++        }
++        if (batch.indexed && !indices_bound) {
+             vkCmdBindIndexBuffer(s.command, s.geometry, vertex_bytes, VK_INDEX_TYPE_UINT32);
++            indices_bound = true;
+         }
+         const auto scale = [&](std::int32_t value, std::uint32_t logical, std::uint32_t target_size) {
+             return static_cast<std::int32_t>(std::clamp<std::int64_t>(
+@@ -3859,7 +3879,12 @@
+         if (right <= scissor.offset.x || bottom <= scissor.offset.y) continue;
+         scissor.extent.width = static_cast<std::uint32_t>(right - scissor.offset.x);
+         scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
+-        vkCmdSetScissor(s.command, 0u, 1u, &scissor);
++        if (!scissor_set || scissor.offset.x != bound_scissor.offset.x || scissor.offset.y != bound_scissor.offset.y ||
++            scissor.extent.width != bound_scissor.extent.width || scissor.extent.height != bound_scissor.extent.height) {
++            vkCmdSetScissor(s.command, 0u, 1u, &scissor);  // GT patch 0032: only when it changes
++            bound_scissor = scissor;
++            scissor_set = true;
++        }
+         static const bool draw_clears = [] { const char *v = std::getenv("GT_GPU_DRAW_CLEARS"); return v != nullptr && *v != '0'; }();
+         if (!draw_clears && clear_rectangle(s, batch, *target, scissor)) {  // GT patch 0031 (GT_GPU_DRAW_CLEARS=1: off)
+             ++executed;
+@@ -3873,7 +3898,11 @@
+             blend_constants[2] = static_cast<float>((fix >> 16u) & 0xFFu) / 255.0f;
+             blend_constants[3] = 1.0f;
+         }
+-        vkCmdSetBlendConstants(s.command, blend_constants);
++        if (!blend_constants_set || std::memcmp(blend_constants, bound_blend_constants, sizeof blend_constants) != 0) {
++            vkCmdSetBlendConstants(s.command, blend_constants);  // GT patch 0032: only when they change
++            std::memcpy(bound_blend_constants, blend_constants, sizeof blend_constants);
++            blend_constants_set = true;
++        }
+         VkDescriptorSet sampled_set = s.white.gpu.set;
+         bool textured = false;
+         bool sampled_target = false;  // GT patch 0022
+@@ -3920,13 +3949,20 @@
+             uniforms.sample_scale[0] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_width)) / kTargetSpace;
+             uniforms.sample_scale[1] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_height)) / kTargetSpace;
+         }
+-        std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
+-                        static_cast<std::size_t>(uniform_slot) * s.uniform_align,
+-                    &uniforms, sizeof(uniforms));
+-        const std::uint32_t dynamic_offset = uniform_slot * s.uniform_align;
+-        vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.pipeline_layout, 0u, 1u,
+-                                &sampled_set, 1u, &dynamic_offset);
+-        ++uniform_slot;
++        // GT patch 0032: the same uniforms and texture as the draw before reuse its slot and binding.
++        if (!descriptors_bound || sampled_set != bound_set ||
++            std::memcmp(&uniforms, &bound_uniforms, sizeof uniforms) != 0) {
++            std::memcpy(static_cast<std::byte *>(s.uniform_mapped) +
++                            static_cast<std::size_t>(uniform_slot) * s.uniform_align,
++                        &uniforms, sizeof(uniforms));
++            const std::uint32_t dynamic_offset = uniform_slot * s.uniform_align;
++            vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.pipeline_layout, 0u, 1u,
++                                    &sampled_set, 1u, &dynamic_offset);
++            ++uniform_slot;
++            bound_set = sampled_set;
++            bound_uniforms = uniforms;
++            descriptors_bound = true;
++        }
+         const bool count_draw = s.draw_statistics != VK_NULL_HANDLE && s.draw_kinds.size() < 16384u;  // GT patch 0031
+         if (count_draw) {
+             vkCmdBeginQuery(s.command, s.draw_statistics, static_cast<std::uint32_t>(s.draw_kinds.size()), 0u);
