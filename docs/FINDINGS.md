@@ -1087,8 +1087,8 @@ missing (GPU gate ×1, dealer route: 515/1763 frames equal; race ~93 %, garage 1
 the last computed in `ge.frag blendFactor` with the same formula as `ge_renderer.cpp blend_factor`), stencil
 (neither path implements it) and render-target aliasing (`find_target` keys on the address masked to
 `0x001FFFF0`; no target sits at the environment map's address). Followed up
-with `GT_GE_LOG_DETAIL=1`: the 257 reflection draws per frame use environment mapping (`texmap 000202`: UVs
-from the normals and lights 2/0), blend As / fix FFFFFF and color doubling, sampling a DXT1 map whose address
+with `GT_GE_LOG_DETAIL=1`: the 257 reflection draws per frame use environment mapping (`texmap 000202`: mode 2,
+UVs from the normalized normals and the lights `texshade` names), blend As / fix FFFFFF and color doubling, sampling a DXT1 map whose address
 moves (`0x040D4000`, `0x040CC000` — the latter where a display buffer once was, so the GPU took it for that
 render target); both paths compute the env-map UVs with the same formula, and refusing DXT/CLUT textures as
 render targets changed nothing measurable (517/1758) — not merged. Every draw of that frame targets the shown

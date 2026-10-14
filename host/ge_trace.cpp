@@ -126,11 +126,13 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
                     std::fprintf(stderr, " %08x", memory.load32(vaddr + i * 4u));
                 std::fprintf(stderr, "\n");
             }
-            if (detail)  // GT_GE_LOG_DETAIL: the state a reflection or lighting difference hides in
+            // GT_GE_LOG_DETAIL: the state a reflection or lighting difference hides in. Commands are the last ones this
+            // list sent: one only an earlier list sent prints 0 here although the GE still holds it.
+            if (detail)
                 std::fprintf(stderr,
-                             "[ge]   vtype %06x light %u tfunc %06x envcolor %06x texmap %06x texproj %u lightmode %06x "
+                             "[ge]   vtype %06x light %u tfunc %06x envcolor %06x texmap %06x texproj %u texshade %06x lightmode %06x "
                              "blend %06x fixA %06x fixB %06x atest %u/%06x ztest %u/%u zmask %u ambient %06x/%02x\n",
-                             state[0x12], state[0x17] & 1u, state[0xC9], state[0xCA], state[0xC0], (state[0xC0] >> 8u) & 3u,
+                             state[0x12], state[0x17] & 1u, state[0xC9], state[0xCA], state[0xC0], (state[0xC0] >> 8u) & 3u, state[0xC1],
                              state[0x5E], state[0xDF], state[0xE0], state[0xE1], state[0x22] & 1u, state[0xDB],
                              state[0x23] & 1u, state[0xDE], state[0xE7], state[0x55], state[0x58] & 0xFFu);
             std::fprintf(stderr,
