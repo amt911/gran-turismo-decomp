@@ -19,9 +19,9 @@ namespace {
 using namespace gt::game::hot;
 
 constexpr std::uint32_t kAssignHolder = 0x08A61584u;  // (dest *holder, source *holder)
-constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;  // gt::core::holder_destroy
-constexpr std::uint32_t kFree = 0x08A5BC54u;           // (object, size, alignment)
-constexpr std::uint32_t kNil = 0x08A76AA0u;            // (holder *out): out = the global nil (src/game/adhoc/array.cpp)
+constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu; // gt::core::holder_destroy
+constexpr std::uint32_t kFree = 0x08A5BC54u;          // (object, size, alignment)
+constexpr std::uint32_t kNil = 0x08A76AA0u;           // (holder *out): out = the global nil (src/game/adhoc/array.cpp)
 
 } // namespace
 
@@ -37,6 +37,8 @@ void func_08C20318(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_089098B8(this, x): func_08AF128C(child, x) for the children this[1] and (when set) this[2]; for this[3], when set, as the tail call.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): this[2] set (the second call); this[3] null (returns
+// 0).
 void func_089098B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
     {
@@ -61,7 +63,9 @@ void func_08B4A82C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put_float(rt, d + 8u, psp_mul(a0, b1) - psp_mul(a1, b0));
 }
 
-// func_08BEEF60(p, q): swaps the words *p and *q (two string data pointers) after resetting a negative count (word +8 of data - 12) to 0 in each; v0 = the old *p.
+// func_08BEEF60(p, q): swaps the words *p and *q (two string data pointers) after resetting a negative count (word +8 of data - 12) to 0 in each; v0
+// = the old *p. Branches the routes do not take (checked against the asm by hand, reading the branch targets): a negative count in *p or in *q (reset
+// to 0).
 void func_08BEEF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t p = ctx.gpr[4], q = ctx.gpr[5];
     const std::uint32_t first_rep = word(rt, p) - 12u;
@@ -80,6 +84,8 @@ void func_08BEEF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08BF5C1C(a, b): returns 0x40000 (left in v0) unless func_08A76F20(b, func_08965B18(a)) answers nonzero and b's word +0xE0 has bit 18 set;
 // then func_089A2FCC(a's word +4, b) (tail call).
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): func_08A76F20 answering nonzero with bit 18 set (the
+// tail call).
 void func_08BF5C1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t a = ctx.gpr[4], b = ctx.gpr[5];
     std::uint32_t answer;
@@ -94,6 +100,8 @@ void func_08BF5C1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08C2BF34(first, last, dest) -> dest after the copy: *dest++ = *first++ for each word of [first, last), a null dest only advancing.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): a non-empty range (the whole copy loop, a null dest
+// included).
 void func_08C2BF34(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t source = ctx.gpr[4], destination = ctx.gpr[6];
     const std::uint32_t last = ctx.gpr[5];
@@ -107,12 +115,16 @@ void func_08C2BF34(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = destination;
 }
 
-// func_08C1CD74(a, key, p) -> 0 when key is the end node func_08C1CD28(a) answers; else whether the signed word *p is not below the word at the node (1 / 0).
+// func_08C1CD74(a, key, p) -> 0 when key is the end node func_08C1CD28(a) answers; else whether the signed word *p is not below the word at the node
+// (1 / 0). Branches the routes do not take (checked against the asm by hand, reading the branch targets): key == the end node (answers 0).
 void func_08C1CD74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t key = ctx.gpr[5], p = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
     const std::uint32_t node = call_guest(rt, ctx, 0x08C1CD28u, {ctx.gpr[4]});
-    if (key == node) { ctx.gpr[2] = 0u; return; }
+    if (key == node) {
+        ctx.gpr[2] = 0u;
+        return;
+    }
     const bool below = static_cast<std::int32_t>(word(rt, p)) < static_cast<std::int32_t>(word(rt, node));
     ctx.gpr[2] = below ? 0u : 1u;
 }
@@ -164,6 +176,7 @@ void func_08903504(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08B88FF8(p): marks the string *p unshareable: unless it is the empty string, a positive count (word -4 of the data) first has the string
 // copied by func_08B8634C(p, 0, 0, 0), then the count is set to -1. v0 = -1, or 0x08D74FD0 (the empty representation's address) for the empty string.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): the empty string, a positive count (the copy call).
 void func_08B88FF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t p = ctx.gpr[4];
     std::uint32_t data = word(rt, p);
@@ -180,6 +193,7 @@ void func_08B88FF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08C0ED84(list, pos, x): a 12-byte node (func_08A5BC20(12, 4)) whose holder at +8 is set by func_089FDAC8(node + 8, x) (skipped when
 // node + 8 is 0), linked before `pos` (func_08B5C078(node, pos)); v0 = the node.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): node + 8 == 0 (the holder set is skipped).
 void func_08C0ED84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t pos = ctx.gpr[5], x = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
@@ -205,6 +219,7 @@ void func_08B17308(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08B8CF24(this, dest): a local holder is made by func_08A76ABC(local, the word at this[5] + 4); dest takes it (gt::core::holder_reset)
 // unless dest is the local itself; the local holder is destroyed.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): dest == the local holder (the reset is skipped).
 void func_08B8CF24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], destination = ctx.gpr[5];
     GuestFrame frame(ctx, 0x20u);
@@ -213,7 +228,8 @@ void func_08B8CF24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = call_guest(rt, ctx, kHolderDestroy, {frame.at(0u)});
 }
 
-// func_08B93CD8(out, s, n): as func_08B85EB8 with func_08B93C20: out = func_08B93C20(s, end, n, s), end = s + func_08B35F60(s, -1) or -1 for a null s.
+// func_08B93CD8(out, s, n): as func_08B85EB8 with func_08B93C20: out = func_08B93C20(s, end, n, s), end = s + func_08B35F60(s, -1) or -1 for a null
+// s. Branches the routes do not take (checked against the asm by hand, reading the branch targets): a null string (end = -1).
 void func_08B93CD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t out = ctx.gpr[4], s = ctx.gpr[5], n = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
@@ -224,23 +240,29 @@ void func_08B93CD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08AD3798(this, x) -> -1, or func_08B1D1BC(this[7], r) once r = func_08B1D080(this[7], x, func_08B1D1F4(x) as a 64-bit value) is not negative.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): a negative func_08B1D080 result (answers -1).
 void func_08AD3798(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
     const std::uint32_t target = word(rt, self + 28u);
     GuestFrame frame(ctx, 0x10u);
     const GuestResult pair = call_guest(rt, ctx, 0x08B1D1F4u, {x}, {});
     const std::uint32_t r = call_guest(rt, ctx, 0x08B1D080u, {target, x, pair.v0, pair.v1});
-    if (static_cast<std::int32_t>(r) < 0) { ctx.gpr[2] = 0xFFFFFFFFu; return; }
+    if (static_cast<std::int32_t>(r) < 0) {
+        ctx.gpr[2] = 0xFFFFFFFFu;
+        return;
+    }
     ctx.gpr[2] = call_guest(rt, ctx, 0x08B1D1BCu, {word(rt, self + 28u), r});
 }
 
 // func_08B64604(p): func_08B35254(p) (the free) unless p is null (tail call).
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): a null pointer (returns).
 void func_08B64604(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
     if (ctx.gpr[4] == 0u) return;
     tail_call(ctx, 0x08B35254u, {});
 }
 
 // func_08BBCFA0(this): func_08B34B24(this[0] + 108) (tail call) when this[0] is set; v0 = this[0] meanwhile.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): this[0] == 0 (returns 0).
 void func_08BBCFA0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[4]);
     ctx.gpr[2] = object;
@@ -248,7 +270,9 @@ void func_08BBCFA0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08B34B24u, {object + 108u});
 }
 
-// func_08BDB2C0(to, from): to = from (two words); the second is a counted object whose count (+4) is incremented; v0 = that word, or 1 after the increment.
+// func_08BDB2C0(to, from): to = from (two words); the second is a counted object whose count (+4) is incremented; v0 = that word, or 1 after the
+// increment. Branches the routes do not take (checked against the asm by hand, reading the branch targets): a null counted object (nothing
+// incremented, v0 = 0).
 void func_08BDB2C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t to = ctx.gpr[4], from = ctx.gpr[5];
     put(rt, to, word(rt, from));
@@ -261,6 +285,7 @@ void func_08BDB2C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08BE7474(this): vtable 0x08CC9628, the weak release of this[9] when set (func_08A5B930), func_08965A3C(this), the free of 60 bytes.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): this[9] == 0 (no weak release).
 void func_08BE7474(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t held = word(rt, self + 36u);
@@ -274,6 +299,7 @@ void func_08BE7474(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08C1D3AC(first, last): func_08A5B9EC(p) for each word p of [first, last).
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): an empty range (returns).
 void func_08C1D3AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t first = ctx.gpr[4], last = ctx.gpr[5];
     if (first == last) return;
@@ -285,7 +311,8 @@ void func_08C1D3AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     } while (last != p);
 }
 
-// func_08BEDD64(list): the nodes {next, prev, holder at +8} (12 bytes) other than the head are destroyed one by one (func_08A5B9EC(node + 8), then freed).
+// func_08BEDD64(list): the nodes {next, prev, holder at +8} (12 bytes) other than the head are destroyed one by one (func_08A5B9EC(node + 8), then
+// freed).
 void func_08BEDD64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t head = ctx.gpr[4];
     std::uint32_t node = word(rt, head);
@@ -306,6 +333,7 @@ void func_08C02614(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { fu
 void func_08B876E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { func_08C1D3AC(rt, ctx); }
 
 // func_08BF5ADC(head): frees (func_08A5BC54(node, 12, 4)) each node {next, ...} of the circular list that starts at head[0], up to the head.
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): a non-empty list (the free loop).
 void func_08BF5ADC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t head = ctx.gpr[4];
     std::uint32_t node = word(rt, head);
@@ -333,6 +361,7 @@ void func_08B5C2B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08C30980(first, last, from*, to*): every byte of [first, last) equal to the signed byte *from becomes *to; v0 = the last byte read for the
 // comparison (*from) or, after a replacement, *to (unchanged for an empty range).
+// Branches the routes do not take (checked against the asm by hand, reading the branch targets): a byte equal to *from (the replacement).
 void func_08C30980(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t last = ctx.gpr[5], from = ctx.gpr[6], to = ctx.gpr[7];
     for (std::uint32_t p = ctx.gpr[4]; p != last; ++p) {
