@@ -604,6 +604,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (`func_08C15F9C`, `func_08C4B568`, `func_08C4B740/7A0/800/860`, `func_088824F8`, y las instancias `func_08C40FA4` / `func_08C413DC`).
       Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 34.
       **4.950 funciones, 0 discrepancias** (puerta completa: 4.408 comparadas en las cinco rutas, 542 sin comparar).
+- [x] **Lote 66 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_66.cpp`, 39 registradas; sondeo de llamadas con `GT_PROBE_SYMBOLS`
+      sobre todas las funciones sin hacer de hasta 70 instrucciones, en las cinco rutas): cuatro familias de la misma forma de instrucciones, cada
+      miembro con sus constantes leídas de sus propias palabras (dos copian un par de 8 bytes estático y el que apunta `a2` — y en la variante B
+      el de `a3` — a la pila y llaman a un trabajador con punteros a las copias; un «inicializa un handle» de 16 instrucciones; un «llama con una
+      constante» de 11), los tres tail calls con holder comprobado (`func_08AA9510/93F0/9100`), `func_08BAFF30`, `func_08C1DA98`, `func_08BB4368`
+      (descenso de un árbol por un float, solo con árbol vacío en las rutas: el descenso se comparó con el asm a mano) y `func_08C54A7C`.
+      Cobertura de ramas con `tools.decomp_gate coverage`; cada rama no tomada se comparó con el asm leyendo el DESTINO del salto.
+      Escritas sin registrar: `func_08B83DE8`, `func_08B83E24`, `func_08B83FF4` (su trabajador es un stub de importación `sceSasCore`: 14 casos
+      «no comparable» por ruta, 0 comparados) y `func_08BE6D44`, `func_08C4B3C0` (escriben memoria y ningún caso comparado la cambió).
+      Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal` (t0-t3 incluidos). Sabotajes detectados
+      en las 39. **4.989 funciones, 0 discrepancias** (puerta completa: 4.444 comparadas en las cinco rutas, 545 sin comparar).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
