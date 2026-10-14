@@ -81,6 +81,7 @@ const LcsConfiguration &lcs_render_configuration() {
 }
 bool ge_gpu_backend_active() noexcept { return false; }
 bool ge_gpu_backend_finish_color_frame(std::uint64_t) noexcept { return false; }
+GeGpuPerf ge_gpu_backend_take_perf() noexcept { return {}; }
 std::span<const std::byte> ge_gpu_backend_game_frame_rgba() noexcept { return {}; }
 void ge_gpu_backend_mark_window_presented() noexcept {}
 bool ge_gpu_backend_presents_directly() noexcept { return false; }
