@@ -586,6 +586,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       comentario. Seis funciones escritas pero sin registrar: `func_088A964C` (comparada 0) y `func_08B590D0`, `func_08B58E28`, `func_08B83C84`,
       `func_08B83C2C`, `func_08B8421C` (todos sus casos llegan a stubs de import que el arnés no puede reproducir ni grabar). Sabotajes detectados
       en las 33. **4.882 funciones, 0 discrepancias** (puerta rápida: 33 comparadas; completa: 2.619 comparadas en la carrera).
+- [x] **Lote 64 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_64.cpp`, 34 registradas, sondeo de llamadas con las cinco rutas):
+      rellenos y copias de rangos (palabras, bytes, medias palabras), sumas a un campo puntero con y sin salto final, delegaciones a métodos
+      virtuales de un objeto hijo, accesos de holders comprobados (un holder nulo llama a `func_08A5BB7C` y el código sigue) y un contador con
+      `ll`/`sc`. `func_08B86CA8` convierte su llamada final recursiva en bucle (el arnés lee un salto a la propia entrada como retorno). Cobertura
+      de ramas con `tools.decomp_gate coverage`; cada rama no tomada se comparó con el asm a mano leyendo el DESTINO del salto. `func_08B93AE8`
+      (lower_bound de un árbol) escrita sin registrar: ninguna ruta la llama. Sabotajes detectados en las 34. **4.916 funciones, 0 discrepancias**
+      (puerta rápida: 34 comparadas en las cinco rutas; la completa llega a pocas del menú: las rutas dealer/garage/buy/options apenas salen
+      del título con todas las funciones instaladas).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
