@@ -1,0 +1,323 @@
+GT patch 0031: GPU work counters and clear-mode rectangles as clears.
+- GT_PERF_LOG: pipeline statistics per frame (primitives, fragment shader invocations as a multiple of the
+  frame's pixels); GT_GPU_OVERDRAW=1: one query per draw, fragments summed by kind of draw every 5 s.
+- A clear-mode rectangle (one axis-aligned rectangle of untransformed vertices whose edges land on whole target
+  pixels, two non-degenerate triangles over its four corners, one colour and one z, all colour channels or none
+  written) is done with vkCmdClearAttachments instead of a draw: same pixels, no fragment shader (GT clears depth
+  this way every frame). GT_GPU_DRAW_CLEARS=1 draws them as before.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -224,6 +224,13 @@
+     // the GPU is still busy without waiting for it.
+     VkFence frame_fence{};
+     VkQueryPool timestamps{};          // GT patch 0028: two per frame, start and end
++    VkQueryPool statistics{};          // GT patch 0031: fragment shader invocations and primitives per frame
++    bool statistics_pending{};
++    // GT patch 0031, GT_GPU_OVERDRAW=1: one fragment-count query per draw, summed by the draw's kind at exit.
++    VkQueryPool draw_statistics{};
++    std::vector<std::uint32_t> draw_kinds;     // kind of each query of the pending submit
++    std::array<std::uint64_t, 128> kind_fragments{};
++    std::array<std::uint64_t, 128> kind_draws{};
+     double timestamp_period_ns{};
+     bool timestamps_pending{};
+     GeGpuPerf perf{};
+@@ -968,6 +975,109 @@
+     return mask;
+ }
+ 
++// GT patch 0031: a clear-mode sprite is drawn as a clear when that changes no pixel. GT clears its targets with
++// clear-mode rectangles every frame (a third of the fragments in a race); drawn, each runs the whole fragment
++// shader over the rectangle, while vkCmdClearAttachments is a fixed-function fill (a fast clear on most GPUs).
++// Only when the result is the same: one axis-aligned rectangle of untransformed vertices, one colour and one z,
++// all colour channels or none written, no other state that could change a pixel. Coverage follows the
++// rasterizer's rule (pixel centres in [x0, x1), [y0, y1)); the depth is what ge.frag writes for that z.
++bool clear_rectangle(VulkanState &s, const Batch &batch, const Target &target, const VkRect2D &scissor) {
++    const GeGpuDrawDescriptor &draw = batch.draw;
++    if (!draw.clear_mode || batch.hardware_transform || batch.framebuffer_feedback) return false;
++    const VkColorComponentFlags mask = color_write_mask(draw);
++    const bool write_color = mask == (VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
++                                      VK_COLOR_COMPONENT_A_BIT);
++    if (!write_color && mask != 0u) return false;  // some channels only: keep the draw
++    const bool write_depth = draw.depth_write_enabled;
++    if (!write_color && !write_depth) return false;
++    if (draw.depth_test_enabled || draw.blend_enabled || draw.alpha_test_enabled || draw.texture_enabled ||
++        draw.fog_enabled)
++        return false;
++    const std::uint32_t count = batch.indexed ? batch.index_count : batch.vertex_count;
++    if (count != 6u) return false;  // one rectangle: two triangles
++    float xs[2]{}, ys[2]{};
++    std::uint32_t nx = 0u, ny = 0u;
++    std::uint32_t rgba = 0u;
++    float z = 0.0f;
++    for (std::uint32_t i = 0u; i < count; ++i) {
++        const std::size_t index = batch.indexed
++            ? static_cast<std::size_t>(batch.first_vertex) + s.indices[batch.first_index + i]
++            : static_cast<std::size_t>(batch.first_vertex) + i;
++        if (index >= s.vertices.size()) return false;
++        const UploadVertex &v = s.vertices[index];
++        if (v.w != 1.0f) return false;
++        if (i == 0u) {
++            rgba = v.rgba;
++            z = v.z;
++        } else if ((write_color && v.rgba != rgba) || (write_depth && v.z != z)) {
++            return false;
++        }
++        const auto note = [](float value, float (&seen)[2], std::uint32_t &n) {
++            for (std::uint32_t k = 0u; k < n; ++k) if (seen[k] == value) return true;
++            if (n == 2u) return false;
++            seen[n++] = value;
++            return true;
++        };
++        if (!std::isfinite(v.x) || !std::isfinite(v.y) || std::fabs(v.x) > 65536.0f || std::fabs(v.y) > 65536.0f)
++            return false;
++        if (!note(v.x, xs, nx) || !note(v.y, ys, ny)) return false;
++    }
++    if (nx != 2u || ny != 2u) return false;
++    // Two triangles cover the rectangle only if each uses three different corners and together they use all four
++    // (they then share the diagonal). Corner = bit (x is xs[1]) | 2 * (y is ys[1]).
++    unsigned used_by[2]{};
++    for (std::uint32_t t = 0u; t < 2u; ++t) {
++        for (std::uint32_t k = 0u; k < 3u; ++k) {
++            const std::uint32_t i = t * 3u + k;
++            const std::size_t index = batch.indexed
++                ? static_cast<std::size_t>(batch.first_vertex) + s.indices[batch.first_index + i]
++                : static_cast<std::size_t>(batch.first_vertex) + i;
++            const UploadVertex &v = s.vertices[index];
++            const unsigned corner = (v.x == xs[1] ? 1u : 0u) | (v.y == ys[1] ? 2u : 0u);
++            if ((used_by[t] >> corner) & 1u) return false;  // a repeated corner: a degenerate triangle
++            used_by[t] |= 1u << corner;
++        }
++    }
++    if ((used_by[0] | used_by[1]) != 0xFu) return false;
++    const float scale_x = static_cast<float>(s.target_width) / static_cast<float>(std::max<std::uint32_t>(1u, target.logical_width));
++    const float scale_y = static_cast<float>(s.target_height) / static_cast<float>(std::max<std::uint32_t>(1u, target.logical_height));
++    // Only edges that land on whole target pixels: the rasterizer snaps vertices to a sub-pixel grid, and a
++    // fractional edge near a pixel centre could then cover a column this computation would not.
++    for (const float edge : {xs[0] * scale_x, xs[1] * scale_x, ys[0] * scale_y, ys[1] * scale_y})
++        if (edge != std::floor(edge)) return false;
++    const auto first_pixel = [](float edge) { return static_cast<std::int64_t>(std::ceil(edge - 0.5f)); };
++    std::int64_t x0 = first_pixel(std::min(xs[0], xs[1]) * scale_x), x1 = first_pixel(std::max(xs[0], xs[1]) * scale_x);
++    std::int64_t y0 = first_pixel(std::min(ys[0], ys[1]) * scale_y), y1 = first_pixel(std::max(ys[0], ys[1]) * scale_y);
++    x0 = std::max<std::int64_t>(x0, scissor.offset.x);
++    y0 = std::max<std::int64_t>(y0, scissor.offset.y);
++    x1 = std::min<std::int64_t>(x1, static_cast<std::int64_t>(scissor.offset.x) + scissor.extent.width);
++    y1 = std::min<std::int64_t>(y1, static_cast<std::int64_t>(scissor.offset.y) + scissor.extent.height);
++    if (x1 <= x0 || y1 <= y0) return true;  // covers no pixel: nothing to draw either
++    VkClearAttachment clears[2]{};
++    std::uint32_t clear_count = 0u;
++    if (write_color) {
++        VkClearAttachment &color = clears[clear_count++];
++        color.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
++        color.colorAttachment = 0u;
++        for (std::uint32_t c = 0u; c < 4u; ++c)
++            color.clearValue.color.float32[c] = static_cast<float>((rgba >> (c * 8u)) & 0xFFu) / 255.0f;
++    }
++    if (write_depth) {
++        // As the vertex and fragment shaders compute it: clamp(z / 65535), then GT patch 0025's 16-bit truncation.
++        const float depth = std::clamp(z * (1.0f / 65535.0f), 0.0f, 1.0f);
++        VkClearAttachment &d = clears[clear_count++];
++        d.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
++        d.clearValue.depthStencil.depth = std::floor(depth * 65535.0f + 1.0f / 64.0f) / 65535.0f;
++    }
++    VkClearRect rect{};
++    rect.rect.offset = {static_cast<std::int32_t>(x0), static_cast<std::int32_t>(y0)};
++    rect.rect.extent = {static_cast<std::uint32_t>(x1 - x0), static_cast<std::uint32_t>(y1 - y0)};
++    rect.layerCount = 1u;
++    vkCmdClearAttachments(s.command, clear_count, clears, 1u, &rect);
++    ++s.report.clear_rectangles;  // GT patch 0031
++    return true;
++}
++
+ VkCompareOp depth_compare(std::uint32_t function) noexcept {
+     switch (function & 7u) {
+     case 0u: return VK_COMPARE_OP_NEVER;
+@@ -2219,6 +2329,27 @@
+         }
+         s.timestamps_pending = false;
+     }
++    if (s.statistics_pending) {  // GT patch 0031: fragments (in the bit order: fragment invocations, then clipping)
++        std::uint64_t values[2]{};
++        if (vkGetQueryPoolResults(s.device, s.statistics, 0u, 1u, sizeof values, values, sizeof values,
++                                  VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
++            s.perf.primitives += values[0];  // CLIPPING_PRIMITIVES (bit 6) comes before FRAGMENT_SHADER_INVOCATIONS (bit 7)
++            s.perf.fragments += values[1];
++        }
++        s.statistics_pending = false;
++    }
++    if (s.draw_statistics != VK_NULL_HANDLE && !s.draw_kinds.empty()) {  // GT patch 0031, GT_GPU_OVERDRAW
++        std::vector<std::uint64_t> values(s.draw_kinds.size());
++        if (vkGetQueryPoolResults(s.device, s.draw_statistics, 0u, static_cast<std::uint32_t>(values.size()),
++                                  values.size() * sizeof(std::uint64_t), values.data(), sizeof(std::uint64_t),
++                                  VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
++            for (std::size_t i = 0; i < values.size(); ++i) {
++                s.kind_fragments[s.draw_kinds[i]] += values[i];
++                ++s.kind_draws[s.draw_kinds[i]];
++            }
++        }
++        s.draw_kinds.clear();
++    }
+     if (s.pending_readback && s.readback_mapped != nullptr && s.pending_readback_bytes != 0u) {
+         s.frame_rgba.resize(s.pending_readback_bytes);
+         std::memcpy(s.frame_rgba.data(), s.readback_mapped, s.pending_readback_bytes);
+@@ -2405,6 +2536,13 @@
+     if (s.command) vkFreeCommandBuffers(s.device, s.pool, 1u, &s.command);
+     if (s.frame_fence) vkDestroyFence(s.device, s.frame_fence, nullptr);  // GT patch 0026
+     if (s.timestamps) vkDestroyQueryPool(s.device, s.timestamps, nullptr);  // GT patch 0028
++    if (s.statistics) vkDestroyQueryPool(s.device, s.statistics, nullptr);  // GT patch 0031
++    if (s.draw_statistics) {
++        vkDestroyQueryPool(s.device, s.draw_statistics, nullptr);
++    }
++    s.draw_statistics = VK_NULL_HANDLE;
++    s.statistics = VK_NULL_HANDLE;
++    s.statistics_pending = false;
+     s.timestamps = VK_NULL_HANDLE;
+     s.timestamps_pending = false;
+     s.frame_fence = VK_NULL_HANDLE;
+@@ -2671,6 +2809,8 @@
+     VkPhysicalDeviceFeatures available_features{};
+     vkGetPhysicalDeviceFeatures(s.physical, &available_features);
+     VkPhysicalDeviceFeatures enabled_features{};
++    if (available_features.pipelineStatisticsQuery)  // GT patch 0031: overdraw in GT_PERF_LOG
++        enabled_features.pipelineStatisticsQuery = VK_TRUE;
+     if (available_features.dualSrcBlend) {  // GT patch 0021: the GE's doubled-alpha blend factors
+         enabled_features.dualSrcBlend = VK_TRUE;
+         g_dual_source_blend.store(true, std::memory_order_relaxed);
+@@ -2735,6 +2875,25 @@
+         query_info.queryCount = 2u;
+         if (s.timestamp_period_ns <= 0.0 || vkCreateQueryPool(s.device, &query_info, nullptr, &s.timestamps) != VK_SUCCESS)
+             s.timestamps = VK_NULL_HANDLE;
++        VkPhysicalDeviceFeatures features{};  // GT patch 0031
++        vkGetPhysicalDeviceFeatures(s.physical, &features);
++        if (features.pipelineStatisticsQuery) {
++            VkQueryPoolCreateInfo stats_info{};
++            stats_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
++            stats_info.queryType = VK_QUERY_TYPE_PIPELINE_STATISTICS;
++            stats_info.queryCount = 1u;
++            stats_info.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT |
++                                            VK_QUERY_PIPELINE_STATISTIC_CLIPPING_PRIMITIVES_BIT;
++            static const bool per_draw = [] { const char *v = std::getenv("GT_GPU_OVERDRAW"); return v != nullptr && *v != '0'; }();
++            if (per_draw) {  // per-draw queries; the frame query of the same type can't be active meanwhile
++                stats_info.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT;
++                stats_info.queryCount = 16384u;
++                if (vkCreateQueryPool(s.device, &stats_info, nullptr, &s.draw_statistics) != VK_SUCCESS)
++                    s.draw_statistics = VK_NULL_HANDLE;
++            } else if (vkCreateQueryPool(s.device, &stats_info, nullptr, &s.statistics) != VK_SUCCESS) {
++                s.statistics = VK_NULL_HANDLE;
++            }
++        }
+     }
+     s.report.command_pool_created = true;
+ 
+@@ -2987,7 +3146,26 @@
+ GeGpuPerf ge_gpu_backend_take_perf() noexcept {  // GT patch 0028
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+-    const GeGpuPerf taken = s.perf;
++    if (s.draw_statistics) {  // GT patch 0031, GT_GPU_OVERDRAW: fragments by kind of draw since the last call
++        static const char *kKindBits[] = {"2D", "blend", "texture", "ztest", "zwrite", "atest", "CLEAR"};
++        std::uint64_t total = 0u;
++        for (const std::uint64_t f : s.kind_fragments) total += f;
++        for (std::size_t kind = 0; kind < s.kind_fragments.size(); ++kind) {
++            if (s.kind_draws[kind] == 0u) continue;
++            std::string name;
++            for (std::size_t bit = 0; bit < 7u; ++bit)
++                if ((kind >> bit) & 1u) name += std::string(name.empty() ? "" : "+") + kKindBits[bit];
++            std::fprintf(stderr, "[gpu-overdraw] %-36s draws %10llu fragments %14llu (%5.1f%%)\n",
++                         name.empty() ? "3D opaque untextured" : name.c_str(),
++                         static_cast<unsigned long long>(s.kind_draws[kind]),
++                         static_cast<unsigned long long>(s.kind_fragments[kind]),
++                         total ? 100.0 * static_cast<double>(s.kind_fragments[kind]) / static_cast<double>(total) : 0.0);
++        }
++        s.kind_fragments.fill(0u);
++        s.kind_draws.fill(0u);
++    }
++    GeGpuPerf taken = s.perf;
++    taken.target_pixels = static_cast<std::uint64_t>(crop_width(s)) * crop_height(s);  // GT patch 0031
+     s.perf = GeGpuPerf{};
+     return taken;
+ }
+@@ -3616,6 +3794,14 @@
+         vkCmdResetQueryPool(s.command, s.timestamps, 0u, 2u);
+         vkCmdWriteTimestamp(s.command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.timestamps, 0u);
+     }
++    if (begun == VK_SUCCESS && s.draw_statistics != VK_NULL_HANDLE) {  // GT patch 0031, GT_GPU_OVERDRAW
++        vkCmdResetQueryPool(s.command, s.draw_statistics, 0u, 16384u);
++        s.draw_kinds.clear();
++    }
++    if (begun == VK_SUCCESS && s.statistics != VK_NULL_HANDLE) {  // GT patch 0031
++        vkCmdResetQueryPool(s.command, s.statistics, 0u, 1u);
++        vkCmdBeginQuery(s.command, s.statistics, 0u, 0u);
++    }
+     if (begun != VK_SUCCESS) {
+         log_frame_failure(s, "vkBeginCommandBuffer", begun);
+         s.vertices.clear();
+@@ -3674,6 +3860,11 @@
+         scissor.extent.width = static_cast<std::uint32_t>(right - scissor.offset.x);
+         scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
+         vkCmdSetScissor(s.command, 0u, 1u, &scissor);
++        static const bool draw_clears = [] { const char *v = std::getenv("GT_GPU_DRAW_CLEARS"); return v != nullptr && *v != '0'; }();
++        if (!draw_clears && clear_rectangle(s, batch, *target, scissor)) {  // GT patch 0031 (GT_GPU_DRAW_CLEARS=1: off)
++            ++executed;
++            continue;
++        }
+         float blend_constants[4]{};
+         if (const GeneralBlend general = general_blend(batch.draw); general.constant != 0u) {
+             const std::uint32_t fix = general.constant;
+@@ -3736,10 +3927,19 @@
+         vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.pipeline_layout, 0u, 1u,
+                                 &sampled_set, 1u, &dynamic_offset);
+         ++uniform_slot;
++        const bool count_draw = s.draw_statistics != VK_NULL_HANDLE && s.draw_kinds.size() < 16384u;  // GT patch 0031
++        if (count_draw) {
++            vkCmdBeginQuery(s.command, s.draw_statistics, static_cast<std::uint32_t>(s.draw_kinds.size()), 0u);
++            s.draw_kinds.push_back((batch.draw.through ? 1u : 0u) | (batch.draw.blend_enabled ? 2u : 0u) |
++                                   (textured ? 4u : 0u) | (batch.draw.depth_test_enabled ? 8u : 0u) |
++                                   (batch.draw.depth_write_enabled ? 16u : 0u) | (batch.draw.alpha_test_enabled ? 32u : 0u) |
++                                   (batch.draw.clear_mode ? 64u : 0u));
++        }
+         if (batch.indexed)
+             vkCmdDrawIndexed(s.command, batch.index_count, 1u, batch.first_index, static_cast<std::int32_t>(batch.first_vertex), 0u);
+         else
+             vkCmdDraw(s.command, batch.vertex_count, 1u, batch.first_vertex, 0u);
++        if (count_draw) vkCmdEndQuery(s.command, s.draw_statistics, static_cast<std::uint32_t>(s.draw_kinds.size() - 1u));
+         ++executed;
+         if (batch.draw.depth_test_enabled) s.report.depth_tested_game_draw_calls += batch.logical_draw_count;
+         if (batch.draw.depth_write_enabled) s.report.depth_writing_game_draw_calls += batch.logical_draw_count;
+@@ -3824,6 +4024,7 @@
+     }
+     if (s.timestamps != VK_NULL_HANDLE)  // GT patch 0028
+         vkCmdWriteTimestamp(s.command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.timestamps, 1u);
++    if (s.statistics != VK_NULL_HANDLE) vkCmdEndQuery(s.command, s.statistics, 0u);  // GT patch 0031
+     const VkResult ended = vkEndCommandBuffer(s.command);
+     if (ended != VK_SUCCESS) log_frame_failure(s, "vkEndCommandBuffer", ended);
+     bool submitted = false;
+@@ -3856,6 +4057,7 @@
+                 submitted = true;
+                 s.submit_pending = true;
+                 s.timestamps_pending = s.timestamps != VK_NULL_HANDLE;  // GT patch 0028
++                s.statistics_pending = s.statistics != VK_NULL_HANDLE;  // GT patch 0031
+                 s.submit_time = std::chrono::steady_clock::now();
+                 if (present_this_frame) {
+                     const VkResult presented = queue_present(s);
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -259,6 +259,7 @@
+     std::uint64_t unsupported_texture_function_game_draw_calls{};
+     std::uint64_t color_mask_pipeline_variants_created{};
+     std::uint64_t masked_color_game_draw_calls{};
++    std::uint64_t clear_rectangles{};  // GT patch 0031: clear-mode rectangles done with vkCmdClearAttachments
+     std::uint64_t unsupported_partial_color_mask_game_draw_calls{};
+     std::uint64_t decoded_direct16_textures{};
+     std::uint64_t decoded_direct32_textures{};
+@@ -418,6 +419,10 @@
+     std::uint64_t passes{};
+     std::uint64_t target_copies{};
+     std::uint64_t upload_bytes{};
++    // GT patch 0031: pipeline statistics, when the device has them (0 otherwise).
++    std::uint64_t fragments{};   // fragment shader invocations
++    std::uint64_t primitives{};  // primitives the rasterizer received
++    std::uint64_t target_pixels{};  // pixels of one internal-resolution frame (target width x height)
+ };
+ GeGpuPerf ge_gpu_backend_take_perf() noexcept;
+ 
