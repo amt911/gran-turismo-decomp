@@ -1076,3 +1076,21 @@ filtering arithmetic, not the decode.
 
 Found: 2026-10-14 · lcs/host/ge_renderer.cpp (lcs-recomp)
 
+## Dealer car on the GPU: brighter and glossier, floor ring missing — what it is not
+
+**Symptom.** With `NativeGE=true` the dealer's car looks brighter and glossier than on the software rasterizer,
+the floor shows a bright glow beside the car instead of the turntable ring and shadow, and the plate text is
+missing (GPU gate ×1, dealer route: 515/1763 frames equal; race ~93 %, garage 1776/1813).
+**Cause.** Not found yet. Ruled out by experiment: the GPU hardware transform (`PSPRECOMP_GE_GPU_HW_TRANSFORM=0`:
+514/1762), the GPU lighting (`PSPRECOMP_GE_GPU_HW_LIT=0`: 510/1762), the blend states the dealer uses
+(`GT_GPU_STATS` on the route: only add with `As / 1−As`, `As / fix FFFFFF` and `min(1, 2As) / min(1, 2(1−As))` —
+the last computed in `ge.frag blendFactor` with the same formula as `ge_renderer.cpp blend_factor`), stencil
+(neither path implements it) and render-target aliasing (`find_target` keys on the address masked to
+`0x001FFFF0`; no target sits at the environment map's address). Lead: 257 blended
+draws per frame use a DXT1 environment map in VRAM (`tex @040d4000 fmt 8 128x128`, `GT_GE_LOG`) — the
+reflection pass; compare its texture function, UV generation (env mapping) and the texture's decode on both paths.
+**Fix / workaround.** None yet; documented as the GPU path's known difference.
+**Why it isn't obvious.** Everything else in the dealer frame matches; only the reflective surfaces differ.
+
+Found: 2026-10-14 · tools/src/lcs-recomp/lcs/host/ge_gpu_backend_vulkan.cpp, ge_renderer.cpp
+
