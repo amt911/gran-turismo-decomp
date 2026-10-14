@@ -22,8 +22,10 @@ SDK_DIRS = ("libc", "libm", "libstdcxx", "libgcc", "sdk")
 # shorthand macro taking the address and a function name):
 # one behind `//` is decompiled but not swapped in (not comparable yet).
 # A subsystem's shorthand for GT_DECOMP (src/game/race/race_operator.cpp: RACE_OPERATOR(0x..u, name, kind)): an
-# upper-case macro whose arguments start with the address and a function name. tools.progress_map uses it too.
-SHORTHAND_REGISTRATION = r"[A-Z][A-Z0-9_]*\(\s*0x([0-9A-Fa-f]+)u?\s*,\s*[A-Za-z_]"
+# (the address has exactly 8 hex digits, a runtime address: `FOO(0x10);` is no registration)
+# upper-case macro whose arguments start with the address and a function name, or that takes the address alone and
+# expands to a registration of a shared body (`HOT63_CONTAINER(0x..u);`). tools.progress_map uses it too.
+SHORTHAND_REGISTRATION = r"[A-Z][A-Z0-9_]*\(\s*0x(?=[0-9A-Fa-f]{8}(?![0-9A-Fa-f]))([0-9A-Fa-f]+)u?\s*(?:,\s*[A-Za-z_]|\)\s*;)"
 _REGISTRATION = re.compile(
     r"^[ \t]*(?:GT_DECOMP(?:_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]|" + SHORTHAND_REGISTRATION + ")",
     re.MULTILINE,
@@ -40,13 +42,17 @@ def load_functions(path: Path) -> dict[int, int]:
     return functions
 
 
+def registered_addresses(source: str) -> list[int]:
+    """Runtime addresses of the active registrations (GT_DECOMP* and the shorthand macros) in a source text."""
+    return [int(m.group(1) or m.group(2), 16) for m in _REGISTRATION.finditer(source)]
+
+
 def decompiled_functions(src: Path) -> dict[int, str]:
     """ELF vaddr -> "sdk" or "game" for every GT_DECOMP registration under `src`."""
     found: dict[int, str] = {}
     for path in sorted(src.rglob("*.cpp")):
         kind = "sdk" if path.relative_to(src).parts[0] in SDK_DIRS else "game"
-        for match in _REGISTRATION.finditer(path.read_text()):
-            runtime = int(match.group(1) or match.group(2), 16)
+        for runtime in registered_addresses(path.read_text()):
             if runtime < LOAD_BASE:
                 raise ValueError(f"{path}: GT_DECOMP address {runtime:#010x} is below the load base")
             found[runtime - LOAD_BASE] = kind
