@@ -1040,3 +1040,37 @@ it varies between runs. A forced re-check of the texture contents changed nothin
 failing frame's vblank (`[gpu-dump] frame N vblank V` in the dump log) showed a plain textured draw.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0024-gpu-new-texture-not-debug-colour.patch
+
+## A slow GPU slowed the whole game down, not just the picture
+
+**Symptom.** On a laptop with an integrated GPU (`NativeGE=true`), the car slowed down, frame pacing was bad and
+the sound lagged; on a desktop GPU everything was fine.
+**Cause.** At the end of each frame the Vulkan backend waited for the GPU to finish the previous one
+(`vkQueueWaitIdle`, one frame in flight), and the game thread waits for the GE thread at its list syncs. GT
+advances its logic and produces its sound per frame, so GPU time turned into game time. With
+`GT_SIM_GPU_MS=20` (the GPU taken to need 20 ms per frame) the game thread was blocked 84-91 % of the time and
+the sound came out at 28-33 kHz instead of 44.1; at 30 ms, 17-19 kHz. Even at 12 ms — faster than a frame —
+frames were skipped.
+**Fix / workaround.** lcs-recomp patch 0026: the pending submit has a fence; a frame that only draws into shown
+framebuffers waits at most 4 ms for it and is dropped otherwise (frames that also draw elsewhere still wait,
+so nothing later frames need is lost); the software path's present no longer waits for the queue. At 20 and
+30 ms per frame: game thread blocked 19-25 %, sound at 44.1 kHz, game time 1.00x. A fast GPU drops almost none
+(fewer than 300 in 70 s, GE wait 6-9 % instead of 12-22 %); the GPU gate is unchanged.
+**Why it isn't obvious.** `guest time 1.00x` in `GT_PERF_LOG` still holds — the vblank clock keeps time — while
+the game itself runs slow; the tell is `GE wait` and the audio rate. A fast GPU hides it entirely.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0026-gpu-drop-frames-not-game-speed.patch
+
+## The software renderer's cost is its per-fragment pipeline, not decoding texels
+
+**Symptom.** With `NativeGE=false` the software rasterizer uses about 2 cores at 480x272 (profile: per-pixel
+loop, `sample_texture`, `read_clut_fast`, blending, writes).
+**Cause.** Measured, not assumed: a cache of decoded RGBA textures (exact: 3.7 billion texels checked against
+guest memory) removed the CLUT lookups (`read_clut_fast` 12.6 % → 1.6 % of samples) but saved only ~5-10 % of
+CPU; the bilinear arithmetic, blending and writes dominate.
+**Fix / workaround.** Not merged. A real gain needs a SIMD span rasterizer; the GPU path is the one to use.
+**Why it isn't obvious.** The profile's top frames are texture functions; most of their time is the
+filtering arithmetic, not the decode.
+
+Found: 2026-10-14 · lcs/host/ge_renderer.cpp (lcs-recomp)
+

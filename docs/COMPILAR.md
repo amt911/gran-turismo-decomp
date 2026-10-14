@@ -166,8 +166,11 @@ build/gt_play
 - **¿Va lento?** `GT_PERF_LOG=1 build/gt_play` escribe cada 5 s en la terminal el ritmo real:
   `guest time 1.00x` es velocidad de PSP; `vblanks` debería rondar 120/s (GT espera dos por refresco);
   `skipped` son vblanks que el PC no llegó a hacer (los menús y el sonido de GT avanzan por frame, así
-  que eso se nota como lentitud); `GE wait` es el tiempo esperando al rasterizador de la GE, y
-  `frameskip` los frames que no se dibujaron para no ir lento.
+  que eso se nota como lentitud); `GE wait` es el tiempo que el juego pasa esperando a la GE (alto =
+  el juego va a cámara lenta aunque `guest time` diga 1.00x; fíjate también en `audio`, que debería
+  rondar 44100 Hz), y `frameskip` los frames que no se dibujaron para no ir lento. Con `NativeGE=true`, la
+  terminal dice cada 300 imágenes descartadas porque la GPU no llegaba (`[vulkan] N frames dropped`).
+  `GT_SIM_GPU_MS=N` (pruebas) simula una GPU que tarda N ms por imagen.
 - **Frameskip** (activado en `gt_play`; `GT_FRAMESKIP=0` lo quita): si el PC va tarde, no se dibuja
   en pantalla ese frame (como el frameskip de PPSSPP), pero el juego y el sonido siguen a su ritmo y
   la ventana mantiene la última imagen completa. Dibujar es casi todo el coste en CPUs modestas.
