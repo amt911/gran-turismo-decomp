@@ -9,7 +9,6 @@
 #include <cstdint>
 #ifdef GT_HOT_COVERAGE
 #include <cstdio>
-#include <cstdlib>
 #include <map>
 #include <string>
 #endif
@@ -42,8 +41,6 @@ inline float psp_mul(float a, float b) {
 #ifdef GT_HOT_COVERAGE
 inline void cover(const char *tag) {
     static std::map<std::string, unsigned long> counts;
-    static const bool registered = (std::atexit([] {}), true);
-    (void)registered;
     ++counts[tag];
     static struct Printer {
         std::map<std::string, unsigned long> *map;
