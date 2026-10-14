@@ -1896,11 +1896,15 @@ void perf_log_tick() {
         const double frames = gpu.frames ? static_cast<double>(gpu.frames) : 1.0;
         std::fprintf(stderr,
                      "[perf]   GPU %.2f ms/frame over %.1f frames/s, GE thread blocked on the GPU %.1f%%, "
-                     "%.1f render passes/frame, %.2f full target copies/frame, uploads %.2f MB/s\n",
+                     "%.1f render passes/frame, %.2f full target copies/frame, uploads %.2f MB/s, "
+                     "%.0f primitives/frame, fragments %.2f x the frame's pixels\n",
                      gpu.gpu_ms / frames, static_cast<double>(gpu.frames) / seconds,
                      100.0 * gpu.fence_wait_ms / (seconds * 1000.0), static_cast<double>(gpu.passes) / frames,
                      static_cast<double>(gpu.target_copies) / frames,
-                     static_cast<double>(gpu.upload_bytes) / (seconds * 1e6));
+                     static_cast<double>(gpu.upload_bytes) / (seconds * 1e6),
+                     static_cast<double>(gpu.primitives) / frames,
+                     gpu.target_pixels ? static_cast<double>(gpu.fragments) / frames / static_cast<double>(gpu.target_pixels)
+                                       : 0.0);
     }
     perf_audio_frames = 0u;
     perf_log = PerfLog{};

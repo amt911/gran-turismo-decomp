@@ -1185,3 +1185,22 @@ waiting for the GPU, and the internal resolution changed nothing. Only a profile
 bookkeeping per draw.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0030-ge-thread-cheaper-content-hashes.patch, host/main.cpp
+
+## Where the GPU's time goes in a race: ten fragments per pixel, a third of them clears
+
+**Symptom.** At x4 the laptop's Vega 8 spent ~14 ms per race frame; a PSP scene should cost far less.
+**Cause.** Measured with Vulkan pipeline statistics (`GT_PERF_LOG`'s GPU line, `GT_GPU_OVERDRAW=1` by kind of
+draw): ~10.5 fragments per pixel of the frame, ~40,000 primitives. Per frame, GT clears depth (and some colour)
+with clear-mode rectangles over the whole screen several times, and draws a few full-screen 3D quads without
+texture or depth test (the backdrop). Each clear went through the full fragment shader. `gl_FragDepth` (patch
+0025, 16-bit depth) was suspected and measured: 3 %, not the cause (and it is what makes depth match the PSP).
+**Fix / workaround.** lcs-recomp patch 0031: a clear-mode rectangle that is one axis-aligned rectangle with one
+colour and one z, writing all colour channels or none, becomes `vkCmdClearAttachments` (same pixels by the
+rasterizer's coverage rule; the depth ge.frag would write). Race x4: 10.5 → 8.85 fragments per pixel, GPU
+4.3 → 4.06 ms on an RTX 3080 Ti (fixed-function clears are relatively cheaper on AMD). GPU gate on the frames
+both runs captured: race 340 vs 339 equal, dealer 175 → 174, garage 12 failing frames in both.
+Clears of RGB only or alpha only stay draws (vkCmdClearAttachments can't mask channels).
+**Why it isn't obvious.** The GPU timestamps alone said "slow"; only counting fragments by kind showed that a
+third of the work was clears.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0031-gpu-overdraw-counters-and-clear-rectangles.patch
