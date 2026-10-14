@@ -20,6 +20,7 @@ using namespace gt::game::hot;
 
 constexpr std::uint32_t kAssignHolder = 0x08A61584u;  // (dest *holder, source *holder)
 constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;  // gt::core::holder_destroy
+constexpr std::uint32_t kFree = 0x08A5BC54u;           // (object, size, alignment)
 constexpr std::uint32_t kNil = 0x08A76AA0u;            // (holder *out): out = the global nil (src/game/adhoc/array.cpp)
 
 } // namespace
@@ -177,6 +178,129 @@ void func_08B88FF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, data - 4u, 0xFFFFFFFFu);
 }
 
+// func_08C0ED84(list, pos, x): a 12-byte node (func_08A5BC20(12, 4)) whose holder at +8 is set by func_089FDAC8(node + 8, x) (skipped when
+// node + 8 is 0), linked before `pos` (func_08B5C078(node, pos)); v0 = the node.
+void func_08C0ED84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t pos = ctx.gpr[5], x = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t node = call_guest(rt, ctx, 0x08A5BC20u, {12u, 4u});
+    if (node + 8u != 0u) (void)call_guest(rt, ctx, 0x089FDAC8u, {node + 8u, x});
+    (void)call_guest(rt, ctx, 0x08B5C078u, {node, pos});
+    ctx.gpr[2] = node;
+}
+
+// func_08B17308(this): when the byte +0x19DD is set, the words +0x19F0 and +0x19EC are cleared, func_08B28C74(this + 0x1984) and
+// func_08B28C44(this + 0x1900) run and the byte is cleared; v0 = the last call's result, or 0 when the byte was clear.
+void func_08B17308(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    ctx.gpr[2] = rt.memory().load8(self + 6621u);
+    if (ctx.gpr[2] == 0u) return;
+    GuestFrame frame(ctx, 0x10u);
+    put(rt, self + 6640u, 0u);
+    put(rt, self + 6636u, 0u);
+    (void)call_guest(rt, ctx, 0x08B28C74u, {self + 6532u});
+    ctx.gpr[2] = call_guest(rt, ctx, 0x08B28C44u, {self + 6400u});
+    rt.memory().store8(self + 6621u, 0u);
+}
+
+// func_08B8CF24(this, dest): a local holder is made by func_08A76ABC(local, the word at this[5] + 4); dest takes it (gt::core::holder_reset)
+// unless dest is the local itself; the local holder is destroyed.
+void func_08B8CF24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], destination = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    (void)call_guest(rt, ctx, 0x08A76ABCu, {frame.at(0u), word(rt, self + 20u) + 4u});
+    if (destination != frame.at(0u)) (void)call_guest(rt, ctx, 0x08A5BAD8u, {destination, word(rt, frame.at(0u))});
+    ctx.gpr[2] = call_guest(rt, ctx, kHolderDestroy, {frame.at(0u)});
+}
+
+// func_08B93CD8(out, s, n): as func_08B85EB8 with func_08B93C20: out = func_08B93C20(s, end, n, s), end = s + func_08B35F60(s, -1) or -1 for a null s.
+void func_08B93CD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], s = ctx.gpr[5], n = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t end = 0xFFFFFFFFu;
+    if (s != 0u) end = s + call_guest(rt, ctx, 0x08B35F60u, {s, 0xFFFFFFFFu});
+    ctx.gpr[2] = call_guest(rt, ctx, 0x08B93C20u, {s, end, n, s});
+    put(rt, out, ctx.gpr[2]);
+}
+
+// func_08AD3798(this, x) -> -1, or func_08B1D1BC(this[7], r) once r = func_08B1D080(this[7], x, func_08B1D1F4(x) as a 64-bit value) is not negative.
+void func_08AD3798(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], x = ctx.gpr[5];
+    const std::uint32_t target = word(rt, self + 28u);
+    GuestFrame frame(ctx, 0x10u);
+    const GuestResult pair = call_guest(rt, ctx, 0x08B1D1F4u, {x}, {});
+    const std::uint32_t r = call_guest(rt, ctx, 0x08B1D080u, {target, x, pair.v0, pair.v1});
+    if (static_cast<std::int32_t>(r) < 0) { ctx.gpr[2] = 0xFFFFFFFFu; return; }
+    ctx.gpr[2] = call_guest(rt, ctx, 0x08B1D1BCu, {word(rt, self + 28u), r});
+}
+
+// func_08B64604(p): func_08B35254(p) (the free) unless p is null (tail call).
+void func_08B64604(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    if (ctx.gpr[4] == 0u) return;
+    tail_call(ctx, 0x08B35254u, {});
+}
+
+// func_08BBCFA0(this): func_08B34B24(this[0] + 108) (tail call) when this[0] is set; v0 = this[0] meanwhile.
+void func_08BBCFA0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t object = word(rt, ctx.gpr[4]);
+    ctx.gpr[2] = object;
+    if (object == 0u) return;
+    tail_call(ctx, 0x08B34B24u, {object + 108u});
+}
+
+// func_08BDB2C0(to, from): to = from (two words); the second is a counted object whose count (+4) is incremented; v0 = that word, or 1 after the increment.
+void func_08BDB2C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t to = ctx.gpr[4], from = ctx.gpr[5];
+    put(rt, to, word(rt, from));
+    const std::uint32_t counted = word(rt, from + 4u);
+    put(rt, to + 4u, counted);
+    ctx.gpr[2] = counted;
+    if (counted == 0u) return;
+    put(rt, counted + 4u, word(rt, counted + 4u) + 1u);
+    ctx.gpr[2] = 1u;
+}
+
+// func_08BE7474(this): vtable 0x08CC9628, the weak release of this[9] when set (func_08A5B930), func_08965A3C(this), the free of 60 bytes.
+void func_08BE7474(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t held = word(rt, self + 36u);
+    put(rt, self, 0x08CC9628u);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        if (held != 0u) (void)call_guest(rt, ctx, 0x08A5B930u, {held});
+        (void)call_guest(rt, ctx, 0x08965A3Cu, {self});
+    }
+    tail_call(ctx, kFree, {self, 60u, 4u});
+}
+
+// func_08C1D3AC(first, last): func_08A5B9EC(p) for each word p of [first, last).
+void func_08C1D3AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t first = ctx.gpr[4], last = ctx.gpr[5];
+    if (first == last) return;
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t p = first;
+    do {
+        ctx.gpr[2] = call_guest(rt, ctx, kHolderDestroy, {p});
+        p += 4u;
+    } while (last != p);
+}
+
+// func_08BEDD64(list): the nodes {next, prev, holder at +8} (12 bytes) other than the head are destroyed one by one (func_08A5B9EC(node + 8), then freed).
+void func_08BEDD64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t head = ctx.gpr[4];
+    std::uint32_t node = word(rt, head);
+    if (node == head) return;
+    GuestFrame frame(ctx, 0x10u);
+    std::uint32_t next = word(rt, node);
+    for (;;) {
+        (void)call_guest(rt, ctx, kHolderDestroy, {node + 8u});
+        ctx.gpr[2] = call_guest(rt, ctx, kFree, {node, 12u, 4u});
+        node = next;
+        if (head == next) break;
+        next = word(rt, node);
+    }
+}
+
 } // namespace hot_batch_61
 } // namespace gt::game
 
@@ -192,4 +316,15 @@ HOT61(0x08C12060u, func_08C12060, Word);
 HOT61(0x08B55588u, func_08B55588, Word);
 HOT61(0x08903504u, func_08903504, Float);
 HOT61(0x08B88FF8u, func_08B88FF8, Word);
+HOT61(0x08C0ED84u, func_08C0ED84, Word);
+HOT61(0x08B17308u, func_08B17308, Word);
+HOT61(0x08B8CF24u, func_08B8CF24, Word);
+HOT61(0x08B93CD8u, func_08B93CD8, Word);
+HOT61(0x08AD3798u, func_08AD3798, Word);
+HOT61(0x08B64604u, func_08B64604, Word);
+HOT61(0x08BBCFA0u, func_08BBCFA0, Word);
+HOT61(0x08BDB2C0u, func_08BDB2C0, Word);
+HOT61(0x08BE7474u, func_08BE7474, Word);
+HOT61(0x08C1D3ACu, func_08C1D3AC, Word);
+HOT61(0x08BEDD64u, func_08BEDD64, Word);
 #undef HOT61
