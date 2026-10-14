@@ -299,7 +299,6 @@ void func_08BE7474(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08C1D3AC(first, last): func_08A5B9EC(p) for each word p of [first, last).
-// Branches the routes do not take (checked against the asm by hand, reading the branch targets): an empty range (returns).
 void func_08C1D3AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t first = ctx.gpr[4], last = ctx.gpr[5];
     if (first == last) return;
