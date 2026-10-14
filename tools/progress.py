@@ -40,13 +40,17 @@ def load_functions(path: Path) -> dict[int, int]:
     return functions
 
 
+def registered_addresses(source: str) -> list[int]:
+    """Runtime addresses of the active registrations (GT_DECOMP* and the shorthand macros) in a source text."""
+    return [int(m.group(1) or m.group(2), 16) for m in _REGISTRATION.finditer(source)]
+
+
 def decompiled_functions(src: Path) -> dict[int, str]:
     """ELF vaddr -> "sdk" or "game" for every GT_DECOMP registration under `src`."""
     found: dict[int, str] = {}
     for path in sorted(src.rglob("*.cpp")):
         kind = "sdk" if path.relative_to(src).parts[0] in SDK_DIRS else "game"
-        for match in _REGISTRATION.finditer(path.read_text()):
-            runtime = int(match.group(1) or match.group(2), 16)
+        for runtime in registered_addresses(path.read_text()):
             if runtime < LOAD_BASE:
                 raise ValueError(f"{path}: GT_DECOMP address {runtime:#010x} is below the load base")
             found[runtime - LOAD_BASE] = kind

@@ -1185,3 +1185,15 @@ waiting for the GPU, and the internal resolution changed nothing. Only a profile
 bookkeeping per draw.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0030-ge-thread-cheaper-content-hashes.patch, host/main.cpp
+
+## A `lui`/`addiu` pair in the ELF is relative to a segment, not to the load base
+
+**Symptom.** Decoding the static addresses of a function from its raw words gave values 0x4D8500 below the ones the
+generated code and the game use (`tools.family_members`, 2026-10-14).
+
+**Cause.** The `.rel.text` entries (type 0x700000a0 section, 8-byte Elf32_Rel) carry the segment an address is relative
+to in bits 16-23 of `r_info` (`0x10005` = R_MIPS_HI16 against segment 1). Segment 1 (data/bss) has `p_vaddr` 0x4D8500, so the
+runtime address is `(hi << 16) + signed(lo) + p_vaddr[segment] + 0x08804000`. Calls (`R_MIPS_26`) are segment 0.
+A pair without a HI16/LO16 relocation is a plain constant (a float bit pattern, a mask), not an address.
+
+**Fix / workaround.** Read the relocation's segment and the program headers (`tools/family_members.py`).

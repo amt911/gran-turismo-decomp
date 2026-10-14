@@ -129,6 +129,12 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   A cluster means "same shape", not "same constants" (bounds, offsets, frame sizes and call targets are
   masked): decode each member's constants from its own instructions, compare raw words where a constant
   is the template's own (e.g. the shared empty holder of `as_class`), and let the gate prove each one.
+  **`tools.family_members`** finds the members (same masked shape, not done, reached by the probe logs of
+  `tools.decomp_gate probe`) and decodes each member's own constants from its words and the ELF relocations:
+  `lui`/`addiu` addresses, `li`s, displacements and every `jal`/`j` target; `--cpp WRAPPER` prints the row as
+  the batch files write it, `--check REF:PATH` re-reads the rows of a batch file against the words (a wrong
+  number fails it), and a `!!` line flags a member whose other words differ from the template (not a table row).
+  Usage in the module docstring; measured 2026-10-14 on batches 66/67/68/69: 34, 34, 41 and 47 numeric rows, all match.
   Template instances count as done; functions the recompiler never emitted (nothing reaches them) are
   left out. Measured 2026-10-13: 2611 pending functions in clusters of ≥ 3 share a shape with a decompiled
   one — but the routes reach few of them (61 constructors: 4 reached; 75 as_class: 4): coverage limits.

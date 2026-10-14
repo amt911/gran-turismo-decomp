@@ -5,6 +5,7 @@ Usage (from the repository root):
   .venv/bin/python -m tools.decomp_gate full TAG                                 # everything, real time
   .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ... [--also ...]  # s0 bump, fast gate
   .venv/bin/python -m tools.decomp_gate coverage TAG --only 0xADDR,...|@file     # fast gate + which branches it took
+  .venv/bin/python -m tools.decomp_gate probe TAG --symbols FILE                 # call counts of FILE's functions (--decomp off)
   .venv/bin/python -m tools.decomp_gate report TAG                               # re-read a run's logs
 
 `fast` and `full` regenerate the recompiled code (tools.recomp: registrations are boundaries), build, and
@@ -274,6 +275,18 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     return " ".join(parts) + " wait"
 
 
+def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path) -> str:
+    """One shell line running the five fast routes in parallel with every function recompiled (`--decomp off`) and
+    the functions named in `symbols` probed (GT_PROBE_SYMBOLS: `name = 0xADDR;` lines), one log per route. The
+    logs say which functions the routes call: `python -m tools.family_members --probe` reads them."""
+    parts = []
+    for route, seconds in ROUTES["fast"]:
+        log = logs / f"probe_{tag}_{route}.log"
+        parts.append(f'( GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
+                     f"timeout 1000 {binary} --max-seconds {seconds} --decomp off > {log} 2>&1 ) &")
+    return " ".join(parts) + " wait"
+
+
 def clear_run(tag: str, logs: Path) -> None:
     """Removes a tag's logs and exit codes from an earlier run, so a run that dies early can't be read
     with an old run's results."""
@@ -428,6 +441,19 @@ def _gate_steps(kind: str, tag: str, env: dict[str, str] | None) -> int:  # prag
     return _report(tag)
 
 
+def _probe_run(tag: str, symbols: Path) -> int:  # pragma: no cover - runs the game
+    subprocess.run(slice_limits(), check=True)
+    slot = HeavySlot()
+    slot.acquire()
+    try:
+        subprocess.run(heavy(["sh", "-c", probe_shell(Path("build/gt_native"), tag, symbols.resolve(), Path("recomp/analysis"))]))
+    finally:
+        slot.release()
+    logs = sorted(Path("recomp/analysis").glob(f"probe_{tag}_*.log"))
+    print(f"{len(logs)} probe logs: " + " ".join(str(p) for p in logs))
+    return 0 if len(logs) == len(ROUTES["fast"]) else 2
+
+
 def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
     reports = []
     status = 0
@@ -561,6 +587,9 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
+    probe = sub.add_parser("probe", help="run the five routes with the decomp off and --symbols probed (call counts)")
+    probe.add_argument("tag")
+    probe.add_argument("--symbols", type=Path, required=True)
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -568,6 +597,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
         return _run_gate("fast", args.tag, parse_only(args.only))
     if args.command == "full":
         return _run_gate("full", args.tag, None)
+    if args.command == "probe":
+        return _probe_run(args.tag, args.symbols)
     if args.command == "coverage":
         return _coverage_run(args.tag, parse_only(args.only))
     if args.command == "sabotage":

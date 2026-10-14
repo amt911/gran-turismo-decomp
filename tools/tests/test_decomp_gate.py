@@ -296,3 +296,11 @@ def test_a_coverage_build_left_configured_is_noticed():
     assert gate.coverage_left_configured("GT_COVERAGE_FILES:STRING=src/game/x.cpp\n")
     assert not gate.coverage_left_configured("GT_COVERAGE_FILES:STRING=\nCMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
     assert not gate.coverage_left_configured("CMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
+
+
+def test_probe_shell_runs_the_five_fast_routes_uncapped_with_the_decomp_off_and_the_symbols_probed():
+    command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
+    assert command.count("--decomp off") == 5 and command.endswith(" wait")
+    assert "GT_PROBE_SYMBOLS=/s/syms.txt" in command and "LCS_UNCAPPED=1" in command
+    assert "--max-seconds 230" in command and "--max-seconds 200" in command
+    assert "recomp/analysis/probe_t1_options.log" in command and "--decomp diff" not in command
