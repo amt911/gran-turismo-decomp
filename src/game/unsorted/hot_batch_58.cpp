@@ -18,9 +18,6 @@ namespace {
 
 using namespace gt::game::hot;
 
-
-
-
 // Appends `count` words to the display list.
 void append(psprecomp::Runtime &rt, std::uint32_t first, std::uint32_t second = 0u, bool two = false) {
     const std::uint32_t list = word(rt, kGuListPointer);

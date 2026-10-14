@@ -19,9 +19,6 @@ namespace {
 
 using namespace gt::game::hot;
 
-
-
-
 // Appends two words to the display list and returns the new write pointer.
 std::uint32_t append_two(psprecomp::Runtime &rt, std::uint32_t first, std::uint32_t second) {
     const std::uint32_t list = word(rt, kGuListPointer);

@@ -1,7 +1,7 @@
 // Hot batch 59: the call-heavy functions batch 58 left (call probe as in batches 57/58). Four families make most of it:
 // node initialisers that store three words and jump to a per-type routine (11 instances), wrappers that build a script
 // value into a stack holder, assign it to the caller's holder and destroy the local one (11), float getters that call a
-// layout routine with one of its out parameters on the stack (6), and range erases of a pointer vector (4); the rest are
+// routine of the 0x0896xxxx family with one of its out parameters on the stack (6), and what looks like range erases of a vector (4); the rest are
 // destructors of small classes (set the vtable, destroy members, free) and argument shufflers that call or tail-call
 // another function. Their classes aren't known yet, so they keep their addresses as names; each comment says what the
 // code does. Written from the asm; the generated code was only a reading aid.
@@ -22,10 +22,9 @@ namespace {
 using namespace gt::game::hot;
 
 constexpr std::uint32_t kAssignHolder = 0x08A61584u;  // (dest *holder, source *holder)
-constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;
+constexpr std::uint32_t kHolderDestroy = 0x08A5B9ECu;  // gt::core::holder_destroy
+constexpr std::uint32_t kNil = 0x08A76AA0u;            // (holder *out): out = the global nil (src/game/adhoc/array.cpp)
 constexpr std::uint32_t kFree = 0x08A5BC54u;          // (object, size, alignment)
-
-
 
 // The tail of the value-building wrappers: dest = holder (assign), then the local holder is destroyed; v0 is the destroy's.
 void finish_holder(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t holder) {
@@ -68,11 +67,11 @@ void func_08C207B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08A85B1Cu, {frame.at(0u), word(rt, self + 8u)});
     finish_holder(rt, ctx, destination, frame.at(0u));
 }
-// func_08C2038C(_, dest): the empty value func_08A76AA0 makes.
+// func_08C2038C(_, dest): the global nil.
 void func_08C2038C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t destination = ctx.gpr[5];
     GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, 0x08A76AA0u, {frame.at(0u)});
+    (void)call_guest(rt, ctx, kNil, {frame.at(0u)});
     finish_holder(rt, ctx, destination, frame.at(0u));
 }
 // func_08C20A90(this, dest): func_08A87EEC of the float at this + 8.
@@ -103,12 +102,12 @@ void func_08C21214(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08A5DEE8u, {frame.at(0u), destination, word(rt, self + 8u), word(rt, self + 12u)});
     finish_holder(rt, ctx, destination, frame.at(0u));
 }
-// func_08C2066C(this, dest): func_08A7858C(empty value, this + 8, 1, func_08A6158C(dest)).
+// func_08C2066C(this, dest): func_08A7858C(nil, this + 8, 1, func_08A6158C(dest)).
 void func_08C2066C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], destination = ctx.gpr[5];
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t key = call_guest(rt, ctx, 0x08A6158Cu, {destination});
-    (void)call_guest(rt, ctx, 0x08A76AA0u, {frame.at(0u)});
+    (void)call_guest(rt, ctx, kNil, {frame.at(0u)});
     (void)call_guest(rt, ctx, 0x08A7858Cu, {frame.at(0u), self + 8u, 1u, key});
     finish_holder(rt, ctx, destination, frame.at(0u));
 }
@@ -121,12 +120,12 @@ void func_08C2129C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08A8A2DCu, {frame.at(0u), second, first});
     finish_holder(rt, ctx, destination, frame.at(0u));
 }
-// func_08C204EC(this, other): func_08C2045C(func_08A61624(other), this + 8, empty value), the value destroyed (no assign).
+// func_08C204EC(this, other): func_08C2045C(func_08A61624(other), this + 8, nil), the value destroyed (no assign).
 void func_08C204EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], other = ctx.gpr[5];
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t key = call_guest(rt, ctx, 0x08A61624u, {other});
-    (void)call_guest(rt, ctx, 0x08A76AA0u, {frame.at(0u)});
+    (void)call_guest(rt, ctx, kNil, {frame.at(0u)});
     (void)call_guest(rt, ctx, 0x08C2045Cu, {key, self + 8u, frame.at(0u)});
     ctx.gpr[2] = call_guest(rt, ctx, kHolderDestroy, {frame.at(0u)});
 }
@@ -139,7 +138,7 @@ void func_08C1D7A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = call_guest(rt, ctx, 0x08A69D68u, {frame.at(0u)});
 }
 
-// --- Float getters: a layout routine fills the float at sp + 0 (the other out parameters are 0) ---
+// --- Float getters: func_0896A35C / func_08969B98 (they look like layout routines) fill the float at sp + 0 (the other out parameters are 0) ---
 
 float out_float(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t function, std::uint32_t position) {
     const std::uint32_t self = ctx.gpr[4];
@@ -156,7 +155,7 @@ void func_08BE934C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ct
 void func_08BE9280(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.fpr[0] = out_float(rt, ctx, 0x08969B98u, 1u); }
 void func_08BE9254(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.fpr[0] = out_float(rt, ctx, 0x08969B98u, 2u); }
 
-// --- Range erases of a vector of words: erase(vec, first, last) -> first ---
+// --- What looks like range erases of a vector of words: (vec, first, last) -> first, a memmove of the tail then a per-type routine ---
 
 void erase_range(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t after_move) {
     const std::uint32_t vec = ctx.gpr[4], first = ctx.gpr[5], last = ctx.gpr[6];
@@ -236,7 +235,7 @@ void func_08C0C284(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // --- Argument shufflers ----------------------------------------------------------------------------------------
 
-// func_08B7DF7C(a, b, c) / func_08B7DC1C(a, b) / func_08B7E4CC(a, b, c): the current thread's pointer (func_08B796C4()) is put in front and
+// func_08B7DF7C(a, b, c) / func_08B7DC1C(a, b) / func_08B7E4CC(a, b, c): func_08B796C4() (it looks like the current thread record) is put in front and
 // func_08B7DD9C / func_08B7CABC / func_08B7E314 is called with it (tail call).
 void func_08B7DF7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t a = ctx.gpr[4], b = ctx.gpr[5], c = ctx.gpr[6];
@@ -302,7 +301,7 @@ void func_08C31A00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08AA9240u, {o});
     ctx.gpr[2] = o;
 }
-// func_08BF7C60(o) -> o: an empty value func_08A76ABC makes, func_08A76ABC(o, value), the value destroyed.
+// func_08BF7C60(o) -> o: a value func_08A76ABC makes, func_08A76ABC(o, value), the value destroyed.
 void func_08BF7C60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t o = ctx.gpr[4];
     GuestFrame frame(ctx, 0x20u);
@@ -364,7 +363,7 @@ void func_0880B750(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08869220u, {ctx.gpr[4] + 48u, word(rt, ctx.gpr[5])});
     ctx.gpr[2] = 1u;
 }
-// func_0880BB38(o, p, q) -> r: under the lock o (func_08B344E0 / func_08B3457C), r = func_088693CC(o + 48, *p, *q).
+// func_0880BB38(o, p, q) -> r: under the lock o (gt::libc::page_heap::heap_lock / heap_unlock), r = func_088693CC(o + 48, *p, *q).
 void func_0880BB38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t o = ctx.gpr[4], p = ctx.gpr[5], q = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);

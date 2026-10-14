@@ -7,6 +7,11 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#ifdef GT_HOT_COVERAGE
+#include <cstdio>
+#include <map>
+#include <string>
+#endif
 
 namespace gt::game::hot {
 
@@ -30,5 +35,21 @@ inline float psp_mul(float a, float b) {
     if ((std::isinf(a) && b == 0.0f) || (std::isinf(b) && a == 0.0f)) return std::bit_cast<float>(0x7FC00000u);
     return a * b;
 }
+
+// Branch coverage of the decompiled code for the gate's compared cases: define GT_HOT_COVERAGE in a source file and every
+// GT_COVER("tag") counts there; the counts print to stderr at exit ("[cover] tag n"). A no-op otherwise.
+#ifdef GT_HOT_COVERAGE
+inline void cover(const char *tag) {
+    static std::map<std::string, unsigned long> counts;
+    ++counts[tag];
+    static struct Printer {
+        std::map<std::string, unsigned long> *map;
+        ~Printer() { for (const auto &[k, v] : *map) std::fprintf(stderr, "[cover] %s %lu\n", k.c_str(), v); }
+    } printer{&counts};
+}
+#define GT_COVER(tag) ::gt::game::hot::cover(tag)
+#else
+#define GT_COVER(tag) ((void)0)
+#endif
 
 } // namespace gt::game::hot
