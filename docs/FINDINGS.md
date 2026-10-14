@@ -1086,9 +1086,14 @@ missing (GPU gate ×1, dealer route: 515/1763 frames equal; race ~93 %, garage 1
 (`GT_GPU_STATS` on the route: only add with `As / 1−As`, `As / fix FFFFFF` and `min(1, 2As) / min(1, 2(1−As))` —
 the last computed in `ge.frag blendFactor` with the same formula as `ge_renderer.cpp blend_factor`), stencil
 (neither path implements it) and render-target aliasing (`find_target` keys on the address masked to
-`0x001FFFF0`; no target sits at the environment map's address). Lead: 257 blended
-draws per frame use a DXT1 environment map in VRAM (`tex @040d4000 fmt 8 128x128`, `GT_GE_LOG`) — the
-reflection pass; compare its texture function, UV generation (env mapping) and the texture's decode on both paths.
+`0x001FFFF0`; no target sits at the environment map's address). Followed up
+with `GT_GE_LOG_DETAIL=1`: the 257 reflection draws per frame use environment mapping (`texmap 000202`: UVs
+from the normals and lights 2/0), blend As / fix FFFFFF and color doubling, sampling a DXT1 map whose address
+moves (`0x040D4000`, `0x040CC000` — the latter where a display buffer once was, so the GPU took it for that
+render target); both paths compute the env-map UVs with the same formula, and refusing DXT/CLUT textures as
+render targets changed nothing measurable (517/1758) — not merged. Every draw of that frame targets the shown
+buffer (no offscreen render-to-texture). Still to find: the turntable ring, the plate text and a glow beside the
+car.
 **Fix / workaround.** None yet; documented as the GPU path's known difference.
 **Why it isn't obvious.** Everything else in the dealer frame matches; only the reflective surfaces differ.
 

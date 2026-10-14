@@ -116,7 +116,8 @@ por git); no hace falta tener PPSSPP instalado. Otras: `GT_FONT_DIR=/ruta/a/flas
 Las partidas guardadas van a `recomp/savedata` y se borran al arrancar (cada ejecución empieza igual);
 con `GT_SAVEDATA_DIR=/ruta` se conservan. `GT_GE_LOG=<vblank>` vuelca los dibujos de las listas GE del
 primer vblank desde ese que envía alguna (texturas, transferencias, estados); con `GT_GPU_DUMP` el registro dice
-el vblank de cada frame volcado (`[gpu-dump] frame N vblank V`).
+el vblank de cada frame volcado (`[gpu-dump] frame N vblank V`); `GT_GE_LOG_DETAIL=1` añade, por cada dibujo, el estado
+donde suelen esconderse las diferencias (tipo de vértice, luces, función de textura, mapeo, mezcla, test alfa/z).
 
 Para llegar a una carrera (Single Player → Single Race → coche → pista → salida), unos 3–4 min:
 
