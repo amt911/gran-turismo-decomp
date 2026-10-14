@@ -1197,3 +1197,5 @@ runtime address is `(hi << 16) + signed(lo) + p_vaddr[segment] + 0x08804000`. Ca
 A pair without a HI16/LO16 relocation is a plain constant (a float bit pattern, a mask), not an address.
 
 **Fix / workaround.** Read the relocation's segment and the program headers (`tools/family_members.py`).
+
+Found: 2026-10-14 · tools/family_members.py
