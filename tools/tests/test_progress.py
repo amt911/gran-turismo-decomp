@@ -94,3 +94,16 @@ def test_decompiled_functions_counts_a_subsystems_shorthand_registrations(tmp_pa
         "    GT_FIELD(guest::be16, race_type, 0x04);\n",
     )
     assert set(decompiled_functions(tmp_path)) == {0x08804028 - LOAD_BASE}
+
+
+def test_decompiled_functions_counts_a_one_argument_instance_macro(tmp_path: Path):
+    # src/game/unsorted/hot_batch_63.cpp: #define HOT63_CONTAINER(address) HOT63(address, get_empty_container, Word)
+    write_src(
+        tmp_path,
+        "game/unsorted/hot_batch_63.cpp",
+        "#define HOT63_CONTAINER(address) HOT63(address, get_empty_container, Word)\n"
+        "HOT63_CONTAINER(0x08BF0630u);\n"
+        "// HOT63_CONTAINER(0x08C0919Cu);\n"
+        "    SOME_TABLE(0x08C12FF8u)\n",
+    )
+    assert set(decompiled_functions(tmp_path)) == {0x08BF0630 - LOAD_BASE}

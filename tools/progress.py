@@ -22,8 +22,9 @@ SDK_DIRS = ("libc", "libm", "libstdcxx", "libgcc", "sdk")
 # shorthand macro taking the address and a function name):
 # one behind `//` is decompiled but not swapped in (not comparable yet).
 # A subsystem's shorthand for GT_DECOMP (src/game/race/race_operator.cpp: RACE_OPERATOR(0x..u, name, kind)): an
-# upper-case macro whose arguments start with the address and a function name. tools.progress_map uses it too.
-SHORTHAND_REGISTRATION = r"[A-Z][A-Z0-9_]*\(\s*0x([0-9A-Fa-f]+)u?\s*,\s*[A-Za-z_]"
+# upper-case macro whose arguments start with the address and a function name, or that takes the address alone and
+# expands to a registration of a shared body (`HOT63_CONTAINER(0x..u);`). tools.progress_map uses it too.
+SHORTHAND_REGISTRATION = r"[A-Z][A-Z0-9_]*\(\s*0x([0-9A-Fa-f]+)u?\s*(?:,\s*[A-Za-z_]|\)\s*;)"
 _REGISTRATION = re.compile(
     r"^[ \t]*(?:GT_DECOMP(?:_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]|" + SHORTHAND_REGISTRATION + ")",
     re.MULTILINE,
