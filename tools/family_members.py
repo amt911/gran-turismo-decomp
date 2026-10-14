@@ -21,6 +21,10 @@ Usage (from the repository root; reads extracted/EBOOT.elf, recomp/analysis/func
   .venv/bin/python -m tools.family_members 0x08C379F8 --probe LOGS... [-v] [--cpp pair_call_a]
   # 4. check the rows already written in a source file (a path, or REF:PATH for a branch) against the words:
   .venv/bin/python -m tools.family_members --check origin/decomp/hot-batch-69:src/game/unsorted/hot_batch_69.cpp
+  #    The rows of one wrapper are one family: argument i of every row must be the member's own value at the SAME
+  #    word position (the position most rows take argument i from), so swapped, missing or extra arguments fail.
+  #    A row whose arguments are not plain literals is counted as unparsed and fails unless --allow-unparsed.
+  #    A wrapper with a single row has nothing to compare columns with: its arguments are checked in word order.
 
 `--exclude-ref REF` also treats the registrations in `src/` at a git ref as done (the open batches' branches).
 Output of a member: `func_ADDR  hits=N  <values that differ from the template>`; `-v` adds every value of the member
@@ -177,7 +181,7 @@ def member_values(words: Sequence[int], address: int, relocs: Mapping[int, int],
             elif base is None or base.origin == "small":
                 values.append(Value(i, "disp", _simm(word), (i,)))
         elif op in (2, 3):
-            target = (word & 0x3FFFFFF) << 2
+            target = (word & 0x3FFFFFF) << 2  # j/jal keep bits 31-28 of the delay slot's address: right for addresses < 0x10000000 (all of PDIAPP's ELF vaddrs)
             clear_at.add(i + 2)
             if op == 2 and address <= target < end:
                 pass  # a jump inside the function (a loop, a shared tail): control flow, not a per-member value
@@ -325,56 +329,124 @@ def cpp_row(runtime_address: int, wrapper: str, values: Sequence[Value]) -> str:
             f"{{ {wrapper}(rt, ctx{args}); }}")
 
 
-_ROW = re.compile(r"^void func_([0-9A-Fa-f]{8})\([^)]*\)\s*\{\s*(\w+)\(rt, ctx((?:,\s*(?:0[xX][0-9A-Fa-f]+|\d+)[uU]?)*)\);\s*\}",
-                  re.MULTILINE)
+_LITERAL = r"(?:0[xX][0-9A-Fa-f]+|\d+)[uU]?"
+_HEAD = r"^void func_([0-9A-Fa-f]{8})\([^)]*\)\s*\{\s*(\w+)\(rt, ctx"
+_ROW = re.compile(_HEAD + rf"((?:,\s*{_LITERAL})*)\);\s*\}}", re.MULTILINE)
+_ANY_ROW = re.compile(_HEAD + r"((?:,[^;]*)?)\);\s*\}", re.MULTILINE)
+
+
+def parse_all_rows(source: str) -> list[tuple[int, str, list[int] | None]]:
+    """(runtime address, wrapper, numeric arguments) of every one-line wrapper instance in a source text; the
+    arguments are None when any of them is not a plain hex/decimal literal (-1, a symbol, an expression): such a row
+    cannot be compared and the caller has to say so instead of dropping it."""
+    out: list[tuple[int, str, list[int] | None]] = []
+    for m in _ANY_ROW.finditer(source):
+        strict = _ROW.fullmatch(m[0])
+        args = None if strict is None else [int(a.strip().rstrip("uU"), 0) for a in strict[3].split(",") if a.strip()]
+        out.append((int(m[1], 16), m[2], args))
+    return out
 
 
 def parse_rows(source: str) -> list[tuple[int, str, list[int]]]:
-    """(runtime address, wrapper, numeric arguments) of every one-line wrapper instance in a source text."""
-    return [(int(m[1], 16), m[2], [int(a.strip().rstrip("uU"), 0) for a in m[3].split(",") if a.strip()])
-            for m in _ROW.finditer(source)]
+    """(runtime address, wrapper, numeric arguments) of every one-line wrapper instance with literal arguments."""
+    return [(a, w, args) for a, w, args in parse_all_rows(source) if args is not None]
 
 
-def check_row(args: Sequence[int], values: Sequence[Value], ordered: bool = True) -> str | None:
-    """None when every argument is one of the member's own values (in word order unless `ordered` is off)."""
-    pool = [v.value & _M for v in values]
-    position = 0
-    for arg in args:
-        wanted = arg & _M
-        if ordered:
-            try:
-                position = pool.index(wanted, position) + 1
-            except ValueError:
-                return f"argument 0x{wanted:08X} is not (in order) among the member's words"
-        elif wanted not in pool:
-            return f"argument 0x{wanted:08X} is not among the member's words"
+def check_row(args: Sequence[int], expected: Sequence[int]) -> str | None:
+    """None when the row has exactly the expected values, argument i against column i (modulo 2**32); otherwise
+    what is wrong: the count, or the first argument that is not its column's value."""
+    if len(args) != len(expected):
+        return f"{len(args)} arguments, the wrapper's table has {len(expected)} columns"
+    for position, (arg, want) in enumerate(zip(args, expected)):
+        if arg & _M != want & _M:
+            return f"argument {position} is 0x{arg & _M:08X}, the member's own words give 0x{want & _M:08X}"
     return None
+
+
+def column_map(rows: Sequence[tuple[Sequence[int], Sequence[Value]]], width: int) -> list[int]:
+    """For each of the `width` arguments, the value position (in the members' decoded lists, which all line up) that
+    holds that argument in the most rows: the column the wrapper's table takes it from. The first such position wins
+    a tie, so two columns that no row tells apart still compare positionally."""
+    chosen = []
+    for k in range(width):
+        hits: dict[int, int] = {}
+        for args, values in rows:
+            for p, v in enumerate(values):
+                if v.value & _M == args[k] & _M:
+                    hits[p] = hits.get(p, 0) + 1
+        chosen.append(min(hits, key=lambda p: (-hits[p], p)) if hits else -1)
+    return chosen
 
 
 @dataclass
 class CheckResult:
     ok: int = 0
-    reordered: list[int] = field(default_factory=list)
     bad: list[tuple[int, str]] = field(default_factory=list)
-    unknown: list[int] = field(default_factory=list)
+    unknown: list[int] = field(default_factory=list)      # no argument to compare, or not a function of the ELF
+    unparsed: list[int] = field(default_factory=list)     # arguments that are not plain literals: NOT compared
+    single: list[int] = field(default_factory=list)       # only row of its wrapper: checked in word order only
 
 
 def check_rows(source: str, words_of: Callable[[int], Sequence[int] | None],
                relocs_of: Callable[[int], Mapping[int, int]], segments: Sequence[int] = ()) -> CheckResult:
-    """Every wrapper row of `source` against the words of its own function (`words_of(runtime address)`)."""
+    """Every wrapper row of `source` against the words of its own function (`words_of(runtime address)`).
+
+    The rows of one wrapper are one family: the table's columns are the positions where the members' decoded values
+    differ (`columns`, as `--cpp` prints them), and argument i of a row must equal the member's own value at
+    column i. A row with another number of arguments, or a function that does not decode to the family's shape,
+    fails; a row whose arguments are not literals is counted in `unparsed`."""
     result = CheckResult()
-    for runtime, _wrapper, args in parse_rows(source):
+    families: dict[str, list[tuple[int, list[int], list[Value]]]] = {}
+    for runtime, wrapper, args in parse_all_rows(source):
+        if args is None:
+            result.unparsed.append(runtime)
+            continue
         words = words_of(runtime)
         if words is None or not args:
             result.unknown.append(runtime)
             continue
         values = member_values(words, runtime - LOAD_BASE, relocs_of(runtime), segments)
-        if check_row(args, values) is None:
-            result.ok += 1
-        elif (message := check_row(args, values, ordered=False)) is None:
-            result.reordered.append(runtime)
+        families.setdefault(wrapper, []).append((runtime, args, values))
+    for rows in families.values():
+        shapes = [[(v.kind, v.index) for v in values] for _, _, values in rows]
+        common = max(shapes, key=shapes.count)
+        counts = [len(args) for _, args, _ in rows]
+        width = max(set(counts), key=lambda n: (counts.count(n), n))
+        for (runtime, _, _), shape in zip(rows, shapes):
+            if shape != common:
+                result.bad.append((runtime, "its words do not decode to the same sequence of values as the other rows of the wrapper"))
+        lined = [r for r, shape in zip(rows, shapes) if shape == common]
+        for runtime, args, _ in lined:
+            if len(args) != width:
+                result.bad.append((runtime, f"{len(args)} arguments, the other rows of the wrapper have {width}"))
+        rated = [(runtime, args, values) for runtime, args, values in lined if len(args) == width]
+        if len(rated) == 1:  # one row: no other row says which word feeds which column; word order is all there is
+            runtime, args, values = rated[0]
+            result.single.append(runtime)
+            cols = None
         else:
-            result.bad.append((runtime, message))
+            cols = column_map([(args, values) for _, args, values in rated], width)
+        for runtime, args, values in rated:
+            if cols is None:
+                pool = [v.value & _M for v in values]
+                position, message = 0, None
+                for arg in args:
+                    try:
+                        position = pool.index(arg & _M, position) + 1
+                    except ValueError:
+                        message = f"argument 0x{arg & _M:08X} is not (in word order) among the member's words"
+                        break
+            else:
+                message = None
+                if -1 in cols:
+                    message = f"argument {cols.index(-1)} is no value of the member's words"
+                else:
+                    message = check_row(args, [values[p].value for p in cols])
+            if message is None:
+                result.ok += 1
+            else:
+                result.bad.append((runtime, message))
+    result.bad.sort()
     return result
 
 
@@ -472,6 +544,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--write-probe-symbols", type=Path, metavar="FILE")
     parser.add_argument("--max-insns", type=int, default=70)
     parser.add_argument("--check", metavar="[REF:]PATH", help="check the wrapper rows of a source file against the words")
+    parser.add_argument("--allow-unparsed", action="store_true",
+                        help="--check: do not fail on rows whose arguments are not literals (they are still counted)")
     parser.add_argument("--cpp", metavar="WRAPPER", help="print each member as a one-line wrapper instance")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
@@ -504,13 +578,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             return image.function(vaddr, sizes[vaddr])[1]
 
         result = check_rows(text, words_of, relocs_of, image.segments)
-        print(f"{result.ok} rows match their own words; {len(result.reordered)} match out of order; "
-              f"{len(result.bad)} do not; {len(result.unknown)} without a numeric row / unknown function")
-        for runtime in result.reordered:
-            print(f"  reordered func_{runtime:08X}")
+        print(f"{result.ok} rows match their own words; {len(result.bad)} do not; {len(result.unparsed)} unparsed "
+              f"(arguments that are not literals, NOT compared); {len(result.unknown)} without arguments / unknown function; "
+              f"{len(result.single)} alone in their wrapper (checked in word order only)")
         for runtime, message in result.bad:
             print(f"  BAD func_{runtime:08X}: {message}")
-        return 1 if result.bad else 0
+        for runtime in result.unparsed:
+            print(f"  UNPARSED func_{runtime:08X}")
+        return 1 if result.bad or (result.unparsed and not args.allow_unparsed) else 0
 
     if args.write_probe_symbols:
         text = probe_symbols(sizes, done, emitted if emitted is not None else inside, args.max_insns)

@@ -304,3 +304,15 @@ def test_probe_shell_runs_the_five_fast_routes_uncapped_with_the_decomp_off_and_
     assert "GT_PROBE_SYMBOLS=/s/syms.txt" in command and "LCS_UNCAPPED=1" in command
     assert "--max-seconds 230" in command and "--max-seconds 200" in command
     assert "recomp/analysis/probe_t1_options.log" in command and "--decomp diff" not in command
+
+
+def test_probe_shell_records_each_routes_exit_code_next_to_its_log():
+    command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
+    assert command.count("echo $? >") == 5 and "recomp/analysis/probe_t1_options.exit" in command
+
+
+def test_a_probe_route_that_times_out_or_exits_non_zero_is_a_failure():
+    assert "timed out" in gate.probe_problem("[probe] 0x08804028 hits=1\n", "124")
+    assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "139") == "exit 139"
+    assert "no exit code" in gate.probe_problem("", "?")
+    assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "0") is None

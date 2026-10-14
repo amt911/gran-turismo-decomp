@@ -295,39 +295,123 @@ def test_parse_rows_reads_wrapper_calls_with_hex_and_decimal_arguments():
                                   (0x08C401C4, "clamp_step", [])]
 
 
-def test_check_row_accepts_arguments_that_are_member_values_in_order():
-    vs = values(pair_member(0x4D8500, 0x300), PAIR_RELOCS)
-    assert fm.check_row([0x4D8500 + LOAD_BASE, 0x300 + LOAD_BASE], vs) is None
+def row_src(runtime: int, wrapper: str, *args: str) -> str:
+    joined = "".join(f", {a}" for a in args)
+    return (f"void func_{runtime:08X}(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) "
+            f"{{ {wrapper}(rt, ctx{joined}); }}\n")
 
 
-def test_check_row_ignores_other_values_between_the_arguments():
-    words = [addiu(A2, ZERO, 7)] + pair_member(0x4D8500, 0x300)
-    vs = values(words, {1: fm.R_MIPS_HI16, 2: fm.R_MIPS_LO16, 6: fm.R_MIPS_26})
-    assert fm.check_row([0x4D8500 + LOAD_BASE, 0x300 + LOAD_BASE], vs) is None
+def hexu(value: int) -> str:
+    return f"0x{value + LOAD_BASE:08X}u"
 
 
-def test_check_row_names_the_argument_that_no_word_of_the_member_explains():
-    vs = values(pair_member(0x4D8500, 0x300), PAIR_RELOCS)
-    assert "0x00000401" in fm.check_row([0x4D8500 + LOAD_BASE, 0x401], vs)
-
-
-def test_check_row_rejects_arguments_in_the_wrong_order():
-    vs = values(pair_member(0x4D8500, 0x300), PAIR_RELOCS)
-    assert fm.check_row([0x300 + LOAD_BASE, 0x4D8500 + LOAD_BASE], vs) is not None
-
-
-def test_check_rows_reports_each_function_and_counts():
-    words = {0x1000: pair_member(0x4D8500, 0x300), 0x2000: pair_member(0x4D8600, 0x400)}
+def pair_check(rows: dict[int, tuple[int, int]], lines: str):
+    """check_rows over pair members: `rows` maps an ELF vaddr to the (static, callee) its words build."""
+    words = {a: pair_member(s, c) for a, (s, c) in rows.items()}
     relocs = {a: PAIR_RELOCS for a in words}
-    src = (f"void func_{0x1000 + LOAD_BASE:08X}(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) "
-           f"{{ f(rt, ctx, 0x{0x4D8500 + LOAD_BASE:08X}u, 0x{0x300 + LOAD_BASE:08X}u); }}\n"
-           f"void func_{0x2000 + LOAD_BASE:08X}(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) "
-           f"{{ f(rt, ctx, 0x{0x4D8600 + LOAD_BASE:08X}u, 0x{0x401 + LOAD_BASE:08X}u); }}\n"
-           f"void func_{0x3000 + LOAD_BASE:08X}(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {{ f(rt, ctx); }}\n")
-    result = fm.check_rows(src, lambda a: words.get(a - LOAD_BASE), lambda a: relocs.get(a - LOAD_BASE, {}))
-    assert result.ok == 1
+    return fm.check_rows(lines, lambda a: words.get(a - LOAD_BASE), lambda a: relocs.get(a - LOAD_BASE, {}))
+
+
+FAMILY = {0x1000: (0x4D8500, 0x300), 0x2000: (0x4D8600, 0x400), 0x3000: (0x4D8700, 0x500)}
+
+
+def family_lines(*overrides: tuple[int, str, str]) -> str:
+    """One row per FAMILY member (static, callee in word order); an override replaces the row of that address."""
+    swap = {a: (x, y) for a, x, y in overrides}
+    out = ""
+    for a, (s, c) in FAMILY.items():
+        x, y = swap.get(a, (hexu(s), hexu(c)))
+        out += row_src(a + LOAD_BASE, "f", x, y)
+    return out
+
+
+def test_check_row_accepts_exactly_the_expected_values_in_column_order():
+    assert fm.check_row([0x4D8500 + LOAD_BASE, 0x300 + LOAD_BASE], [0x4D8500 + LOAD_BASE, 0x300 + LOAD_BASE]) is None
+
+
+def test_check_row_names_the_argument_and_column_that_differ():
+    message = fm.check_row([0x4D8500 + LOAD_BASE, 0x401], [0x4D8500 + LOAD_BASE, 0x300 + LOAD_BASE])
+    assert "argument 1" in message and "0x00000401" in message
+
+
+def test_check_row_rejects_swapped_arguments():
+    assert fm.check_row([0x300 + LOAD_BASE, 0x4D8500 + LOAD_BASE], [0x4D8500 + LOAD_BASE, 0x300 + LOAD_BASE]) is not None
+
+
+def test_check_row_rejects_a_missing_or_an_extra_argument():
+    expected = [1, 2]
+    assert "1 argument" in fm.check_row([1], expected) and "2" in fm.check_row([1], expected)
+    assert "3 argument" in fm.check_row([1, 2, 3], expected)
+
+
+def test_check_row_compares_signed_values_modulo_2_32():
+    assert fm.check_row([0xFFFFFFFF], [-1 & 0xFFFFFFFF]) is None
+
+
+def test_check_rows_accepts_a_family_whose_rows_match_their_words():
+    result = pair_check(FAMILY, family_lines())
+    assert (result.ok, result.bad, result.unparsed) == (3, [], [])
+
+
+def test_check_rows_fails_a_row_whose_arguments_are_swapped():
+    swapped = (0x2000, hexu(0x400), hexu(0x4D8600))
+    result = pair_check(FAMILY, family_lines(swapped))
+    assert result.ok == 2 and [a for a, _ in result.bad] == [0x2000 + LOAD_BASE]
+
+
+def test_check_rows_fails_a_row_with_fewer_or_more_arguments():
+    words = {a: pair_member(s, c) for a, (s, c) in FAMILY.items()}
+    short = family_lines().replace(f", {hexu(0x500)}", "")
+    long = family_lines().replace(f", {hexu(0x500)}", f", {hexu(0x500)}, 0x1u")
+    for source in (short, long):
+        result = fm.check_rows(source, lambda a: words.get(a - LOAD_BASE), lambda a: PAIR_RELOCS)
+        assert [a for a, _ in result.bad] == [0x3000 + LOAD_BASE], source
+
+
+def test_check_rows_compares_each_argument_with_its_own_column_not_with_any_word():
+    # 0x400 is a value of member 0x2000 (its callee) but the second column holds the callee, not the static
+    wrong = (0x2000, hexu(0x4D8600), hexu(0x4D8600))
+    result = pair_check(FAMILY, family_lines(wrong))
     assert [a for a, _ in result.bad] == [0x2000 + LOAD_BASE]
-    assert result.unknown == [0x3000 + LOAD_BASE]
+
+
+def test_check_rows_still_compares_by_position_when_two_columns_are_equal_in_a_member():
+    words = {a: pair_member(s, c) for a, (s, c) in FAMILY.items()}
+    words[0x3000] = pair_member(0x4D8700, 0x4D8700)  # static address and callee decode to the same number
+    equal = (0x3000, hexu(0x4D8700), hexu(0x4D8700))
+    result = fm.check_rows(family_lines(equal), lambda a: words.get(a - LOAD_BASE), lambda a: PAIR_RELOCS)
+    assert result.ok == 3 and result.bad == []
+
+
+def test_check_rows_counts_arguments_that_are_not_literals_as_unparsed_never_skipped():
+    for argument in ("-1", "kStatic", "0x10u + 4u"):
+        lines = family_lines((0x2000, argument, hexu(0x400)))
+        result = pair_check(FAMILY, lines)
+        assert result.unparsed == [0x2000 + LOAD_BASE], argument
+        assert result.ok == 2 and result.bad == []
+
+
+def test_check_rows_checks_a_lone_row_in_word_order_and_reports_it_as_alone():
+    good = row_src(0x1000 + LOAD_BASE, "f", hexu(0x4D8500), hexu(0x300))
+    swapped = row_src(0x1000 + LOAD_BASE, "f", hexu(0x300), hexu(0x4D8500))
+    for source, bad in ((good, 0), (swapped, 1)):
+        result = pair_check({0x1000: (0x4D8500, 0x300)}, source)
+        assert (len(result.bad), result.single) == (bad, [0x1000 + LOAD_BASE])
+
+
+def test_check_rows_ignores_rows_of_functions_it_does_not_know_and_rows_without_arguments():
+    words = {0x1000: pair_member(0x4D8500, 0x300)}
+    src = (row_src(0x1000 + LOAD_BASE, "f", hexu(0x4D8500), hexu(0x300)) + row_src(0x9000 + LOAD_BASE, "f", "1u")
+           + row_src(0x3000 + LOAD_BASE, "g"))
+    result = fm.check_rows(src, lambda a: words.get(a - LOAD_BASE), lambda a: PAIR_RELOCS)
+    assert result.ok == 1 and result.unknown == [0x9000 + LOAD_BASE, 0x3000 + LOAD_BASE]
+
+
+def test_check_rows_fails_a_row_that_does_not_line_up_with_the_others_of_its_wrapper():
+    words = {a: pair_member(s, c) for a, (s, c) in FAMILY.items()}
+    words[0x3000] = [lui(V1, 0), addiu(V1, V1, 5), JR_RA, NOP]
+    result = fm.check_rows(family_lines(), lambda a: words.get(a - LOAD_BASE), lambda a: PAIR_RELOCS)
+    assert result.ok == 2 and [a for a, _ in result.bad] == [0x3000 + LOAD_BASE]
 
 
 # --- the real file formats -----------------------------------------------------------------------------------------------
@@ -555,3 +639,21 @@ def test_parameters_return_each_members_values_at_the_columns_and_the_strays():
     good = {0x10: [V(1, 11), V(3, 5, "call")], 0x20: [V(1, 12), V(3, 5, "call")]}
     cols, rows, stray = fm.parameters(template, {**good, 0x30: [V(2, 1)]})
     assert cols == [0] and [v.value for v in rows[0x20]] == [12] and stray == [0x30]
+
+
+def test_main_check_fails_swapped_arguments_and_unparsed_rows_unless_allowed(family_files, capsys):
+    common, tmp_path = family_files
+    rows = tmp_path / "rows.cpp"
+    lines = [row_src(0x28 + LOAD_BASE, "f", hexu(0x4D8500), hexu(0x300)),
+             row_src(0x4C + LOAD_BASE, "f", hexu(0x4D8600), hexu(0x400)),
+             row_src(0x70 + LOAD_BASE, "f", hexu(0x4D8700), hexu(0x500))]
+    rows.write_text("".join(lines))
+    assert fm.main(["--check", str(rows), *common]) == 0
+    rows.write_text("".join(lines[:2]) + row_src(0x70 + LOAD_BASE, "f", hexu(0x500), hexu(0x4D8700)))
+    assert fm.main(["--check", str(rows), *common]) == 1
+    assert "BAD func_08804070" in capsys.readouterr().out
+    rows.write_text("".join(lines[:2]) + row_src(0x70 + LOAD_BASE, "f", "-1", hexu(0x500)))
+    assert fm.main(["--check", str(rows), *common]) == 1
+    out = capsys.readouterr().out
+    assert "1 unparsed" in out and "UNPARSED func_08804070" in out
+    assert fm.main(["--check", str(rows), "--allow-unparsed", *common]) == 0

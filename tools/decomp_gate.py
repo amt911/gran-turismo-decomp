@@ -283,8 +283,20 @@ def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path) -> str:
     for route, seconds in ROUTES["fast"]:
         log = logs / f"probe_{tag}_{route}.log"
         parts.append(f'( GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
-                     f"timeout 1000 {binary} --max-seconds {seconds} --decomp off > {log} 2>&1 ) &")
+                     f"timeout 1000 {binary} --max-seconds {seconds} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
     return " ".join(parts) + " wait"
+
+
+def probe_problem(text: str, exit_code: str) -> str | None:
+    """Why a probe route's log can't be trusted (like `route_problem` for the gate), or None: a timeout, a crash or a
+    run that left no exit code means the hit counts are partial, and a family built on them would miss members."""
+    if exit_code == "124":
+        return "timed out (killed by timeout; the hit counts are partial)"
+    if exit_code == "?":
+        return "no exit code (the run did not finish)"
+    if exit_code != "0":
+        return f"exit {exit_code}"
+    return None
 
 
 def clear_run(tag: str, logs: Path) -> None:
@@ -445,13 +457,22 @@ def _probe_run(tag: str, symbols: Path) -> int:  # pragma: no cover - runs the g
     subprocess.run(slice_limits(), check=True)
     slot = HeavySlot()
     slot.acquire()
+    for stale in Path("recomp/analysis").glob(f"probe_{tag}_*"):
+        stale.unlink()  # an earlier run's logs and exit codes must not stand in for this one
     try:
         subprocess.run(heavy(["sh", "-c", probe_shell(Path("build/gt_native"), tag, symbols.resolve(), Path("recomp/analysis"))]))
     finally:
         slot.release()
     logs = sorted(Path("recomp/analysis").glob(f"probe_{tag}_*.log"))
     print(f"{len(logs)} probe logs: " + " ".join(str(p) for p in logs))
-    return 0 if len(logs) == len(ROUTES["fast"]) else 2
+    status = 0 if len(logs) == len(ROUTES["fast"]) else 2
+    for log in logs:
+        exit_file = log.with_suffix(".exit")
+        problem = probe_problem(log.read_text(errors="replace"), exit_file.read_text().strip() if exit_file.exists() else "?")
+        if problem:
+            print(f"  {log.name}: {problem}")
+            status = 1
+    return status
 
 
 def _report(tag: str) -> int:  # pragma: no cover - reads the run's files

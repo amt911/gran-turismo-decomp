@@ -107,3 +107,9 @@ def test_decompiled_functions_counts_a_one_argument_instance_macro(tmp_path: Pat
         "    SOME_TABLE(0x08C12FF8u)\n",
     )
     assert set(decompiled_functions(tmp_path)) == {0x08BF0630 - LOAD_BASE}
+
+
+def test_a_one_argument_macro_that_is_not_a_registration_is_not_counted(tmp_path: Path):
+    # FOO(0x10); is a plain macro call with a small constant: not a runtime function address, so not a registration
+    write_src(tmp_path, "game/unsorted/x.cpp", "FOO(0x10);\nBAR(0x1234u);\nHOT63_CONTAINER(0x08BF0630u);\n")
+    assert set(decompiled_functions(tmp_path)) == {0x08BF0630 - LOAD_BASE}
