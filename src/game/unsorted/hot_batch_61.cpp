@@ -301,6 +301,51 @@ void func_08BEDD64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
 }
 
+// func_08C02614 / func_08B876E0 (first, last): func_08A5B9EC(p) for each word p of [first, last), as func_08C1D3AC.
+void func_08C02614(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { func_08C1D3AC(rt, ctx); }
+void func_08B876E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { func_08C1D3AC(rt, ctx); }
+
+// func_08BF5ADC(head): frees (func_08A5BC54(node, 12, 4)) each node {next, ...} of the circular list that starts at head[0], up to the head.
+void func_08BF5ADC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t head = ctx.gpr[4];
+    std::uint32_t node = word(rt, head);
+    if (node == head) return;
+    GuestFrame frame(ctx, 0x10u);
+    for (;;) {
+        const std::uint32_t next = word(rt, node);
+        ctx.gpr[2] = call_guest(rt, ctx, kFree, {node, 12u, 4u});
+        node = next;
+        if (head == next) break;
+    }
+}
+
+// func_08B5C2B0(p) -> *p - 1, after *p = func_08B60804(0x08D6E110, 1) + 1 when *p is 0 (an id taken from a counter on first use).
+void func_08B5C2B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t p = ctx.gpr[4];
+    std::uint32_t id = word(rt, p);
+    if (id == 0u) {
+        GuestFrame frame(ctx, 0x10u);
+        id = call_guest(rt, ctx, 0x08B60804u, {0x08D6E110u, 1u}) + 1u;
+        put(rt, p, id);
+    }
+    ctx.gpr[2] = id - 1u;
+}
+
+// func_08C30980(first, last, from*, to*): every byte of [first, last) equal to the signed byte *from becomes *to; v0 = the last byte read for the
+// comparison (*from) or, after a replacement, *to (unchanged for an empty range).
+void func_08C30980(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t last = ctx.gpr[5], from = ctx.gpr[6], to = ctx.gpr[7];
+    for (std::uint32_t p = ctx.gpr[4]; p != last; ++p) {
+        const auto current = static_cast<std::int8_t>(rt.memory().load8(p));
+        const auto wanted = static_cast<std::int8_t>(rt.memory().load8(from));
+        ctx.gpr[2] = static_cast<std::uint32_t>(static_cast<std::int32_t>(wanted));
+        if (current == wanted) {
+            ctx.gpr[2] = rt.memory().load8(to);
+            rt.memory().store8(p, static_cast<std::uint8_t>(ctx.gpr[2]));
+        }
+    }
+}
+
 } // namespace hot_batch_61
 } // namespace gt::game
 
@@ -317,7 +362,6 @@ HOT61(0x08B55588u, func_08B55588, Word);
 HOT61(0x08903504u, func_08903504, Float);
 HOT61(0x08B88FF8u, func_08B88FF8, Word);
 HOT61(0x08C0ED84u, func_08C0ED84, Word);
-HOT61(0x08B17308u, func_08B17308, Word);
 HOT61(0x08B8CF24u, func_08B8CF24, Word);
 HOT61(0x08B93CD8u, func_08B93CD8, Word);
 HOT61(0x08AD3798u, func_08AD3798, Word);
@@ -327,4 +371,11 @@ HOT61(0x08BDB2C0u, func_08BDB2C0, Word);
 HOT61(0x08BE7474u, func_08BE7474, Word);
 HOT61(0x08C1D3ACu, func_08C1D3AC, Word);
 HOT61(0x08BEDD64u, func_08BEDD64, Word);
+HOT61(0x08C02614u, func_08C02614, Word);
+HOT61(0x08B876E0u, func_08B876E0, Word);
+HOT61(0x08BF5ADCu, func_08BF5ADC, Word);
+HOT61(0x08B5C2B0u, func_08B5C2B0, Word);
+HOT61(0x08C30980u, func_08C30980, Word);
+// func_08B17308 is written but not registered: compared 0 in every fast run (no route calls it from outside its generated unit).
+// HOT61(0x08B17308u, func_08B17308, Word);
 #undef HOT61
