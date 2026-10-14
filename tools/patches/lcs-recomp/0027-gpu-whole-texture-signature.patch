@@ -1,0 +1,36 @@
+GT patch 0027: hash every byte of a large texture for its content signature, not 16 samples of 64 bytes:
+GT reloads a texture where an old one of the same size was (the menu's "Single Player" label, then the
+kerbs; one track map, then another) and the samples matched, so the GPU path kept the old image.
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -2067,13 +2067,23 @@
+     if (size <= 4096u) {
+         hash_range(0u, size);
+     } else {
+-        constexpr std::size_t blocks = 16u;
+-        constexpr std::size_t block_bytes = 64u;
+-        for (std::size_t block = 0u; block < blocks; ++block) {
+-            const std::size_t center = (size - 1u) * block / (blocks - 1u);
+-            const std::size_t begin = center > block_bytes / 2u ? center - block_bytes / 2u : 0u;
+-            hash_range(begin, std::min(size, begin + block_bytes));
++        // GT patch 0027: every byte, not 16 samples of 64 bytes: GT loads a new texture where an old one of the
++        // same size was (the menu's "Single Player" label, then a track's kerbs; one track map, then another),
++        // and the samples matched, so the GPU kept drawing the old image. Four independent multiply lanes keep
++        // the whole-texture pass near memory speed; it runs once per texture per frame (or after a transfer).
++        std::uint64_t lanes[4] = {0x9E3779B97F4A7C15ull, 0xC2B2AE3D27D4EB4Full, 0x165667B19E3779F9ull,
++                                  0x27D4EB2F165667C5ull};
++        std::size_t i = 0u;
++        for (; i + 32u <= size; i += 32u) {
++            for (std::size_t lane = 0u; lane < 4u; ++lane) {
++                std::uint64_t word{};
++                std::memcpy(&word, pixels + i + lane * 8u, sizeof(word));
++                lanes[lane] = (lanes[lane] ^ word) * 0x9FB21C651E98DF25ull;
++                lanes[lane] ^= lanes[lane] >> 32u;
++            }
+         }
++        for (const std::uint64_t lane : lanes) mix64(lane);
++        hash_range(i, size);
+     }
+     hash ^= static_cast<std::uint64_t>(size) +
+             (static_cast<std::uint64_t>(texture.width) << 32u) + texture.height;

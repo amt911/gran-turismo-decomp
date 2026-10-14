@@ -1099,3 +1099,17 @@ car.
 
 Found: 2026-10-14 · tools/src/lcs-recomp/lcs/host/ge_gpu_backend_vulkan.cpp, ge_renderer.cpp
 
+
+## GPU: the menu's "Single Player" label drawn on the kerbs, an old track map in the race
+
+**Symptom.** With `NativeGE=true` a track's kerbs showed the main menu's "Single Player" label, and the race's
+track map was another circuit's (GPU gate, race route: 1012/1088 frames equal to the software rasterizer).
+**Cause.** The GPU texture cache keys a texture by its address, size and format plus a content signature, and
+for textures over 4 KiB the signature hashed only 16 samples of 64 bytes. GT loads a new texture where an old one
+of the same size was; when the samples matched (blank borders, transparent areas), the cache kept the old image.
+**Fix / workaround.** lcs-recomp patch 0027 hashes every byte, in four multiply lanes. Once per texture per frame
+(or after a block transfer writes it): GE wait in a race stayed at ~7 %. GPU gate race: 1129/1129 equal.
+**Why it isn't obvious.** Sampled hashes are a common emulator trade-off and work until two textures share
+the sampled bytes; the software rasterizer reads the memory directly, so it never shows the bug.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0027-gpu-whole-texture-signature.patch
