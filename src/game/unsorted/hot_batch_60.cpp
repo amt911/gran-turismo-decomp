@@ -129,15 +129,16 @@ void func_08B88F44(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, out, ctx.gpr[2]);
 }
 
-// func_08C1CCD0(a, key, p): whether `key` is the end iterator or the halfword *p is not below the word at the node func_08C1CC84(a)
-// answers 1 when key == end, else 0 if (u16)*p < *node, else 1.
-// Branches the routes do not take (checked against the asm by hand): key == the end node (answers 1).
+// func_08C1CCD0(a, key, p): with node = func_08C1CC84(a): 0 when key == node, 0 when the halfword *p (zero-extended) is
+// below the word at the node, else 1.
+// Branches the routes do not take (checked against the asm by hand, then corrected in review): key == node answers 0 —
+// the 1 set in the beq's delay slot is overwritten at the branch target (0x08C1CD0C: move a0, zero).
 void func_08C1CCD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t key = ctx.gpr[5], p = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
     const std::uint32_t node = call_guest(rt, ctx, 0x08C1CC84u, {ctx.gpr[4]});
     if (key == node) {
-        ctx.gpr[2] = 1u;
+        ctx.gpr[2] = 0u;
         return;
     }
     const bool below = static_cast<std::int32_t>(rt.memory().load16(p)) < static_cast<std::int32_t>(word(rt, node));
