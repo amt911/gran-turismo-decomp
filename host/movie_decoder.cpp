@@ -78,7 +78,10 @@ struct MovieDecoder::Codec {
             scaler_height = frame->height;
             scaler_format = frame->format;
         }
-        if (scaler == nullptr) return false;
+        if (scaler == nullptr) {
+            av_frame_unref(frame);  // dropped, so the decoder takes packets again
+            return false;
+        }
         width = static_cast<std::uint32_t>(frame->width);
         height = static_cast<std::uint32_t>(frame->height);
         rgba.resize(static_cast<std::size_t>(width) * height * 4u);

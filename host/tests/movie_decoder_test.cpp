@@ -8,6 +8,8 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <vector>
 
