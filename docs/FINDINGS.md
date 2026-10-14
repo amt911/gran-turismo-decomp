@@ -1218,3 +1218,19 @@ Clears of RGB only or alpha only stay draws (vkCmdClearAttachments can't mask ch
 third of the work was clears.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0031-gpu-overdraw-counters-and-clear-rectangles.patch
+
+## A race records ~10,000 draws a frame: the driver's per-draw calls were 13 % of the CPU
+
+**Symptom.** After the GE thread's own costs were cut, a profile of a race (gperftools, race 170–210 s) still
+showed 13 % of all samples inside the Vulkan driver (libnvidia-glcore) and 16 % in libc.
+**Cause.** GT issues ~10,000 small draws a frame (~4 triangles each); the backend recorded for every one of them
+a pipeline bind, the vertex and index buffer binds, a scissor, blend constants and a descriptor-set bind with a
+fresh uniform slot — mostly the same state as the draw before.
+**Fix / workaround.** lcs-recomp patch 0032: the geometry buffer is bound once a frame; pipeline, scissor and
+blend constants only when they change; a draw with the same uniforms and texture as the one before reuses its
+slot and binding. Race at x1, same profile window: process CPU samples 41,382 → 37,306 (−10 %), driver
+5,380 → 2,163 (−60 %). GPU gate race: 341 vs 339 frames equal on the 864 both runs captured.
+**Why it isn't obvious.** The driver's time is outside the game's binary and shows only as a library in a
+whole-process profile; per-draw state is cheap per call and expensive at 10,000 calls a frame.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0032-gpu-record-only-state-changes.patch
