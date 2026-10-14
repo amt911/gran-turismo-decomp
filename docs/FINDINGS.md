@@ -1234,3 +1234,33 @@ slot and binding. Race at x1, same profile window: process CPU samples 41,382 �
 whole-process profile; per-draw state is cheap per call and expensive at 10,000 calls a frame.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0032-gpu-record-only-state-changes.patch
+
+## The kerbs' "Single Player" again: a stale render target, not only the address mask
+
+**Symptom.** After 0029 (only VRAM textures can be targets) the track map was right but the user still saw the
+menu's "Single Player" label on the kerbs of the first race (not on the gate's race route, which never shows those
+kerbs close).
+**Cause.** The kerbs' texture is in VRAM, where the menu once rendered that label. The game loads the texture over
+those bytes with the CPU — which the GPU backend never sees — so the backend still took the address for the
+menu's render target and sampled its old image.
+**Fix / workaround.** lcs-recomp patch 0033: a texture reads a render target only if the GE drew into it within
+the last 4 frames, and a block transfer into a target's memory marks it stale. Effects that sample a target
+(mirror, environment maps) render into it every frame. GPU gate, frames both runs captured: dealer mean difference
+0.0311 → 0.0157, garage 0.0036 → 0.0025, race unchanged (341 equal) — stale targets were also some of the
+dealer's differences.
+**Why it isn't obvious.** The same symptom had two causes (the masked address, then the stale target), and the
+gate's routes only exercised the first.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0033-gpu-stale-render-targets.patch
+
+## An integrated GPU on battery needs a lower internal scale, chosen at run time
+
+**Symptom.** On the laptop (Vega 8), x4 at 1080p cost 14–18 ms of GPU per race frame on battery: the GE thread
+waited in present and the race ran at ~27 fps with audio at 14 kHz, while the menus ran at 60.
+**Cause.** Pixel cost: ~9 fragments per pixel at 1920x1088. The CPU side was no longer the limit there.
+**Fix / workaround.** lcs-recomp patch 0034, `Rendering.GpuBudgetMs` (default 10, 0 = off): in Window mode the
+whole scale steps down while the measured GPU time per frame exceeds the budget and back up when the next scale
+would fit in 70 % of it (`budget_scale_cap`, unit-tested in host/tests/internal_resolution_test.cpp). Headless
+runs have no swapchain (no Window mode), so this one is checked on a real window — the laptop.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0034-gpu-budget-internal-scale.patch, config/gt_play.ini

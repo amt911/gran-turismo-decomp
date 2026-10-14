@@ -1,0 +1,121 @@
+GT patch 0034: Window mode keeps the internal scale under a GPU budget (Rendering.GpuBudgetMs, default 10 ms,
+0 = off): measured with the frame timestamps, one whole scale down while the GPU needs more per frame, one up
+when the next scale would fit well inside and the last change is 6 s old (budget_scale_cap).
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -224,6 +224,12 @@
+     // the GPU is still busy without waiting for it.
+     VkFence frame_fence{};
+     VkQueryPool timestamps{};          // GT patch 0028: two per frame, start and end
++    // GT patch 0034: the GPU time per frame that Window mode's automatic scale follows.
++    double budget_gpu_ms{};
++    std::uint32_t budget_frames{};
++    std::uint32_t budget_scale_cap{};  // 0 until the first frame: then the configured maximum
++    std::chrono::steady_clock::time_point budget_window_start{};
++    std::chrono::steady_clock::time_point budget_last_change{};
+     VkQueryPool statistics{};          // GT patch 0031: fragment shader invocations and primitives per frame
+     bool statistics_pending{};
+     // GT patch 0031, GT_GPU_OVERDRAW=1: one fragment-count query per draw, summed by the draw's kind at exit.
+@@ -2334,8 +2340,11 @@
+         std::uint64_t ticks[2]{};
+         if (vkGetQueryPoolResults(s.device, s.timestamps, 0u, 2u, sizeof ticks, ticks, sizeof ticks[0],
+                                   VK_QUERY_RESULT_64_BIT) == VK_SUCCESS && ticks[1] >= ticks[0]) {
+-            s.perf.gpu_ms += static_cast<double>(ticks[1] - ticks[0]) * s.timestamp_period_ns / 1e6;
++            const double gpu_ms = static_cast<double>(ticks[1] - ticks[0]) * s.timestamp_period_ns / 1e6;
++            s.perf.gpu_ms += gpu_ms;
+             ++s.perf.frames;
++            s.budget_gpu_ms += gpu_ms;  // GT patch 0034
++            ++s.budget_frames;
+         }
+         s.timestamps_pending = false;
+     }
+@@ -3734,8 +3743,35 @@
+     std::uint32_t width = 0u;
+     std::uint32_t height = 0u;
+     if (!window_pixels(s.window, width, height)) return;
+-    const InternalResolutionDimensions dims =
+-        uniform_internal_resolution(width, height, rendering.max_internal_scale);
++    // GT patch 0034: the automatic cap. Every two seconds of frames, the mean GPU time per frame decides: above
++    // the budget, one whole scale down; when the next scale up would cost (by pixel count) under 70 % of the
++    // budget and the last change is 6 s old, one up. Whole scales only, as uniform_internal_resolution keeps.
++    std::uint32_t cap = rendering.max_internal_scale;
++    if (rendering.gpu_budget_ms != 0u) {
++        const auto now = std::chrono::steady_clock::now();
++        if (s.budget_scale_cap == 0u) {
++            s.budget_scale_cap = cap;
++            s.budget_window_start = s.budget_last_change = now;
++        }
++        if (now - s.budget_window_start >= std::chrono::seconds(2) && s.budget_frames >= 30u) {
++            const double mean_ms = s.budget_gpu_ms / s.budget_frames;
++            const std::uint32_t current = std::max<std::uint32_t>(1u, s.internal_width / kReferenceWidth);
++            const std::uint32_t wanted = budget_scale_cap(
++                current, s.budget_scale_cap, rendering.max_internal_scale, mean_ms, rendering.gpu_budget_ms,
++                std::chrono::duration<double>(now - s.budget_last_change).count());
++            if (wanted != s.budget_scale_cap) {
++                std::cerr << "[vulkan] GPU " << mean_ms << " ms per frame (budget " << rendering.gpu_budget_ms
++                          << " ms): internal scale x" << current << " -> x" << wanted << "\n";
++                s.budget_scale_cap = wanted;
++                s.budget_last_change = now;
++            }
++            s.budget_gpu_ms = 0.0;
++            s.budget_frames = 0u;
++            s.budget_window_start = now;
++        }
++        cap = std::min(cap, s.budget_scale_cap);
++    }
++    const InternalResolutionDimensions dims = uniform_internal_resolution(width, height, cap);
+     if (dims.width == s.internal_width && dims.height == s.internal_height) return;
+     vkDeviceWaitIdle(s.device);
+     for (auto &entry : s.targets) destroy_target(s, entry.second);
+--- a/lcs/host/lcs_render_config.hpp
++++ b/lcs/host/lcs_render_config.hpp
+@@ -99,6 +99,9 @@
+     InternalResolutionMode internal_resolution_mode{InternalResolutionMode::PspNative};
+     std::uint32_t internal_scale{2u};
+     std::uint32_t max_internal_scale{8u};  // GT patch 0021: the Desktop/Window cap, for weak GPUs
++    // GT patch 0034: Window mode lowers its whole scale while the GPU needs more than this many milliseconds per
++    // frame, and raises it again when the next scale fits well inside (0: off, the scale follows the window only).
++    std::uint32_t gpu_budget_ms{10u};
+     std::uint32_t internal_width{960u};
+     std::uint32_t internal_height{544u};
+     std::uint32_t anisotropic_filtering{1u};
+@@ -126,6 +129,24 @@
+     return {480u * scale, 272u * scale};
+ }
+ 
++// GT patch 0034: the whole-scale cap Window mode keeps under a GPU budget. `current` is the scale drawing now,
++// `cap` the cap so far (0: none yet), `mean_ms` the GPU's mean time per frame over the last window, and
++// `seconds_since_change` the time since the cap last moved. Over budget: one scale down (not below x1); when the
++// next scale up would cost, by pixel count, under 70 % of the budget and the last change is at least 6 s old:
++// one up (not above `max_scale`). Budget 0: off, `max_scale`.
++[[nodiscard]] constexpr std::uint32_t budget_scale_cap(std::uint32_t current, std::uint32_t cap, std::uint32_t max_scale,
++                                                       double mean_ms, std::uint32_t budget_ms,
++                                                       double seconds_since_change) noexcept {
++    if (budget_ms == 0u) return max_scale;
++    if (cap == 0u || cap > max_scale) cap = max_scale;
++    if (current < 1u) current = 1u;
++    const double budget = static_cast<double>(budget_ms);
++    if (mean_ms > budget) return current > 1u ? current - 1u : 1u;
++    const double next = static_cast<double>(current + 1u) / static_cast<double>(current);
++    if (mean_ms * next * next < 0.7 * budget && cap < max_scale && seconds_since_change >= 6.0) return current + 1u;
++    return cap;
++}
++
+ [[nodiscard]] InternalResolutionDimensions resolve_internal_resolution(
+     const RenderingConfiguration &configuration) noexcept;
+ 
+--- a/lcs/host/lcs_render_config.cpp
++++ b/lcs/host/lcs_render_config.cpp
+@@ -225,6 +225,11 @@
+                     "Rendering.InternalResolutionMode expects PSP, Scale, Custom, Desktop or Window");
+         return;
+     }
++    if (key == "gpubudgetms") {  // GT patch 0034
++        if (!parse_u32(value, 0u, 100u, config.rendering.gpu_budget_ms))
++            warning(config, line, "Rendering.GpuBudgetMs must be between 0 (off) and 100");
++        return;
++    }
+     if (key == "maxinternalscale") {
+         if (!parse_u32(value, 1u, 8u, config.rendering.max_internal_scale))
+             warning(config, line, "Rendering.MaxInternalScale must be between 1 and 8");

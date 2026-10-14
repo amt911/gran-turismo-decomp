@@ -1,0 +1,49 @@
+GT patch 0033: a render target stands for its VRAM only while the GE draws into it. A texture reads a target
+only if that target was drawn within the last few frames, and a block transfer into a target's memory marks it
+stale. GT rendered a menu label into VRAM, left the menu and loaded the kerbs' texture over those bytes with the
+CPU (which the backend never sees): the stale target drew "Single Player" on the kerbs.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -639,13 +639,23 @@
+     return found == s.targets.end() ? nullptr : &found->second;
+ }
+ 
++// GT patch 0033: how many frames after its last draw a render target still stands for its memory.
++constexpr std::uint64_t kTargetFreshFrames = 4u;
++
+ // GT patch 0029: the render target a texture reads, if any. Targets are keyed by their VRAM offset (the GE's
+ // framebuffer pointer is one); a texture address is a full guest address, and only one in VRAM (0x04xxxxxx and
+ // its mirrors) can be a target. Masking a main-RAM texture down to 21 bits matched whatever target sat at the
+ // same offset: GT's kerbs drew the menu's "Single Player" label, the race's track map an old picture.
+ Target *texture_target(VulkanState &s, std::uint32_t texture_address) {
+     if ((texture_address & 0x0F000000u) != 0x04000000u) return nullptr;
+-    return find_target(s, texture_address);
++    Target *target = find_target(s, texture_address);
++    // GT patch 0033: only a target the GE drew into lately holds what that memory holds. GT renders a menu
++    // label into VRAM, leaves the menu, then loads a texture (the kerbs) over those bytes with the CPU, which the
++    // backend never sees: the stale target drew "Single Player" on the kerbs. Effects that sample a target (a
++    // mirror, an environment map) render into it every frame.
++    if (target != nullptr && (target->last_render_epoch == 0u || s.frame_epoch > target->last_render_epoch + kTargetFreshFrames))
++        return nullptr;
++    return target;
+ }
+ 
+ // GT patch 0022: the shown part of the display target, in image pixels.
+@@ -3355,6 +3365,16 @@
+     ++s.write_clock;
+     for (std::uint64_t page = begin >> kGuestPageShift; page <= last >> kGuestPageShift; ++page)
+         s.page_write_stamp[page] = s.write_clock;
++    // GT patch 0033: a transfer that writes into a render target's memory replaces what the GE drew there.
++    if ((address & 0x0F000000u) == 0x04000000u) {
++        for (auto &[target_address, target] : s.targets) {
++            const std::uint64_t target_begin = 0x04000000u | target_address;
++            // An upper bound: a 512-pixel stride (the GE's widest) at 32 bits per pixel.
++            const std::uint64_t target_bytes = static_cast<std::uint64_t>(std::max<std::uint32_t>(512u, target.logical_width)) *
++                                               std::max<std::uint32_t>(1u, target.logical_height) * 4u;
++            if (begin < target_begin + target_bytes && target_begin <= last) target.last_render_epoch = 0u;
++        }
++    }
+ }
+ 
+ bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &draw) noexcept {

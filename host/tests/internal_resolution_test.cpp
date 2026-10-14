@@ -33,5 +33,16 @@ int main() {
     check(is(uniform_internal_resolution(100u, 50u, 8u), 480u, 272u), "never below x1");
     check(is(uniform_internal_resolution(1920u, 1080u, 0u), 480u, 272u), "a zero cap means x1");
     if (failures == 0) std::puts("internal_resolution: all tests passed");
+    // GT patch 0034: the GPU-budget scale cap.
+    using lcs::budget_scale_cap;
+    check(budget_scale_cap(4u, 4u, 8u, 14.0, 10u, 30.0) == 3u, "over budget: one whole scale down");
+    check(budget_scale_cap(1u, 1u, 8u, 40.0, 10u, 30.0) == 1u, "never below x1");
+    check(budget_scale_cap(3u, 3u, 8u, 6.0, 10u, 30.0) == 3u,
+          "x4 would cost 6 * (4/3)^2 = 10.7 ms, over 70 % of 10: stay");
+    check(budget_scale_cap(2u, 2u, 8u, 2.0, 10u, 30.0) == 3u, "x3 would cost 4.5 ms: one up");
+    check(budget_scale_cap(2u, 2u, 8u, 2.0, 10u, 3.0) == 2u, "a change 3 s ago: not up yet");
+    check(budget_scale_cap(8u, 8u, 8u, 1.0, 10u, 30.0) == 8u, "never above the configured maximum");
+    check(budget_scale_cap(4u, 4u, 8u, 9.9, 10u, 30.0) == 4u, "just inside the budget: stay");
+    check(budget_scale_cap(4u, 4u, 8u, 50.0, 0u, 30.0) == 8u, "budget 0: off, the configured maximum");
     return failures == 0 ? 0 : 1;
 }
