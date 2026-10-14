@@ -98,7 +98,10 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   4. **Sabotage, fast gate**: `tools.decomp_gate sabotage` inserts, as the **first** statement of every
      listed function, a bump of s0 (`ctx.gpr[16] += 1u;`) and of a kernel-region RAM word
      (`SABOTAGE_WORD`; a caller restoring s0 erases the s0 bump of a function reached only nested —
-     FINDINGS), runs the fast gate and restores the file. s0 is callee-saved and always compared, and a bump at entry
+     FINDINGS), runs the fast gate and restores the file. Template instances (`GT_DECOMP_CONSTRUCT(0x..u, …)` and
+     the like, no name of their own) are handled too: the tool finds the shared body their macro registers,
+     sabotages it — so every installed instance of it is sabotaged — and only credits a target with a case where it
+     was the one sabotaged registration. (C++ template functions such as `set_boost_param<N>` still need a hand bump.) s0 is callee-saved and always compared, and a bump at entry
      survives early returns, guest calls and tail calls — sabotaging the return value at the end
      missed functions whose routes only took an early return, and tail callees overwrite v0. Add,
      don't XOR: a function that calls another sabotaged one directly would flip s0 twice and pass

@@ -164,6 +164,59 @@ def summarize(total: dict[int, Stats]) -> Summary:
 SABOTAGE_WORD = 0x08000F00
 
 
+_DEFINE = re.compile(r"^#define ([A-Z][A-Z0-9_]*)\(([^)]*)\)((?:[^\n]*\\\n)*[^\n]*)", re.MULTILINE)
+_INSTANCE = re.compile(r"^[ \t]*([A-Z][A-Z0-9_]*)\(\s*(0x[0-9A-Fa-f]{8})u?\s*(?:,([^;\n]*))?\)\s*;", re.MULTILINE)
+_DIRECT = re.compile(r"\bGT_DECOMP\(\s*[^,]+,\s*(?:::)?gt::(?:\w+::)*(\w+)")
+_CALL = re.compile(r"\b([A-Z][A-Z0-9_]*)\(([^()]*)\)")
+
+
+def _split_args(text: str) -> list[str]:
+    return [a.strip() for a in text.split(",")] if text.strip() else []
+
+
+def _macro_function(macro: str, args: Sequence[str], macros: dict, depth: int = 0) -> str | None:
+    """The function a template-instance macro registers, following the macros it expands into."""
+    if depth > 4 or macro not in macros:
+        return None
+    params, body = macros[macro]
+    env = dict(zip(params, args))
+    direct = _DIRECT.search(body)
+    if direct:
+        return env.get(direct[1], direct[1])
+    for call in _CALL.finditer(body):
+        if call[1] != macro and call[1] in macros:
+            found = _macro_function(call[1], [env.get(a, a) for a in _split_args(call[2])], macros, depth + 1)
+            if found:
+                return found
+    return None
+
+
+def template_functions(source: str) -> dict[int, str]:
+    """Template instances registered in `source` (GT_DECOMP_CONST(0x..u, 3u) and the like): address -> the
+    shared body (a function of the file) their macro registers. They have no name of their own, so a
+    sabotage has to go into that body — which every instance of it shares."""
+    macros = {m[1]: (_split_args(m[2]), m[3].replace("\\\n", " ")) for m in _DEFINE.finditer(source)}
+    found = {}
+    for m in _INSTANCE.finditer(source):
+        if m[1] in macros:
+            function = _macro_function(m[1], [m[2], *_split_args(m[3] or "")], macros)
+            if function:
+                found[int(m[2], 16)] = function
+    return found
+
+
+def sabotage_targets(source: str, targets: set[int]) -> tuple[list[str], set[int]]:
+    """The bodies to sabotage for `targets`, and every registration those bumps reach: a template body is shared
+    by all its instances, so all of them are sabotaged (attribution must know, or it would credit a target with
+    a sibling's mismatch)."""
+    named = registered_names(source)
+    templates = template_functions(source)
+    names = sorted({named[a] for a in targets if a in named} | {templates[a] for a in targets if a in templates})
+    shared = {templates[a] for a in targets if a in templates}
+    affected = set(targets) | {a for a, function in templates.items() if function in shared}
+    return names, affected
+
+
 def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
     """Inserts, as the first statement of each named function, a bump of s0 and of SABOTAGE_WORD; returns the
     names not found. s0 alone isn't enough for a function reached only nested: a caller that saves and restores
@@ -389,9 +442,10 @@ def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
 
 def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  # pragma: no cover - runs
     """Sabotages `targets` (with every function of `only` installed), runs the fast gate, restores the file.
-    Returns the run's mismatching cases, or None when the sabotaged build didn't run."""
+    Returns the run's mismatching cases and every registration the bumps reached (template instances share a
+    body), or None when the sabotaged build didn't run."""
     original = file.read_text()
-    names = [n for a, n in registered_names(original).items() if a in targets]
+    names, affected = sabotage_targets(original, targets)
     sabotaged, missing = sabotage(original, names)
     if missing:
         print("not found in", file, ":", ", ".join(missing))
@@ -403,7 +457,7 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
         return None
     logs = [Path(f"recomp/analysis/gt_diff_{tag}_{r}.log") for r, _ in ROUTES["full"]]
-    return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists()))
+    return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists())), affected
 
 
 def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - edits, runs, restores
@@ -414,11 +468,14 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     seen: set[tuple[int, frozenset[int]]] = set()
     found: set[int] = set()
     for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
-        cases = _sabotage_round(f"{tag}s{round_number}", file, installed, targets)
-        if cases is None:
+        result = _sabotage_round(f"{tag}s{round_number}", file, installed, targets)
+        if result is None:
             print("sabotage: the sabotaged build did not run")
             return 2
-        new = attributed(targets, cases)  # only this round's cases: they hold only this round's sabotage
+        cases, affected = result
+        # only this round's cases (they hold only this round's sabotage); every sabotaged registration counts as
+        # a possible culprit, a target's template siblings included
+        new = attributed(affected, cases) & targets
         found |= new
         seen |= cases
         print(f"sabotage round {round_number}: {len(targets)} sabotaged, {len(new)} pinned")

@@ -246,3 +246,32 @@ def test_sabotage_names_an_unnamed_context_parameter():
     out, missing = gate.sabotage(source, ["leaf"])
     assert missing == []
     assert "psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u;" in out
+
+
+TEMPLATES = """\
+namespace gt::core {
+void empty_function(psprecomp::Runtime &, psprecomp::AllegrexContext &) {}
+void member_address(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[4]; }
+} // namespace gt::core
+#define GT_DECOMP_EMPTY(entry) GT_DECOMP(entry, gt::core::empty_function, gt::ReturnKind::Void)
+#define GT_DECOMP_LEAF_(fn, returns, entry, constant)                                                    \\
+    static const ::gt::core::LeafRegistrar GT_DECOMP_CAT(gt_leaf_, __LINE__){(entry), (constant)}; \\
+    GT_DECOMP(entry, gt::core::fn, returns)
+#define GT_DECOMP_MEMBER_ADDRESS(entry, k) GT_DECOMP_LEAF_(member_address, gt::ReturnKind::Word, entry, k)
+GT_DECOMP_EMPTY(0x08800010u);
+GT_DECOMP_MEMBER_ADDRESS(0x08800020u, 0x3F88u);
+GT_DECOMP_MEMBER_ADDRESS(0x08800030u, 0x10u);
+// GT_DECOMP_MEMBER_ADDRESS(0x08800040u, 0x14u);
+GT_DECOMP(0x08800050u, gt::game::named, gt::ReturnKind::Word);
+"""
+
+
+def test_template_instances_map_to_the_shared_body_their_macro_registers():
+    assert gate.template_functions(TEMPLATES) == {0x08800010: "empty_function", 0x08800020: "member_address",
+                                                  0x08800030: "member_address"}
+
+
+def test_sabotage_targets_name_the_shared_body_and_list_every_instance_it_affects():
+    names, affected = gate.sabotage_targets(TEMPLATES, {0x08800020, 0x08800050})
+    assert names == ["member_address", "named"]
+    assert affected == {0x08800020, 0x08800030, 0x08800050}  # 0x...30 shares the sabotaged body
