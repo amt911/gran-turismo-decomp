@@ -55,7 +55,13 @@ Con esto sé si la gráfica integrada es el límite (el tiempo de GPU por frame 
       el HUD)? ¿En qué pantalla o en qué parte del circuito?
 - [ ] ¿Pasa también con `InternalScale=1`?
 
-## 4. Velocidad del coche
+## 4. Vídeos (arreglo de la PR de vídeos)
+
+- [ ] ¿El vídeo de la intro (y los demás) se ve limpio, sin bloques ni manchas?
+- [ ] ¿Siguen saliendo líneas `[h264 @ …]` en la terminal? (deberían ser 0)
+- [ ] ¿El audio de los vídeos va sincronizado con la imagen?
+
+## 5. Velocidad del coche
 
 El reloj del juego va bien (`guest time 1.00x` en tus logs). Para comparar con la consola o con PPSSPP:
 
