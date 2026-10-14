@@ -665,6 +665,15 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       confirma que toda región se ejecutó. Cada `call_guest` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 50.
       **5.277 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 71 integrado: ver el PR #185).
       Fuera por ahora: 6 «pair call B», 23 «init handle» y 10 inicializadores de nodo (familias de los lotes 59/66).
+- [x] **Lote 73 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_73.cpp`, 42 registradas de 46 escritas; termina miembros de las familias de los lotes
+      59/63/66/68 con `tools.family_members` (sondeo del lote 70, `--exclude-ref origin/decomp/hot-batch-72`): 6 «pair call B», 23 «init handle», 10 inicializadores
+      de nodo con tail call y 7 «clamp step» (26 instrucciones, sin constantes propias). Las filas se generan con `--cpp` y se releen con `--check` (39 coinciden con
+      sus propias palabras, 0 sin analizar; las 7 de `clamp_step` no llevan argumentos). Sin ramas salvo `clamp_step`, cuyas ramas no tomadas (upper == 0, lower >= upper,
+      x >= upper) se leyeron en el lote 63/68 contra el asm. Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`.
+      Sabotajes detectados en las 46, `contract_audit` 0. Escritas pero sin registrar: 4 miembros de `clamp_step` (`func_08C40FA4`, `func_08C413DC`, `func_08C41934`,
+      `func_08C41A04`: ningún caso comparado cambió memoria, como `func_08C401C4` en el lote 68). Fuera por ahora: 6 accesores de contenedor vacío de 32 instrucciones
+      que son una variante (dos estáticos más y otro desplazamiento: plantilla propia tras leer uno entero), el «pair call A» restante y las familias de 47-68 instrucciones.
+      **5.319 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 72 integrado: ver el PR #186).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
