@@ -1165,3 +1165,23 @@ pictures per packet): 4/60 → 59/60 pictures. In the game: 0 decoder errors.
 contract of libavcodec explains why the same bytes fail inside the game.
 
 Found: 2026-10-14 · host/movie_decoder.cpp
+
+## The GPU path's race ran at half speed because of the GE thread, not the GPU
+
+**Symptom.** With `NativeGE=true` a race ran at ~30 presented frames/s with audio at 13–22 kHz (the laptop:
+~27 fps plugged in, ~10 on battery), at any internal resolution — x1 as slow as x8 on an RTX 3080 Ti.
+**Cause.** Profiled (gperftools, `-g` on the lcs host sources, race 170–210 s, fresh save): the GE worker thread
+was ~92 % busy and the guest waited on it. A fifth of it was hashing: per draw, the palette checksum (byte by
+byte) and the content hash of every small texture, both a serial mix per 8 bytes; and lcs's static vertex cache
+hashed every cached draw's vertex bytes each frame, costing more than decoding them again.
+**Fix / workaround.** lcs-recomp patch 0030: a four-lane hash (`fast_hash_bytes`), and texture/palette hashes
+remembered within one display list until a block transfer writes memory (`ge_renderer_forget_content_hashes`,
+called by GT's list executor). `host/main.cpp` turns the static vertex cache off (`PSPRECOMP_GE_VERTEX_CACHE=0`,
+`=1` restores it). Race at x1 (`tools/gpu_perf.sh`): 43 → 57.5 presented frames/s, audio 29 → 42 kHz, skipped
+vblanks 22 → 2.8/s; at x4 54 frames/s, 39 kHz. GPU gate, same counts before and after (race 339/744 ≈ 340/772,
+dealer 174/586 ≈ 175/585, garage 12 failing frames in both).
+**Why it isn't obvious.** The GPU's own time (`GT_PERF_LOG`'s GPU line) was small; the GE wait looked like
+waiting for the GPU, and the internal resolution changed nothing. Only a profile of the GE thread showed host
+bookkeeping per draw.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0030-ge-thread-cheaper-content-hashes.patch, host/main.cpp
