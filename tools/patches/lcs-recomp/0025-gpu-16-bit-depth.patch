@@ -1,0 +1,18 @@
+GT patch 0025: the GE z-buffer holds 16-bit integers: truncate the fragment depth as ge_renderer.cpp does,
+so coplanar surfaces (kerbs on the track, distant stands) stop winning and losing the depth test
+from frame to frame. A 1/64-step bias keeps exact integer depths exact (float error otherwise drops
+512 of the 65536 values one step). Writing the depth disables early depth testing.
+
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -155,4 +155,10 @@
+     // GT patch 0022: blend with the unquantized colour and alpha, as the GE does; the stored 16-bit value is
+     // emulated when the target is read back as a texture (storedFramebufferTexel).
+     outColor = clamp(color, 0.0, 1.0);  // (a 565 target's alpha is ignored when read back)
++    // GT patch 0025: the GE's z-buffer holds 16-bit integers (ge_renderer.cpp truncates the interpolated z).
++    // A float depth keeps differences the PSP drops, so coplanar surfaces — the kerbs painted on the track,
++    // distant stands — won and lost the depth test from frame to frame (flicker). Truncate as the GE does,
++    // after a bias well below one step: z = k reaches the shader as k/65535 minus a rounding error for 512 of
++    // the 65536 values, and a bare floor would give k - 1. (No depth_less: the bias may round up.)
++    gl_FragDepth = floor(clamp(gl_FragCoord.z, 0.0, 1.0) * 65535.0 + 1.0 / 64.0) / 65535.0;
+ }

@@ -239,3 +239,10 @@ def test_the_next_sabotage_round_takes_ambiguous_functions_that_never_shared_a_m
     second = gate.next_round(ambiguous - first, cases)
     assert second == {0x08900100}  # 0x08900100 and 0x08900200 shared the first case
     assert gate.next_round(set(), cases) == set()
+
+
+def test_sabotage_names_an_unnamed_context_parameter():
+    source = "void leaf(psprecomp::Runtime &rt, psprecomp::AllegrexContext &) {\n}\n"
+    out, missing = gate.sabotage(source, ["leaf"])
+    assert missing == []
+    assert "psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u;" in out

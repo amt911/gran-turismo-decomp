@@ -30,4 +30,6 @@ void memset(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 } // namespace gt::libc
 
+// Registered Word, not DoubleWord: the caller at 0x08B2FCF0 starts with an lwl/lwr pair into v1, which loads all four
+// bytes — v1 is never read (tools.contract_audit treats such a pair as a write).
 GT_DECOMP(0x08B36018u, gt::libc::memset, gt::ReturnKind::Word);

@@ -351,7 +351,7 @@ void func_08B57750(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08B57278(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t a = ctx.gpr[4], b = ctx.gpr[5];
     std::uint32_t code;
-    if (a == 2u) code = 2u;
+    if (a == 2u) code = 0u;  // the original branches straight to the store of 0
     else if (b == 1u) code = 2u;
     else if (b == 0u) code = 1u;
     else if (b == 2u) code = 3u;
@@ -466,8 +466,8 @@ HOT58(0x08B58444u, func_08B58444, Word);
 HOT58(0x08B583D0u, func_08B583D0, Word);
 HOT58(0x08B58388u, func_08B58388, Void);
 HOT58(0x08B563C0u, func_08B563C0, Word);
-HOT58(0x08B57744u, func_08B57744, Void);
-HOT58(0x08B59ADCu, func_08B59ADC, Void);
+HOT58(0x08B57744u, func_08B57744, Word);
+HOT58(0x08B59ADCu, func_08B59ADC, Word);
 HOT58(0x08B59AC8u, func_08B59AC8, Word);
 HOT58(0x08B57750u, func_08B57750, Word);
 HOT58(0x08B57278u, func_08B57278, Word);

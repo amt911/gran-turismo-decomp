@@ -453,8 +453,6 @@ ORGANIZER(0x08833C24u, MOrganizer_getRaceSound, Void);
 ORGANIZER(0x08829A78u, MOrganizer_setBackRaceParameter, Void);
 // Not registered: compared 0 in every fast, dense and full run of the PR (the pad routes never call them on their own,
 // and no decompiled GT_DECOMP_NESTED caller reached them either), so nothing could verify them; they run as the recompiled originals.
-// ORGANIZER(0x0885EFE0u, func_0885EFE0, Void);
-// ORGANIZER(0x0885EFECu, func_0885EFEC, Void);
 // ORGANIZER(0x0885E778u, enable_rendering_race, Void);
 // ORGANIZER(0x0885E788u, disable_rendering_race, Void);
 // ORGANIZER(0x0885E794u, enable_sounding_race, Void);
@@ -464,9 +462,10 @@ ORGANIZER(0x08829A78u, MOrganizer_setBackRaceParameter, Void);
 // ORGANIZER(0x0885E9ECu, set_application_end_session_second, Void);
 // ORGANIZER(0x0885E9F8u, set_no_input_limit_second, Void);
 // ORGANIZER(0x0885FC4Cu, enter_course, Void);
-// ORGANIZER(0x0885EE04u, get_game_condition, Word);
 // ORGANIZER(0x0885E728u, window_max, Word);
 // ORGANIZER(0x0885ECF4u, get_entried_driver_parameter, Word);
 // ORGANIZER(0x0882E98Cu, MOrganizer_getCamearType, Void);
+// 0x0885EFE0, 0x0885EFEC (setters) and 0x0885EE04 (get_game_condition, the address of +0x3F88) are registered as
+// template instances (PTR_SET_FIELD, PTR_MEMBER_ADDRESS) in src/core/chained.cpp, reached by the routes there.
 #undef ORGANIZER
 } // namespace organizer_registrations

@@ -537,11 +537,21 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       visualización: velocidad, potencia, par, régimen, temperatura) y `src/game/unit/unit_system.cpp` con los 8 nativos
       de MUnit que ya existían (`munit.cpp` se retira) y las funciones del motor que usan (textos, factores de conversión,
       tabla idioma → sistema de unidades). Solo se registra lo que se compara por sí solo en el gate; `set_unit_system` solo está verificada para el sistema 1 (las otras 13 filas salen de la tabla de saltos del original).
+- [x] **Contratos de retorno, segunda parte** (2026-10-14): las 30 funciones registradas `Void`/`Word` cuyos llamadores
+      leen un registro que no se comparaba (`tools.contract_audit`) dejan v0 (y v1 en `func_088D9C70`) como el original
+      en cada salida y se registran `Word`/`DoubleWord`. `memset` era un falso positivo del escáner (un par lwl/lwr, que ahora cuenta como escritura);
+      `func_0892C8B8` se desregistra (nunca comparada). **4.519 funciones, 0 discrepancias en las cuatro rutas.**
+- [x] **Lote 57 de funciones calientes** (2026-10-13, `src/game/unsorted/hot_batch_57.cpp`, 89 registradas): vectores de
+      2/3/4 floats (suma, resta, producto, punto, longitud², mín/máx), las funciones que devuelven un par de 64 bits,
+      los escritores de la lista de dibujo de la biblioteca gráfica, contadores bajo `suspend/resume interrupts` y
+      pequeños ayudantes de objetos. Sondeo con `GT_PROBE_SYMBOLS` sobre todas las funciones sin hacer de hasta 200 bytes
+      (con `--decomp off`: con `on` el sondeo rompe el arranque). Sabotajes detectados en las 89; `contract_audit` sin
+      avisos para el lote. **4.608 funciones (con el resto de `main`), 0 discrepancias en las cuatro rutas.**
 - [x] **Lote 58 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_58.cpp`, 85 registradas, más 12 instancias de
       plantilla en `chained.cpp` y `containers.cpp` sacadas de los clústeres de `tools.shapes`): vectores de floats, pares de
       64 bits, escritores de la lista de dibujo y los `lower_bound` / `find` de `std::map` con claves de 32 bits (13 instancias
       en tres cuerpos compartidos). `GT_DECOMP_PTR_*` y `FREE_LIST_PUSH` con constantes decodificadas de cada función. Sabotajes
-      detectados en las 97 (las plantillas, saboteando a mano el cuerpo compartido). **4.617 funciones, 0 discrepancias.**
+      detectados en las 97 (las plantillas, saboteando a mano el cuerpo compartido). **4.705 funciones (con el resto de `main`), 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
@@ -578,6 +588,18 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         en vacío y un recorrido de todas las texturas en cada block transfer). Gate ×1 150 s: carrera
         287/292, garaje 274/290, concesionario 167/290 (el concesionario varía entre ejecuciones también en
         `main`: FINDINGS).
+  - [x] **Colores y parpadeo** (2026-10-14): los vídeos y los fundidos del logo salían violetas/rosas, el cielo
+        de la carrera cian plano y la primera imagen de cada pantalla nueva teñida: la primera vez que se dibujaba una
+        textura recién decodificada se pintaba con el color de depuración de LCS (parche 0024). El z-buffer se redondea a
+        16 bits como en la GE (parche 0025: un 12 % menos de píxeles que parpadean entre frames en la carrera; escribir la
+        profundidad desactiva la prueba temprana: a medir en GPUs integradas). Gate ×1
+        200 s de carrera: 1016/1092 frames iguales (1006/1095 antes); 34 s de arranque: 2 fallos (10-11 antes).
+  - [x] **GPU lenta = menos imágenes, no juego más lento** (2026-10-14, parche 0026): el final de cada frame
+        esperaba a que la GPU acabase el anterior y el juego (que avanza lógica y sonido por frame) esperaba detrás:
+        con una GPU de 20-30 ms por frame (integrada a alta resolución) el coche iba a cámara lenta y el sonido a
+        ~30 kHz. Ahora un frame que solo dibuja en los dos búferes de pantalla se descarta si la GPU no acaba en
+        4 ms (como mucho dos seguidos): con `GT_SIM_GPU_MS=20`, el juego espera un 33 % en vez de un 88 % y el sonido
+        sale a 42,6 kHz en vez de 30,1; con una GPU rápida apenas se descartan.
   - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
         pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.

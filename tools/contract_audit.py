@@ -35,6 +35,7 @@ _CALL = re.compile(
     r"(?:[^\n]*\n){0,3}?"
     r"[ \t]*(?:ctx\.pc = 0x(?P<pc>[0-9A-Fa-f]{8})u;|goto L_(?P<goto>[0-9A-Fa-f]{8});|"
     r"if \(rt\.invoke_chained_direct<[^>]*0x(?P<chained>[0-9A-Fa-f]{8})u>)")
+_HALF_LOAD = re.compile(r"aot_load_word_(left|right)\(")
 _LABEL = re.compile(r"^L_([0-9A-Fa-f]{8}):", re.MULTILINE)
 _CONSTANT = re.compile(r"constexpr\s+std::uint32_t\s+(\w+)\s*=\s*0x([0-9A-Fa-f]{8})u")
 _GUEST_CALL = re.compile(r"call_guest\(rt,\s*ctx,\s*(0x[0-9A-Fa-f]{8}u|\w+)")
@@ -75,18 +76,26 @@ def reads_after(unit: str, return_address: int, reg: int, labels: Mapping[int, i
         return False
     use = re.compile(rf"ctx\.gpr\[{reg}\]")
     end = unit.find("\nL_", start)
+    pending_half = None  # an unaligned load (lwl/lwr) filled half the register; its complement completes it
     for line in unit[start:end if end != -1 else len(unit)].split("\n"):
         code = line.split("//")[0].strip()
         if not code:
             continue
         if _LABEL.match(code) or code.startswith(("goto", "return", "if (", "}")):
-            return False
+            return pending_half is not None
         target, assign, value = code.partition(" = ")
         if assign and target == f"ctx.gpr[{reg}]":
-            return bool(use.search(value))
+            half = _HALF_LOAD.search(value)
+            if half and len(use.findall(value)) == 1:
+                if pending_half is not None and half[1] != pending_half:
+                    return False  # both halves loaded: a full write
+                if pending_half is None:
+                    pending_half = half[1]
+                    continue
+            return pending_half is not None or bool(use.search(value))
         if use.search(code):
             return True
-    return False
+    return pending_half is not None
 
 
 def original_readers(units: Mapping[str, str], regs: Mapping[int, Registration]) -> dict[int, list[tuple[str, int]]]:

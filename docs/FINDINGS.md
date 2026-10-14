@@ -1012,9 +1012,67 @@ callee (`GT_DECOMP_NESTED`) until the generic registrations' contracts are audit
 `tools.contract_audit` then listed 80 registrations whose callers read an uncompared return register.
 Registering each with the contract its callers need and gating it: 49 already set the register right
 (now `Word`/`DoubleWord`, so the gate checks it); 30 really lose it — under `--decomp on` their callers
-get the wrong value — and 1 was never reached. Those 31 keep their old kind until fixed (the audit lists
-them; a `GT_DECOMP_NESTED` one fails the gate).
+get the wrong value — and 1 was never reached. Those 31 kept their old kind until the next change fixed them:
+each now leaves v0 (and v1 for `func_088D9C70`) as the original does on every exit — often a leftover, such as the end
+of a copied record, the vtable loaded for a tail call, an ll/sc success flag, or the last call's result — and is
+registered `Word`/`DoubleWord`. `memset` was listed too: the caller at `0x08B2FCF0` begins with an lwl/lwr pair
+into v1, which overwrites all four bytes; the audit now treats such a pair as a write and lists nothing. `func_0892C8B8` (a tail call nobody reaches on its own) is unregistered.
 **Why it isn't obvious.** "Void" is our claim, not the original's: GCC leaves whatever the last call
 returned in v0, and callers compiled against a non-void prototype read it.
 
 Found: 2026-10-13 · host/diff_harness.cpp, src/game/unsorted/hot_leaves.cpp
+
+## Purple videos and fades on the GPU: the first draw of a new texture got LCS's debug colour
+
+**Symptom.** With `NativeGE=true` the intro movies and the logo fades came out violet or pink, the race sky
+was flat cyan, and the first frame of a new screen was tinted. Not every run: the GPU gate failed different
+frames each time.
+**Cause.** `ge_gpu_backend_texture_available` required the texture's Vulkan image to exist, but a texture
+decoded for this draw only gets its image when the frame is recorded. The draw counted as "texture not
+ready", and `ge_renderer.cpp` then paints it with `gpu_texture_debug_color` — a colour hashed from the
+texture's address, a debugging aid from LCS. Every movie frame is a new texture — sceMpeg's HLE writes
+8888 to the decode buffer and GT draws a 5650 texture from another address (`GT_GE_LOG` at vblank 3145:
+`tex @097df980 fmt 0`), so GT converts each frame — and every movie frame was tinted.
+**Fix / workaround.** lcs-recomp patch 0024: a texture with decoded data waiting for upload is available.
+If its upload then fails, the draw binds the white texture (untextured) instead of the debug colour.
+**Why it isn't obvious.** The tint looks like a colour-format bug (a 5650/5551 mix-up, a blend constant), and
+it varies between runs. A forced re-check of the texture contents changed nothing; `GT_GE_LOG` on the
+failing frame's vblank (`[gpu-dump] frame N vblank V` in the dump log) showed a plain textured draw.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0024-gpu-new-texture-not-debug-colour.patch
+
+## A slow GPU slowed the whole game down, not just the picture
+
+**Symptom.** On a laptop with an integrated GPU (`NativeGE=true`), the car slowed down, frame pacing was bad and
+the sound lagged; on a desktop GPU everything was fine.
+**Cause.** At the end of each frame the Vulkan backend waited for the GPU to finish the previous one
+(`vkQueueWaitIdle`, one frame in flight), and the game thread waits for the GE thread at its list syncs. GT
+advances its logic and produces its sound per frame, so GPU time turned into game time. With
+`GT_SIM_GPU_MS=20` (the GPU taken to need 20 ms per frame; race, averages over a minute) the game thread was
+blocked 87.7 % of the time and the sound came out at 30.1 kHz instead of 44.1.
+**Fix / workaround.** lcs-recomp patch 0026: the pending submit has a fence. A frame that only draws into the
+two framebuffers shown last (GT's front and back buffer) waits at most 4 ms for the GPU and is dropped
+otherwise, at most twice in a row; a frame that draws anywhere else (a reflection, an effect, an old display
+buffer reused offscreen) still waits, since later frames may read it. The software path's present no longer
+waits for the queue. At 20 ms per frame: blocked 33.4 %, sound at 42.6 kHz (without the 4 ms grace and the
+safety rules it would be 1.8 % / 44.0 kHz, at the cost of needless drops on fast GPUs and of risking a render
+later frames need). A fast GPU drops almost none; `GT_GPU_NO_DROP=1` turns dropping off (the GPU gate uses it,
+so its runs don't depend on the machine's speed).
+**Why it isn't obvious.** `guest time 1.00x` in `GT_PERF_LOG` still holds — the vblank clock keeps time — while
+the game itself runs slow; the tell is `GE wait` and the audio rate. A fast GPU hides it entirely.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0026-gpu-drop-frames-not-game-speed.patch
+
+## The software renderer's cost is its per-fragment pipeline, not decoding texels
+
+**Symptom.** With `NativeGE=false` the software rasterizer uses about 2 cores at 480x272 (profile: per-pixel
+loop, `sample_texture`, `read_clut_fast`, blending, writes).
+**Cause.** Measured, not assumed: a cache of decoded RGBA textures (exact: 3.7 billion texels checked against
+guest memory) removed the CLUT lookups (`read_clut_fast` 12.6 % → 1.6 % of samples) but saved only ~5-10 % of
+CPU; the bilinear arithmetic, blending and writes dominate.
+**Fix / workaround.** Not merged. A real gain needs a SIMD span rasterizer; the GPU path is the one to use.
+**Why it isn't obvious.** The profile's top frames are texture functions; most of their time is the
+filtering arithmetic, not the decode.
+
+Found: 2026-10-14 · lcs/host/ge_renderer.cpp (lcs-recomp)
+

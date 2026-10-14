@@ -12,7 +12,11 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
         const char *text = std::getenv("GT_GE_LOG");
         return text != nullptr ? std::strtoll(text, nullptr, 0) : -1ll;
     }();
-    if (wanted < 0 || static_cast<long long>(vblank) != wanted) return;
+    // The first vblank at or after GT_GE_LOG that submits a list: GT doesn't submit one every vblank.
+    static long long traced = -1ll;
+    if (wanted < 0 || static_cast<long long>(vblank) < wanted) return;
+    if (traced < 0) traced = static_cast<long long>(vblank);
+    if (static_cast<long long>(vblank) != traced) return;
     std::uint32_t base = 0u, tex_low = 0u, tex_high = 0u, tbw = 0u, size = 0u, format = 0u, clut_low = 0u,
                   clut_high = 0u, clut_mode = 0u, vtype = 0u, fb = 0u, mode = 0u;
     bool texture = false, blend = false;
