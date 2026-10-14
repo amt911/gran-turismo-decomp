@@ -566,6 +566,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       y la revisión otro que la comparación a mano no vio: `func_08C1CCD0` con key == nodo devuelve 0, no 1 — el 1 del hueco de
       retardo del beq se sobrescribe en el destino).
       Sabotajes detectados en las 30. **4.795 funciones, 0 discrepancias.**
+- [x] **Lote 61 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_61.cpp`, 26 registradas): más funciones con ramas o bucles
+      (destructores de rangos y listas, comparaciones de claves, envoltorios de holders, copias de cadenas con cuenta, producto vectorial, envoltura
+      de un periodo). Cobertura de ramas con `tools.decomp_gate coverage`; cada rama que las rutas no toman se comparó con el asm a mano leyendo
+      el DESTINO del salto (no solo el delay slot) y queda listada en el comentario de la función. Sabotajes detectados en las 26.
+      **4.821 funciones, 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
