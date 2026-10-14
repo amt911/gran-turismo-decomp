@@ -73,3 +73,18 @@ lives in this repo when it became one.
   one of them is wrong; check address by address.
 - **Correct your own mistaken instructions to helpers explicitly** (what was wrong, the right rule, what
   to redo) and write the corrected rule into the project docs so it doesn't recur.
+
+## Host / runtime (emulation layer)
+
+- **A slow GPU must drop pictures, never slow the game.** If the end of a frame waits for the GPU and the game
+  thread waits for the frame, GPU time becomes game time; GT advances logic and sound per frame, so it ran in
+  slow motion with lagging audio — while `GT_PERF_LOG` still read `guest time 1.00x`. Watch `GE wait` and the
+  audio rate; reproduce on a fast machine with `GT_SIM_GPU_MS` (FINDINGS; lcs-recomp patch 0026).
+- **Debug fallbacks inherited from another port bite.** LCS's "texture not ready → debug colour" painted every
+  new texture's first draw: purple videos and fades, a cyan sky (patch 0024). Colours that are wrong *and vary
+  between runs* point at a fallback path before a format bug.
+- **The gate only proves the paths it runs.** A branch no route takes (a special-case constant, an error path)
+  must be compared against the asm by hand: review found `a == 2 → 2` where the original stores 0 (#151).
+- **Profile before optimising, then measure the fix.** A software-rasteriser texture cache was exact and cut the
+  hottest-looking function but saved only 5-10 %; it was dropped and the reason written down (FINDINGS).
+
