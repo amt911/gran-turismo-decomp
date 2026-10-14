@@ -37,7 +37,17 @@ struct MovieDecoder::Codec {
     }
     bool ready() const { return context != nullptr && parser != nullptr && packet != nullptr && frame != nullptr; }
 
-    // Feeds elementary-stream bytes through the parser into the decoder.
+    // Pictures decoded early: taken out of the decoder so it would accept the next packet.
+    struct Picture {
+        std::vector<std::uint8_t> rgba;
+        std::uint32_t width{}, height{};
+    };
+    std::deque<Picture> early;
+
+    // Feeds elementary-stream bytes through the parser into the decoder. One 2048-byte packet can hold
+    // several small pictures; a decoder still holding an undelivered one answers EAGAIN, so that picture is
+    // taken out first and the packet sent again (dropping it lost the picture and broke every picture
+    // predicted from it).
     void feed(const std::vector<std::uint8_t> &es) {
         const std::uint8_t *data = es.data();
         int size = static_cast<int>(es.size());
@@ -47,7 +57,12 @@ struct MovieDecoder::Codec {
             if (used < 0) return;
             data += used;
             size -= used;
-            if (packet->size > 0) (void)avcodec_send_packet(context, packet);
+            if (packet->size <= 0) continue;
+            while (avcodec_send_packet(context, packet) == AVERROR(EAGAIN)) {
+                Picture picture;
+                if (!receive(picture.rgba, picture.width, picture.height)) break;
+                early.push_back(std::move(picture));
+            }
         }
     }
 
@@ -63,7 +78,10 @@ struct MovieDecoder::Codec {
             scaler_height = frame->height;
             scaler_format = frame->format;
         }
-        if (scaler == nullptr) return false;
+        if (scaler == nullptr) {
+            av_frame_unref(frame);  // dropped, so the decoder takes packets again
+            return false;
+        }
         width = static_cast<std::uint32_t>(frame->width);
         height = static_cast<std::uint32_t>(frame->height);
         rgba.resize(static_cast<std::size_t>(width) * height * 4u);
@@ -88,6 +106,14 @@ bool MovieDecoder::next_frame(std::vector<std::uint8_t> &rgba, std::uint32_t &wi
     if (!codec_->ready()) return false;
     std::vector<std::uint8_t> es;
     for (;;) {
+        if (!codec_->early.empty()) {
+            auto &picture = codec_->early.front();
+            rgba = std::move(picture.rgba);
+            width = picture.width;
+            height = picture.height;
+            codec_->early.pop_front();
+            return true;
+        }
         if (codec_->receive(rgba, width, height)) return true;
         if (packets_.empty()) return false;
         es.clear();
