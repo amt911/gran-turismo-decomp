@@ -1,0 +1,210 @@
+GT patch 0030: cheaper content checks on the GE thread. The per-draw texture, palette and vertex-cache hashes
+used a serial mix per 8 bytes (a fifth of the GE thread in a race); fast_hash_bytes uses four independent
+multiply lanes. Within one display list, the hash of the same palette or texture bytes is remembered until the
+list ends or a block transfer writes memory (ge_renderer_forget_content_hashes, also called by GT's own list
+executor). Only cache keys change: what is drawn is the same.
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -1610,6 +1610,67 @@
+     return true;
+ }
+ 
++// GT patch 0030: content hash for the per-draw texture and palette checks. They run on the GE thread for every
++// draw, and a serial mix per 8 bytes made them a fifth of its time in a race; four independent multiply lanes
++// go at memory speed. Only cache keys change: what is drawn is the same.
++std::uint64_t fast_hash_bytes(const std::uint8_t *data, std::size_t size, std::uint64_t seed) noexcept {
++    std::uint64_t lanes[4] = {seed ^ 0x9E3779B97F4A7C15ull, seed ^ 0xC2B2AE3D27D4EB4Full,
++                              seed ^ 0x165667B19E3779F9ull, seed ^ 0x27D4EB2F165667C5ull};
++    std::size_t i = 0u;
++    for (; i + 32u <= size; i += 32u) {
++        for (std::size_t lane = 0u; lane < 4u; ++lane) {
++            std::uint64_t word{};
++            std::memcpy(&word, data + i + lane * 8u, sizeof(word));
++            lanes[lane] = (lanes[lane] ^ word) * 0x9FB21C651E98DF25ull;
++            lanes[lane] ^= lanes[lane] >> 32u;
++        }
++    }
++    std::uint64_t hash = static_cast<std::uint64_t>(size) * 0xD6E8FEB86659FD93ull;
++    for (const std::uint64_t lane : lanes) {
++        hash ^= lane + 0x9E3779B97F4A7C15ull + (hash << 6u) + (hash >> 2u);
++        hash *= 0xD6E8FEB86659FD93ull;
++    }
++    for (; i + 8u <= size; i += 8u) {
++        std::uint64_t word{};
++        std::memcpy(&word, data + i, sizeof(word));
++        hash = (hash ^ word) * 0x9FB21C651E98DF25ull;
++        hash ^= hash >> 29u;
++    }
++    if (i < size) {
++        std::uint64_t tail = 0u;
++        std::memcpy(&tail, data + i, size - i);
++        hash = (hash ^ tail ^ (static_cast<std::uint64_t>(size - i) << 56u)) * 0x9FB21C651E98DF25ull;
++        hash ^= hash >> 29u;
++    }
++    return hash;
++}
++
++// GT patch 0030: within one display list the same palettes and small textures are checked by draw after draw
++// with the same bytes; remember each content hash until the list ends or a block transfer writes memory
++// (ge_renderer_forget_content_hashes). Direct-mapped, per thread (the GE runs on one).
++std::atomic<std::uint64_t> g_content_generation{1u};
++
++struct RememberedHash {
++    std::uint32_t address{};
++    std::uint32_t bytes{};
++    std::uint64_t extra{};
++    std::uint64_t generation{};
++    std::uint64_t value{};
++};
++
++std::uint64_t remembered_content_hash(const std::uint8_t *data, std::uint32_t address, std::size_t bytes,
++                                      std::uint64_t extra, std::uint64_t seed) noexcept {
++    static thread_local std::array<RememberedHash, 2048> remembered{};
++    const std::uint64_t generation = g_content_generation.load(std::memory_order_relaxed);
++    const std::size_t slot = ((address >> 4u) ^ (address >> 15u) ^ static_cast<std::size_t>(bytes) * 2654435761u ^
++                              static_cast<std::size_t>(extra)) & (remembered.size() - 1u);
++    RememberedHash &entry = remembered[slot];
++    if (entry.generation == generation && entry.address == address && entry.bytes == bytes && entry.extra == extra)
++        return entry.value;
++    entry = {address, static_cast<std::uint32_t>(bytes), extra, generation, fast_hash_bytes(data, bytes, seed)};
++    return entry.value;
++}
++
+ std::uint64_t mix_vertex_word(std::uint64_t hash, std::uint64_t value) noexcept {
+     hash ^= value + 0x9E3779B97F4A7C15ull + (hash << 6u) + (hash >> 2u);
+     hash *= 0xD6E8FEB86659FD93ull;
+@@ -1618,19 +1679,7 @@
+ 
+ std::uint64_t mix_vertex_bytes(std::uint64_t hash, const std::uint8_t *data,
+                                std::size_t size) noexcept {
+-    std::size_t offset = 0u;
+-    while (offset + 8u <= size) {
+-        std::uint64_t word = 0u;
+-        std::memcpy(&word, data + offset, sizeof(word));
+-        hash = mix_vertex_word(hash, word);
+-        offset += 8u;
+-    }
+-    if (offset < size) {
+-        std::uint64_t tail = 0u;
+-        std::memcpy(&tail, data + offset, size - offset);
+-        hash = mix_vertex_word(hash, tail ^ (static_cast<std::uint64_t>(size - offset) << 56u));
+-    }
+-    return hash;
++    return fast_hash_bytes(data, size, hash);  // GT patch 0030: the signature of every cached draw's vertices
+ }
+ 
+ struct StaticVertexKey {
+@@ -2044,47 +2093,10 @@
+     const std::uint8_t *pixels = memory.raw_pointer(texture.base, size);
+     if (pixels == nullptr) return 0u;
+ 
+-    std::uint64_t hash = 0x9E3779B97F4A7C15ull;
+-    const auto mix64 = [&hash](std::uint64_t value) noexcept {
+-        hash ^= value + 0x9E3779B97F4A7C15ull + (hash << 6u) + (hash >> 2u);
+-        hash *= 0xD6E8FEB86659FD93ull;
+-        hash ^= hash >> 29u;
+-    };
+-    const auto hash_range = [&](std::size_t begin, std::size_t end) noexcept {
+-        std::size_t i = begin;
+-        while (i + 8u <= end) {
+-            std::uint64_t word{};
+-            std::memcpy(&word, pixels + i, sizeof(word));
+-            mix64(word);
+-            i += 8u;
+-        }
+-        if (i < end) {
+-            std::uint64_t tail = 0u;
+-            std::memcpy(&tail, pixels + i, end - i);
+-            mix64(tail ^ (static_cast<std::uint64_t>(end - i) << 56u));
+-        }
+-    };
+-    if (size <= 4096u) {
+-        hash_range(0u, size);
+-    } else {
+-        // GT patch 0027: every byte, not 16 samples of 64 bytes: GT loads a new texture where an old one of the
+-        // same size was (the menu's "Single Player" label, then a track's kerbs; one track map, then another),
+-        // and the samples matched, so the GPU kept drawing the old image. Four independent multiply lanes keep
+-        // the whole-texture pass near memory speed; it runs once per texture per frame (or after a transfer).
+-        std::uint64_t lanes[4] = {0x9E3779B97F4A7C15ull, 0xC2B2AE3D27D4EB4Full, 0x165667B19E3779F9ull,
+-                                  0x27D4EB2F165667C5ull};
+-        std::size_t i = 0u;
+-        for (; i + 32u <= size; i += 32u) {
+-            for (std::size_t lane = 0u; lane < 4u; ++lane) {
+-                std::uint64_t word{};
+-                std::memcpy(&word, pixels + i + lane * 8u, sizeof(word));
+-                lanes[lane] = (lanes[lane] ^ word) * 0x9FB21C651E98DF25ull;
+-                lanes[lane] ^= lanes[lane] >> 32u;
+-            }
+-        }
+-        for (const std::uint64_t lane : lanes) mix64(lane);
+-        hash_range(i, size);
+-    }
++    // GT patch 0030 (whole texture: 0027), remembered for the rest of the list.
++    std::uint64_t hash = remembered_content_hash(pixels, texture.base, size,
++                                                 (static_cast<std::uint64_t>(texture.width) << 32u) | texture.height,
++                                                 0x9E3779B97F4A7C15ull);
+     hash ^= static_cast<std::uint64_t>(size) +
+             (static_cast<std::uint64_t>(texture.width) << 32u) + texture.height;
+     hash *= 1099511628211ull;
+@@ -4149,6 +4161,10 @@
+ 
+ }  // namespace
+ 
++void ge_renderer_forget_content_hashes() noexcept {  // GT patch 0030
++    g_content_generation.fetch_add(1u, std::memory_order_relaxed);
++}
++
+ bool render_ge_primitive_pass(psprecomp::GuestMemory &memory,
+                          const std::array<std::uint32_t, 256> &commands,
+                          const GeTransformState &transform,
+@@ -4281,22 +4297,9 @@
+             const std::uint32_t clut_bytes = (last - first + 1u) * entry_bytes;
+             if (const std::uint8_t *clut = memory.raw_pointer(
+                     gpu_draw.clut_address + offset_bytes, clut_bytes)) {
+-                std::uint32_t checksum = 2166136261u;
+-                std::uint32_t offset = 0u;
+-                for (; offset + 4u <= clut_bytes; offset += 4u) {
+-                    const std::uint32_t word = static_cast<std::uint32_t>(clut[offset]) |
+-                        (static_cast<std::uint32_t>(clut[offset + 1u]) << 8u) |
+-                        (static_cast<std::uint32_t>(clut[offset + 2u]) << 16u) |
+-                        (static_cast<std::uint32_t>(clut[offset + 3u]) << 24u);
+-                    checksum ^= word;
+-                    checksum *= 16777619u;
+-                }
+-                if (offset < clut_bytes) {
+-                    std::uint32_t tail = clut[offset];
+-                    if (offset + 1u < clut_bytes) tail |= static_cast<std::uint32_t>(clut[offset + 1u]) << 8u;
+-                    checksum ^= tail;
+-                    checksum *= 16777619u;
+-                }
++                const std::uint64_t wide = remembered_content_hash(  // GT patch 0030
++                    clut, gpu_draw.clut_address + offset_bytes, clut_bytes, 0xC1u, 2166136261u);
++                const auto checksum = static_cast<std::uint32_t>(wide ^ (wide >> 32u));
+                 gpu_draw.clut_checksum = checksum;
+             }
+         }
+--- a/lcs/host/ge_renderer.hpp
++++ b/lcs/host/ge_renderer.hpp
+@@ -8,6 +8,11 @@
+ 
+ namespace lcs {
+ 
++// GT patch 0030: forget the content hashes remembered for textures and palettes (ge_renderer.cpp
++// remembered_content_hash). Call at the start of every display list and after anything writes guest memory
++// the GE reads (a block transfer): the hashes are reused only in between.
++void ge_renderer_forget_content_hashes() noexcept;
++
+ struct GeTransformState {
+     std::array<float, 96> bones{};
+     std::array<float, 12> world{};
+--- a/lcs/host/lcs_ge_exec.cpp
++++ b/lcs/host/lcs_ge_exec.cpp
+@@ -28,6 +28,7 @@
+ }  // namespace
+ 
+ void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list_address) {
++    ge_renderer_forget_content_hashes();  // GT patch 0030
+     ge_finish_seen = false;
+     ge_finish_arg = 0u;
+     if (list_address == 0u) return;

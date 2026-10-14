@@ -35,6 +35,36 @@
 namespace lcs {
 namespace {
 
+// Reads display-list words through a raw pointer into the current 4 KiB block: GuestMemory::load32 resolves the
+// address on every call, and a frame's lists are thousands of words, walked twice (prescan_ge_list on the game's
+// thread, then execute_ge_list_rendered on the GE thread).
+class ListReader {
+public:
+    explicit ListReader(const psprecomp::GuestMemory &memory) : memory_(memory) {}
+    // False when the word is outside guest memory.
+    bool read(std::uint32_t address, std::uint32_t &word) {
+        const std::uint32_t base = address & ~0xFFFu;
+        if (base != block_base_ || block_ == nullptr) {
+            block_base_ = base;
+            block_ = memory_.raw_pointer(base, 0x1000u);
+        }
+        if (block_ == nullptr || (address & 0xFFFu) > 0xFFCu) {  // past a region's end, or straddling blocks
+            if (!memory_.contains(address, 4u)) return false;
+            word = memory_.load32(address);
+            return true;
+        }
+        const std::uint8_t *at = block_ + (address & 0xFFFu);
+        word = static_cast<std::uint32_t>(at[0]) | (static_cast<std::uint32_t>(at[1]) << 8u) |
+               (static_cast<std::uint32_t>(at[2]) << 16u) | (static_cast<std::uint32_t>(at[3]) << 24u);
+        return true;
+    }
+
+private:
+    const psprecomp::GuestMemory &memory_;
+    const std::uint8_t *block_ = nullptr;
+    std::uint32_t block_base_ = 0xFFFFFFFFu;
+};
+
 std::array<std::uint32_t, 256> ge_commands{};
 GeTransformState ge_transform{};
 std::uint32_t ge_base_register = 0u;
@@ -95,6 +125,7 @@ void execute_block_transfer(psprecomp::GuestMemory &memory, std::uint32_t kick) 
     }
     // The GPU backend caches textures per frame: tell it which bytes this copy rewrote (GT copies each
     // text glyph into the same small texture right before drawing it).
+    lcs::ge_renderer_forget_content_hashes();  // the transfer may have rewritten a texture or palette
     lcs::ge_gpu_backend_note_guest_write(destination + (dy * destination_width + dx) * bytes_per_pixel,
                                          ((height - 1u) * destination_width + width) * bytes_per_pixel);
 }
@@ -109,6 +140,7 @@ std::uint32_t relative_address(std::uint32_t data24) {
 }  // namespace
 
 void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list_address) {
+    lcs::ge_renderer_forget_content_hashes();  // texture/palette hashes are remembered only within a list
     ge_finish_seen = false;
     ge_finish_arg = 0u;
     if (list_address == 0u) return;
@@ -116,10 +148,11 @@ void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list
     std::array<std::uint32_t, 16> call_stack{};
     std::uint32_t call_depth = 0u;
     std::uint32_t pc = list_address;
+    ListReader reader(memory);
 
     for (std::uint32_t executed = 0u; executed < kMaxCommands; ++executed) {
-        if (!memory.contains(pc, 4u)) break;
-        const std::uint32_t word = memory.load32(pc);
+        std::uint32_t word = 0u;
+        if (!reader.read(pc, word)) break;
         const std::uint32_t op_pc = pc;
         pc = (pc + 4u) & 0x0FFFFFFFu;
         const std::uint32_t command = word >> 24u;
@@ -199,9 +232,10 @@ GeListPrescan prescan_ge_list(psprecomp::GuestMemory &memory, std::uint32_t list
     std::array<std::uint32_t, 16> call_stack{};
     std::uint32_t call_depth = 0u;
     std::uint32_t pc = list_address;
+    ListReader reader(memory);
     for (std::uint32_t executed = 0u; executed < kMaxCommands; ++executed) {
-        if (!memory.contains(pc, 4u)) break;
-        const std::uint32_t word = memory.load32(pc);
+        std::uint32_t word = 0u;
+        if (!reader.read(pc, word)) break;
         pc = (pc + 4u) & 0x0FFFFFFFu;
         const std::uint32_t command = word >> 24u;
         const std::uint32_t data = word & 0x00FFFFFFu;
