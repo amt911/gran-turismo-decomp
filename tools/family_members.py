@@ -201,15 +201,32 @@ def _complete(index: int, raw: int, relocated: bool, sources: tuple[int, ...], s
     return Value(index, "const", raw, sources)
 
 
-def distinct(values: Iterable[Value]) -> list[Value]:
-    """The values with a repeated number left out (a static address used by two instructions is one constant)."""
-    seen: set[int] = set()
-    out = []
-    for v in values:
-        if v.value not in seen:
-            seen.add(v.value)
-            out.append(v)
-    return out
+def columns(template: Sequence[Value], members: Sequence[Sequence[Value]]) -> list[int]:
+    """Positions (in the value lists) of the family's real parameters: where some member differs from the template,
+    minus the positions that hold the same number in every member as an earlier one (a static address that two
+    instructions both use is one parameter). Every member must line up with the template (ShapeMismatch otherwise)."""
+    for member in members:
+        row(template, member)
+    varying = [p for p in range(len(template)) if any(m[p].value != template[p].value for m in members)]
+    kept: list[int] = []
+    for p in varying:
+        if not any(all(m[p].value == m[q].value for m in members) and template[p].value == template[q].value for q in kept):
+            kept.append(p)
+    return kept
+
+
+def parameters(template: Sequence[Value], members: Mapping[int, Sequence[Value]]
+               ) -> tuple[list[int], dict[int, list[Value]], list[int]]:
+    """(columns, {member: its values at those columns}, members that do not line up with the template)."""
+    lined, stray = {}, []
+    shape = [(v.kind, v.index) for v in template]
+    for address, values in members.items():
+        if [(v.kind, v.index) for v in values] == shape:
+            lined[address] = values
+        else:
+            stray.append(address)
+    cols = columns(template, list(lined.values()))
+    return cols, {a: [v[p] for p in cols] for a, v in lined.items()}, stray
 
 
 def row(template: Sequence[Value], member: Sequence[Value]) -> list[Value]:
@@ -524,20 +541,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"template func_{template + LOAD_BASE:08X} ({len(t_words)} insns): {_describe(t_values)}")
     print(f"{len(members)} {'reached ' if reached is not None else ''}pending members")
     problems = 0
+    loaded = {}
     for address in members:
         words, relocs = image.function(address, sizes[address])
-        values = member_values(words, address, relocs, image.segments)
+        loaded[address] = (words, member_values(words, address, relocs, image.segments))
+    cols, rows, stray = parameters(t_values, {a: v for a, (_, v) in loaded.items()})
+    for address in stray:
+        print(f"!! func_{address + LOAD_BASE:08X}: values do not line up with the template: {_describe(loaded[address][1])}")
+        problems += 1
+    for address, params in rows.items():
+        words, values = loaded[address]
         extra = f"  hits={hits[address]}" if hits is not None else ""
-        try:
-            varying = distinct(row(t_values, values))
-        except ShapeMismatch:
-            print(f"!! func_{address + LOAD_BASE:08X}: values do not line up with the template: {_describe(values)}")
-            problems += 1
-            continue
         if args.cpp:
-            print(cpp_row(address + LOAD_BASE, args.cpp, varying))
+            print(cpp_row(address + LOAD_BASE, args.cpp, params))
         else:
-            print(f"func_{address + LOAD_BASE:08X}{extra}  {_describe(varying)}")
+            print(f"func_{address + LOAD_BASE:08X}{extra}  {_describe(params)}")
         if args.verbose:
             for v in values:
                 print(f"      [{v.index:3d}] {v.kind:8s} 0x{v.value & _M:08X}  words {list(v.sources)}")

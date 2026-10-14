@@ -528,6 +528,30 @@ def test_li_with_zero_base_and_negative_immediate_is_kept_signed():
     assert [(v.kind, v.value) for v in values([addiu(V0, ZERO, -1), JR_RA, NOP])] == [("imm", -1)]
 
 
-def test_distinct_keeps_the_first_of_each_repeated_number():
-    a, b, c = fm.Value(1, "address", 7, (1,)), fm.Value(2, "access", 7, (2,)), fm.Value(3, "call", 9, (3,))
-    assert fm.distinct([a, b, c]) == [a, c]
+def V(index, value, kind="address"):
+    return fm.Value(index, kind, value, (index,))
+
+
+def test_columns_keep_the_positions_where_some_member_differs_even_if_one_equals_the_template():
+    template = [V(1, 10), V(2, 12, "imm"), V(3, 99, "call")]
+    members = [[V(1, 11), V(2, 12, "imm"), V(3, 99, "call")], [V(1, 12), V(2, 8, "imm"), V(3, 99, "call")]]
+    assert fm.columns(template, members) == [0, 1]
+
+
+def test_columns_drop_a_position_that_always_repeats_an_earlier_one():
+    template = [V(1, 10), V(2, 10), V(3, 5, "imm")]
+    members = [[V(1, 20), V(2, 20), V(3, 5, "imm")], [V(1, 30), V(2, 30), V(3, 5, "imm")]]
+    assert fm.columns(template, members) == [0]
+
+
+def test_columns_keep_a_position_that_repeats_an_earlier_one_only_sometimes():
+    template = [V(1, 10), V(2, 10)]
+    members = [[V(1, 20), V(2, 20)], [V(1, 30), V(2, 31)]]
+    assert fm.columns(template, members) == [0, 1]
+
+
+def test_parameters_return_each_members_values_at_the_columns_and_the_strays():
+    template = [V(1, 10), V(3, 5, "call")]
+    good = {0x10: [V(1, 11), V(3, 5, "call")], 0x20: [V(1, 12), V(3, 5, "call")]}
+    cols, rows, stray = fm.parameters(template, {**good, 0x30: [V(2, 1)]})
+    assert cols == [0] and [v.value for v in rows[0x20]] == [12] and stray == [0x30]
