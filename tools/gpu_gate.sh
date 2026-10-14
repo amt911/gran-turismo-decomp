@@ -30,10 +30,13 @@ status=0
 for entry in $routes; do
   route=${entry%:*}; seconds=${entry#*:}
   pad=$(grep -v '^#' "config/pad_routes/$route.pad") || { echo "gpu_gate: no pad route $route" >&2; exit 2; }
-  rm -rf "${out:?}/$route" "${out:?}/$route-diff"
+  # A fresh save for every run: gt_play keeps saves in build/savedata/ otherwise, and a save another run
+  # changed (Options, a bought car) makes the route's presses land on other screens.
+  rm -rf "${out:?}/$route" "${out:?}/$route-diff" "${out:?}/$route-savedata"
+  mkdir -p "$out/$route-savedata"
   flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G \
     -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$ini" \
-    PSPRECOMP_GE_GPU_DUAL=1 GT_FRAMESKIP=0 GT_GPU_NO_DROP=1 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
+    GT_SAVEDATA_DIR="$out/$route-savedata" PSPRECOMP_GE_GPU_DUAL=1 GT_FRAMESKIP=0 GT_GPU_NO_DROP=1 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
     GT_FRAME_EVERY="${GT_FRAME_EVERY:-30}" timeout $((seconds + 300)) "$build/gt_play" --max-seconds "$seconds" \
     > "$out/$route.log" 2>&1
   rc=$?

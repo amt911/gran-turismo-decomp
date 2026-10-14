@@ -1121,16 +1121,20 @@ Found: 2026-10-14 · tools/src/lcs-recomp/lcs/host/ge_gpu_backend_vulkan.cpp, ge
 ## GPU: the menu's "Single Player" label drawn on the kerbs, an old track map in the race
 
 **Symptom.** With `NativeGE=true` a track's kerbs showed the main menu's "Single Player" label, and the race's
-track map was another circuit's (GPU gate, race route: 1012/1088 frames equal to the software rasterizer).
-**Cause.** The GPU texture cache keys a texture by its address, size and format plus a content signature, and
-for textures over 4 KiB the signature hashed only 16 samples of 64 bytes. GT loads a new texture where an old one
-of the same size was; when the samples matched (blank borders, transparent areas), the cache kept the old image.
-**Fix / workaround.** lcs-recomp patch 0027 hashes every byte, in four multiply lanes. Once per texture per frame
-(or after a block transfer writes it): GE wait in a race stayed at ~7 %. GPU gate race: 1129/1129 equal.
-**Why it isn't obvious.** Sampled hashes are a common emulator trade-off and work until two textures share
-the sampled bytes; the software rasterizer reads the memory directly, so it never shows the bug.
+track map was another picture (a "T").
+**Cause.** The GPU backend keys render targets by their 21-bit VRAM offset (the GE framebuffer pointer is one),
+and looked up a texture's target with its address masked to 21 bits. A texture in main RAM (0x09xxxxxx) whose low
+bits matched a target's offset was drawn from that target's image instead — whatever the menu had rendered
+there. Only VRAM (0x04xxxxxx and mirrors) can hold a render target.
+**Fix / workaround.** lcs-recomp patch 0029: `texture_target` refuses non-VRAM addresses. GPU gate, race route,
+fresh save: the track map matches the software rasterizer.
+**Why it isn't obvious.** Patch 0027 (#163) first blamed the texture cache's sampled content hash and was
+"verified" with a GPU gate run that never reached the race: `gt_play` keeps its save in `build/savedata/`, and
+earlier Options-route runs had changed it, so the race route's presses landed in the Options menu. The gate
+now gives every run a fresh save (`GT_SAVEDATA_DIR`). 0027 (hashing whole textures) stays as a cheap
+safeguard, but it did not fix this.
 
-Found: 2026-10-14 · tools/patches/lcs-recomp/0027-gpu-whole-texture-signature.patch
+Found: 2026-10-14 · tools/patches/lcs-recomp/0029-gpu-only-vram-textures-are-targets.patch, tools/gpu_gate.sh
 
 ## GT_PAD times are vblank waits, not presented frames
 
