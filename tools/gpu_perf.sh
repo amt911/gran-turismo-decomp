@@ -38,8 +38,8 @@ n = int(sys.argv[2])
 gpu = [float(m.group(1)) for l in text if (m := re.search(r'GPU ([0-9.]+) ms/frame', l))][-n:]
 ge = [float(m.group(1)) for l in text if (m := re.search(r'GE frames ([0-9.]+)/s', l))][-n:]
 wait = [float(m.group(1)) for l in text if (m := re.search(r'GE wait ([0-9.]+)%', l))][-n:]
-if not gpu:
-    sys.exit("gpu_perf: no GPU lines in the log")
+if not gpu or not ge or not wait:
+    sys.exit("gpu_perf: no race [perf] lines in the log")
 print(f"GPU {statistics.median(gpu):.3f} ms/frame (median of {len(gpu)}; min {min(gpu):.3f} max {max(gpu):.3f}) | "
       f"GE frames {statistics.median(ge):.1f}/s | GE wait {statistics.median(wait):.1f}%")
 EOF
