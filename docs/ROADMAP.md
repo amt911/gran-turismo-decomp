@@ -626,6 +626,21 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (comparado con el asm leyendo el destino). Escritas sin registrar: `func_08C0BC20` y `func_08BC48B4` (escriben memoria y ningún caso comparado la
       cambió). Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 47.
       **5.036 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 66 integrado: ver el PR #175).
+- [x] **Lote 68 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_68.cpp`, 44 registradas; sondeo de llamadas con `GT_PROBE_SYMBOLS`
+      sobre todas las funciones sin hacer de hasta 70 instrucciones, en las cinco rutas): termina familias de forma ya decompilada (lotes 59, 63 y 66) con
+      el patrón existente y las constantes y destinos de llamada leídos de las palabras de cada miembro, tras comparar cada miembro con su plantilla
+      palabra a palabra (solo difieren constantes reubicadas y el destino del jal/j): 7 «pair call A», 6 «pair call B», 6 inicializadores de nodo con tail
+      call, 3 pasos de acotado, 6 «llama con una constante» (dos trabajadores distintos) y 16 accesores de un contenedor estático vacío.
+      Cobertura de ramas con `tools.decomp_gate coverage`; cada rama no tomada se comparó con el asm a mano (el paso de acotado: ramas de otros límites; el
+      contenedor: `func_08B6441C` devolviendo 0). Escrita sin registrar: `func_08C401C4` (escribe memoria y ninguno de sus 49 casos la cambió).
+      Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 44.
+      **5.080 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 67 integrado: ver el PR #176).
+- [x] **Lote 69 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_69.cpp`, 47 registradas; mismo sondeo de llamadas, 1.475 funciones
+      alcanzadas sin hacer en 958 formas): termina miembros de las familias de los lotes 59 y 66 con el patrón existente, tras comparar cada miembro con
+      su plantilla palabra a palabra (solo difieren constantes reubicadas y el destino del jal/j, comprobado contra la palabra cruda): 17 «pair call A»,
+      14 «pair call B», 8 «init handle» y 8 inicializadores de nodo con tail call. Sin ramas (código lineal): la cobertura confirma que toda región se
+      ejecutó. Dejadas fuera por ahora: ~139 miembros más de esas cuatro familias (alcanzados una vez por ruta) y las familias nuevas de 32-36 instrucciones
+      con 29-38 miembros alcanzados. Sabotajes detectados en las 47. **5.127 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 68 integrado: ver el PR #177).
 - [x] **Lote 70 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_70.cpp`, 50 registradas; primer lote hecho con `tools.family_members`, PR #178:
       sondeo con `tools.decomp_gate probe` —12.734 funciones sin hacer de hasta 70 instrucciones, cinco rutas con `--decomp off`— y miembros de cada familia
       con las constantes leídas de sus propias palabras y de las reubicaciones del ELF, sin otra diferencia con la plantilla): la familia nueva de 35
@@ -635,8 +650,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       con `tools.decomp_gate coverage`: toda rama tomada salvo «el acquire del guard devuelve 0» (ambas familias) y «`object` nulo» (imposible: es una
       dirección constante), comparadas con el asm leyendo el DESTINO. Cada `call_guest` / `tail_call` pasa los registros de argumento que el original
       fija antes del `jal` (el registrador no lee ninguno: comprobado en sus 8 destinos). Sabotajes detectados en las 50, `contract_audit` 0.
-      **5.086 funciones, 0 discrepancias** (puerta completa: 4.530 comparadas en las cinco rutas, 556 sin comparar). Fuera por ahora: ~139 miembros de las
-      familias de los lotes 59/66 (A 53, B 38, init handle 31, nodo 17: estaban en los PR #176/#177 abiertos, que excluyo con `--exclude-ref`), el resto
+      **5.177 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 68 y 69 integrados: ver el PR #180). Fuera por ahora: ~139 miembros de las
+      familias de los lotes 59/66 (A 53, B 38, init handle 31, nodo 17: que se excluyeron con `--exclude-ref` mientras los PR #176/#177 estaban abiertos), el resto
       del contenedor (4) y las familias de 36-68 instrucciones con 6-8 miembros.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
