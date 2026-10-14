@@ -21,6 +21,7 @@ _FUNCTION_NAME = re.compile(r"((?:\w+::)*\w+)\(")
 # llvm-cov export region/branch tuples: [line_start, col_start, line_end, col_end, count, ...].
 _REGION_COUNT = 4
 _BRANCH_TRUE, _BRANCH_FALSE = 4, 5
+_BRANCH_FILE, _REGION_FILE = 6, 5  # index into the function's filenames: 0 its own file, others headers / macro expansions
 _REGION_KIND = 7  # 0 = code, 1 = expansion, 2 = skipped, 3 = gap, 4 = branch
 
 
@@ -32,10 +33,14 @@ class FunctionCoverage:
     branches: int = 0
     untaken: list[tuple[int, int, str]] = field(default_factory=list)  # (line, column, "true" | "false")
     unexecuted: list[tuple[int, int]] = field(default_factory=list)    # (line, column) of code regions that never ran
+    # Outcomes never taken inside a macro expansion or another file: (file, file ID, line, column, "true" | "false").
+    # Every expansion has its own file ID even when two share a position (the macro's definition), so each keeps
+    # its own outcomes; merging them by position would hide an expansion's untaken branch behind another's.
+    elsewhere: list[tuple[str, int, int, int, str]] = field(default_factory=list)
 
     @property
     def complete(self) -> bool:
-        return not self.untaken and not self.unexecuted
+        return not self.untaken and not self.unexecuted and not self.elsewhere
 
 
 def source_files(only: Iterable[int], src: Path, registration: re.Pattern[str]) -> list[Path]:
@@ -83,7 +88,7 @@ def uncovered(export: Mapping, files: Iterable[str]) -> list[FunctionCoverage]:
         return any(name == w or name.endswith("/" + w) or w.endswith(name) for w in wanted)
 
     merged: dict[tuple[str, str], FunctionCoverage] = {}
-    seen_outcomes: dict[tuple[str, str], dict[tuple[int, int, str], bool]] = {}
+    seen_outcomes: dict[tuple[str, str], dict[tuple[str, int, int, int, str], bool]] = {}
     seen_regions: dict[tuple[str, str], dict[tuple[int, int], bool]] = {}
     for data in export.get("data", []):
         for function in data.get("functions", []):
@@ -97,18 +102,22 @@ def uncovered(export: Mapping, files: Iterable[str]) -> list[FunctionCoverage]:
             outcomes = seen_outcomes.setdefault(key, {})
             regions = seen_regions.setdefault(key, {})
             for branch in function.get("branches", []):
-                line, col = branch[0], branch[1]
+                line, col, file_id = branch[0], branch[1], branch[_BRANCH_FILE]
+                where = names[file_id] if 0 < file_id < len(names) else ""
                 for kind, index in (("true", _BRANCH_TRUE), ("false", _BRANCH_FALSE)):
-                    outcomes[(line, col, kind)] = outcomes.get((line, col, kind), False) or branch[index] > 0
+                    o = (where, file_id if file_id else 0, line, col, kind)
+                    outcomes[o] = outcomes.get(o, False) or branch[index] > 0
             for region in function.get("regions", []):
-                if region[_REGION_KIND] != 0:
+                if region[_REGION_KIND] != 0 or region[_REGION_FILE] != 0:
                     continue
                 line, col = region[0], region[1]
                 regions[(line, col)] = regions.get((line, col), False) or region[_REGION_COUNT] > 0
     for key, entry in merged.items():
         outcomes = seen_outcomes[key]
-        entry.branches = len({(line, col) for line, col, _ in outcomes})
-        entry.untaken = sorted(o for o, taken in outcomes.items() if not taken)
+        entry.branches = len({o[:4] for o in outcomes})
+        entry.untaken = sorted((line, col, kind) for (where, _, line, col, kind), taken in outcomes.items()
+                               if not taken and not where)
+        entry.elsewhere = sorted(o for o, taken in outcomes.items() if not taken and o[0])
         entry.unexecuted = sorted(r for r, ran in seen_regions[key].items() if not ran)
     return sorted(merged.values(), key=lambda f: (f.file, f.untaken[0][0] if f.untaken else 0, f.name))
 
@@ -126,5 +135,8 @@ def format_report(functions: Sequence[FunctionCoverage]) -> str:
             parts.append("branches never " + ", ".join(f"{kind} at {line}:{col}" for line, col, kind in f.untaken))
         if f.unexecuted:
             parts.append("regions never run at " + ", ".join(f"{line}:{col}" for line, col in f.unexecuted))
+        if f.elsewhere:
+            parts.append("in macros/headers never " + ", ".join(
+                f"{Path(where).name} (expansion {file_id}) {line}:{col} {kind}" for where, file_id, line, col, kind in f.elsewhere))
         lines.append(f"{where}{f.name}: " + "; ".join(parts))
     return "\n".join(lines)
