@@ -19351,14 +19351,21 @@ void func_08A678E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // 64-bit comparison (compare_u64_value): func_08A5E71C (not equal).
 void func_08A5E71C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { compare_u64_value(rt, ctx, '!'); }
 
-// func_08A15D54(this) -> by the mode +0x0: func_08A15800(this) for 0, func_08A15BA8(this) for 1 and 2, else 0.
+// func_08A15D54(this, a1, a2) -> by the mode +0x0: func_08A15800(this, a1, a2, 0) for 0, func_08A15BA8(this, a1, a2)
+// for 1 and 2, else 0. a1 and a2 pass through untouched; a3 is the delay slots' value — 0 on the mode-0 branch,
+// the `mode < 3` test (1) on the other — and func_08A15800 reads it (a3 & 0xFF).
 void func_08A15D54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t a1 = ctx.gpr[5], a2 = ctx.gpr[6];
     const auto mode = static_cast<std::int32_t>(word(rt, self));
     ctx.gpr[2] = 0u;
-    if (mode != 0 && (mode < 0 || mode >= 3)) return;
+    if (mode != 0 && (mode < 0 || mode >= 3)) {
+        ctx.gpr[7] = mode < 0 ? 1u : 0u;  // a3 = the `mode < 3` test from the delay slot
+        return;
+    }
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, mode == 0 ? 0x08A15800u : 0x08A15BA8u, {self});
+    ctx.gpr[2] = mode == 0 ? call_guest(rt, ctx, 0x08A15800u, {self, a1, a2, 0u})
+                           : call_guest(rt, ctx, 0x08A15BA8u, {self, a1, a2, 1u});
 }
 
 // func_089BA4D8(this, x): for a non-null x, virtual +0x164(x), then virtual +0x154(the object of x's +0x14's
