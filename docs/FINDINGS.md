@@ -1082,9 +1082,11 @@ Found: 2026-10-14 · lcs/host/ge_renderer.cpp (lcs-recomp)
 the floor shows a bright glow beside the car instead of the turntable ring and shadow, and the plate text is
 missing (GPU gate ×1, dealer route: 515/1763 frames equal; race ~93 %, garage 1776/1813).
 **Cause.** Not found yet. Ruled out by experiment: the GPU hardware transform (`PSPRECOMP_GE_GPU_HW_TRANSFORM=0`:
-514/1762), the GPU lighting (`PSPRECOMP_GE_GPU_HW_LIT=0`: 510/1762), the blend formulas (`min(1, 2α)` /
-`min(1, 2(1−α))` are the same in `ge_renderer.cpp blend_pixel` and `ge.frag blendFactor`), stencil (neither path
-implements it) and render-target address aliasing (`find_target` matches exact addresses). Lead: 257 blended
+514/1762), the GPU lighting (`PSPRECOMP_GE_GPU_HW_LIT=0`: 510/1762), the blend states the dealer uses
+(`GT_GPU_STATS` on the route: only add with `As / 1−As`, `As / fix FFFFFF` and `min(1, 2As) / min(1, 2(1−As))` —
+the last computed in `ge.frag blendFactor` with the same formula as `ge_renderer.cpp blend_factor`), stencil
+(neither path implements it) and render-target aliasing (`find_target` keys on the address masked to
+`0x001FFFF0`; no target sits at the environment map's address). Lead: 257 blended
 draws per frame use a DXT1 environment map in VRAM (`tex @040d4000 fmt 8 128x128`, `GT_GE_LOG`) — the
 reflection pass; compare its texture function, UV generation (env mapping) and the texture's decode on both paths.
 **Fix / workaround.** None yet; documented as the GPU path's known difference.
