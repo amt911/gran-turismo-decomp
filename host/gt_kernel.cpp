@@ -1891,6 +1891,17 @@ void perf_log_tick() {
                  100.0 * static_cast<double>(perf_ge_wait_us.exchange(0u)) / (seconds * 1e6),
                  perf_audio_frames / seconds,
                  static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6));
+    if (ge_gpu_backend_active()) {  // GT patch 0028: what the GPU itself spent, from Vulkan timestamps
+        const GeGpuPerf gpu = ge_gpu_backend_take_perf();
+        const double frames = gpu.frames ? static_cast<double>(gpu.frames) : 1.0;
+        std::fprintf(stderr,
+                     "[perf]   GPU %.2f ms/frame over %.1f frames/s, GE thread blocked on the GPU %.1f%%, "
+                     "%.1f render passes/frame, %.2f full target copies/frame, uploads %.2f MB/s\n",
+                     gpu.gpu_ms / frames, static_cast<double>(gpu.frames) / seconds,
+                     100.0 * gpu.fence_wait_ms / (seconds * 1000.0), static_cast<double>(gpu.passes) / frames,
+                     static_cast<double>(gpu.target_copies) / frames,
+                     static_cast<double>(gpu.upload_bytes) / (seconds * 1e6));
+    }
     perf_audio_frames = 0u;
     perf_log = PerfLog{};
     perf_log.start = now;
