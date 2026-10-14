@@ -547,6 +547,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       pequeños ayudantes de objetos. Sondeo con `GT_PROBE_SYMBOLS` sobre todas las funciones sin hacer de hasta 200 bytes
       (con `--decomp off`: con `on` el sondeo rompe el arranque). Sabotajes detectados en las 89; `contract_audit` sin
       avisos para el lote. **4.608 funciones (con el resto de `main`), 0 discrepancias en las cuatro rutas.**
+- [x] **Lote 58 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_58.cpp`, 85 registradas, más 12 instancias de
+      plantilla en `chained.cpp` y `containers.cpp` sacadas de los clústeres de `tools.shapes`): vectores de floats, pares de
+      64 bits, escritores de la lista de dibujo y los `lower_bound` / `find` de `std::map` con claves de 32 bits (13 instancias
+      en tres cuerpos compartidos). `GT_DECOMP_PTR_*` y `FREE_LIST_PUSH` con constantes decodificadas de cada función. Sabotajes
+      detectados en las 97 (las plantillas, saboteando a mano el cuerpo compartido). **4.705 funciones (con el resto de `main`), 0 discrepancias.**
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
