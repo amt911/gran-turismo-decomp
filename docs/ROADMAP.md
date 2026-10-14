@@ -589,6 +589,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         16 bits como en la GE (parche 0025: un 12 % menos de píxeles que parpadean entre frames en la carrera; escribir la
         profundidad desactiva la prueba temprana: a medir en GPUs integradas). Gate ×1
         200 s de carrera: 1016/1092 frames iguales (1006/1095 antes); 34 s de arranque: 2 fallos (10-11 antes).
+  - [x] **GPU lenta = menos imágenes, no juego más lento** (2026-10-14, parche 0026): el final de cada frame
+        esperaba a que la GPU acabase el anterior y el juego (que avanza lógica y sonido por frame) esperaba detrás:
+        con una GPU de 20-30 ms por frame (integrada a alta resolución) el coche iba a cámara lenta y el sonido a
+        ~30 kHz. Ahora un frame que solo dibuja en los dos búferes de pantalla se descarta si la GPU no acaba en
+        4 ms (como mucho dos seguidos): con `GT_SIM_GPU_MS=20`, el juego espera un 33 % en vez de un 88 % y el sonido
+        sale a 42,6 kHz en vez de 30,1; con una GPU rápida apenas se descartan.
   - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
         pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.

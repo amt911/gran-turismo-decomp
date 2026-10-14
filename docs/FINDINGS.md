@@ -1040,3 +1040,39 @@ it varies between runs. A forced re-check of the texture contents changed nothin
 failing frame's vblank (`[gpu-dump] frame N vblank V` in the dump log) showed a plain textured draw.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0024-gpu-new-texture-not-debug-colour.patch
+
+## A slow GPU slowed the whole game down, not just the picture
+
+**Symptom.** On a laptop with an integrated GPU (`NativeGE=true`), the car slowed down, frame pacing was bad and
+the sound lagged; on a desktop GPU everything was fine.
+**Cause.** At the end of each frame the Vulkan backend waited for the GPU to finish the previous one
+(`vkQueueWaitIdle`, one frame in flight), and the game thread waits for the GE thread at its list syncs. GT
+advances its logic and produces its sound per frame, so GPU time turned into game time. With
+`GT_SIM_GPU_MS=20` (the GPU taken to need 20 ms per frame; race, averages over a minute) the game thread was
+blocked 87.7 % of the time and the sound came out at 30.1 kHz instead of 44.1.
+**Fix / workaround.** lcs-recomp patch 0026: the pending submit has a fence. A frame that only draws into the
+two framebuffers shown last (GT's front and back buffer) waits at most 4 ms for the GPU and is dropped
+otherwise, at most twice in a row; a frame that draws anywhere else (a reflection, an effect, an old display
+buffer reused offscreen) still waits, since later frames may read it. The software path's present no longer
+waits for the queue. At 20 ms per frame: blocked 33.4 %, sound at 42.6 kHz (without the 4 ms grace and the
+safety rules it would be 1.8 % / 44.0 kHz, at the cost of needless drops on fast GPUs and of risking a render
+later frames need). A fast GPU drops almost none; `GT_GPU_NO_DROP=1` turns dropping off (the GPU gate uses it,
+so its runs don't depend on the machine's speed).
+**Why it isn't obvious.** `guest time 1.00x` in `GT_PERF_LOG` still holds — the vblank clock keeps time — while
+the game itself runs slow; the tell is `GE wait` and the audio rate. A fast GPU hides it entirely.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0026-gpu-drop-frames-not-game-speed.patch
+
+## The software renderer's cost is its per-fragment pipeline, not decoding texels
+
+**Symptom.** With `NativeGE=false` the software rasterizer uses about 2 cores at 480x272 (profile: per-pixel
+loop, `sample_texture`, `read_clut_fast`, blending, writes).
+**Cause.** Measured, not assumed: a cache of decoded RGBA textures (exact: 3.7 billion texels checked against
+guest memory) removed the CLUT lookups (`read_clut_fast` 12.6 % → 1.6 % of samples) but saved only ~5-10 % of
+CPU; the bilinear arithmetic, blending and writes dominate.
+**Fix / workaround.** Not merged. A real gain needs a SIMD span rasterizer; the GPU path is the one to use.
+**Why it isn't obvious.** The profile's top frames are texture functions; most of their time is the
+filtering arithmetic, not the decode.
+
+Found: 2026-10-14 · lcs/host/ge_renderer.cpp (lcs-recomp)
+
