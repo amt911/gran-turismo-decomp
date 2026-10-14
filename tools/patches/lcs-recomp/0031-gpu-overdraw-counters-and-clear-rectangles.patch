@@ -1,9 +1,10 @@
 GT patch 0031: GPU work counters and clear-mode rectangles as clears.
 - GT_PERF_LOG: pipeline statistics per frame (primitives, fragment shader invocations as a multiple of the
   frame's pixels); GT_GPU_OVERDRAW=1: one query per draw, fragments summed by kind of draw every 5 s.
-- A clear-mode rectangle (one axis-aligned rectangle of untransformed vertices, one colour and one z, all colour
-  channels or none written) is done with vkCmdClearAttachments instead of a draw: same pixels, no fragment
-  shader (GT clears depth this way every frame). GT_GPU_DRAW_CLEARS=1 draws them as before.
+- A clear-mode rectangle (one axis-aligned rectangle of untransformed vertices whose edges land on whole target
+  pixels, two non-degenerate triangles over its four corners, one colour and one z, all colour channels or none
+  written) is done with vkCmdClearAttachments instead of a draw: same pixels, no fragment shader (GT clears depth
+  this way every frame). GT_GPU_DRAW_CLEARS=1 draws them as before.
 
 --- a/lcs/host/ge_gpu_backend_vulkan.cpp
 +++ b/lcs/host/ge_gpu_backend_vulkan.cpp
@@ -21,11 +22,11 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      double timestamp_period_ns{};
      bool timestamps_pending{};
      GeGpuPerf perf{};
-@@ -968,6 +975,101 @@
+@@ -968,6 +975,109 @@
      return mask;
  }
  
-+// GT patch 0032: a clear-mode sprite is drawn as a clear when that changes no pixel. GT clears its targets with
++// GT patch 0031: a clear-mode sprite is drawn as a clear when that changes no pixel. GT clears its targets with
 +// clear-mode rectangles every frame (a third of the fragments in a race); drawn, each runs the whole fragment
 +// shader over the rectangle, while vkCmdClearAttachments is a fixed-function fill (a fast clear on most GPUs).
 +// Only when the result is the same: one axis-aligned rectangle of untransformed vertices, one colour and one z,
@@ -68,25 +69,33 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
 +            seen[n++] = value;
 +            return true;
 +        };
++        if (!std::isfinite(v.x) || !std::isfinite(v.y) || std::fabs(v.x) > 65536.0f || std::fabs(v.y) > 65536.0f)
++            return false;
 +        if (!note(v.x, xs, nx) || !note(v.y, ys, ny)) return false;
 +    }
 +    if (nx != 2u || ny != 2u) return false;
-+    // Two triangles over four corners cover the rectangle only if each triangle spans both columns and rows.
++    // Two triangles cover the rectangle only if each uses three different corners and together they use all four
++    // (they then share the diagonal). Corner = bit (x is xs[1]) | 2 * (y is ys[1]).
++    unsigned used_by[2]{};
 +    for (std::uint32_t t = 0u; t < 2u; ++t) {
-+        bool x_seen[2]{}, y_seen[2]{};
 +        for (std::uint32_t k = 0u; k < 3u; ++k) {
 +            const std::uint32_t i = t * 3u + k;
 +            const std::size_t index = batch.indexed
 +                ? static_cast<std::size_t>(batch.first_vertex) + s.indices[batch.first_index + i]
 +                : static_cast<std::size_t>(batch.first_vertex) + i;
 +            const UploadVertex &v = s.vertices[index];
-+            x_seen[v.x == xs[0] ? 0 : 1] = true;
-+            y_seen[v.y == ys[0] ? 0 : 1] = true;
++            const unsigned corner = (v.x == xs[1] ? 1u : 0u) | (v.y == ys[1] ? 2u : 0u);
++            if ((used_by[t] >> corner) & 1u) return false;  // a repeated corner: a degenerate triangle
++            used_by[t] |= 1u << corner;
 +        }
-+        if (!(x_seen[0] && x_seen[1] && y_seen[0] && y_seen[1])) return false;
 +    }
++    if ((used_by[0] | used_by[1]) != 0xFu) return false;
 +    const float scale_x = static_cast<float>(s.target_width) / static_cast<float>(std::max<std::uint32_t>(1u, target.logical_width));
 +    const float scale_y = static_cast<float>(s.target_height) / static_cast<float>(std::max<std::uint32_t>(1u, target.logical_height));
++    // Only edges that land on whole target pixels: the rasterizer snaps vertices to a sub-pixel grid, and a
++    // fractional edge near a pixel centre could then cover a column this computation would not.
++    for (const float edge : {xs[0] * scale_x, xs[1] * scale_x, ys[0] * scale_y, ys[1] * scale_y})
++        if (edge != std::floor(edge)) return false;
 +    const auto first_pixel = [](float edge) { return static_cast<std::int64_t>(std::ceil(edge - 0.5f)); };
 +    std::int64_t x0 = first_pixel(std::min(xs[0], xs[1]) * scale_x), x1 = first_pixel(std::max(xs[0], xs[1]) * scale_x);
 +    std::int64_t y0 = first_pixel(std::min(ys[0], ys[1]) * scale_y), y1 = first_pixel(std::max(ys[0], ys[1]) * scale_y);
@@ -116,14 +125,14 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
 +    rect.rect.extent = {static_cast<std::uint32_t>(x1 - x0), static_cast<std::uint32_t>(y1 - y0)};
 +    rect.layerCount = 1u;
 +    vkCmdClearAttachments(s.command, clear_count, clears, 1u, &rect);
-+    ++s.report.clear_rectangles;  // GT patch 0032
++    ++s.report.clear_rectangles;  // GT patch 0031
 +    return true;
 +}
 +
  VkCompareOp depth_compare(std::uint32_t function) noexcept {
      switch (function & 7u) {
      case 0u: return VK_COMPARE_OP_NEVER;
-@@ -2219,6 +2321,27 @@
+@@ -2219,6 +2329,27 @@
          }
          s.timestamps_pending = false;
      }
@@ -151,7 +160,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      if (s.pending_readback && s.readback_mapped != nullptr && s.pending_readback_bytes != 0u) {
          s.frame_rgba.resize(s.pending_readback_bytes);
          std::memcpy(s.frame_rgba.data(), s.readback_mapped, s.pending_readback_bytes);
-@@ -2405,6 +2528,13 @@
+@@ -2405,6 +2536,13 @@
      if (s.command) vkFreeCommandBuffers(s.device, s.pool, 1u, &s.command);
      if (s.frame_fence) vkDestroyFence(s.device, s.frame_fence, nullptr);  // GT patch 0026
      if (s.timestamps) vkDestroyQueryPool(s.device, s.timestamps, nullptr);  // GT patch 0028
@@ -165,7 +174,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      s.timestamps = VK_NULL_HANDLE;
      s.timestamps_pending = false;
      s.frame_fence = VK_NULL_HANDLE;
-@@ -2671,6 +2801,8 @@
+@@ -2671,6 +2809,8 @@
      VkPhysicalDeviceFeatures available_features{};
      vkGetPhysicalDeviceFeatures(s.physical, &available_features);
      VkPhysicalDeviceFeatures enabled_features{};
@@ -174,7 +183,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      if (available_features.dualSrcBlend) {  // GT patch 0021: the GE's doubled-alpha blend factors
          enabled_features.dualSrcBlend = VK_TRUE;
          g_dual_source_blend.store(true, std::memory_order_relaxed);
-@@ -2735,6 +2867,25 @@
+@@ -2735,6 +2875,25 @@
          query_info.queryCount = 2u;
          if (s.timestamp_period_ns <= 0.0 || vkCreateQueryPool(s.device, &query_info, nullptr, &s.timestamps) != VK_SUCCESS)
              s.timestamps = VK_NULL_HANDLE;
@@ -200,7 +209,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      }
      s.report.command_pool_created = true;
  
-@@ -2987,7 +3138,26 @@
+@@ -2987,7 +3146,26 @@
  GeGpuPerf ge_gpu_backend_take_perf() noexcept {  // GT patch 0028
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
@@ -228,7 +237,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      s.perf = GeGpuPerf{};
      return taken;
  }
-@@ -3616,6 +3786,14 @@
+@@ -3616,6 +3794,14 @@
          vkCmdResetQueryPool(s.command, s.timestamps, 0u, 2u);
          vkCmdWriteTimestamp(s.command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.timestamps, 0u);
      }
@@ -243,19 +252,19 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      if (begun != VK_SUCCESS) {
          log_frame_failure(s, "vkBeginCommandBuffer", begun);
          s.vertices.clear();
-@@ -3674,6 +3852,11 @@
+@@ -3674,6 +3860,11 @@
          scissor.extent.width = static_cast<std::uint32_t>(right - scissor.offset.x);
          scissor.extent.height = static_cast<std::uint32_t>(bottom - scissor.offset.y);
          vkCmdSetScissor(s.command, 0u, 1u, &scissor);
 +        static const bool draw_clears = [] { const char *v = std::getenv("GT_GPU_DRAW_CLEARS"); return v != nullptr && *v != '0'; }();
-+        if (!draw_clears && clear_rectangle(s, batch, *target, scissor)) {  // GT patch 0032 (GT_GPU_DRAW_CLEARS=1: off)
++        if (!draw_clears && clear_rectangle(s, batch, *target, scissor)) {  // GT patch 0031 (GT_GPU_DRAW_CLEARS=1: off)
 +            ++executed;
 +            continue;
 +        }
          float blend_constants[4]{};
          if (const GeneralBlend general = general_blend(batch.draw); general.constant != 0u) {
              const std::uint32_t fix = general.constant;
-@@ -3736,10 +3919,19 @@
+@@ -3736,10 +3927,19 @@
          vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.pipeline_layout, 0u, 1u,
                                  &sampled_set, 1u, &dynamic_offset);
          ++uniform_slot;
@@ -275,7 +284,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
          ++executed;
          if (batch.draw.depth_test_enabled) s.report.depth_tested_game_draw_calls += batch.logical_draw_count;
          if (batch.draw.depth_write_enabled) s.report.depth_writing_game_draw_calls += batch.logical_draw_count;
-@@ -3824,6 +4016,7 @@
+@@ -3824,6 +4024,7 @@
      }
      if (s.timestamps != VK_NULL_HANDLE)  // GT patch 0028
          vkCmdWriteTimestamp(s.command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.timestamps, 1u);
@@ -283,7 +292,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      const VkResult ended = vkEndCommandBuffer(s.command);
      if (ended != VK_SUCCESS) log_frame_failure(s, "vkEndCommandBuffer", ended);
      bool submitted = false;
-@@ -3856,6 +4049,7 @@
+@@ -3856,6 +4057,7 @@
                  submitted = true;
                  s.submit_pending = true;
                  s.timestamps_pending = s.timestamps != VK_NULL_HANDLE;  // GT patch 0028
@@ -297,7 +306,7 @@ GT patch 0031: GPU work counters and clear-mode rectangles as clears.
      std::uint64_t unsupported_texture_function_game_draw_calls{};
      std::uint64_t color_mask_pipeline_variants_created{};
      std::uint64_t masked_color_game_draw_calls{};
-+    std::uint64_t clear_rectangles{};  // GT patch 0032: clear-mode rectangles done with vkCmdClearAttachments
++    std::uint64_t clear_rectangles{};  // GT patch 0031: clear-mode rectangles done with vkCmdClearAttachments
      std::uint64_t unsupported_partial_color_mask_game_draw_calls{};
      std::uint64_t decoded_direct16_textures{};
      std::uint64_t decoded_direct32_textures{};
