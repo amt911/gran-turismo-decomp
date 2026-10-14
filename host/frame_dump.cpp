@@ -78,8 +78,9 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
     (void)write_rgb_ppm(numbered(dump_dir, "frame", presented - 1u), rgb, width, height);
 }
 
-// GT_GPU_DUMP=<dir> (+ GT_FRAME_EVERY): for the GPU gate (tools/gpu_gate.sh). Every Nth frame the GPU
-// backend finished, gpu_NNNNNN.ppm (the backend's frame, box-downsampled to the display size) and
+// GT_GPU_DUMP=<dir> (+ GT_FRAME_EVERY, GT_GPU_DUMP_FROM=N to start at frame N, GT_GPU_DUMP_FULL=1 to keep the GPU
+// frame at its internal resolution — tools/gpu_compare.py then can't pair it): for the GPU gate (tools/gpu_gate.sh).
+// Every Nth frame the GPU backend finished, gpu_NNNNNN.ppm (the backend's frame, box-downsampled to the display size) and
 // soft_NNNNNN.ppm (the software rasterizer's guest framebuffer for the SAME frame — run with
 // PSPRECOMP_GE_GPU_DUAL=1, lcs-recomp patch 0020, so it keeps drawing). The backend hands back a frame
 // one present late (it completes the previous submit, then submits the current one), so the software

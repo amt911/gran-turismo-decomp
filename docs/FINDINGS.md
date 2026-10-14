@@ -1030,12 +1030,13 @@ frames each time.
 **Cause.** `ge_gpu_backend_texture_available` required the texture's Vulkan image to exist, but a texture
 decoded for this draw only gets its image when the frame is recorded. The draw counted as "texture not
 ready", and `ge_renderer.cpp` then paints it with `gpu_texture_debug_color` — a colour hashed from the
-texture's address, a debugging aid from LCS. Every movie frame is a new texture (decoded into RAM by
-sceMpeg and converted to 5650 by GT), so every movie frame was tinted.
+texture's address, a debugging aid from LCS. Every movie frame is a new texture — sceMpeg's HLE writes
+8888 to the decode buffer and GT draws a 5650 texture from another address (`GT_GE_LOG` at vblank 3145:
+`tex @097df980 fmt 0`), so GT converts each frame — and every movie frame was tinted.
 **Fix / workaround.** lcs-recomp patch 0024: a texture with decoded data waiting for upload is available.
+If its upload then fails, the draw binds the white texture (untextured) instead of the debug colour.
 **Why it isn't obvious.** The tint looks like a colour-format bug (a 5650/5551 mix-up, a blend constant), and
 it varies between runs. A forced re-check of the texture contents changed nothing; `GT_GE_LOG` on the
 failing frame's vblank (`[gpu-dump] frame N vblank V` in the dump log) showed a plain textured draw.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0024-gpu-new-texture-not-debug-colour.patch
-
