@@ -30,7 +30,7 @@ std::uint32_t object_flags_byte(psprecomp::Runtime &rt, psprecomp::AllegrexConte
 
 } // namespace
 
-// --- Flag tests on the object func_088A9A0C(this) answers (byte +0x2F = flags, +0x2C = a flag byte); a null object counts as "true" ---
+// --- Flag tests on the object func_088A9A0C(this) answers (byte +0x2F = flags, +0x2C = a flag byte); a null object answers 0 ---
 
 // func_088A9C90(this) -> the flags byte of the object, 0 without one.
 void func_088A9C90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -39,27 +39,27 @@ void func_088A9C90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GT_COVER(object != 0u ? "088A9C90:object" : "088A9C90:null");
     ctx.gpr[2] = flags;
 }
-// func_088A9A50(this) -> 1 without an object or with its byte +0x2C clear, else 0.
+// func_088A9A50(this) -> 1 with an object whose byte +0x2C is clear, else 0 (no object: 0).
 void func_088A9A50(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t object;
     { GuestFrame frame(ctx, 0x10u); object = call_guest(rt, ctx, 0x088A9A0Cu, {ctx.gpr[4]}); }
-    const bool answer = object == 0u || rt.memory().load8(object + 44u) == 0u;
+    const bool answer = object != 0u && rt.memory().load8(object + 44u) == 0u;
     GT_COVER(object == 0u ? "088A9A50:null" : answer ? "088A9A50:clear" : "088A9A50:set");
     ctx.gpr[2] = answer ? 1u : 0u;
 }
-// func_088A9AB4(this) -> 1 without an object or with bit 1 of its flags set, else 0.
+// func_088A9AB4(this) -> 1 with an object whose flags have bit 1 set, else 0.
 void func_088A9AB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t object;
     const std::uint32_t flags = object_flags_byte(rt, ctx, object);
-    const bool answer = object == 0u || (flags & 2u) != 0u;
+    const bool answer = object != 0u && (flags & 2u) != 0u;
     GT_COVER(object == 0u ? "088A9AB4:null" : answer ? "088A9AB4:bit" : "088A9AB4:nobit");
     ctx.gpr[2] = answer ? 1u : 0u;
 }
-// func_088A9AF0 / 088A9CBC / 088A9CFC(this) -> 1 without an object, else whether bits 3-4 of its flags equal 3 / 1 / 2.
+// func_088A9AF0 / 088A9CBC / 088A9CFC(this) -> 1 with an object whose flags bits 3-4 equal 3 / 1 / 2, else 0.
 void flags_field_equals(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t expected, const char *tag) {
     std::uint32_t object;
     const std::uint32_t flags = object_flags_byte(rt, ctx, object);
-    const bool answer = object == 0u || (flags & 24u) == expected;
+    const bool answer = object != 0u && (flags & 24u) == expected;
     GT_COVER(object == 0u ? (std::string(tag) + ":null").c_str() : answer ? (std::string(tag) + ":match").c_str() : (std::string(tag) + ":other").c_str());
     ctx.gpr[2] = answer ? 1u : 0u;
 }
@@ -129,7 +129,7 @@ void func_08B88F44(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08C1CCD0(a, key, p): whether `key` is the end iterator or the halfword *p is not below the word at the node func_08C1CC84(a)
-// answers (a lower-bound style test): 1 when key == end, else 0 if (u16)*p < *node, else 1.
+// answers 1 when key == end, else 0 if (u16)*p < *node, else 1.
 void func_08C1CCD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t key = ctx.gpr[5], p = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
@@ -235,20 +235,20 @@ void func_08C2AE8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     } while (last != p);
 }
 
-// func_08955428(this) -> 1 when the halfword +0x2A6 of the object at +12 is not below the signed halfword +0x58E of the object at +8
-// and that object's byte +0x579 is set, else 0.
+// func_08955428(this) -> 1 when the halfword +0x2A6 of the object at +12 is below the signed halfword +0x58E of the object at +8, or
+// when that object's byte +0x579 is set; else 0. (Branch "below": not exercised by the routes, checked against the asm by hand.)
 void func_08955428(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t other = word(rt, ctx.gpr[4] + 12u), owner = word(rt, ctx.gpr[4] + 8u);
     const auto left = static_cast<std::int32_t>(rt.memory().load16(other + 678u));
     const auto right = static_cast<std::int32_t>(static_cast<std::int16_t>(rt.memory().load16(owner + 1422u)));
-    std::uint32_t answer = 0u;
+    std::uint32_t answer = 1u;
     if (left < right) {
         GT_COVER("08955428:below");
     } else if (rt.memory().load8(owner + 1401u) == 0u) {
         GT_COVER("08955428:unset");
+        answer = 0u;
     } else {
-        GT_COVER("08955428:yes");
-        answer = 1u;
+        GT_COVER("08955428:set");
     }
     ctx.gpr[2] = answer;
 }
@@ -317,12 +317,87 @@ void func_08B4BAF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t out = ctx.gpr[4], v = ctx.gpr[5];
     const float half = psp_mul(ctx.fpr[12], 0.5f);
     GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, 0x08B498ACu, {frame.at(0u), frame.at(4u)}, {half});
+    (void)call_guest(rt, ctx, 0x08B498ACu, {frame.at(0u), frame.at(4u), v}, {half});  // a2 = v is passed on as the original does
     const float s = float_at(rt, frame.at(0u)), c = float_at(rt, frame.at(4u));
     put_float(rt, out, psp_mul(float_at(rt, v), s));
     put_float(rt, out + 4u, psp_mul(float_at(rt, v + 4u), s));
     put_float(rt, out + 12u, c);
     put_float(rt, out + 8u, psp_mul(float_at(rt, v + 8u), s));
+}
+
+// func_088A988C(this) -> (g(1.0) - g(0.0)) * 60 with g(x) = func_08955CC8(this[2][3], this[1]) taking x in f12; 0.0 without the object this[2].
+// (The null object branch is not exercised by the routes; checked against the asm by hand: f0 = f12 = 0.0 is returned.)
+float span_of_object(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, bool &present) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t object = word(rt, self + 8u);
+    present = object != 0u;
+    if (!present) return 0.0f;
+    GuestFrame frame(ctx, 0x20u);
+    const float from = call_guest(rt, ctx, 0x08955CC8u, {word(rt, object + 12u), word(rt, self + 4u)}, {0.0f}).f0;
+    const float to = call_guest(rt, ctx, 0x08955CC8u, {word(rt, word(rt, self + 8u) + 12u), word(rt, self + 4u)}, {1.0f}).f0;
+    return psp_mul(to - from, std::bit_cast<float>(0x42700000u));
+}
+void func_088A988C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    bool present;
+    const float span = span_of_object(rt, ctx, present);
+    GT_COVER(present ? "088A988C:object" : "088A988C:null");
+    ctx.fpr[0] = span;
+}
+// func_088A95C8(this, out): out = (span, 0, 0) for the same span; nothing is written without the object this[2].
+void func_088A95C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[5];
+    bool present;
+    const float span = span_of_object(rt, ctx, present);
+    GT_COVER(present ? "088A95C8:object" : "088A95C8:null");
+    if (!present) return;
+    put(rt, out + 8u, 0u);
+    put(rt, out + 4u, 0u);
+    put_float(rt, out, span);
+    ctx.fpr[0] = span;
+}
+
+// func_08C21BA8(a, b): when the word +8 of a is 1 or 2, func_08A61E3C(b, func_08A6158C(b)) first; then func_08A615D4(b, the word +8 of a)
+// (tail call). (The 'else' branch, a's word outside {1, 2}, is not exercised by the routes; checked against the asm by hand.)
+void func_08C21BA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t a = ctx.gpr[4], b = ctx.gpr[5];
+    std::uint32_t kind = word(rt, a + 8u);
+    if (kind - 1u < 2u) {
+        GT_COVER("08C21BA8:fix");
+        GuestFrame frame(ctx, 0x10u);
+        const std::uint32_t value = call_guest(rt, ctx, 0x08A6158Cu, {b});
+        (void)call_guest(rt, ctx, 0x08A61E3Cu, {b, value});
+        kind = word(rt, a + 8u);
+    } else {
+        GT_COVER("08C21BA8:keep");
+    }
+    tail_call(ctx, 0x08A615D4u, {b, kind});
+}
+
+// func_08B344EC(m) -> the nesting count: a recursive lock built on func_08B344E0 (heap_lock) with the owner (func_08B2E0B0()) in +0x20
+// and the count in +0x24; the owner is set when the count becomes 1.
+void func_08B344EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t m = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t owner = call_guest(rt, ctx, 0x08B2E0B0u, {});
+    (void)call_guest(rt, ctx, 0x08B344E0u, {m});
+    const std::uint32_t count = word(rt, m + 36u) + 1u;
+    put(rt, m + 36u, count);
+    if (count == 1u) { GT_COVER("08B344EC:first"); put(rt, m + 32u, owner); } else { GT_COVER("08B344EC:nested"); }
+    ctx.gpr[2] = count;
+}
+// func_08B34584(m): the matching unlock: count - 1 stored, func_08B3457C (heap_unlock) on m, and func_08B2E0A4(owner) (tail call) when it reaches 0.
+void func_08B34584(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t m = ctx.gpr[4];
+    const std::uint32_t owner = word(rt, m + 32u);
+    const std::uint32_t count = word(rt, m + 36u) - 1u;
+    put(rt, m + 36u, count);
+    {
+        GuestFrame frame(ctx, 0x10u);
+        ctx.gpr[2] = call_guest(rt, ctx, 0x08B3457Cu, {m});
+    }
+    if (count != 0u) { GT_COVER("08B34584:nested"); return; }
+    GT_COVER("08B34584:last");
+    tail_call(ctx, 0x08B2E0A4u, {owner});
 }
 
 } // namespace hot_batch_60
@@ -354,4 +429,9 @@ HOT60(0x08BB16ECu, func_08BB16EC, Word);
 HOT60(0x0887F144u, func_0887F144, Word);
 HOT60(0x08AB856Cu, func_08AB856C, Word);
 HOT60(0x08B4BAF8u, func_08B4BAF8, Void);
+HOT60(0x088A988Cu, func_088A988C, Float);
+HOT60(0x088A95C8u, func_088A95C8, Void);
+HOT60(0x08C21BA8u, func_08C21BA8, Word);
+HOT60(0x08B344ECu, func_08B344EC, Word);
+HOT60(0x08B34584u, func_08B34584, Word);
 #undef HOT60
