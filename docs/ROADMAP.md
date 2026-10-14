@@ -626,6 +626,18 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (comparado con el asm leyendo el destino). Escritas sin registrar: `func_08C0BC20` y `func_08BC48B4` (escriben memoria y ningún caso comparado la
       cambió). Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`. Sabotajes detectados en las 47.
       **5.036 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 66 integrado: ver el PR #175).
+- [x] **Lote 70 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_70.cpp`, 50 registradas; primer lote hecho con `tools.family_members`, PR #178:
+      sondeo con `tools.decomp_gate probe` —12.734 funciones sin hacer de hasta 70 instrucciones, cinco rutas con `--decomp off`— y miembros de cada familia
+      con las constantes leídas de sus propias palabras y de las reubicaciones del ELF, sin otra diferencia con la plantilla): la familia nueva de 35
+      instrucciones «objeto estático local bajo el guard de C++ con constructor, vtable y registro de otro estático» (37 miembros alcanzados, la plantilla
+      escrita tras leer `func_08B9FA50` entera a mano) y 13 miembros más del «accesor de contenedor vacío» de 32 instrucciones (los 12 más alcanzados ya
+      estaban en el lote 63: la herramienta no contaba las instancias `HOT63_CONTAINER(0x..u);` de un solo argumento, corregido en el PR #178). Cobertura de ramas
+      con `tools.decomp_gate coverage`: toda rama tomada salvo «el acquire del guard devuelve 0» (ambas familias) y «`object` nulo» (imposible: es una
+      dirección constante), comparadas con el asm leyendo el DESTINO. Cada `call_guest` / `tail_call` pasa los registros de argumento que el original
+      fija antes del `jal` (el registrador no lee ninguno: comprobado en sus 8 destinos). Sabotajes detectados en las 50, `contract_audit` 0.
+      **5.086 funciones, 0 discrepancias** (puerta completa: 4.530 comparadas en las cinco rutas, 556 sin comparar). Fuera por ahora: ~139 miembros de las
+      familias de los lotes 59/66 (A 53, B 38, init handle 31, nodo 17: estaban en los PR #176/#177 abiertos, que excluyo con `--exclude-ref`), el resto
+      del contenedor (4) y las familias de 36-68 instrucciones con 6-8 miembros.
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
