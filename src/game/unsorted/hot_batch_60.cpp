@@ -312,92 +312,10 @@ void func_08AB856C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = result != 0u ? result : 0x08C90518u;
 }
 
-// func_08B4BAF8(out, v, angle): out = (v.xyz * s, c) where (s, c) come from func_08B498AC(angle * 0.5) (a half-angle quaternion).
-void func_08B4BAF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t out = ctx.gpr[4], v = ctx.gpr[5];
-    const float half = psp_mul(ctx.fpr[12], 0.5f);
-    GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, 0x08B498ACu, {frame.at(0u), frame.at(4u), v}, {half});  // a2 = v is passed on as the original does
-    const float s = float_at(rt, frame.at(0u)), c = float_at(rt, frame.at(4u));
-    put_float(rt, out, psp_mul(float_at(rt, v), s));
-    put_float(rt, out + 4u, psp_mul(float_at(rt, v + 4u), s));
-    put_float(rt, out + 12u, c);
-    put_float(rt, out + 8u, psp_mul(float_at(rt, v + 8u), s));
-}
-
-// func_088A988C(this) -> (g(1.0) - g(0.0)) * 60 with g(x) = func_08955CC8(this[2][3], this[1]) taking x in f12; 0.0 without the object this[2].
-// (The null object branch is not exercised by the routes; checked against the asm by hand: f0 = f12 = 0.0 is returned.)
-float span_of_object(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, bool &present) {
-    const std::uint32_t self = ctx.gpr[4];
-    const std::uint32_t object = word(rt, self + 8u);
-    present = object != 0u;
-    if (!present) return 0.0f;
-    GuestFrame frame(ctx, 0x20u);
-    const float from = call_guest(rt, ctx, 0x08955CC8u, {word(rt, object + 12u), word(rt, self + 4u)}, {0.0f}).f0;
-    const float to = call_guest(rt, ctx, 0x08955CC8u, {word(rt, word(rt, self + 8u) + 12u), word(rt, self + 4u)}, {1.0f}).f0;
-    return psp_mul(to - from, std::bit_cast<float>(0x42700000u));
-}
-void func_088A988C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    bool present;
-    const float span = span_of_object(rt, ctx, present);
-    GT_COVER(present ? "088A988C:object" : "088A988C:null");
-    ctx.fpr[0] = span;
-}
-// func_088A95C8(this, out): out = (span, 0, 0) for the same span; nothing is written without the object this[2].
-void func_088A95C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t out = ctx.gpr[5];
-    bool present;
-    const float span = span_of_object(rt, ctx, present);
-    GT_COVER(present ? "088A95C8:object" : "088A95C8:null");
-    if (!present) return;
-    put(rt, out + 8u, 0u);
-    put(rt, out + 4u, 0u);
-    put_float(rt, out, span);
-    ctx.fpr[0] = span;
-}
-
-// func_08C21BA8(a, b): when the word +8 of a is 1 or 2, func_08A61E3C(b, func_08A6158C(b)) first; then func_08A615D4(b, the word +8 of a)
-// (tail call). (The 'else' branch, a's word outside {1, 2}, is not exercised by the routes; checked against the asm by hand.)
-void func_08C21BA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t a = ctx.gpr[4], b = ctx.gpr[5];
-    std::uint32_t kind = word(rt, a + 8u);
-    if (kind - 1u < 2u) {
-        GT_COVER("08C21BA8:fix");
-        GuestFrame frame(ctx, 0x10u);
-        const std::uint32_t value = call_guest(rt, ctx, 0x08A6158Cu, {b});
-        (void)call_guest(rt, ctx, 0x08A61E3Cu, {b, value});
-        kind = word(rt, a + 8u);
-    } else {
-        GT_COVER("08C21BA8:keep");
-    }
-    tail_call(ctx, 0x08A615D4u, {b, kind});
-}
-
-// func_08B344EC(m) -> the nesting count: a recursive lock built on func_08B344E0 (heap_lock) with the owner (func_08B2E0B0()) in +0x20
-// and the count in +0x24; the owner is set when the count becomes 1.
-void func_08B344EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t m = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t owner = call_guest(rt, ctx, 0x08B2E0B0u, {});
-    (void)call_guest(rt, ctx, 0x08B344E0u, {m});
-    const std::uint32_t count = word(rt, m + 36u) + 1u;
-    put(rt, m + 36u, count);
-    if (count == 1u) { GT_COVER("08B344EC:first"); put(rt, m + 32u, owner); } else { GT_COVER("08B344EC:nested"); }
-    ctx.gpr[2] = count;
-}
-// func_08B34584(m): the matching unlock: count - 1 stored, func_08B3457C (heap_unlock) on m, and func_08B2E0A4(owner) (tail call) when it reaches 0.
-void func_08B34584(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t m = ctx.gpr[4];
-    const std::uint32_t owner = word(rt, m + 32u);
-    const std::uint32_t count = word(rt, m + 36u) - 1u;
-    put(rt, m + 36u, count);
-    {
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[2] = call_guest(rt, ctx, 0x08B3457Cu, {m});
-    }
-    if (count != 0u) { GT_COVER("08B34584:nested"); return; }
-    GT_COVER("08B34584:last");
-    tail_call(ctx, 0x08B2E0A4u, {owner});
+// func_08B4BAF8(a, b): func_08B4BAB0(a, b, b) (tail call; the code that follows in memory at 0x08B4BB00 is another function).
+void func_08B4BAF8(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[6] = ctx.gpr[5];
+    tail_call(ctx, 0x08B4BAB0u, {});
 }
 
 } // namespace hot_batch_60
