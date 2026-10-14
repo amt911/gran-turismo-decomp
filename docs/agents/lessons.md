@@ -11,6 +11,9 @@ lives in this repo when it became one.
   before raising a limit. Here a full build peaked at 0.9 GB under a 6 GB cap: more RAM would not have
   helped (AGENTS.md § Heavy jobs). The real limits were serialization (one global lock for every heavy job) and gates that run in
   real time.
+- **Files written to tmpfs (`/tmp`) count as the writer's cgroup memory** (shmem) and, with no swap, are never
+  reclaimed: 3.5 GB of frame dumps in a scratch dir under /tmp kept the 6 GB slice at its MemoryHigh and made
+  another agent's gates time out. Write large dumps to disk (`recomp/analysis/`), and delete them when done.
 - **A shared ceiling still needs the big jobs kept apart.** Below `MemoryMax` the slice doesn't kill, it
   throttles at `MemoryHigh` — and a throttled real-time test times out. Know each heavy step's peak
   (here recomp 3.8 GB, a gcc build 3.76 GB vs clang far less) and give the biggest one the whole slice.
