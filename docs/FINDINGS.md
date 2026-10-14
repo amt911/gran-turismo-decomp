@@ -1048,14 +1048,16 @@ the sound lagged; on a desktop GPU everything was fine.
 **Cause.** At the end of each frame the Vulkan backend waited for the GPU to finish the previous one
 (`vkQueueWaitIdle`, one frame in flight), and the game thread waits for the GE thread at its list syncs. GT
 advances its logic and produces its sound per frame, so GPU time turned into game time. With
-`GT_SIM_GPU_MS=20` (the GPU taken to need 20 ms per frame) the game thread was blocked 84-91 % of the time and
-the sound came out at 28-33 kHz instead of 44.1; at 30 ms, 17-19 kHz. Even at 12 ms — faster than a frame —
-frames were skipped.
-**Fix / workaround.** lcs-recomp patch 0026: the pending submit has a fence; a frame that only draws into shown
-framebuffers waits at most 4 ms for it and is dropped otherwise (frames that also draw elsewhere still wait,
-so nothing later frames need is lost); the software path's present no longer waits for the queue. At 20 and
-30 ms per frame: game thread blocked 19-25 %, sound at 44.1 kHz, game time 1.00x. A fast GPU drops almost none
-(fewer than 300 in 70 s, GE wait 6-9 % instead of 12-22 %); the GPU gate is unchanged.
+`GT_SIM_GPU_MS=20` (the GPU taken to need 20 ms per frame; race, averages over a minute) the game thread was
+blocked 87.7 % of the time and the sound came out at 30.1 kHz instead of 44.1.
+**Fix / workaround.** lcs-recomp patch 0026: the pending submit has a fence. A frame that only draws into the
+two framebuffers shown last (GT's front and back buffer) waits at most 4 ms for the GPU and is dropped
+otherwise, at most twice in a row; a frame that draws anywhere else (a reflection, an effect, an old display
+buffer reused offscreen) still waits, since later frames may read it. The software path's present no longer
+waits for the queue. At 20 ms per frame: blocked 33.4 %, sound at 42.6 kHz (without the 4 ms grace and the
+safety rules it would be 1.8 % / 44.0 kHz, at the cost of needless drops on fast GPUs and of risking a render
+later frames need). A fast GPU drops almost none; `GT_GPU_NO_DROP=1` turns dropping off (the GPU gate uses it,
+so its runs don't depend on the machine's speed).
 **Why it isn't obvious.** `guest time 1.00x` in `GT_PERF_LOG` still holds — the vblank clock keeps time — while
 the game itself runs slow; the tell is `GE wait` and the audio rate. A fast GPU hides it entirely.
 

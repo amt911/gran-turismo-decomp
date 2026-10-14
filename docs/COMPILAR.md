@@ -170,7 +170,7 @@ build/gt_play
   el juego va a cámara lenta aunque `guest time` diga 1.00x; fíjate también en `audio`, que debería
   rondar 44100 Hz), y `frameskip` los frames que no se dibujaron para no ir lento. Con `NativeGE=true`, la
   terminal dice cada 300 imágenes descartadas porque la GPU no llegaba (`[vulkan] N frames dropped`).
-  `GT_SIM_GPU_MS=N` (pruebas) simula una GPU que tarda N ms por imagen.
+  `GT_SIM_GPU_MS=N` (pruebas) simula una GPU que tarda N ms por imagen; `GT_GPU_NO_DROP=1` no descarta nunca.
 - **Frameskip** (activado en `gt_play`; `GT_FRAMESKIP=0` lo quita): si el PC va tarde, no se dibuja
   en pantalla ese frame (como el frameskip de PPSSPP), pero el juego y el sonido siguen a su ritmo y
   la ventana mantiene la última imagen completa. Dibujar es casi todo el coste en CPUs modestas.

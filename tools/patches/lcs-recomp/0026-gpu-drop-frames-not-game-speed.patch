@@ -4,22 +4,29 @@ The end of a frame waited for the GPU to finish the previous one (vkQueueWaitIdl
 for the GE thread behind it: with a GPU needing 20-30 ms per frame (an integrated one at a high internal
 resolution) the game thread spent 70-90 % of its time blocked, GT's logic and sound (both advance per
 frame) ran at 40-75 % speed. Now the pending submit has a fence; a frame that only draws into shown
-framebuffers waits at most 4 ms for it and is otherwise dropped (frames that also draw elsewhere — a
+framebuffers — the two shown last — waits at most 4 ms for it and is otherwise dropped, at most twice in a row (frames that draw elsewhere — a
 reflection, an effect reused later — still wait). The software path's present no longer waits for the
 queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
 
 --- a/lcs/host/ge_gpu_backend_vulkan.cpp
 +++ b/lcs/host/ge_gpu_backend_vulkan.cpp
-@@ -25,6 +25,8 @@
+@@ -18,12 +18,15 @@
+ 
+ #include <algorithm>
+ #include <array>
++#include <chrono>
+ #include <cmath>
+ #include <cstddef>
++#include <cstdlib>
+ #include <cstring>
+ #include <iostream>
  #include <limits>
  #include <mutex>
- #include <unordered_map>
-+#include <chrono>
 +#include <thread>
+ #include <unordered_map>
  #include <vector>
  
- namespace lcs {
-@@ -216,6 +218,15 @@
+@@ -216,6 +219,17 @@
      // Previous submit still owns the command buffer, geometry, and readback.
      bool submit_pending{};
      bool pending_readback{};
@@ -28,14 +35,16 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
 +    // the GPU is still busy without waiting for it.
 +    VkFence frame_fence{};
 +    std::uint64_t frames_dropped{};
-+    // GT patch 0026: framebuffers the game has shown (sceDisplaySetFrameBuf). A frame that only draws into these
-+    // can be dropped when the GPU is behind; one that also draws elsewhere (a reflection, an effect reused
-+    // later) can't.
++    std::uint32_t consecutive_drops{};
++    // GT patch 0026: the two framebuffers shown last (sceDisplaySetFrameBuf: GT's front and back buffer). A
++    // frame that only draws into these can be dropped when the GPU is behind — what it draws is only ever
++    // shown; one that draws anywhere else (a reflection, an effect, an old display buffer reused offscreen)
++    // makes something later frames may read, so it waits. Reading a target doesn't matter: dropped with the frame.
 +    std::vector<std::uint32_t> display_targets;
      std::uint64_t pending_readback_vblank{};  // GT patch 0021: the frame the readback belongs to ...
      std::uint64_t frame_rgba_vblank{};        // ... and the one frame_rgba holds
      std::size_t pending_readback_bytes{};
-@@ -2167,11 +2178,17 @@
+@@ -2167,11 +2181,17 @@
  bool complete_pending_submit(VulkanState &s, bool &copied) noexcept {
      copied = false;
      if (!s.submit_pending) return true;
@@ -55,7 +64,7 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
      if (s.pending_readback && s.readback_mapped != nullptr && s.pending_readback_bytes != 0u) {
          s.frame_rgba.resize(s.pending_readback_bytes);
          std::memcpy(s.frame_rgba.data(), s.readback_mapped, s.pending_readback_bytes);
-@@ -2186,12 +2203,49 @@
+@@ -2186,12 +2206,55 @@
      return true;
  }
  
@@ -82,6 +91,10 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
 +// GT patch 0026: whether this frame only draws into shown framebuffers, so dropping it loses nothing later
 +// frames need.
 +bool frame_droppable(const VulkanState &s) noexcept {
++    static const bool disabled = std::getenv("GT_GPU_NO_DROP") != nullptr;  // deterministic runs (tools/gpu_gate.sh)
++    // At most two frames in a row are dropped, so a shown framebuffer GT keeps drawing into is never more than
++    // two frames stale.
++    if (disabled || s.batches.empty() || s.consecutive_drops >= 2u) return false;
 +    for (const Batch &batch : s.batches) {
 +        const std::uint32_t address = batch.draw.framebuffer_address & 0x001FFFF0u;
 +        if (std::find(s.display_targets.begin(), s.display_targets.end(), address) == s.display_targets.end())
@@ -98,14 +111,16 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
      if (rgba.size() < guest_bytes) return false;
 +    // GT patch 0026: while the GPU is still showing the previous picture, skip this one rather than make the
 +    // game wait for it (the window keeps the previous picture).
-+    if (gpu_still_busy(s, std::chrono::microseconds{4000})) {
-+        ++s.frames_dropped;
++    static const bool no_drop = std::getenv("GT_GPU_NO_DROP") != nullptr;
++    if (!no_drop && gpu_still_busy(s, std::chrono::microseconds{4000})) {
++        if ((++s.frames_dropped % 300u) == 0u)
++            std::cerr << "[vulkan] " << s.frames_dropped << " pictures not shown: the GPU was still showing the previous one\n";
 +        return true;
 +    }
      bool copied = false;
      if (!complete_pending_submit(s, copied)) return false;
      if (!ensure_swapchain(s, error) || !ensure_game_sampler(s, error)) return false;
-@@ -2254,15 +2308,15 @@
+@@ -2254,15 +2317,15 @@
      submit.pSignalSemaphores = &present_signal;
      s.present_image_index = index;
      s.present_recorded = true;
@@ -124,7 +139,7 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
      if (presented == VK_ERROR_OUT_OF_DATE_KHR) s.swapchain_dirty = true;
      if (presented == VK_ERROR_DEVICE_LOST) s.present_lost = true;
      if (presented != VK_SUCCESS && presented != VK_SUBOPTIMAL_KHR) {
-@@ -2313,6 +2367,8 @@
+@@ -2313,6 +2376,8 @@
      if (s.fragment_shader) vkDestroyShaderModule(s.device, s.fragment_shader, nullptr);
      if (s.render_pass) vkDestroyRenderPass(s.device, s.render_pass, nullptr);
      if (s.command) vkFreeCommandBuffers(s.device, s.pool, 1u, &s.command);
@@ -133,7 +148,7 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
      if (s.pool) vkDestroyCommandPool(s.device, s.pool, nullptr);
      if (s.device) vkDestroyDevice(s.device, nullptr);
      if (s.debug_messenger != VK_NULL_HANDLE && s.instance != VK_NULL_HANDLE) {
-@@ -2624,6 +2680,12 @@
+@@ -2624,6 +2689,12 @@
          error = "vkAllocateCommandBuffers failed";
          return false;
      }
@@ -146,16 +161,18 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
      s.report.command_pool_created = true;
  
      VkAttachmentDescription attachments[2]{};
-@@ -3384,6 +3446,8 @@
+@@ -3384,6 +3455,10 @@
      VulkanState &s = state();
      std::lock_guard<std::recursive_mutex> guard(s.mutex);
      s.display_framebuffer = address & 0x001FFFF0u;
-+    if (std::find(s.display_targets.begin(), s.display_targets.end(), s.display_framebuffer) == s.display_targets.end())
-+        s.display_targets.push_back(s.display_framebuffer);  // GT patch 0026
++    if (std::find(s.display_targets.begin(), s.display_targets.end(), s.display_framebuffer) == s.display_targets.end()) {
++        s.display_targets.push_back(s.display_framebuffer);  // GT patch 0026: the last two shown
++        if (s.display_targets.size() > 2u) s.display_targets.erase(s.display_targets.begin());
++    }
      s.display_logical_width = logical_width != 0u ? logical_width : kReferenceWidth;
      s.display_logical_height = logical_height != 0u ? logical_height : kReferenceHeight;
      if (!s.enabled) return;
-@@ -3435,6 +3499,18 @@
+@@ -3435,6 +3510,20 @@
          if (publish) s.readback_latched = false;
          return show;
      };
@@ -163,6 +180,7 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
 +    // framebuffers, drop it instead of waiting: the game keeps running at the PSP's pace (its logic and sound
 +    // advance per frame) and the window shows fewer pictures. Waiting made a slow GPU slow the game down.
 +    if (s.enabled && frame_droppable(s) && gpu_still_busy(s, std::chrono::microseconds{4000})) {
++        ++s.consecutive_drops;
 +        if ((++s.frames_dropped % 300u) == 0u)
 +            std::cerr << "[vulkan] " << s.frames_dropped << " frames dropped: the GPU was still drawing the previous one\n";
 +        s.vertices.clear();
@@ -171,10 +189,11 @@ queue either. GT_SIM_GPU_MS=N (testing) makes the GPU take N ms per frame.
 +        ++s.frame_epoch;
 +        return shown();
 +    }
++    if (!s.batches.empty()) s.consecutive_drops = 0u;
      if (s.enabled && !complete_pending_submit(s, copied_previous)) {
          s.vertices.clear();
          s.indices.clear();
-@@ -3704,13 +3780,14 @@
+@@ -3704,13 +3793,14 @@
                  submit.signalSemaphoreCount = 1u;
                  submit.pSignalSemaphores = &present_signal;
              }
