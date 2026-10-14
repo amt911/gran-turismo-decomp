@@ -53,14 +53,19 @@ void func_089098B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (third != 0u) tail_call(ctx, 0x08AF128Cu, {third, x});
 }
 
-// func_08B4A82C(d3, a3, b3): d = a x b (the cross product).
+// func_08B4A82C(d3, a3, b3): d = a x b (the cross product). Each component re-reads a and b after the previous one
+// is stored, as the original does: an in-place call (d == a or d == b) sees the components already written.
 void func_08B4A82C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t d = ctx.gpr[4], a = ctx.gpr[5], b = ctx.gpr[6];
-    const float a0 = float_at(rt, a), a1 = float_at(rt, a + 4u), a2 = float_at(rt, a + 8u);
-    const float b0 = float_at(rt, b), b1 = float_at(rt, b + 4u), b2 = float_at(rt, b + 8u);
-    put_float(rt, d, psp_mul(a1, b2) - psp_mul(a2, b1));
-    put_float(rt, d + 4u, psp_mul(a2, b0) - psp_mul(a0, b2));
-    put_float(rt, d + 8u, psp_mul(a0, b1) - psp_mul(a1, b0));
+    auto ax = [&] { return float_at(rt, a); };
+    auto ay = [&] { return float_at(rt, a + 4u); };
+    auto az = [&] { return float_at(rt, a + 8u); };
+    auto bx = [&] { return float_at(rt, b); };
+    auto by = [&] { return float_at(rt, b + 4u); };
+    auto bz = [&] { return float_at(rt, b + 8u); };
+    put_float(rt, d, psp_mul(ay(), bz()) - psp_mul(az(), by()));
+    put_float(rt, d + 4u, psp_mul(az(), bx()) - psp_mul(ax(), bz()));
+    put_float(rt, d + 8u, psp_mul(ax(), by()) - psp_mul(ay(), bx()));
 }
 
 // func_08BEEF60(p, q): swaps the words *p and *q (two string data pointers) after resetting a negative count (word +8 of data - 12) to 0 in each; v0
