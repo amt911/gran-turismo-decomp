@@ -92,3 +92,15 @@ def test_demangle_names_drops_the_file_prefix_and_replaces_each_name():
     cov.demangle_names(doc, lambda names: seen.append(names) or [n.replace("_ZN2ns4funcEv", "ns::func()").replace("_ZN2ns5otherEv", "ns::other()") for n in names])
     assert seen == [["_ZN2ns4funcEv", "_ZN2ns5otherEv"]]
     assert [f["name"] for f in doc["data"][0]["functions"]] == ["ns::func()", "ns::other()"]
+
+
+def test_two_expansions_of_one_macro_keep_their_own_outcomes():
+    # llvm-cov puts both expansions at the macro definition's position (1:25 in h.h), told apart by the file ID
+    first = [1, 25, 1, 30, 3, 0, 1, 0, 4]   # true taken, false not
+    second = [1, 25, 1, 30, 0, 2, 2, 0, 4]  # true never taken
+    doc = {"data": [{"functions": [{"name": "ns::func_08000000(int)", "filenames": ["src/game/x.cpp", "src/h.h", "src/h.h"],
+                                    "branches": [first, second], "regions": [], "count": 1}]}]}
+    [f] = cov.uncovered(doc, ["src/game/x.cpp"])
+    assert f.untaken == []
+    assert f.elsewhere == [("src/h.h", 1, 1, 25, "false"), ("src/h.h", 2, 1, 25, "true")]
+    assert "h.h (expansion 2) 1:25 true" in cov.format_report([f])

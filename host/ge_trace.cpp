@@ -1,6 +1,7 @@
 #include "ge_trace.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -23,12 +24,15 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
     std::uint32_t vaddr = 0u, tfunc = 0u, atest = 0u, ztest_on = 0u, zfunc = 0u, atest_on = 0u, blend_mode = 0u;
     std::uint32_t trx_src = 0u, trx_src_w = 0u, trx_dst = 0u, trx_dst_w = 0u, trx_pos = 0u, trx_dpos = 0u, trx_size = 0u;
     std::vector<std::uint32_t> stack;
+    std::array<std::uint32_t, 256> state{};
+    static const bool detail = std::getenv("GT_GE_LOG_DETAIL") != nullptr;
     std::uint32_t pc = list & 0x0FFFFFFFu;
     std::fprintf(stderr, "[ge] list %08x (vblank %llu)\n", list, static_cast<unsigned long long>(vblank));
     for (int steps = 0; steps < 200000 && memory.contains(pc, 4u); ++steps) {
         const std::uint32_t word = memory.load32(pc);
         pc += 4u;
         const std::uint32_t op = word >> 24u, arg = word & 0xFFFFFFu;
+        state[op] = arg;  // every command's last argument, for GT_GE_LOG_DETAIL
         const std::uint32_t target = (base | arg) & 0x0FFFFFFCu;
         switch (op) {
         case 0x10: base = (arg << 8u) & 0x0F000000u; break;
@@ -122,6 +126,15 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
                     std::fprintf(stderr, " %08x", memory.load32(vaddr + i * 4u));
                 std::fprintf(stderr, "\n");
             }
+            // GT_GE_LOG_DETAIL: the state a reflection or lighting difference hides in. Commands are the last ones this
+            // list sent: one only an earlier list sent prints 0 here although the GE still holds it.
+            if (detail)
+                std::fprintf(stderr,
+                             "[ge]   vtype %06x light %u tfunc %06x envcolor %06x texmap %06x texproj %u texshade %06x lightmode %06x "
+                             "blend %06x fixA %06x fixB %06x atest %u/%06x ztest %u/%u zmask %u ambient %06x/%02x\n",
+                             state[0x12], state[0x17] & 1u, state[0xC9], state[0xCA], state[0xC0], (state[0xC0] >> 8u) & 3u, state[0xC1],
+                             state[0x5E], state[0xDF], state[0xE0], state[0xE1], state[0x22] & 1u, state[0xDB],
+                             state[0x23] & 1u, state[0xDE], state[0xE7], state[0x55], state[0x58] & 0xFFu);
             std::fprintf(stderr,
                          "[ge] prim %u n %u through %u fb %06x tex %d @%08x fmt %u tbw %u %ux%u swz %u clut "
                          "@%08x mode %06x blend %d\n",

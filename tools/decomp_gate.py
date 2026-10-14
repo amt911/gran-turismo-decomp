@@ -375,6 +375,13 @@ def route_problem(text: str, exit_code: str) -> str | None:
     return None
 
 
+def coverage_left_configured(cmake_cache: str) -> bool:
+    """Whether build/CMakeCache.txt still instruments sources for coverage (a coverage run killed before it could
+    put the build back): a normal gate would then build them instrumented."""
+    match = re.search(r"^GT_COVERAGE_FILES:[A-Z]+=(.*)$", cmake_cache, re.MULTILINE)
+    return bool(match and match[1].strip())
+
+
 def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover - drives the build
               extra_env: dict[str, str] | None = None) -> int:
     env = None
@@ -384,6 +391,10 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
         if only is not None:
             env.update(GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
     clear_run(tag, Path("recomp/analysis"))
+    cache = Path("build/CMakeCache.txt")
+    if not (extra_env or {}).get("LLVM_PROFILE_FILE") and cache.exists() and coverage_left_configured(cache.read_text()):
+        print("warning: build/ still instruments sources for coverage (a coverage run was killed?); reconfigure with "
+              "`cmake -S . -B build -DGT_COVERAGE_FILES=` before trusting timings")
     if subprocess.run([sys.executable, "-m", "tools.contract_audit"], stdout=subprocess.DEVNULL).returncode == 1:
         print("contract audit: a GT_DECOMP_NESTED function has a caller reading a register its ReturnKind leaves "
               "uncompared (.venv/bin/python -m tools.contract_audit)")
@@ -515,6 +526,9 @@ def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - recon
         if not raw:
             print("coverage: the run wrote no profile (did it end before the executable exited normally?)")
             return 2
+        if len(raw) < len(ROUTES["fast"]):
+            print(f"warning: only {len(raw)} of {len(ROUTES['fast'])} routes wrote a profile (a route killed by its "
+                  "timeout writes none): the report covers fewer runs than the gate")
         merged = directory / "merged.profdata"
         subprocess.run(["llvm-profdata", "merge", "-sparse", *map(str, raw), "-o", str(merged)], check=True)
         exported = subprocess.run(["llvm-cov", "export", "build/gt_native", f"-instr-profile={merged}", *map(str, files)],
@@ -523,7 +537,8 @@ def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - recon
         gate_coverage.demangle_names(document, lambda names: subprocess.run(
             ["llvm-cxxfilt"], input="\n".join(names), capture_output=True, text=True, check=True).stdout.splitlines())
         functions = gate_coverage.uncovered(document, map(str, files))
-        print(gate_coverage.format_report([f for f in functions if f.address is None or f.address in set(only)]))
+        wanted = set(only)
+        print(gate_coverage.format_report([f for f in functions if f.address is None or f.address in wanted]))
         return status
     finally:
         subprocess.run([*configure, "-DGT_COVERAGE_FILES="], stdout=subprocess.DEVNULL)

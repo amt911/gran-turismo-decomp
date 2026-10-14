@@ -289,3 +289,9 @@ def test_a_case_holding_a_target_and_its_template_sibling_does_not_credit_the_ta
     cases = {(0x08800020, frozenset({0x08800030})), (0x08800030, frozenset())}
     affected = {0x08800020, 0x08800030}
     assert gate.attributed(affected, cases) & {0x08800020} == set()
+
+
+def test_a_coverage_build_left_configured_is_noticed():
+    assert gate.coverage_left_configured("GT_COVERAGE_FILES:STRING=src/game/x.cpp\n")
+    assert not gate.coverage_left_configured("GT_COVERAGE_FILES:STRING=\nCMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
+    assert not gate.coverage_left_configured("CMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
