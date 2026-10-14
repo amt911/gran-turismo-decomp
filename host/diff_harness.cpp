@@ -282,7 +282,7 @@ void import_gate(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             break_kernel_isolation("an import reached outside the dispatch check");
             return;
         }
-            gate->original(rt, ctx);
+        gate->original(rt, ctx);
         if (!kernel_isolation_broken()) g_before_import.reset();
         return;
     case ImportPhase::Replaying:
@@ -292,7 +292,7 @@ void import_gate(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         }
         if (!gate->info.replay_safe)
             throw ReplayMismatch("the decompiled run called " + gate->info.name + ", which the original's run didn't");
-            gate->original(rt, ctx);
+        gate->original(rt, ctx);
         return;
     }
 }

@@ -51,7 +51,11 @@ void install_handler() {
 
 } // namespace
 
-DirtyPages::~DirtyPages() { end(); }
+DirtyPages::~DirtyPages() {
+    end();
+    DirtyPages *self = this;
+    g_active.compare_exchange_strong(self, nullptr, std::memory_order_acq_rel);
+}
 
 void DirtyPages::begin(std::uint8_t *base, std::size_t size) {
     end();
@@ -75,24 +79,31 @@ void DirtyPages::begin(std::uint8_t *base, std::size_t size) {
     }
     saved_count_.store(0u);
     written_count_.store(0u);
-    armed_ = true;
+    armed_.store(true, std::memory_order_release);
     g_active.store(this, std::memory_order_release);
     protect_all(PROT_READ);
 }
 
 bool DirtyPages::on_write_fault(const void *address) noexcept {
     const auto *byte = static_cast<const std::uint8_t *>(address);
-    if (!armed_ || byte < aligned_ || byte >= aligned_ + pages_ * kPageSize) return false;
+    if (byte < aligned_ || byte >= aligned_ + pages_ * kPageSize) return false;
+    // Disarmed meanwhile (disarm() makes the region writable before clearing armed_): the write just retries.
+    if (!armed_.load(std::memory_order_acquire)) return true;
     const std::size_t page = static_cast<std::size_t>(byte - aligned_) / kPageSize;
     std::uint8_t *start = aligned_ + page * kPageSize;
-    if (saved_[page].exchange(1u, std::memory_order_acq_rel) == 0u) {
+    std::uint8_t expected = kUnsaved;
+    if (saved_[page].compare_exchange_strong(expected, kSaving, std::memory_order_acq_rel)) {
         std::memcpy(pristine_.get() + page * kPageSize, start, kPageSize);
         saved_list_[saved_count_.fetch_add(1u, std::memory_order_acq_rel)] = page;
+        saved_[page].store(kSaved, std::memory_order_release);
+    } else {
+        // Another thread is saving this page: it must not become writable before the copy is complete.
+        while (saved_[page].load(std::memory_order_acquire) != kSaved) {
+        }
     }
     if (written_[page].exchange(1u, std::memory_order_acq_rel) == 0u)
         written_list_[written_count_.fetch_add(1u, std::memory_order_acq_rel)] = page;
-    // Writable only once its bytes are saved: a second thread faulting on it meanwhile retries until then.
-    mprotect(start, kPageSize, PROT_READ | PROT_WRITE);
+    if (mprotect(start, kPageSize, PROT_READ | PROT_WRITE) != 0) std::abort();  // the write would fault forever
     return true;
 }
 
@@ -144,9 +155,11 @@ void DirtyPages::rearm() {
 
 void DirtyPages::materialize() {
     for (std::size_t page = 0; page < pages_; ++page) {
-        if (saved_[page].exchange(1u, std::memory_order_acq_rel) == 0u) {
+        std::uint8_t expected = kUnsaved;
+        if (saved_[page].compare_exchange_strong(expected, kSaving, std::memory_order_acq_rel)) {
             std::memcpy(pristine_.get() + page * kPageSize, aligned_ + page * kPageSize, kPageSize);
             saved_list_[saved_count_.fetch_add(1u, std::memory_order_acq_rel)] = page;
+            saved_[page].store(kSaved, std::memory_order_release);
         }
         if (written_[page].exchange(1u, std::memory_order_acq_rel) == 0u)
             written_list_[written_count_.fetch_add(1u, std::memory_order_acq_rel)] = page;
@@ -155,16 +168,14 @@ void DirtyPages::materialize() {
 }
 
 void DirtyPages::disarm() {
-    if (!armed_) return;
-    protect_all(PROT_READ | PROT_WRITE);
-    armed_ = false;
-    DirtyPages *self = this;
-    g_active.compare_exchange_strong(self, nullptr, std::memory_order_acq_rel);
+    if (!armed_.load(std::memory_order_acquire)) return;
+    protect_all(PROT_READ | PROT_WRITE);  // first: a write already faulting then retries on a writable page
+    armed_.store(false, std::memory_order_release);
 }
 
 void DirtyPages::end() {
     disarm();
-    for (const std::size_t page : ever_written()) saved_[page].store(0u, std::memory_order_relaxed);
+    for (const std::size_t page : ever_written()) saved_[page].store(kUnsaved, std::memory_order_relaxed);
     for (const std::size_t page : written()) written_[page].store(0u, std::memory_order_relaxed);
     saved_count_.store(0u);
     written_count_.store(0u);

@@ -73,7 +73,9 @@ private:
     std::unique_ptr<std::size_t[]> written_list_;
     std::atomic<std::size_t> saved_count_{0u};
     std::atomic<std::size_t> written_count_{0u};
-    bool armed_{};
+    std::atomic<bool> armed_{false};
+    // saved_ states: a page's entry bytes are being copied (kSaving) before anyone may write it.
+    static constexpr std::uint8_t kUnsaved = 0u, kSaving = 1u, kSaved = 2u;
 };
 
 } // namespace gt

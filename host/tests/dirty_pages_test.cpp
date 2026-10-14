@@ -90,6 +90,26 @@ int main() {
     check(tracker.written().size() == 1u, "a new case lists only its own writes");
     tracker.end();
 
+    // Several threads writing the same pages at once: the entry bytes are saved before any of them lands.
+    {
+        bool pristine_intact = true;
+        for (int round = 0; round < 200 && pristine_intact; ++round) {
+            for (std::size_t i = 0; i < ram.size(); ++i) ram[i] = static_cast<std::uint8_t>(i * 13u + round);
+            const std::vector<std::uint8_t> start = ram;
+            tracker.begin(ram.data(), ram.size());
+            std::vector<std::thread> writers;
+            for (int t = 0; t < 8; ++t)
+                writers.emplace_back([&, t] {
+                    for (std::size_t p = 1; p < 17u; ++p) ram[p * page + static_cast<std::size_t>(t) * 64u] = 0xA5u;
+                });
+            for (auto &w : writers) w.join();
+            tracker.copy_pristine(before.data());
+            pristine_intact = std::memcmp(before.data(), start.data(), ram.size()) == 0;
+            tracker.end();
+        }
+        check(pristine_intact, "concurrent first writes to a page never reach its saved entry bytes");
+    }
+
     if (failures == 0) std::puts("dirty_pages_test: all passed");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
