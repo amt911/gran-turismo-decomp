@@ -653,6 +653,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       **5.177 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 68 y 69 integrados: ver el PR #180). Fuera por ahora: ~139 miembros de las
       familias de los lotes 59/66 (A 53, B 38, init handle 31, nodo 17: que se excluyeron con `--exclude-ref` mientras los PR #176/#177 estaban abiertos), el resto
       del contenedor (4) y las familias de 36-68 instrucciones con 6-8 miembros.
+- [x] **Lote 71 de funciones calientes** (2026-10-14, `src/game/unsorted/hot_batch_71.cpp`, 50 registradas; termina miembros de las familias de los lotes 59/66 con
+      `tools.family_members` (sondeo del lote 70, `--exclude-ref` del lote 70): 20 «pair call A», 15 «pair call B», 8 «init handle» y 7 inicializadores de nodo con
+      tail call. Las filas se generan con `--cpp` y se releen con `--check` (50 coinciden con sus propias palabras, 0 sin analizar). Sin ramas (código lineal):
+      la cobertura confirma que toda región se ejecutó. Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`.
+      Sabotajes detectados en las 50, `contract_audit` 0. Fuera por ahora: ~89 miembros más de esas cuatro familias (A 33, B 23, init handle 23, nodo 10).
+      **5.227 funciones, 0 discrepancias** (puerta completa: 4.639 comparadas en las cinco rutas, 588 sin comparar).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
