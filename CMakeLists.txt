@@ -199,3 +199,18 @@ add_executable(fiber_tests host/tests/fiber_test.cpp host/guest_call.cpp host/fi
 target_include_directories(fiber_tests PRIVATE host)
 target_link_libraries(fiber_tests PRIVATE psprecomp_core)
 add_test(NAME fiber COMMAND fiber_tests)
+
+# Branch coverage of chosen decompiled sources (tools.decomp_gate coverage): the listed files (relative to the
+# repository root) are compiled with LLVM source-based coverage and the executables link its runtime. Empty
+# by default; the tool sets it for one run and resets it.
+set(GT_COVERAGE_FILES "" CACHE STRING "Sources built with -fprofile-instr-generate -fcoverage-mapping")
+if(GT_COVERAGE_FILES)
+    foreach(coverage_file ${GT_COVERAGE_FILES})
+        set_source_files_properties("${CMAKE_SOURCE_DIR}/${coverage_file}" PROPERTIES
+            COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping")
+    endforeach()
+    target_link_options(gt_native PRIVATE -fprofile-instr-generate)
+    if(TARGET gt_play)
+        target_link_options(gt_play PRIVATE -fprofile-instr-generate)
+    endif()
+endif()
