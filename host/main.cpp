@@ -102,6 +102,10 @@ int main(int argc, char **argv) {
     // Idle software-rasterizer workers park after a short spin instead of lcs-recomp's 262,144 pauses:
     // same frame times, half the CPU, and fewer late vblanks on a power-limited CPU (docs/FINDINGS.md).
     setenv("PSPRECOMP_RASTER_SPINS", "2048", 0);
+    // lcs-recomp's static vertex cache hashes every cached draw's vertex bytes on the GE thread each frame to
+    // reuse their decode; in GT's races that costs more than decoding them again (race, GPU mode: 77 -> 83
+    // vblanks/s without it; docs/FINDINGS.md). PSPRECOMP_GE_VERTEX_CACHE=1 turns it back on.
+    setenv("PSPRECOMP_GE_VERTEX_CACHE", "0", 0);
     try {
         auto elf = psprecomp::Elf32Image::from_file(options.elf);
         psprecomp::Runtime runtime;

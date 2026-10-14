@@ -95,6 +95,7 @@ void execute_block_transfer(psprecomp::GuestMemory &memory, std::uint32_t kick) 
     }
     // The GPU backend caches textures per frame: tell it which bytes this copy rewrote (GT copies each
     // text glyph into the same small texture right before drawing it).
+    lcs::ge_renderer_forget_content_hashes();  // the transfer may have rewritten a texture or palette
     lcs::ge_gpu_backend_note_guest_write(destination + (dy * destination_width + dx) * bytes_per_pixel,
                                          ((height - 1u) * destination_width + width) * bytes_per_pixel);
 }
@@ -109,6 +110,7 @@ std::uint32_t relative_address(std::uint32_t data24) {
 }  // namespace
 
 void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list_address) {
+    lcs::ge_renderer_forget_content_hashes();  // texture/palette hashes are remembered only within a list
     ge_finish_seen = false;
     ge_finish_arg = 0u;
     if (list_address == 0u) return;
