@@ -1,0 +1,21 @@
+GT patch 0024: a texture decoded for a draw counts as available before its Vulkan image exists
+(it is created and uploaded when the frame is recorded, before the draw runs). Treating it as
+unavailable painted the draw with LCS's per-texture debug colour: every movie frame (violet/pink
+intro and logo fades), the race sky (flat cyan) and the first frame of each new screen.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -3143,7 +3143,12 @@
+     if (!s.enabled || !draw.texture_enabled) return false;
+     if (find_target(s, draw.texture_address) != nullptr) return true;
+     const auto found = s.textures.find(texture_key(draw));
+-    if (found == s.textures.end() || found->second.gpu.image == VK_NULL_HANDLE) return false;
++    if (found == s.textures.end()) return false;
++    // GT patch 0024: a texture decoded for this draw has no Vulkan image yet — it is created and uploaded
++    // when the frame is recorded, before the draw runs. Calling it unavailable painted the draw with the
++    // LCS debug colour instead: every new texture's first draw, so every frame of a movie (violet/pink
++    // tints) and the first frame of each new screen.
++    if (found->second.gpu.image == VK_NULL_HANDLE && found->second.rgba8.empty()) return false;
+     found->second.last_used_epoch = s.frame_epoch;
+     return !found->second.dirty || !found->second.rgba8.empty();
+ }

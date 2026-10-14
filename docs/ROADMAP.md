@@ -583,6 +583,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         en vacío y un recorrido de todas las texturas en cada block transfer). Gate ×1 150 s: carrera
         287/292, garaje 274/290, concesionario 167/290 (el concesionario varía entre ejecuciones también en
         `main`: FINDINGS).
+  - [x] **Colores y parpadeo** (2026-10-14): los vídeos y los fundidos del logo salían violetas/rosas, el cielo
+        de la carrera cian plano y la primera imagen de cada pantalla nueva teñida: la primera vez que se dibujaba una
+        textura recién decodificada se pintaba con el color de depuración de LCS (parche 0024). El z-buffer se redondea a
+        16 bits como en la GE (parche 0025: un 12 % menos de píxeles que parpadean entre frames en la carrera; escribir la
+        profundidad desactiva la prueba temprana: a medir en GPUs integradas). Gate ×1
+        200 s de carrera: 1016/1092 frames iguales (1006/1095 antes); 34 s de arranque: 2 fallos (10-11 antes).
   - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
         pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.
