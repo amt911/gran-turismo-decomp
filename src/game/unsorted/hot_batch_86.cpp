@@ -427,7 +427,7 @@ void func_08C34270(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08B03F10(this, f12): walks a chain of 6-byte nodes: the first node is (this[0xA0] list base)[0] + 6 * (int16 this[0x98]) (none for a negative index, and v0 then keeps the word at the frame's sp that the original reads there);
 // each node n: an int16 flags word n[2] that is non-negative with bit 14 clear gets func_08B07F6C(this + 0xC8, this, n, f12 = the float the function was entered with); the next index is the int16 n[4] (negative ends the walk, v0 = that index),
 // the next node (this[0xA0] list)[0] + 6 * index (a null node ends the walk). f20 is saved and holds the float in between like the original.
-// Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): the flags word n[2] is always non-negative (the `bltzl` at 0x08B03F8C, whose taken path only loads the next index, is never taken) and bit 14 is always 0 (the `beqz v1` at 0x08B03FA0 would skip func_08B07F6C).
+// Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): the flags word n[2] is always non-negative (the `bltzl` at 0x08B03F8C, whose taken path only loads the next index, is never taken) and bit 14 is always 0 (the `beqz v1` at 0x08B03FA0 is always taken, to the call of func_08B07F6C; with bit 14 set it would fall through and skip the call).
 void func_08B03F10(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const float saved_f20 = ctx.fpr[20];
