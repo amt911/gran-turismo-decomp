@@ -131,7 +131,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   is the template's own (e.g. the shared empty holder of `as_class`), and let the gate prove each one.
   **`tools.family_members`** finds the members (same masked shape, not done, reached by the probe logs of
   `tools.decomp_gate probe`) and decodes each member's own constants from its words and the ELF relocations:
-  `lui`/`addiu` addresses, `li`s, displacements and every `jal`/`j` target; `--cpp WRAPPER` prints the row as
+  `lui`/`addiu` addresses, `li`s, displacements and every `jal`/`j` target; `--list` shows the first 60 families (`--limit N` for more, `--limit 0` for all; the cut hid everything past 60 until batch 79); `--cpp WRAPPER` prints the row as
   the batch files write it, `--check REF:PATH` re-reads the rows of a batch file against the words, and a `!!` line flags a member whose
   other words differ from the template (not a table row).
   **What `--check` guarantees:** the rows of one wrapper are one family, and argument *i* of every row must equal the

@@ -727,6 +727,16 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Fuera: «clamp», «release a vector» y las demás ya escritas y sin registrar (lotes 65/68/73/74/75), la familia de `func_08B8443C` (llama a imports de `sceSasCore` que el harness no reproduce) y las familias
       de 48-68 instrucciones con pocas llamadas, para otro lote (`func_08877418`/`func_08877D64` (atributo + cadena), `func_0884A3AC`, `func_08BCFDEC`, `func_08BB0F28`, `func_08A1503C`, `func_08BA0D34`).
       **5.587 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-77 integrados: ver el PR #198).
+- [x] **Lote 79 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_79.cpp`, 51 registradas y 2 plantillas escritas sin registrar; primero `tools.family_members --list --limit N` (por defecto 60, 0 = todas: el
+      listado se cortaba en 60 familias y las siguientes nunca se vieron), luego el listado completo sobre el sondeo del lote 78 con `--exclude-ref origin/decomp/hot-batch-78`; antes de leer cada miembro se buscó su dirección
+      en `src/` y en la rama del lote 78): 17 familias («cadena de punteros a miembro» en tres variantes (7), «liberar un rango de cadenas» (2), «parámetro vector con w por defecto» (3), «parámetro objeto» (3),
+      «suma escalada de dos vectores» (2; 88.332 llamadas), «construir dos holders» (2), «crear un nodo» (2), «para cada nodo de una lista» (2), «para cada elemento con paso» (3), «callback compartido» (4) y seis pequeñas)
+      más siete funciones sueltas leídas a mano (`func_08C22D58` con 21.961 llamadas, `func_08B879E8`, `func_08BE8B78`, `func_08B9432C`, `func_08966C70`, `func_08C309B4`, `func_08B8A004`). Las filas se generan con `--cpp` y se
+      releen con `--check` (31 coinciden con sus propias palabras, 0 sin analizar; 15 filas sin argumentos comparadas con `wdiff` a mano). La puerta rápida cazó un error de lectura (`func_08BE0EB8`: un `bnez` saltaba también
+      la escritura `this[2] = 0`; el índice del destino estaba mal contado), corregido antes de registrar. Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios: las rutas nunca pasan por la cadena
+      vacía en las cuatro familias de cadenas, ni por los punteros a miembro virtuales, ni por listas/rangos vacíos. Sabotajes detectados en las 51, `contract_audit` 0, puerta rápida 51/51 comparadas, 0 discrepancias.
+      Sin registrar: `func_08BBD380` y `func_08BBEBE4` (las rutas no llaman a esas dos plantillas, solo a sus hermanas). Fuera: las familias `func_0884A3AC`, `func_08BA0D34` y `func_08BD74BC` (pocas llamadas, no leídas en este lote)
+      y las funciones con VFPU. **5.638 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-78 integrados: ver el PR #200).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
