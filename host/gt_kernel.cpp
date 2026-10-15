@@ -4331,7 +4331,16 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 list_finished = scan.finished;
                 finish_argument = scan.finish_argument;
                 const std::uint64_t vblank = display_vblank_index;
-                const bool skip = g_skip_frame;
+                // One decision per frame (from one flip to the next): a frame whose lists straddle a vblank
+                // wait is either drawn whole or skipped whole, never shown half drawn.
+                static std::uint64_t decided_flips = ~std::uint64_t{0};
+                static bool frame_skip = false;
+                if (const std::uint64_t flips = g_display_flips.load(std::memory_order_acquire);
+                    flips != decided_flips) {
+                    decided_flips = flips;
+                    frame_skip = g_skip_frame;
+                }
+                const bool skip = frame_skip;
                 ge_worker_submit([&rt, list_address, vblank, skip] {
                     execute_ge_list_frame(rt, list_address, vblank, skip);
                 });

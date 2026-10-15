@@ -1,0 +1,168 @@
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -3862,6 +3862,13 @@
+     VertexLayout layout{};
+     PreparedLighting prepared_lighting{};
+     GeGpuDrawDescriptor effective_draw{};
++    // GT patch 0036: what the job reads. A draw prepared and committed right away (GT: no decode threads) points
++    // at the caller's state instead of copying it — commands, transform, lighting and descriptor were several KB
++    // copied per draw, ~10,000 draws a frame. A deferred job points at its own copies.
++    const std::array<std::uint32_t, 256> *commands_in{};
++    const GeTransformState *transform_in{};
++    const PreparedLighting *lighting_in{};
++    const GeGpuDrawDescriptor *draw_in{};
+     GeGpuHardwareTransform hw{};
+     std::vector<std::uint32_t> unique_indices;
+     std::vector<std::uint32_t> occurrence_indices;
+@@ -3906,7 +3913,7 @@
+         job.decoded_vertices.resize(job.decode_count);
+         const Vec3 *world_normal = job.has_world_normal ? &job.fast_0115_world_normal : nullptr;
+         const PreparedLighting *lighting =
+-            job.cpu_lighting_effective ? &job.prepared_lighting : nullptr;
++            job.cpu_lighting_effective ? job.lighting_in : nullptr;
+         for (std::size_t i = 0u; i < job.decode_count; ++i) {
+             const std::uint32_t index = job.contiguous_decode
+                                             ? job.contiguous_first + static_cast<std::uint32_t>(i)
+@@ -3919,14 +3926,14 @@
+             const bool ok =
+                 job.fast_0115_raw != nullptr
+                     ? decode_model_vertex_0115_for_gpu_fast(
+-                          memory, address, job.layout, job.transform, job.commands,
++                          memory, address, job.layout, *job.transform_in, *job.commands_in,
+                           job.cpu_lighting_effective, lighting, job.decoded_vertices[i], job.error,
+                           raw != nullptr ? raw
+                                          : job.fast_0115_raw +
+                                                i * static_cast<std::size_t>(job.layout.stride),
+                           world_normal)
+-                    : decode_model_vertex_for_gpu(memory, address, job.layout, job.transform,
+-                                                  job.commands, job.cpu_lighting_effective,
++                    : decode_model_vertex_for_gpu(memory, address, job.layout, *job.transform_in,
++                                                  *job.commands_in, job.cpu_lighting_effective,
+                                                   lighting, job.uv_generation,
+                                                   job.decoded_vertices[i], job.error, raw);
+             if (!ok) return false;
+@@ -3934,7 +3941,7 @@
+         if (job.probe.valid) job.cache_vertices = job.decoded_vertices;
+     }
+ 
+-    const GeGpuDrawDescriptor &draw = job.effective_draw;
++    const GeGpuDrawDescriptor &draw = *job.draw_in;
+     const std::uint32_t alpha_control = pack_gpu_alpha_control(draw);
+     const std::uint32_t fog_control = pack_gpu_fog_control(draw);
+     std::uint32_t transform_control = 1u;
+@@ -4021,7 +4028,7 @@
+     if (job.failed) return;
+     if (!job.reused_vertices) remember_static_vertices(job.probe, job.cache_vertices);
+     if (job.submit == HwDrawJob::Submit::Direct) {
+-        ge_gpu_backend_accumulate_hardware_triangles(job.effective_draw, job.hw,
++        ge_gpu_backend_accumulate_hardware_triangles(*job.draw_in, job.hw,
+                                                      job.decoded_vertices, {});
+         return;
+     }
+@@ -4030,7 +4037,7 @@
+                          : std::span<const GeGpuVertex>(job.decoded_vertices);
+     GeGpuHardwareTransform fallback_hw = job.hw;
+     fallback_hw.primitive = 3u;
+-    ge_gpu_backend_accumulate_hardware_triangles(job.effective_draw, fallback_hw, upload_vertices,
++    ge_gpu_backend_accumulate_hardware_triangles(*job.draw_in, fallback_hw, upload_vertices,
+                                                  job.triangle_indices);
+ }
+ 
+@@ -4186,6 +4193,22 @@
+     VertexLayout layout;
+     if (!build_vertex_layout_cached(data24(commands[0x12u]), layout, error)) return false;
+ 
++    // GT patch 0036: frameskip on the GPU path. The host sets g_frameskip for the lists of a frame when it runs
++    // behind real time; the software path then skips rasterizing into the two screens, but the GPU path decoded
++    // and recorded every draw anyway, so a slow CPU never caught up (the GE thread was the bottleneck). A skipped
++    // frame's draws into the shown screens now do nothing but advance the GE's vertex or index pointer; draws
++    // into other targets (reflections, the mirror) still run. The window keeps the last picture.
++    if (g_frameskip.load(std::memory_order_relaxed) && ge_gpu_backend_active() && g_dual_pass == DualPass::None) {
++        const std::uint32_t target = framebuffer_address(commands) & 0x001FFFF0u;
++        if (target == g_frameskip_screen_a.load(std::memory_order_relaxed) ||
++            target == g_frameskip_screen_b.load(std::memory_order_relaxed)) {
++            const std::uint32_t skipped_isize = index_size(layout.index_type);
++            if (skipped_isize == 0u) stats.next_vertex_address = vertex_address + count * layout.stride;
++            else stats.next_index_address = index_address + count * skipped_isize;
++            return true;
++        }
++    }
++
+     // Draws still in flight were set up against the previous render target; the
+     // backend registers new targets while setting up a draw, so let them land first.
+     if (HwDrawQueue &queue = hw_draw_queue();
+@@ -4655,11 +4678,22 @@
+             job.reused_vertices = reuse_static_vertices(job.probe, job.decoded_vertices);
+         }
+         job.memory = &memory;
+-        job.commands = commands;
+-        job.transform = transform;
++        if (deferred) {  // GT patch 0036: a deferred job outlives the caller's state: its own copies
++            job.commands = commands;
++            job.transform = transform;
++            job.prepared_lighting = prepared_lighting;
++            job.effective_draw = effective_draw;
++            job.commands_in = &job.commands;
++            job.transform_in = &job.transform;
++            job.lighting_in = &job.prepared_lighting;
++            job.draw_in = &job.effective_draw;
++        } else {
++            job.commands_in = &commands;
++            job.transform_in = &transform;
++            job.lighting_in = &prepared_lighting;
++            job.draw_in = &effective_draw;
++        }
+         job.layout = layout;
+-        job.prepared_lighting = prepared_lighting;
+-        job.effective_draw = effective_draw;
+         job.hw = hw;
+         job.unique_indices.swap(unique_indices);
+         job.occurrence_indices.swap(occurrence_indices);
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -3603,6 +3603,45 @@
+         for (const GeGpuVertex &source : vertices) s.vertices.push_back(make_upload_vertex(source));
+     }
+     const std::uint32_t logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
++    // GT patch 0036: GT sends ~10,000 small draws a frame, runs of them with the same state (an object's parts).
++    // A triangle list with the same descriptor and transform as the batch before joins it: one draw of both lists
++    // in order covers the same pixels in the same order, and every per-draw cost (batch, state, uniforms,
++    // recording) is paid once. Strips and fans keep their own batch. A draw that samples a render target never
++    // joins: each such batch snapshots its target first, so a merged second list would miss the first one's pixels.
++    // The vertex count is the only descriptor field allowed to differ.
++    if (transform.primitive == 3u && !s.batches.empty()) {
++        Batch &last = s.batches.back();
++        const bool feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
++        constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
++        constexpr std::size_t kCountBegin = offsetof(GeGpuDrawDescriptor, vertex_count);
++        constexpr std::size_t kCountEnd = kCountBegin + sizeof(draw.vertex_count);
++        const auto *last_bytes = reinterpret_cast<const unsigned char *>(&last.draw);
++        const auto *draw_bytes = reinterpret_cast<const unsigned char *>(&draw);
++        if (!feedback && last.hardware_transform && !last.framebuffer_feedback && last.transform.primitive == 3u &&
++            last.indexed == indexed && std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
++            std::memcmp(last_bytes, draw_bytes, kCountBegin) == 0 &&
++            std::memcmp(last_bytes + kCountEnd, draw_bytes + kCountEnd, sizeof draw - kCountEnd) == 0) {
++            if (indexed && last.first_index + last.index_count == first_index) {
++                const std::uint32_t shift = first_vertex - last.first_vertex;
++                for (std::size_t i = first_index; i < s.indices.size(); ++i) s.indices[i] += shift;
++                last.vertex_count += static_cast<std::uint32_t>(append);
++                last.index_count += static_cast<std::uint32_t>(triangle_indices.size());
++                last.logical_draw_count += logical;
++                s.report.game_draw_calls += logical;
++                s.report.game_triangles += emitted / 3u;
++                s.report.game_vertices += emitted;
++                return;
++            }
++            if (!indexed && last.first_vertex + last.vertex_count == first_vertex) {
++                last.vertex_count += static_cast<std::uint32_t>(append);
++                last.logical_draw_count += logical;
++                s.report.game_draw_calls += logical;
++                s.report.game_triangles += emitted / 3u;
++                s.report.game_vertices += emitted;
++                return;
++            }
++        }
++    }
+     Batch batch{};
+     batch.draw = draw;
+     batch.first_vertex = first_vertex;

@@ -1,0 +1,57 @@
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -481,8 +481,18 @@
+     image = {};
+ }
+ 
++// GT patch 0037: the PSP picks an automatic mip level from the texels per pixel of its 480x272 screen
++// (log2 of the larger of ds/dx*width, dt/dy*height, plus the level offset). Vulkan measures the same slope in
++// the internal-resolution pixels, xN smaller, so at x4 it sampled two levels finer than the PSP: distant
++// signboards and fences shimmered and aliased. Adding log2(N) picks the PSP's level at every scale.
++float internal_scale_lod_bias(const VulkanState &s, const GeGpuDrawDescriptor &draw) noexcept {
++    if (draw.texture_level_mode != 0u || !draw.texture_mipmap_enabled || draw.texture_max_level == 0u) return 0.0f;
++    return std::log2(std::max(1.0f, s.pixel_scale_x));
++}
++
+ float sampler_lod_bias(const VulkanState &s, const GeGpuDrawDescriptor &draw) noexcept {
+-    const float bias = static_cast<float>(draw.texture_level_offset16) / 16.0f + rendering_texture_lod_bias();
++    const float bias = static_cast<float>(draw.texture_level_offset16) / 16.0f + rendering_texture_lod_bias() +
++                       internal_scale_lod_bias(s, draw);
+     const float limit = s.max_sampler_lod_bias > 0.0f ? s.max_sampler_lod_bias : 2.0f;
+     return std::clamp(bias, -limit, limit);
+ }
+@@ -575,7 +585,7 @@
+     return image.set != VK_NULL_HANDLE;
+ }
+ 
+-std::uint64_t draw_sampler_key(const GeGpuDrawDescriptor &draw) noexcept {
++std::uint64_t draw_sampler_key(const VulkanState &s, const GeGpuDrawDescriptor &draw) noexcept {
+     const std::uint32_t anisotropy =
+         std::clamp(lcs_render_configuration().rendering.anisotropic_filtering, 1u, 16u);
+     std::uint64_t key = draw.texture_min_linear ? 1u : 0u;
+@@ -588,11 +598,15 @@
+     key = hash_mix(key, draw.texture_selected_level);
+     key = hash_mix(key, draw.texture_max_level);
+     key = hash_mix(key, anisotropy);
++    float scale_bias = internal_scale_lod_bias(s, draw);  // GT patch 0037
++    std::uint32_t scale_bits = 0u;
++    std::memcpy(&scale_bits, &scale_bias, sizeof scale_bits);
++    key = hash_mix(key, scale_bits);
+     return key;
+ }
+ 
+ VkSampler sampler_for(VulkanState &s, const GeGpuDrawDescriptor &draw) {
+-    const std::uint64_t key = draw_sampler_key(draw);
++    const std::uint64_t key = draw_sampler_key(s, draw);
+     if (const auto found = s.sampler_cache.find(key); found != s.sampler_cache.end())
+         return found->second;
+     const std::uint32_t anisotropy =
+@@ -630,7 +644,7 @@
+ VkDescriptorSet descriptor_for_draw(VulkanState &s, GpuImage &image, const GeGpuDrawDescriptor &draw,
+                                     std::string &error) {
+     if (image.view == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+-    const std::uint64_t key = draw_sampler_key(draw);
++    const std::uint64_t key = draw_sampler_key(s, draw);
+     if (const auto found = image.draw_sets.find(key); found != image.draw_sets.end())
+         return found->second;
+     const VkSampler sampler = sampler_for(s, draw);

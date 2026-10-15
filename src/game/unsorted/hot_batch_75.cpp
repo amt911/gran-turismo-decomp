@@ -18,7 +18,7 @@
 //    "vtable, then tail call with this + n" (func_08B0DDDC); "swap the two arguments and jump" (func_089A8978);
 //  - "record query" (15 instructions, func_08932AEC): the record func_08936584 fills from a key stored in the object, one halfword read back;
 //  - "function-local static" (9 instructions, func_08809AF8): *slot = target();
-//  - "organizer getter" (37 instructions, func_0882F404 of src/game/race/organizer.cpp; the four members left over by batch 74): the engine object of
+//  - "holder-core getter" (37 instructions, the shape of func_0882F404 of src/game/race/organizer.cpp; the four members left over by batch 74): the engine object of
 //    a holder, one of its getters, the integer written into a result holder (func_08A85B1C here, func_08A97A6C in the template);
 //  - "use of a holder's object" (19 instructions, MWatcher_append): the holder made by `make`, `use(object)`, the holder released;
 //  - "object factories" (func_0880A414 and func_0880A464 of src/core/factories.cpp).
@@ -152,12 +152,12 @@ void record_query(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::
     ctx.gpr[2] = rt.memory().load16(frame.at(half_offset));
 }
 
-// organizer_getter(out): the holder (sp + 4) `as` fills gives an object (`message` when null) whose engine object `core_of` returns; the holder is
+// holder_core_getter(out): the holder (sp + 4) `as` fills gives an object (`message` when null) whose engine object `core_of` returns; the holder is
 // released; fill(result holder at sp + 0, method(engine object)); the result is assigned to `out` (func_08A5BAD8) when out is not that local holder;
 // the local holder is released (v0 = that release's result).
 // Branches the routes do not take (checked against the asm by hand, reading the branch targets): the null object (null_check); out being the local
 // result holder (the beq skips func_08A5BAD8; its delay slot a0 = out is dead, the holder is released next).
-void organizer_getter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t as, std::uint32_t message, std::uint32_t core_of,
+void holder_core_getter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t as, std::uint32_t message, std::uint32_t core_of,
                       std::uint32_t method, std::uint32_t fill) {
     const std::uint32_t out = ctx.gpr[4];
     GuestFrame frame(ctx, 0x20u);
@@ -278,11 +278,11 @@ void func_08932A38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 void func_08932A74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { record_query(rt, ctx, 0x00000028u, 0x0000002Cu, 0x0000000Au); }
 void func_08932AB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { record_query(rt, ctx, 0x00000078u, 0x0000007Cu, 0x00000008u); }
 
-// organizer rows
-void func_0881ECEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { organizer_getter(rt, ctx, 0x0881BD98u, 0x08C98F48u, 0x0881B068u, 0x0881AF28u, 0x08A85B1Cu); }
-void func_0881ED80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { organizer_getter(rt, ctx, 0x0881BD98u, 0x08C98F48u, 0x0881B068u, 0x0881AF30u, 0x08A85B1Cu); }
-void func_08A1B720(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { organizer_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B388u, 0x08A85B1Cu); }
-void func_08A1B848(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { organizer_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B398u, 0x08A85B1Cu); }
+// holder-core getter rows (0x0881ECEC / 0x0881ED80 are MCarCollection::getFavoriteSize / getCarCountFavorite in config/symbol_addrs.txt)
+void func_0881ECEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x0881BD98u, 0x08C98F48u, 0x0881B068u, 0x0881AF28u, 0x08A85B1Cu); }
+void func_0881ED80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x0881BD98u, 0x08C98F48u, 0x0881B068u, 0x0881AF30u, 0x08A85B1Cu); }
+void func_08A1B720(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B388u, 0x08A85B1Cu); }
+void func_08A1B848(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B398u, 0x08A85B1Cu); }
 
 // static_init rows
 void func_08B52DDC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_init_store(rt, ctx, 0x08B57E40u, 0x08CE0DCCu); }
