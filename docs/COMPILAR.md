@@ -163,6 +163,9 @@ build/gt_play
 - **Gate de la GPU** (en desarrollo): `tools/gpu_gate.sh build recomp/analysis/gpu/run` lanza las tres
   rutas sin ventana pintando con la GPU y con el software a la vez, y compara cada frame
   (`tools/gpu_compare.py`; `GT_GPU_STATS=1` cuenta los modos de blending). Hoy falla: ver ROADMAP.
+  Los frames de carrera fallan siempre porque el software no aplica el nivel automático de mipmap;
+  `GPU_GATE_LOD0=1` hace que la GPU use el nivel 0 como el software, y así la carrera compara todo lo demás.
+  Dos ejecuciones no corren los mismos frames (la carga tarda distinto): compara ventanas del mismo contenido.
 - `GT_PAD` y `GT_FRAME_DUMP` también funcionan aquí. Sin pantalla: `SDL_VIDEODRIVER=offscreen`.
 - **¿Va lento?** `GT_PERF_LOG=1 build/gt_play` escribe cada 5 s en la terminal el ritmo real:
   `guest time 1.00x` es velocidad de PSP; `vblanks` debería rondar 120/s (GT espera dos por refresco);
