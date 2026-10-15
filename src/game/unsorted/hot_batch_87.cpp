@@ -202,6 +202,10 @@ void func_0894D934(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t state = byte_u(rt, object + 0x270u);
     ctx.gpr[3] = state;
     static constexpr std::uint32_t kClass[12] = {0u, 1u, 3u, 2u, 4u, 4u, 4u, 4u, 2u, 3u, 2u, 3u};
+    if (state < 12u) {  // the jump through the table leaves v1 = the table and a0 = the entry
+        ctx.gpr[3] = 0x08C8B3E8u;
+        ctx.gpr[4] = word(rt, 0x08C8B3E8u + state * 4u);
+    }
     ctx.gpr[2] = state < 12u ? kClass[state] : 2u;
 }
 

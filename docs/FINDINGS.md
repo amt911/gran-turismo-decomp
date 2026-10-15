@@ -1587,7 +1587,7 @@ Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0880BEF8)
 **Cause.** The routes are wall-clock bound (`--max-seconds`, uncapped but not unlimited): the host ran at a load average of 57 on 24 cores (an Android emulator at 1,000 % CPU beside another agent's GPU gate), so each route
 reached fewer game states in the same seconds and never got to the late, rarely called functions. Nothing in the gate's output says so.
 **Fix / workaround.** Check `uptime` first; when the machine is loaded run the same gate with the route times doubled (`ROUTES["fast"]` scaled in a wrapper script, race 400 / dealer 200 / garage 206 / buy 220 / options 460):
-43 of 60 compared then, 47 of 47 after the parents were left out (next entry), and the sabotage needed the same doubling. Re-run at the usual times once the load is gone. A heavy job of another agent
+43 of 60 compared then (every function written for the batch installed), 47 of 47 after the parents were left out (next entry; one more was unregistered afterwards, so the final batch registers 46), and the sabotage needed the same doubling. Re-run at the usual times once the load is gone. A heavy job of another agent
 holding `gt-heavy.lock` also delays `tools.recomp` (it takes both slots) by the length of that job: the gate waits silently (it showed no output for 40 minutes).
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (the whole batch)
@@ -1602,6 +1602,7 @@ but the other five were still swallowed, now by those four.
 and `sabotage` pins them, but not within its 4 rounds: 43 of 46 were detected, and the last three (all nested) were pinned by a second run that sabotaged only them with the other 43 installed (`--also`).
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (func_0880D564, func_0880D478)
+
 ## Mode 1 (constant mip level) was sampled with the automatic level on decoded textures: GT draws millions of race draws that way
 
 **Symptom.** The GPU gate's dealer route failed 413 of 588 frame pairs (most menus with 3D cars); distant objects in the race picked smaller mip levels than the console shows.
