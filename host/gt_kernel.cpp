@@ -1859,7 +1859,8 @@ std::uint64_t perf_audio_frames = 0u;  // sceAudioOutput2 frames submitted
 std::atomic<std::uint64_t> perf_ge_frames{0u};  // display lists that start a new frame
 std::atomic<std::uint64_t> perf_frames_skipped{0u};  // of those, drawn with the frameskip on
 std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the GE worker
-// Where the guest thread waited for the GE worker: before queueing a list, in sceGeDrawSync, in sceGeListSync.
+// Where the guest thread waited for the GE worker: before queueing a list, in sceGeDrawSync, in sceGeListSync (the
+// shutdown and the diff harness also wait, counted in the total only).
 std::array<std::atomic<std::uint64_t>, 3> perf_ge_wait_site_us{};
 std::atomic<std::uint64_t> perf_ge_list_us{0u};  // GE thread executing lists (decode, accumulate), presents excluded
 PerfLog perf_log;

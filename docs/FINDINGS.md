@@ -1586,7 +1586,7 @@ Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0880BEF8)
 fixed level (`textureLod`) only for render targets sampled as textures; a decoded texture kept the automatic level plus the offset as a bias. On the PSP (and in PPSSPP and our DX12 backend) mode 1 is that level, with no
 slope term: level 0 for these draws.
 **Fix / workaround.** lcs-recomp patch 0043: mode 1 returns 256 + the selected level for every texture. GPU gate x1: dealer 591/591 (was 175/588); race and garage unchanged.
-Not the cause of the white streaks on distant signboards (they remain with the level forced to 0).
+Not the cause of the white streaks on distant signboards (they remain with the level forced to 0): see the culling entry below.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0043-constant-mip-level-for-textures.patch
 
@@ -1597,6 +1597,19 @@ Found: 2026-10-15 · tools/patches/lcs-recomp/0043-constant-mip-level-for-textur
 texel centre, so the bilinear filter never reads row 272; at x4 the pixel centres of the last PSP row sit at v = 271.625/271.875 and blend 12.5 %/37.5 % of row 272, i.e. the palette bytes read as indices.
 PPSSPP has no special case for this (its 272-row logic only limits texture hashing). Not a present-pass problem (0035 already clamps that), and not the sprite path: the draw is hardware-transformed.
 **Fix / workaround.** lcs-recomp patch 0044: each batch carries the range of the texture coordinates its vertices span (affine ones only), and ge.frag clamps the sample to half a texel inside it; a side that reaches the
-texture edge stays open so repeating textures still wrap. A no-op at 1x for one-to-one draws; GPU gate x1 unchanged elsewhere. x4 dumps of the dealer route: the last rows equal the rows above in every frame.
+texture edge stays open so repeating textures still wrap. It applies only at an internal scale: at 1x a magnified draw's edge pixels sample less than half a texel inside its range and
+the PSP blends its neighbours there, so 1x stays exact. x4 dumps of the dealer route: the last rows equal the rows above in every frame.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0044-texture-sample-inside-draw-uv-range.patch
+
+## White streaks on distant black signboards: the hardware path never culled back faces
+
+**Symptom.** At an internal scale GT's distant signboards (the black "GRAN TURISMO" boards along the first race) showed thin vertical white dashes on the black, and the lower panel was an opaque white
+board where the software renderer shows it see-through. Forcing mip level 0 did not change it; forcing nearest filtering seemed to (a coincidence of distance: the dashes come and go with it).
+**Cause.** Recolouring every texture by address left the dashes white, so no texture drew them. The hardware-transformed path (`build_gpu_hardware_transform`) only culls with `PSPRECOMP_GE_GPU_HW_CULL=1`,
+off by default upstream, so the board's back face (white, in the same plane as the black front) was drawn and won the depth test along vertical lines of equal truncated depth. With the variable set, the
+winding was also inverted: every front face was culled (the race showed the insides of the objects). The CPU path (`prepare_screen_triangle`) culls correctly.
+**Fix / workaround.** lcs-recomp patch 0045: culling on by default (`PSPRECOMP_GE_GPU_HW_CULL=0` turns it off) with `frontFace` swapped to the winding the GE accepts. x4 dumps of the race: the
+board's black is clean and the lower panel is see-through as in the software frame.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0045-hardware-back-face-culling.patch

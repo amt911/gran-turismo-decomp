@@ -1,0 +1,38 @@
+GT patch 0045: hardware back-face culling on by default, with the winding the GE accepts. The back faces of
+GT's signboards fought their front faces in depth at internal scales (white streaks on the black boards).
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -1240,8 +1240,11 @@
+     raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+     raster.polygonMode = VK_POLYGON_MODE_FILL;
+     raster.cullMode = cull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
+-    // Y is negated in the vertex shader, which reverses D3D winding.
+-    raster.frontFace = ccw ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE;
++    // GT patch 0045: the GE keeps a triangle whose screen winding is the one register 0x9B accepts, as the CPU
++    // path's prepare_screen_triangle does (counter-clockwise there is a negative edge function in y-down screen
++    // space). In Vulkan's framebuffer space that winding is the opposite of the flag's name: with the faces the
++    // other way round every front face was culled (measured: the race showed only the insides of the objects).
++    raster.frontFace = ccw ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+     raster.lineWidth = 1.0f;
+     VkPipelineMultisampleStateCreateInfo multisample{};
+     multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -136,10 +136,15 @@
+     return enabled;
+ }
+ 
++// GT patch 0045: on by default (PSPRECOMP_GE_GPU_HW_CULL=0 turns it off). The GE drops the back faces of the
++// hardware-transformed draws that enable culling (0x1D); drawn, they fought the front faces in depth: GT's distant
++// signboards are a black front face and a white back face in one plane, and at an internal scale the white one
++// won along vertical lines of equal depth (white streaks on the black boards), and see-through panels showed their
++// white backs.
+ bool gpu_hardware_cull_enabled() noexcept {
+     static const bool enabled = [] {
+         const char *text = std::getenv("PSPRECOMP_GE_GPU_HW_CULL");
+-        return text != nullptr && *text != '\0' && std::strcmp(text, "0") != 0;
++        return text == nullptr || *text == '\0' || std::strcmp(text, "0") != 0;
+     }();
+     return enabled;
+ }

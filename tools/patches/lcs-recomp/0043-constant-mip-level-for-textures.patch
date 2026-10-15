@@ -4,7 +4,7 @@ offset 0, which 0039 sampled with the automatic level.
 
 --- a/lcs/host/ge_gpu_backend_vulkan.cpp
 +++ b/lcs/host/ge_gpu_backend_vulkan.cpp
-@@ -504,11 +504,15 @@
+@@ -504,11 +504,14 @@
  // and clamps the sum the same way, so the level picked is the same.
  float sampler_lod_bias(const VulkanState &, const GeGpuDrawDescriptor &) noexcept { return 0.0f; }
  
@@ -14,9 +14,8 @@ offset 0, which 0039 sampled with the automatic level.
 +// GT patch 0043: mode 1 (constant level) samples the level the offset names, with no slope term, for decoded
 +// textures as for render targets (the DX12 backend and PPSSPP do the same). GT draws millions of its race
 +// draws (4 minutes of the race route: ~5.5M with mipmaps on) in mode 1 with offset 0 - level 0 - and 0039 sampled
-+// those with the automatic level, so distant
-+// signboards picked small mip levels GT never shows: white streaks on the black boards. 256 + level tells ge.frag
-+// to use textureLod.
++// those with the automatic level, smaller levels than the console shows. 256 + level tells ge.frag to use
++// textureLod.
 +float vertex_lod(const VulkanState &s, const GeGpuDrawDescriptor &draw) noexcept {
      if (!draw.texture_enabled) return 0.0f;
 -    if (feedback && draw.texture_level_mode == 1u)  // a fixed level (textureLod); 256 + level tells ge.frag so
@@ -24,7 +23,7 @@ offset 0, which 0039 sampled with the automatic level.
          return 256.0f + static_cast<float>(draw.texture_selected_level);
      const float bias = static_cast<float>(draw.texture_level_offset16) / 16.0f + rendering_texture_lod_bias() +
                         internal_scale_lod_bias(s, draw);
-@@ -3622,7 +3626,7 @@
+@@ -3622,7 +3625,7 @@
      }
      const bool sampled = draw.texture_enabled && ge_gpu_backend_texture_available(draw);
      const std::uint32_t first = static_cast<std::uint32_t>(s.vertices.size());
@@ -33,7 +32,7 @@ offset 0, which 0039 sampled with the automatic level.
      for (const GeGpuVertex &source : triangle_vertices) {
          UploadVertex vertex = make_upload_vertex(source);
          vertex.lod = lod;
-@@ -3670,7 +3674,7 @@
+@@ -3670,7 +3673,7 @@
      const std::uint32_t first_vertex = static_cast<std::uint32_t>(s.vertices.size());
      const std::uint32_t first_index = static_cast<std::uint32_t>(s.indices.size());
      const bool sampled_target = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
