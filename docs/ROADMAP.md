@@ -766,6 +766,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08B568DC`, `func_08B5A7F0`, `func_08B4ACE0`, `func_08B4A774`, `func_08B543B4`, `func_08B5606C`, `func_08B4F2E4`/`func_08B4F3B0`/`func_08B4F47C`), las que llegan a imports de hilos o mutex (`func_08B1C820`,
       `func_088693CC`, `func_08B59A24`, `func_08B31AB4`, `func_08AF219C`), `func_08B71CE0` (enteros de 64 bits) y las funciones de 48-70 instrucciones con pocas llamadas. Sabotajes (`s0` al entrar) detectados en las 55,
       `contract_audit` 0, `--check` 0 filas malas, puerta rápida 55/55 comparadas (4.493 casos, 2.636 que cambian memoria), 0 discrepancias. **5.754 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 61-80 integrados: 4.991 comparadas, 763 sin comparar (carrera 4.731 / concesionario 3.510 / garaje 3.556 / compra 3.466 / opciones 3.614); las 55 de este lote comparadas, 4.511 casos).
+- [x] **Lote 83 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_83.cpp`, 57 registradas; del sondeo del lote 78 con `--exclude-ref origin/decomp/hot-batch-82` (el PR #203) y sin ninguna dirección
+      que #203 escriba, registre o deje sin registrar; antes de leer cada función se buscó su dirección en `src/` y en la rama del lote 82). Candidatas: las sueltas alcanzadas por las rutas, ordenadas por llamadas, sin VFPU,
+      sin imports que el harness no reproduce (semáforos, la espera del vblank, `sceSasCore`, hilos, `setjmp`/`longjmp`) y sin «funciones» que son varios puntos de entrada; leídas a mano palabra a palabra con
+      `tools/disasm.py` (destinos de salto y relocaciones resueltos por la herramienta, cada hueco de retardo parte de su rama): cadenas y contenedores del motor (añadir, constructor por rango, `rfind`, subcadena,
+      el reservador de representaciones, recorridos y destructores de listas y árboles, el borrado de un búfer, una ordenación de valores de 16 bits), la lista de bloques del heap, la pila de registros por hilo,
+      estáticos con guarda, matemáticas (interpolación, coseno por rango, rotación por cuaternión, selección componente a componente, ayudantes de doble blando) y contadores, piscinas e inicializadores pequeños.
+      Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en el comentario de cada función; **compradas solo por una salida temprana o una rama lateral** (el cuerpo sin verificar, solo leído):
+      `func_08C30E0C` (cuenta 0), `func_08A782D8` (origen vacío), `func_08B0B36C` (solo la salida `*ok = 0`; en la lectura a mano del cuerpo de éxito el `v0` que devuelve estaba mal y se corrigió contra el asm),
+      `func_08C49140` (rangos de hasta 16 valores), `func_08B18A58`, `func_08BEEE28`, `func_08B66524` (cuadrante 1), `func_089445D8` y `func_08ADBFE0`. Sabotajes detectados en las 57 (57 registradas), `contract_audit` 0,
+      `--check` 0 filas malas (el lote no tiene envolturas con argumentos), puerta rápida 57/57 comparadas (2.156 casos, 1.354 que cambian memoria), 0 discrepancias. **5.811 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 61-81: 4.719 comparadas, 0 discrepancias, 50 de las 57 del lote (1.755 casos) alcanzadas también por la completa;
+      las cuentas están sobre `main` con los lotes 61-81: si #203 entra antes hay que rebasarlas).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
