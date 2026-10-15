@@ -737,6 +737,21 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       vacía en las cuatro familias de cadenas, ni por los punteros a miembro virtuales, ni por listas/rangos vacíos. Sabotajes detectados en las 51, `contract_audit` 0, puerta rápida 51/51 comparadas, 0 discrepancias.
       Sin registrar: `func_08BBD380` y `func_08BBEBE4` (las rutas no llaman a esas dos plantillas, solo a sus hermanas). Fuera: las familias `func_0884A3AC`, `func_08BA0D34` y `func_08BD74BC` (pocas llamadas, no leídas en este lote)
       y las funciones con VFPU. **5.638 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-78 integrados: ver el PR #200).
+- [x] **Lote 80 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_80.cpp`, 61 registradas y 4 escritas sin registrar; del sondeo del lote 78 con `--exclude-ref origin/decomp/hot-batch-79`, `tools.family_members --list --limit 0
+      --any-template --min-reached 1` y, para los sueltos, todas las funciones alcanzadas sin hermanas de la misma forma, por llamadas; antes de leer cada miembro se buscó su dirección en `src/` y en el lote 79, y las que
+      lotes anteriores escribieron y dejaron sin registrar (clamp, release a vector, organizador) no se reescribieron). Grupo 1, familias, cada una con un miembro leído entero contra el asm a mano y el resto comparado por la
+      herramienta: «asignación de cadena» (52 instrucciones, `func_08B855E0` con **984.732 llamadas** y `func_08B957D8`), «borrar de un vector de punteros» (50, `func_08B85798` con 14.545 llamadas y `func_08C028F0`), «nuevo
+      holder desde un temporal» (43, `func_08B86FB0` con 1.940 llamadas y `func_08C307DC`; `func_08B8705C`, hermana que mueve a3 en vez de a2, con su propia envoltura), «borrar un subárbol con holder» (44, recursiva; solo `func_08C012FC` registrada),
+      «reenviar al slot virtual de un miembro» (11, 2), ocho pequeñas de un solo miembro y ocho funciones de familias con un solo miembro alcanzado (26 en total). Grupo 2, 35 sueltas leídas a mano palabra a palabra (`func_089FE57C` con 422.197 llamadas, `func_089294F8`, `func_0887CA00`,
+      `func_08C467DC`, `func_088CDCFC`, `func_08A1AAB8`, `func_0892BCC0`, `func_0888A058`, las de «holder» de `0x08C2xxxx`, las de 36-40 instrucciones de `0x088Bxxxx`/`0x088Cxxxx`, dos mezclas de floats y una matriz de
+      cuaternión). Las filas se releen con `--check` (18 coinciden con sus propias palabras, 0 sin analizar). La primera puerta rápida cazó tres errores de lectura, corregidos antes de registrar: dos funciones cuya última
+      llamada es una hoja que no escribe v0 (`func_089FE57C`, `func_088B46A8`: el v0 de la anterior no pasaba a los registros; ahora toda llamada pasa por `call_keep`, FINDINGS) y `func_08B86FB0`/`func_08C307DC`, que
+      mueven a2 y no a3 como la hermana que se había leído. Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios: las rutas no pasan por objetos nulos en las siete funciones de «holder», ni
+      por cadenas compartidas vacías, ni por rangos vacíos o largos en las ordenaciones y los borrados, ni por los punteros a miembro virtuales. Sin registrar por no tener ningún caso comparado que cambie memoria
+      (`func_08870448`, `func_08BD2D24`, `func_08BF7980`, `func_08C2B76C`); dejadas fuera tras escribirlas (pocas llamadas y lectura larga): `func_08C1CDCC`, `func_08C21048`, `func_08B8543C`, `func_08BE6674`, `func_08B3A37C`,
+      `func_08C217F4`. No leídas: las funciones con VFPU (`func_08B54474`, `func_08B564A8`, `func_089A900C`, `func_08B5A838`, `func_08B5A7A8`, `func_08B580F0`, `func_08B54288`), las que llegan a imports que no se reproducen
+      (`func_08B31AB4`, `func_08AF219C`), la familia de `func_08B8443C` (flag de depuración + `sceSasCore`) y las familias de 48-68 instrucciones con pocas llamadas. Sabotajes detectados en las 65 escritas (61 registradas),
+      `contract_audit` 0, puerta rápida 61/61 comparadas (2.658 casos, 1.792 que cambian memoria), 0 discrepancias. **5.699 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-79 integrados: ver el PR #201).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

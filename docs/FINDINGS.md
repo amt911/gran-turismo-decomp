@@ -1392,3 +1392,25 @@ to check a renderer change in the race (everything but the level choice). The re
 the software rasterizer (per-pixel derivatives in every raster path), which also is what `NativeGE=false` shows.
 
 Found: 2026-10-15 · tools/gpu_gate.sh
+
+## A callee that sets no v0 hands the caller's v0 on: a decompiled function must keep the previous call's results in the registers
+
+**Symptom.** Batch 80's first gate run: `func_089FE57C` ended with `v0: original 0x0, decompiled 0x089FE57C` and `func_088B46A8` with `v0: original 0x093D6EF4, decompiled 0x088B46A8`
+(the decompiled value is the function's own address, the v0 it was entered with), although every call and every store matched.
+**Cause.** The last guest call of both is a void leaf that never writes v0. In the original, v0 at that point is whatever the call before it returned, and the function leaves
+with it. `call_guest` starts the callee from the caller's `ctx`, and a decompiled function that only keeps the previous result in a C++ variable leaves `ctx.gpr[2]` at the entry value.
+**Fix / workaround.** Every call goes through a wrapper that copies the callee's v0, v1 and f0 into `ctx` right after it (`call_keep` in `src/game/unsorted/hot_batch_80.cpp`), so the next callee
+and the epilogue see what the original's registers held. Where the original overwrites v0 itself between two calls (a load, a constant), set `ctx.gpr[2]` there by hand.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_80.cpp (func_089FE57C, func_088B46A8)
+
+## The call probe does not count a call made from inside the same generated unit: a hot function can be missing from it
+
+**Symptom.** `func_08B8705C` (43 instructions) never appeared in any `probe_*` log, although its only caller `func_08B87108` ran 4,855 times; in the fast gate, once registered,
+it was compared 13 times with 13 equal.
+**Cause.** The probe counts entries through the dispatcher; a `jal` between two functions of the same generated unit is a direct jump (the reason `tools.recomp` has to be rerun after
+every registration), so a callee that only its own unit's functions call has `hits=0`.
+**Fix / workaround.** When a family member that was read has a hot caller, look at the caller's `jal` targets: the callee may be a sibling the probe never saw. A sibling is the same
+family only if the tool says so: `func_08B8705C` moves a3 where the family of `func_08B86FB0` moves a2 (the first gate run mismatched on RAM in all 11 cases of the wrong reading).
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_80.cpp (func_08B8705C, func_08B86FB0)
