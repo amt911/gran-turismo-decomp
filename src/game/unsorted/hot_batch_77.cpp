@@ -1,4 +1,4 @@
-// Hot batch 77: sixteen shape families that no earlier batch has a registered template for, found with `tools.family_members --list --any-template` over the
+// Hot batch 77: fourteen registered shape families (sixteen written; two left out, see the end of the file) that no earlier batch has a registered template for, found with `tools.family_members --list --any-template` over the
 // call probe of batches 70-76 (every function of up to 70 instructions not yet decompiled, run on the five routes with --decomp off; batch 76 excluded
 // with --exclude-ref). For each family one member was read in full by hand against the asm (rabbitizer disassembly with the relocations applied; the
 // generated code was not used), and every other member was compared with it word by word by the tool: the words that differ are only the relocated

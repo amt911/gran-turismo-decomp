@@ -693,6 +693,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Sabotajes detectados en las 40 comparadas; `func_08B77BF4` queda sin registrar porque `contract_audit` marca tres llamadores que leen v1. 21 escritas sin registrar (compared 0 en las cinco rutas rápidas).
       Fuera: «clamp step», «range erase» y «holder conversion» sin registrar desde el lote 74, `func_08825AE8`/`func_08825B74` (UMD y hilos), los setters de organizer ya listados como compared 0.
       **5.404 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73 y 74 integrados: ver el PR #190).
+- [x] **Lote 76 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_76.cpp`, 62 registradas de 73 escritas; elegidas por alcance, no por forma: sondeo del lote 70
+      ordenado por llamadas y llamadores ya decompilados, `--exclude-ref` de los lotes 74 y 75): 31 funciones leídas una a una contra el asm (20 de ellas registradas: escritores de la lista de display de la
+      biblioteca gráfica, ayudantes de coma flotante, pegamento de coma flotante por software, `func_08B34C1C`, llamadas virtuales a través de un temporal, tablas de bytes) y 5
+      familias con plantilla leída entera: «init handle con índice» (18 instrucciones, 10), «pair call D» (19, 9), «relocation loop» (36, 9; tres miembros los llama `func_08AF771C`),
+      «handle wrapper» (21, 6) y «guarded static sin tamaño» (35, 8). Las filas de familia se generan con `--cpp` y se releen con `--check` (42 coinciden con sus propias palabras, 0 sin
+      analizar). Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios; `func_08B34C1C` reproduce v0 en cada camino porque el HLE de
+      `sceKernelCpuResumeIntr` no lo escribe. `func_08B70F28` devuelve 64 bits (`contract_audit` marcó a los llamadores que leen v1). Sabotajes detectados en las 62, `contract_audit` 0.
+      Escritas pero sin registrar (no comparables: el original llega a imports que bloquean o que el harness no reproduce): `func_08AD96A0`, `func_08AEB908`, `func_08AEB930`,
+      `func_08B0C650`, `func_08B33A24`, `func_08B52D58`, `func_08B58E28`, `func_08B58E84`, `func_08B590D0`, `func_08B83C84`, `func_08B84270`. Fuera: las funciones con VFPU (no hay
+      ayudantes para sus instrucciones) y los envoltorios de `sceSasCore` (mismo motivo que `func_08B83C84`).
+      **5.466 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-75 integrados: ver el PR #192).
 - [x] **Lote 77 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_77.cpp`, 64 registradas; familias de forma sin plantilla registrada, del sondeo del lote 70 con `--exclude-ref` del lote 76, `tools.family_members --list --any-template`):
       16 familias, cada una con un miembro leído entero contra el asm a mano (desensamblado con las reubicaciones aplicadas) y el resto comparado palabra a palabra por la herramienta: «holder apply» (58 instrucciones, 9),
       «guarded static con tamaño» (40, 6), «counted assign» (35, 6; el puntero con cuenta de referencias con `ll`/`sc`), «llamada por puntero a función miembro + cola con float» (47, 6), «lower bound en un árbol de
@@ -702,7 +713,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       columnas, sus palabras ya coinciden con la plantilla). Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios: las rutas solo comparan `count > 0` en «holder apply», punteros a
       miembro no virtuales, y el contador anterior nulo en «counted assign» (la rama de decremento y la llamada virtual quedan comprobadas solo contra el asm). Sabotajes detectados en las 64, `contract_audit` 0,
       puerta rápida 64/64 comparadas, 0 discrepancias. Fuera: «clamp» (`func_08C401C4` y sus 4 instancias) y «release a vector» (`func_08C4B740` y 3 más): ya escritas y sin registrar en los lotes 65/68/73/74 porque ningún
-      caso comparado cambia memoria (la herramienta solo cuenta como hechas las registraciones activas, así que vuelve a listarlas). **5.468 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 75
+      caso comparado cambia memoria (la herramienta solo cuenta como hechas las registraciones activas, así que vuelve a listarlas). **5.530 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-76 integrados: ver el PR #195).
       integrado, 4.825 comparadas; el PR #192 (lote 76) tendrá que rebasar los recuentos al integrarse).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 

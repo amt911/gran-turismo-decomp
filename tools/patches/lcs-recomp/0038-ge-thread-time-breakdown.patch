@@ -1,0 +1,65 @@
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -423,6 +423,12 @@
+     std::uint64_t fragments{};   // fragment shader invocations
+     std::uint64_t primitives{};  // primitives the rasterizer received
+     std::uint64_t target_pixels{};  // pixels of one internal-resolution frame (target width x height)
++    // GT patch 0038: where a recorded frame's finish spends the GE thread's time (ms, summed over `finishes`).
++    std::uint64_t finishes{};
++    double finish_ms{};         // the whole finish of a recorded frame
++    double record_ms{};         // after the previous frame's fence: uploads, recording, the present pass
++    double submit_ms{};         // vkQueueSubmit
++    double queue_present_ms{};  // vkQueuePresentKHR
+ };
+ GeGpuPerf ge_gpu_backend_take_perf() noexcept;
+ 
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -3861,6 +3861,7 @@
+         return shown();
+     }
+     if (!s.batches.empty()) s.consecutive_drops = 0u;
++    const auto finish_begin = std::chrono::steady_clock::now();  // GT patch 0038
+     if (s.enabled && !complete_pending_submit(s, copied_previous)) {
+         s.vertices.clear();
+         s.indices.clear();
+@@ -3875,6 +3876,7 @@
+         ++s.frame_epoch;
+         return shown();
+     }
++    const auto record_begin = std::chrono::steady_clock::now();  // GT patch 0038
+     follow_window_resolution(s);
+     std::string error;
+     const std::size_t vertex_bytes = s.vertices.size() * sizeof(UploadVertex);
+@@ -4195,7 +4197,11 @@
+                 submit.signalSemaphoreCount = 1u;
+                 submit.pSignalSemaphores = &present_signal;
+             }
++            const auto submit_begin = std::chrono::steady_clock::now();  // GT patch 0038
++            s.perf.record_ms += std::chrono::duration<double, std::milli>(submit_begin - record_begin).count();
+             const VkResult queued = vkQueueSubmit(s.queue, 1u, &submit, s.frame_fence);
++            s.perf.submit_ms +=
++                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - submit_begin).count();
+             if (queued != VK_SUCCESS) {
+                 log_frame_failure(s, "vkQueueSubmit", queued);
+             } else {
+@@ -4206,7 +4212,10 @@
+                 s.statistics_pending = s.statistics != VK_NULL_HANDLE;  // GT patch 0031
+                 s.submit_time = std::chrono::steady_clock::now();
+                 if (present_this_frame) {
++                    const auto present_begin = std::chrono::steady_clock::now();  // GT patch 0038
+                     const VkResult presented = queue_present(s);
++                    s.perf.queue_present_ms += std::chrono::duration<double, std::milli>(
++                        std::chrono::steady_clock::now() - present_begin).count();
+                     if (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR) {
+                         presented_now = true;
+                         s.direct_present_ok = true;
+@@ -4242,6 +4251,8 @@
+         if (present_this_frame) retire_acquired_present(s);
+     }
+     if (!display_ready) ++s.report.frames_without_displayed_target;
++    ++s.perf.finishes;  // GT patch 0038
++    s.perf.finish_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - finish_begin).count();
+     ++s.report.game_frames;
+     s.report.game_frame_vblank = vblank;
+     s.report.game_frame_rgba_vblank = s.frame_rgba_vblank;

@@ -1319,6 +1319,37 @@ not do: part of the race's GPU-vs-software differences are the GPU being closer 
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0037-mip-level-at-psp-resolution.patch
 
+## A race frame was ~8,800 draws because each object's LOD offset made its own texture
+
+**Symptom.** After merging draws with equal state (0036) a race frame still recorded ~8,800 batches of ~4
+triangles, and recording took 1.8 ms of the GE thread per frame on the desktop (2 cores pinned) — 8.4 ms on the
+laptop, measured as "present". Counting what changed between consecutive batches: the texture binding changed
+on 8,700 of them, the uniforms on 250, the pipeline on 113.
+**Cause.** A race frame samples ~300 images (address + content + palette), but the texture key and the sampler
+also held the draw's mip level selection (the PSP's LOD offset, which GT sets per object, the level mode and the
+fixed level): ~1,500 textures, so almost every draw switched texture and none could merge.
+**Fix / workaround.** lcs-recomp patch 0039: the level selection is a vertex value (`UploadVertex::lod`, 36 → 40
+bytes) that `ge.frag` applies (`texture(..., bias)`, or `textureLod` for the fixed level a render target sampled
+as a texture pins). Vulkan adds the shader bias to the sampler's and clamps the sum the same way. The samplers keep
+no bias, the keys no level selection, and the merge ignores those fields. Two cores, race: finish 1.85 → 0.47 ms
+per frame (record 1.75 → 0.37), GPU 3.1 → 2.5 ms per frame, GE wait ~28 → 20 %. GPU gate vs the run before on common frames: race 339/857 passing (341), mean 0.0430 → 0.0434, no frame over 0.3; dealer 174/587 (174); garage 594/605 (594). The frames that changed moved both ways (run-to-run timing).
+`GT_PERF_LOG` now also splits the GE thread (patch 0038): `lists` (decoding and accumulating draws) vs `finishes`
+(record, submit, present).
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0038-ge-thread-time-breakdown.patch, 0039-lod-selection-in-vertices.patch
+
+## A tail call to an import stub leaves v0 as the last load set it: func_08B34C1C mismatched on every case
+
+**Symptom.** A hand-written function ended with `tail_call(ctx, 0x08C7A8A8, {flags})` (the resume-interrupts import) and the
+diff harness reported `v0: original 0x0, decompiled 0x1` on all of its cases, although the call sequence matched.
+**Cause.** The HLE of `sceKernelCpuResumeIntr` (`host/gt_kernel.cpp`) does not write v0, so the function's result is
+whatever v0 held when the original jumped to the stub: the word its last `lw v0` loaded on that path (a field
+tested, or compared, just before). The decompiled code left the case's entry v0.
+**Fix / workaround.** Set `ctx.gpr[2]` before the tail call to what the original's last load leaves on each path (this
+function: `this[8]`, then `this[6]`, then the old tail). The same holds for any import whose HLE returns void.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_76.cpp (func_08B34C1C)
+
 ## `tools.family_members --list --any-template` lists families that earlier batches wrote and left unregistered
 
 **Symptom.** Batch 77 wrote the "clamp" family (func_08C401C4 and four instances) and "release a vector" (func_08C4B740 and three more) from scratch, and
