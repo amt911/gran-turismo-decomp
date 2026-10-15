@@ -83,7 +83,7 @@ void ptmf_chain_fill(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
     const std::uint32_t first = call_guest(rt, ctx, ptmf_function(rt, receiver, pointer, adjust), {receiver, pointer, object, adjust});
     const std::uint32_t adjust2 = word(rt, self + 0x20u);
     const std::uint32_t receiver2 = first + sar1(adjust2);
-    const std::uint32_t second = call_guest(rt, ctx, ptmf_function(rt, receiver2, word(rt, self + 0x1Cu), adjust2), {receiver2, first, object, adjust});
+    const std::uint32_t second = call_guest(rt, ctx, ptmf_function(rt, receiver2, word(rt, self + 0x1Cu), adjust2), {receiver2, first});  // a2/a3: what the first callee left (the asm doesn't set them)
     (void)call_guest(rt, ctx, fill, {frame.at(0u), second});
     if (out != frame.at(0u)) (void)call_guest(rt, ctx, kAssignSmart, {out, word(rt, frame.at(0u))});
     ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(0u)});
@@ -130,7 +130,7 @@ void ptmf_chain_returned(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
     const std::uint32_t adjust2 = word(rt, self + 0x20u);
     const std::uint32_t receiver2 = first + sar1(adjust2);
     const std::uint32_t function = ptmf_function(rt, receiver2, word(rt, self + 0x1Cu), adjust2);
-    (void)call_guest(rt, ctx, function, {frame.at(0u), receiver2, object, adjust});
+    (void)call_guest(rt, ctx, function, {frame.at(0u), receiver2});  // a2/a3 as the first callee left them
     (void)call_guest(rt, ctx, fill, {frame.at(4u), frame.at(0u)});
     if (out != frame.at(4u)) (void)call_guest(rt, ctx, kAssignSmart, {out, word(rt, frame.at(4u))});
     (void)call_guest(rt, ctx, kReleaseLocal, {frame.at(4u)});
