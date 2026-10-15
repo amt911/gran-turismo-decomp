@@ -1543,3 +1543,38 @@ with a tail call to it returns that `v0` to its own caller. `tools.contract_audi
 **Fix / workaround.** `func_08881C38` stays unregistered. A function that tail-calls through a vtable slot is only as exact as the callee it reaches in that case; check the nested callee named in `mismatch case: ... nested ...` before touching the caller.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_84.cpp (func_08881C38)
+
+## The shared-body compare of a string release leaves its sentinel in `v0`: a function that ends with the release mismatches on `v0`
+
+**Symptom.** Batch 86's first fast gate: `func_0899CD50` mismatched on every case with `v0: original 0x08D74FD0, decompiled 0x00000001` although every call, store and the RAM matched; the same bug hid behind
+`func_08AF464C` (`v0: original 0x08CD72C0, decompiled 0x08CBF908`: a constant loaded into `v0` before a callee that sets no `v0`).
+**Cause.** The copy-on-write string release `p - 0xC == D_08D74FD0 ? skip : refcount call` compares against the shared empty body with `lui v0 / addiu v0` and a `beq`; when the body is the shared one the function leaves
+that address in `v0`, when it is not, `v0` holds the refcount call's answer. A decompiled function that ends with the release and only keeps the constant in a C++ variable returns the callee's `v0` or the entry one. The same goes for a
+constant the original parks in `v0` before a call to a callee that never writes `v0` (`call_keep` hands the context's `v0` on, so set `ctx.gpr[2]` first).
+**Fix / workaround.** `release_string` sets `ctx.gpr[2]` to the sentinel before the compare (`src/game/unsorted/hot_batch_86.cpp`); the variants that keep the sentinel in an `s` register (`release_body`) do not.
+Read the register the compare uses, not only the branch.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0899CD50, func_08AF464C)
+
+## `tools.family_members --check` takes every one-line `void func_X(...) { name(rt, ctx, N); }` for a table row: a bit position in an `ext`/`ins` is not a value of the words
+
+**Symptom.** `--check` reported `BAD func_089E18BC: argument 0 is no value of the member's words` for two accessors that differ only in the bit number (`ext a1, a1, 3, 1` / `ext a1, a1, 2, 1`).
+**Cause.** The checker decodes `lui`/`li`/displacements/call targets of a member; a field of `ext`/`ins` (position, size) is not one of them, so a wrapper argument that carries it can never match.
+**Fix / workaround.** A parameter that lives in an instruction field is a template argument (`flag_accessor<3u>(rt, ctx)`, not matched by the row regex), the rest (call targets, constants) stays a wrapper argument and is checked.
+Also: `GT_DECOMP_DENSE=0xADDR` is inherited by `tools.decomp_gate fast/coverage` (the harness reads it), so a hot function whose compared sample misses a path can be run dense through the tool; the case budget stays 32.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_089E18BC)
+
+## A registered parent swallows the compared calls of its decompiled descendants: the full gate's "compared" total falls without any behaviour change
+
+**Symptom.** Batch 86's full gate: 5,012 reached with 28 of its 46 functions among them, i.e. 4,984 without the batch against 5,039 for main (a run of the same tree with the batch's file moved away): 56 functions
+that main reaches (the destructor tree of a menu object: `func_0886A858`, `func_0886BF44`, `stride_walk` instances, `member_forward`, ...) showed `calls 0`. Bisected with `GT_DECOMP_ONLY` (the lost function plus halves of the
+batch, counting its `calls` on the four menu routes: 3 per route in main) down to one function: `func_0880BEF8`, the destructor of the menu object, called once per route, installed alone made all of them 0.
+**Cause.** Not a behaviour change: the destructor's single call per route is compared as a case (equal, 4/4), and everything it calls runs inside that case; a callee that is registered but not `GT_DECOMP_NESTED` is not
+counted there (only the dispatcher's own calls are), so its `calls` and `compared` drop to 0 although it ran. The same shadowing hid eight destructors of the batch itself in the first fast gate (`compared 0`) until the parent was
+left recompiled.
+**Fix / workaround.** `func_0880BEF8` stays written but unregistered (its descendants stay compared, and six of the batch's destructors went from 0 to 4-8 cases). A drop of the full gate's compared total is a behaviour change
+only when the lost functions are not callees of a registered function whose cases ran: list them (`main` vs the branch, per address) and bisect with `GT_DECOMP_ONLY` before suspecting the code. Possibly the same cause as
+batch 83's `func_08A9DD14` (not re-checked).
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0880BEF8)

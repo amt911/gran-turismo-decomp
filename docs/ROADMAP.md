@@ -801,6 +801,23 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       (solo la respuesta 1) se mantienen con la parte no verificada anotada. Sin registrar: `func_08A1F520`, `func_08BDD7D8`, `func_08881C38`, `func_08B6E4FC`, `func_08B6E268`, `func_0887BC90`, `func_08875038`, `func_0886C31C`,
       `func_089C4C20`. Sabotajes detectados en las 50 comprobadas con la primera lista (las 47 registradas incluidas), `contract_audit` 0, `--check` 0 filas malas (el lote no tiene envolturas con argumentos), puerta rápida 47/47
       comparadas, 0 discrepancias. **5.914 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-83 integrados: ver el PR #206).
+- [x] **Lote 86 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_86.cpp`, 51 registradas y 24 escritas sin registrar; del sondeo del lote 78 con `--exclude-ref origin/decomp/hot-batch-85` (el PR #210) y sin ninguna
+      dirección que #210 escriba, registre o deje sin registrar; antes de leer cada función se buscó su dirección en `src/` y en la rama del lote 85). Funciones de 10-70 instrucciones que las rutas alcanzan, sin VFPU, sin
+      llamadas a los stubs de imports (>= 0x08C70000), sin bucles sin fin ni variadicas ni puntos de entrada múltiples, leídas a mano con `tools/disasm.py`. Grupos: constructores con estáticos protegidos y registros de clase
+      (`func_08A29588`, `func_08A3D394`, `func_08AA6D68`, `func_08AB6AD0`, `func_08892A7C`, `func_08894574`, `func_088FEA94`, `func_088F5670`, `func_0886E7A8`), temporales de cadena con la liberación con cuenta de referencias
+      (`func_0899CD50`, `func_0897FDE0`, `func_08A6BBE8`, `func_089AF5E8`, `func_08A17710`), destructores (`func_0886A804`, `func_088742C8`, `func_08882DC0`, `func_0887104C`, `func_0886E980`) y la actualización de un
+      objeto de menú (`func_08869444`, `func_0886968C`, `func_08B03F10`, hasta 26.754 llamadas). Cada función fija los registros `s0-s7`/`fp` como los tiene el original durante las llamadas (`SavedRegs`; FINDINGS del lote 84) y
+      pasa todo por `call_keep`. Tres lecciones nuevas en FINDINGS: el centinela de la liberación de la cadena compartida queda en `v0`, `--check` toma por fila de tabla cualquier `void func_X(...) { w(rt, ctx, N); }`
+      (un número de bit de `ext`/`ins` va como argumento de plantilla), y un padre registrado se traga las llamadas comparadas de sus descendientes decompilados (`func_0880BEF8`: la completa «comparadas» cayó 55 sin cambio
+      de comportamiento; queda escrita sin registrar). Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en el comentario de cada función; **comparadas por su camino principal con un camino lateral leído solo
+      del asm**: `func_089E18BC` y `func_089E19BC` (solo el modo > 0; el modo 0 y el < 0 solo leídos), `func_08AE7E28` (un solo nodo con coincidencia y q[0] == 6), `func_088D3424` (el bloque final con el `+ 3.0` y
+      `func_088D2D10`), `func_0886B600` (el bucle que vacía la cola), `func_08894574` (la inicialización del estático), `func_08BEBECC` (la forma virtual del puntero a miembro), `func_088D9BBC` (`clear` y la cola) y
+      `func_0886AD04`. Sin registrar: ocho por no comparar nada (`func_088733F4`, `func_0889844C`, `func_088A34BC`, `func_08B95080`, `func_08B95120`, `func_08BC1FE8`, `func_08C34270`, y `func_0880BEF8` por lo dicho),
+      cuatro que llegan a un import o una espera que el harness no reproduce (`func_088A5E5C`, `func_0892FCE0`, `func_08A13844`, `func_08AC8FDC`), nueve comparadas solo con una salida temprana o el rango vacío (`func_08900350`,
+      `func_08BE78E8`, `func_08C246E4` y los borrados de vector `func_08C49A28`, `func_08C49C28`, `func_08C49D08`, `func_08B89338`, `func_08B895E0`, `func_08C0DBBC`) y tres sin ningún caso que cambie memoria (`func_08B043D8`,
+      `func_08872E18`, `func_08C49930`). Sabotajes detectados en las 51 (51 registradas), `contract_audit` 0, `--check` 0 filas malas, puerta rápida 51/51 comparadas (654 casos, 569 que cambian memoria), 0 discrepancias.
+      **5.965 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 61-84: 5.044 alcanzadas, 32 de las 51 (554 casos); sin el lote 5.012 frente a 5.039 de `main` (una pasada del mismo árbol sin el
+      archivo del lote); otra pasada con la máquina cargada dio 5.030; las cuentas están sobre `main` con los lotes 61-84: si #210 entra antes hay que rebasarlas).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
