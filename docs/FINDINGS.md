@@ -1521,3 +1521,25 @@ draws per second (~600 ns each on the desktop), not the vertices.
 allocations, backend queries); measure any cache against `lists` on two cores before keeping it.
 
 Found: 2026-10-15 · docs/superpowers/specs/2026-10-15-gpu-geometry-cache-design.md
+
+## A callee can read the caller's `s0`: a decompiled constructor that leaves the entry `s0` in place mismatches on RAM
+
+**Symptom.** Batch 84's first fast gate: `func_0880BF70` (a constructor: `func_08B28DCC(this)`, `func_089BD4DC(a1)`, `func_08869988(this + 0x30)`, tail `func_08A76AA0`) mismatched on both cases and a single-function run
+(`GT_DECOMP_ONLY`) reproduced it: `RAM at 0x09C96964: original 00, decompiled A0 (306 bytes differ)`, 20,000 differing bytes in the dirty-page list, although the sequence of guest calls and their `a0-a3` were identical (a debug trace of every dispatch in both runs).
+With the nested `func_08869988` installed the same bug showed as `D0` (`this + 0x30`) against `A0` (`this`).
+**Cause.** The original keeps `this` in `s0` (and `a1` in `s1`) across the calls; a callee under `func_08B28DCC` (the lock created through the `0x08C7AAB0` stub) stores the caller's `s0` into a table. The decompiled function kept `this` in a C++ variable
+and left `ctx.gpr[16]` at the case's entry value, so the stored word was a different one. `call_guest` starts the callee from the caller's context, so every register the original holds live across a call is part of what the callee sees.
+**Fix / workaround.** Set `ctx.gpr[16]` / `ctx.gpr[17]` to the values the original keeps in `s0` / `s1` before the calls and restore the entry values before returning or tail-calling (the original restores them from its frame): `func_0880BF70`,
+`func_08869988`, `func_08B1BC98`. When a mismatch has an identical call sequence, trace the dispatches of both runs (`rt.function_at` loop in `host/guest_call.cpp` and the harness loop) before reading more asm.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_84.cpp (func_0880BF70, func_08869988)
+
+## A tail call into a `Void`-registered nested function leaks its `v0`: the caller mismatches on `v0` only in the full gate
+
+**Symptom.** `func_08881C38` (tail call through a vtable slot to `func_088A599C`, `CarParameter::set_color`) was equal in all fast-gate cases and mismatched on `v0` in 3 routes of the full gate
+(`original 0x1, decompiled 0x09D0B700`, case "nested 0x088A599C").
+**Cause.** `set_color` is registered `GT_DECOMP_NESTED(..., Void)`: its `v0` is never compared, and in the decompiled run it leaves the entry `v0` (the object) where the original leaves 1, the `v0` of its last callee. A function that ends
+with a tail call to it returns that `v0` to its own caller. `tools.contract_audit` does not follow tail calls through a vtable.
+**Fix / workaround.** `func_08881C38` stays unregistered. A function that tail-calls through a vtable slot is only as exact as the callee it reaches in that case; check the nested callee named in `mismatch case: ... nested ...` before touching the caller.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_84.cpp (func_08881C38)
