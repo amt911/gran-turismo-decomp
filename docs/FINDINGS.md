@@ -1349,3 +1349,46 @@ tested, or compared, just before). The decompiled code left the case's entry v0.
 function: `this[8]`, then `this[6]`, then the old tail). The same holds for any import whose HLE returns void.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_76.cpp (func_08B34C1C)
+
+## Two GPU gate runs don't race the same frames: compare a run's GPU against its own software frames
+
+**Symptom.** Patch 0040 (two memos, provably equivalent) seemed to cost the race 30 passing frames (339 → 309,
+30 worse, 0 better than the run before).
+**Cause.** The run's software frames differ from the previous run's at the same index just as much as its GPU
+frames (mean |diff| ~29 per byte averaged over 88 sampled frames, up to ~97 on single frames; 4 of 88 identical): loading took a different time, so the race started ~900
+frames earlier and 30 pre-race frames (which pass) became race frames (which never pass: the software reference
+samples mip level 0 in the automatic mode — see "Distant textures shimmered"). Pass counts across runs measure
+when the race started as much as the renderer.
+**Fix / workaround.** Judge a renderer change by windows of the same content (pre-race frames, race frames) and
+by each run's GPU-vs-software agreement, not by the pass count difference between runs; a CPU-side memo is
+checked by reading it for equivalence. Patch 0040 itself: the texture key (~50 hash mixes a draw) is reused when
+the descriptor equals the previous draw's, and the two 4x4 matrix products when world, view and projection are
+unchanged; the race profile lost `multiply_mat4` and half of `hash_mix` (process samples over the same 40 s:
+28,411 → 25,903), the GE thread's `lists` on two cores did not move beyond noise.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0040-per-draw-memos.patch
+
+## `tools.family_members --list --any-template` lists families that earlier batches wrote and left unregistered
+
+**Symptom.** Batch 77 wrote the "clamp" family (func_08C401C4 and four instances) and "release a vector" (func_08C4B740 and three more) from scratch, and
+only afterwards found them in batches 65 / 68 / 73 / 74, written and commented out because no compared case changes memory.
+**Cause.** The tool counts as done only the *active* registrations (and `--exclude-ref` branches), so a function written but left unregistered is
+pending again, and a family with no registered member shows up as new.
+**Fix / workaround.** Before reading a family, `grep -rn <address> src/` for its members: a hit in a commented-out `HOTnn(...)` line is a function that
+was already tried. The decision made there (no case changes memory: stays recompiled) holds until a route reaches the non-empty case.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_77.cpp
+
+## The race fails the GPU gate mostly on mip levels: GPU_GATE_LOD0=1 makes it a check again
+
+**Symptom.** Every race frame failed the GPU gate in every run (0 of 100 per 3,000-frame window, mean
+difference 0.05-0.09), so the race could not show a regression; only the pre-race frames passed.
+**Cause.** Mostly the reference, not the GPU: the software rasterizer samples level 0 in the automatic mip mode
+(`selected_texture_level`), while the GPU picks the level as the PSP does. Forcing the GPU to level 0
+(`TextureLodBias=-8`): race windows 0.05-0.09 → 0.016-0.043 mean difference and 11-22 of 100 frames passing
+where none did. The rest (0.016-0.043, alternating by window) has other causes, not investigated yet.
+**Fix / workaround.** `GPU_GATE_LOD0=1 tools/gpu_gate.sh ...` writes `TextureLodBias=-8` into the run's ini: use it
+to check a renderer change in the race (everything but the level choice). The real fix is the automatic level in
+the software rasterizer (per-pixel derivatives in every raster path), which also is what `NativeGE=false` shows.
+
+Found: 2026-10-15 · tools/gpu_gate.sh
