@@ -1378,3 +1378,17 @@ pending again, and a family with no registered member shows up as new.
 was already tried. The decision made there (no case changes memory: stays recompiled) holds until a route reaches the non-empty case.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_77.cpp
+
+## The race fails the GPU gate mostly on mip levels: GPU_GATE_LOD0=1 makes it a check again
+
+**Symptom.** Every race frame failed the GPU gate in every run (0 of 100 per 3,000-frame window, mean
+difference 0.05-0.09), so the race could not show a regression; only the pre-race frames passed.
+**Cause.** Mostly the reference, not the GPU: the software rasterizer samples level 0 in the automatic mip mode
+(`selected_texture_level`), while the GPU picks the level as the PSP does. Forcing the GPU to level 0
+(`TextureLodBias=-8`): race windows 0.05-0.09 → 0.016-0.043 mean difference and 11-22 of 100 frames passing
+where none did. The rest (0.016-0.043, alternating by window) has other causes, not investigated yet.
+**Fix / workaround.** `GPU_GATE_LOD0=1 tools/gpu_gate.sh ...` writes `TextureLodBias=-8` into the run's ini: use it
+to check a renderer change in the race (everything but the level choice). The real fix is the automatic level in
+the software rasterizer (per-pixel derivatives in every raster path), which also is what `NativeGE=false` shows.
+
+Found: 2026-10-15 · tools/gpu_gate.sh
