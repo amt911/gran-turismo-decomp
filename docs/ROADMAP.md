@@ -763,6 +763,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
         ~30 kHz. Ahora un frame que solo dibuja en los dos búferes de pantalla se descarta si la GPU no acaba en
         4 ms (como mucho dos seguidos): con `GT_SIM_GPU_MS=20`, el juego espera un 33 % en vez de un 88 % y el sonido
         sale a 42,6 kHz en vez de 30,1; con una GPU rápida apenas se descartan.
+  - [x] **Portátil con batería y fidelidad** (2026-10-14/15, parches 0027-0040; todo en FINDINGS):
+        pianos con «Single Player» (destinos de render obsoletos, 0029/0033), escala interna automática por presupuesto
+        de GPU (`GpuBudgetMs`, 0033), sin fogonazos negros ni línea abajo (0034/0035), el frameskip ahora se salta
+        también el trabajo de la GPU (0036: con 2 núcleos el audio pasa de 32-35 kHz a 44 kHz), letreros lejanos con el
+        nivel de mipmap del PSP a cualquier escala (0037), y ~5 veces menos dibujos por frame de carrera (0039: el nivel
+        de detalle de cada objeto partía ~300 texturas en ~1.500; grabar el frame pasa de 1,85 a 0,47 ms con 2 núcleos).
+        `GT_PERF_LOG` separa el tiempo del hilo de la GE (0038) y `GPU_GATE_LOD0=1` hace que la carrera vuelva a
+        comprobar algo en el gate de la GPU. Pendiente: confirmarlo en el portátil (`docs/PRUEBAS_PORTATIL.md`).
   - [ ] Pendiente para igualar al software: reflejos del coche en el concesionario, transiciones de
         pantalla que GT escribe con la CPU (escritura de vuelta, fase 3) y `NativeGE=true` por defecto.
 - [x] **Velocidad real** (2026-10-11): el juego, la música y los efectos iban a la mitad de velocidad.
