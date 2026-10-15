@@ -1,0 +1,196 @@
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -429,6 +429,11 @@
+     double record_ms{};         // after the previous frame's fence: uploads, recording, the present pass
+     double submit_ms{};         // vkQueueSubmit
+     double queue_present_ms{};  // vkQueuePresentKHR
++    // GT patch 0042: parts of record_ms: texture uploads, the frame's draws, and the present pass (window checks,
++    // swapchain image, overlay).
++    double uploads_ms{};
++    double draws_ms{};
++    double present_pass_ms{};
+ };
+ GeGpuPerf ge_gpu_backend_take_perf() noexcept;
+ 
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -191,6 +191,14 @@
+     std::vector<std::uint64_t> page_write_stamp = std::vector<std::uint64_t>(kGuestPages, 0u);
+     std::unordered_map<std::uint32_t, Target> targets{};
+     std::vector<Staging> staging;
++    // GT patch 0042: one host buffer for the frame's texture uploads, allocated once (it was a buffer and its memory
++    // per texture, allocated and freed every frame: a kernel call each on an integrated GPU's driver).
++    VkBuffer upload_ring{};
++    VkDeviceMemory upload_ring_memory{};
++    std::byte *upload_ring_mapped{};
++    VkDeviceSize upload_ring_used{};
++    std::uint32_t last_drawable_width{};  // GT patch 0042: the window size the swapchain was last checked against
++    std::uint32_t last_drawable_height{};
+     std::vector<UploadVertex> vertices;
+     std::vector<std::uint32_t> indices;
+     std::vector<Batch> batches;
+@@ -1352,11 +1360,33 @@
+     VkDeviceSize bytes = texture.rgba8.size();
+     Staging staging{};
+     void *mapped = nullptr;
+-    if (!create_buffer(s, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+-                       staging.buffer, staging.memory, &mapped, error))
+-        return false;
+-    std::memcpy(mapped, texture.rgba8.data(), texture.rgba8.size());
++    VkBuffer source = VK_NULL_HANDLE;
++    VkDeviceSize source_offset = 0u;
++    constexpr VkDeviceSize kUploadRingBytes = 8u << 20u;
++    if (s.upload_ring == VK_NULL_HANDLE) {
++        void *ring = nullptr;
++        std::string ring_error;
++        if (create_buffer(s, kUploadRingBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
++                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
++                          s.upload_ring, s.upload_ring_memory, &ring, ring_error))
++            s.upload_ring_mapped = static_cast<std::byte *>(ring);
++        else
++            s.upload_ring = VK_NULL_HANDLE;
++    }
++    const VkDeviceSize ring_offset = (s.upload_ring_used + 15u) & ~VkDeviceSize{15u};
++    if (s.upload_ring_mapped != nullptr && ring_offset + bytes <= kUploadRingBytes) {
++        source = s.upload_ring;
++        source_offset = ring_offset;
++        s.upload_ring_used = ring_offset + bytes;
++        std::memcpy(s.upload_ring_mapped + ring_offset, texture.rgba8.data(), texture.rgba8.size());
++    } else {
++        if (!create_buffer(s, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
++                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
++                           staging.buffer, staging.memory, &mapped, error))
++            return false;
++        std::memcpy(mapped, texture.rgba8.data(), texture.rgba8.size());
++        source = staging.buffer;
++    }
+     VkMemoryBarrier host{};
+     host.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+     host.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+@@ -1373,7 +1403,7 @@
+         const std::size_t level_bytes = static_cast<std::size_t>(mip_width) * mip_height * 4u;
+         if (offset + level_bytes > texture.rgba8.size()) break;
+         VkBufferImageCopy region{};
+-        region.bufferOffset = offset;
++        region.bufferOffset = source_offset + offset;
+         region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+         region.imageSubresource.mipLevel = level;
+         region.imageSubresource.layerCount = 1u;
+@@ -1384,12 +1414,12 @@
+         mip_height = std::max(1u, mip_height >> 1u);
+     }
+     s.perf.upload_bytes += texture.rgba8.size();  // GT patch 0028
+-    vkCmdCopyBufferToImage(s.command, staging.buffer, texture.gpu.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
++    vkCmdCopyBufferToImage(s.command, source, texture.gpu.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                            static_cast<std::uint32_t>(regions.size()), regions.data());
+     transition_image(s.command, texture.gpu.image, texture.gpu.layout,
+                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, texture.mip_levels);
+     if (!write_descriptor(s, texture.gpu, error)) return false;
+-    s.staging.push_back(staging);
++    if (staging.buffer != VK_NULL_HANDLE) s.staging.push_back(staging);
+     texture.dirty = false;
+     ++s.report.texture_image_uploads;
+     s.report.texture_image_upload_bytes += texture.rgba8.size();
+@@ -1915,6 +1945,13 @@
+         error = "Vulkan window size is zero";
+         return false;
+     }
++    // GT patch 0042: called on every present; the surface queries below (capabilities, formats) can be round trips
++    // to the display server. Nothing changed since the last check when the window is the same size and nothing
++    // marked the swapchain out of date: keep it.
++    if (!s.swapchain_dirty && s.swapchain != VK_NULL_HANDLE && s.present_pipeline != VK_NULL_HANDLE &&
++        !s.swap_framebuffers.empty() && s.swap_framebuffers.size() == s.swap_images.size() &&
++        drawable_w == s.last_drawable_width && drawable_h == s.last_drawable_height)
++        return true;
+     VkSurfaceCapabilitiesKHR caps{};
+     if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s.physical, s.surface, &caps) != VK_SUCCESS) {
+         error = "vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed";
+@@ -1948,6 +1985,8 @@
+         return false;
+     }
+     const VkPresentModeKHR mode = desired_present_mode(s);
++    s.last_drawable_width = drawable_w;  // GT patch 0042
++    s.last_drawable_height = drawable_h;
+     if (!s.swapchain_dirty && s.swapchain != VK_NULL_HANDLE && s.present_pipeline != VK_NULL_HANDLE &&
+         s.swap_width == extent.width && s.swap_height == extent.height && s.swap_present_mode == mode &&
+         s.swap_format == format && !s.swap_framebuffers.empty() &&
+@@ -2235,6 +2274,7 @@
+         error = "vkAcquireNextImageKHR failed";
+         return false;
+     }
++    if (result == VK_SUBOPTIMAL_KHR) s.last_drawable_width = 0u;  // GT patch 0042: the next present checks the surface again
+     return true;
+ }
+ 
+@@ -2526,6 +2566,7 @@
+     s.submit_time = std::chrono::steady_clock::now();
+     const VkResult presented = queue_present(s);
+     if (presented == VK_ERROR_OUT_OF_DATE_KHR) s.swapchain_dirty = true;
++    if (presented == VK_SUBOPTIMAL_KHR) s.last_drawable_width = 0u;  // GT patch 0042
+     if (presented == VK_ERROR_DEVICE_LOST) s.present_lost = true;
+     if (presented != VK_SUCCESS && presented != VK_SUBOPTIMAL_KHR) {
+         error = "vkQueuePresentKHR failed";
+@@ -2542,6 +2583,12 @@
+         if (staging.memory) vkFreeMemory(s.device, staging.memory, nullptr);
+     }
+     s.staging.clear();
++    if (s.upload_ring) vkDestroyBuffer(s.device, s.upload_ring, nullptr);  // GT patch 0042
++    if (s.upload_ring_memory) vkFreeMemory(s.device, s.upload_ring_memory, nullptr);
++    s.upload_ring = VK_NULL_HANDLE;
++    s.upload_ring_memory = VK_NULL_HANDLE;
++    s.upload_ring_mapped = nullptr;
++    s.upload_ring_used = 0u;
+     s.submit_pending = false;
+     s.pending_readback = false;
+     s.pending_readback_bytes = 0u;
+@@ -3907,6 +3954,7 @@
+         return shown();
+     }
+     const auto record_begin = std::chrono::steady_clock::now();  // GT patch 0038
++    s.upload_ring_used = 0u;  // GT patch 0042: the previous frame's copies are done (its fence was waited above)
+     follow_window_resolution(s);
+     std::string error;
+     const std::size_t vertex_bytes = s.vertices.size() * sizeof(UploadVertex);
+@@ -3960,10 +4008,13 @@
+                          VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                          0, 1u, &host, 0, nullptr, 0, nullptr);
++    const auto uploads_begin = std::chrono::steady_clock::now();  // GT patch 0042
+     for (auto &entry : s.textures) {
+         if (!upload_texture(s, entry.second, error) && !error.empty())
+             runtime_log_error("vulkan texture upload", error);
+     }
++    const auto draws_begin = std::chrono::steady_clock::now();
++    s.perf.uploads_ms += std::chrono::duration<double, std::milli>(draws_begin - uploads_begin).count();
+ 
+     bool touched_display = false;
+     std::uint32_t executed = 0u;
+@@ -4175,6 +4226,7 @@
+     }
+     end_pass(s);
+     Target *display = find_target(s, s.display_framebuffer);
++    s.perf.draws_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - draws_begin).count();
+     const bool display_ready = touched_display && display != nullptr && display->color.image != VK_NULL_HANDLE;
+     bool present_this_frame = false;
+     if (publish && display_ready && s.swapchain_extension && !s.present_lost) {
+@@ -4183,7 +4235,10 @@
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
+         }
+         std::string present_error;
+-        if (record_swapchain_present(s, display->color.view, crop_width(s), crop_height(s), present_error))
++        const auto pass_begin = std::chrono::steady_clock::now();  // GT patch 0042
++        const bool recorded = record_swapchain_present(s, display->color.view, crop_width(s), crop_height(s), present_error);
++        s.perf.present_pass_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - pass_begin).count();
++        if (recorded)
+             present_this_frame = true;
+         else if (!present_error.empty())
+             log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
+@@ -4246,6 +4301,7 @@
+                     const VkResult presented = queue_present(s);
+                     s.perf.queue_present_ms += std::chrono::duration<double, std::milli>(
+                         std::chrono::steady_clock::now() - present_begin).count();
++                    if (presented == VK_SUBOPTIMAL_KHR) s.last_drawable_width = 0u;  // GT patch 0042
+                     if (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR) {
+                         presented_now = true;
+                         s.direct_present_ok = true;

@@ -1490,3 +1490,56 @@ PSP samples a level with normalised coordinates, not verified on hardware). GPU 
 garage unchanged.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0041-mip-chain-own-level-sizes.patch
+
+## The laptop spent 3 ms per frame recording even in menus: measure the windowed path, not only headless
+
+**Symptom.** Laptop log with 0038's split: `record 3.0 ms` per frame in menus with 6 primitives, where a headless
+race on the desktop records in 0.35 ms. The headless gate and `tools/gpu_perf.sh` never present to a window,
+so the present path (swapchain checks, overlay, acquire) and the window-only per-frame work were never timed.
+**Cause (being narrowed).** Per frame the backend asked the driver and SDL for the surface capabilities, formats and
+window size (`ensure_swapchain`, round trips to the display server on X11), and every texture upload allocated, mapped
+and later freed its own staging buffer (a kernel call each on an integrated GPU's driver). On the desktop with a
+window those cost little; on the laptop they are suspects, not yet proven.
+**Fix / workaround.** lcs-recomp patch 0042: one persistent 8 MB upload buffer reused every frame (the previous
+frame's fence is waited before recording), the swapchain checks skipped while the window size is unchanged and
+nothing marked it out of date (`VK_SUBOPTIMAL_KHR` sends the next present back to the full check), and
+`GT_PERF_LOG` splits `record` into uploads, draws and the present pass (the three don't add up to all of it), so the
+next laptop log names what is left. GPU gate x1: identical windows and pass counts to 0041.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0042-fixed-frame-costs.patch
+
+## Caching decoded geometry made the GE thread slower: GT's draws are tiny, the cost is per draw
+
+**Symptom.** 99.8 % of a race frame's vertices are byte-identical to the previous frame's, so a cache of each draw's
+converted vertices and indices (keyed by a hash of its inputs, `docs/superpowers/specs/2026-10-15-gpu-geometry-cache-
+design.md`) looked like half of `lists`. Built and exact (verify mode: 0 mismatches over ~1M hits/s), it measured
+**slower**: two cores, race, `lists` 404 → 556 ms/s, GE wait 20 → 34 %.
+**Cause.** A race draw has ~14 vertices. Decoding reads 10-14 compact bytes per vertex; a hit copies 40-byte
+converted vertices out of a ~30 MB scattered table and adds a lookup. The cost is the fixed work of each of ~660,000
+draws per second (~600 ns each on the desktop), not the vertices.
+**Fix / workaround.** Not merged. Cut the per-draw overhead instead (descriptor copies and comparisons, per-draw
+allocations, backend queries); measure any cache against `lists` on two cores before keeping it.
+
+Found: 2026-10-15 · docs/superpowers/specs/2026-10-15-gpu-geometry-cache-design.md
+
+## A callee can read the caller's `s0`: a decompiled constructor that leaves the entry `s0` in place mismatches on RAM
+
+**Symptom.** Batch 84's first fast gate: `func_0880BF70` (a constructor: `func_08B28DCC(this)`, `func_089BD4DC(a1)`, `func_08869988(this + 0x30)`, tail `func_08A76AA0`) mismatched on both cases and a single-function run
+(`GT_DECOMP_ONLY`) reproduced it: `RAM at 0x09C96964: original 00, decompiled A0 (306 bytes differ)`, 20,000 differing bytes in the dirty-page list, although the sequence of guest calls and their `a0-a3` were identical (a debug trace of every dispatch in both runs).
+With the nested `func_08869988` installed the same bug showed as `D0` (`this + 0x30`) against `A0` (`this`).
+**Cause.** The original keeps `this` in `s0` (and `a1` in `s1`) across the calls; a callee under `func_08B28DCC` (the lock created through the `0x08C7AAB0` stub) stores the caller's `s0` into a table. The decompiled function kept `this` in a C++ variable
+and left `ctx.gpr[16]` at the case's entry value, so the stored word was a different one. `call_guest` starts the callee from the caller's context, so every register the original holds live across a call is part of what the callee sees.
+**Fix / workaround.** Set `ctx.gpr[16]` / `ctx.gpr[17]` to the values the original keeps in `s0` / `s1` before the calls and restore the entry values before returning or tail-calling (the original restores them from its frame): `func_0880BF70`,
+`func_08869988`, `func_08B1BC98`. When a mismatch has an identical call sequence, trace the dispatches of both runs (`rt.function_at` loop in `host/guest_call.cpp` and the harness loop) before reading more asm.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_84.cpp (func_0880BF70, func_08869988)
+
+## A tail call into a `Void`-registered nested function leaks its `v0`: the caller mismatches on `v0` only in the full gate
+
+**Symptom.** `func_08881C38` (tail call through a vtable slot to `func_088A599C`, `CarParameter::set_color`) was equal in all fast-gate cases and mismatched on `v0` in 3 routes of the full gate
+(`original 0x1, decompiled 0x09D0B700`, case "nested 0x088A599C").
+**Cause.** `set_color` is registered `GT_DECOMP_NESTED(..., Void)`: its `v0` is never compared, and in the decompiled run it leaves the entry `v0` (the object) where the original leaves 1, the `v0` of its last callee. A function that ends
+with a tail call to it returns that `v0` to its own caller. `tools.contract_audit` does not follow tail calls through a vtable.
+**Fix / workaround.** `func_08881C38` stays unregistered. A function that tail-calls through a vtable slot is only as exact as the callee it reaches in that case; check the nested callee named in `mismatch case: ... nested ...` before touching the caller.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_84.cpp (func_08881C38)
