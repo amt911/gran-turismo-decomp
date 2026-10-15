@@ -1567,12 +1567,12 @@ Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_089E18BC)
 
 ## A registered parent swallows the compared calls of its decompiled descendants: the full gate's "compared" total falls without any behaviour change
 
-**Symptom.** Batch 86's full gate: 5,012 reached with 28 of its 46 functions among them, i.e. 4,984 without the batch against 5,039 for main (a run of the same tree with the batch's file moved away): 56 functions
+**Symptom.** Batch 86's first full gate (46 functions registered then, `func_0880BEF8` among them): 5,012 reached with 28 of the 46 among them, i.e. 4,984 without the batch against 5,039 for main (a run of the same tree with the batch's file moved away): 56 functions
 that main reaches (the destructor tree of a menu object: `func_0886A858`, `func_0886BF44`, `stride_walk` instances, `member_forward`, ...) showed `calls 0`. Bisected with `GT_DECOMP_ONLY` (the lost function plus halves of the
 batch, counting its `calls` on the four menu routes: 3 per route in main) down to one function: `func_0880BEF8`, the destructor of the menu object, called once per route, installed alone made all of them 0.
 **Cause.** Not a behaviour change: the destructor's single call per route is compared as a case (equal, 4/4), and everything it calls runs inside that case; a callee that is registered but not `GT_DECOMP_NESTED` is not
 counted there (only the dispatcher's own calls are), so its `calls` and `compared` drop to 0 although it ran. The same shadowing hid eight destructors of the batch itself in the first fast gate (`compared 0`) until the parent was
-left recompiled.
+left recompiled. With it unregistered the final tree (51 functions, merged with batch 85) reaches 5,055 in the full gate, 0 mismatches.
 **Fix / workaround.** `func_0880BEF8` stays written but unregistered (its descendants stay compared, and six of the batch's destructors went from 0 to 4-8 cases). A drop of the full gate's compared total is a behaviour change
 only when the lost functions are not callees of a registered function whose cases ran: list them (`main` vs the branch, per address) and bisect with `GT_DECOMP_ONLY` before suspecting the code. Possibly the same cause as
 batch 83's `func_08A9DD14` (not re-checked).
