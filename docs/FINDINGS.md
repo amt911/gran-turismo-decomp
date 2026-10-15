@@ -1578,3 +1578,25 @@ only when the lost functions are not callees of a registered function whose case
 batch 83's `func_08A9DD14` (not re-checked).
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0880BEF8)
+
+## Mode 1 (constant mip level) was sampled with the automatic level on decoded textures: GT draws millions of race draws that way
+
+**Symptom.** The GPU gate's dealer route failed 413 of 588 frame pairs (most menus with 3D cars); distant objects in the race picked smaller mip levels than the console shows.
+**Cause.** A histogram of the draws' texture level mode (4 minutes of the race route) gave ~8.2 M draws in mode 1 (constant level) with offset 0, ~5.5 M of them with mipmaps on. Patch 0039 turned mode 1 into a
+fixed level (`textureLod`) only for render targets sampled as textures; a decoded texture kept the automatic level plus the offset as a bias. On the PSP (and in PPSSPP and our DX12 backend) mode 1 is that level, with no
+slope term: level 0 for these draws.
+**Fix / workaround.** lcs-recomp patch 0043: mode 1 returns 256 + the selected level for every texture. GPU gate x1: dealer 591/591 (was 175/588); race and garage unchanged.
+Not the cause of the white streaks on distant signboards (they remain with the level forced to 0).
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0043-constant-mip-level-for-textures.patch
+
+## The line along the bottom of the screen: a full-screen picture's next texture row is its palette
+
+**Symptom.** At an internal scale a 1-2 px line of changing colour along the bottom edge of the black notice screens, the intro video and menus (x4: the last two rows at 24 and 72 grey on a black screen; x1 clean).
+**Cause.** GT draws these pictures as a transformed 4-vertex strip from the top 480x272 of a 512x512 CLUT8 texture (`0x096AE050`, CLUT at `0x096D0060`, 16 bytes after row 272). At 1x every pixel centre samples a
+texel centre, so the bilinear filter never reads row 272; at x4 the pixel centres of the last PSP row sit at v = 271.625/271.875 and blend 12.5 %/37.5 % of row 272, i.e. the palette bytes read as indices.
+PPSSPP has no special case for this (its 272-row logic only limits texture hashing). Not a present-pass problem (0035 already clamps that), and not the sprite path: the draw is hardware-transformed.
+**Fix / workaround.** lcs-recomp patch 0044: each batch carries the range of the texture coordinates its vertices span (affine ones only), and ge.frag clamps the sample to half a texel inside it; a side that reaches the
+texture edge stays open so repeating textures still wrap. A no-op at 1x for one-to-one draws; GPU gate x1 unchanged elsewhere. x4 dumps of the dealer route: the last rows equal the rows above in every frame.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0044-texture-sample-inside-draw-uv-range.patch

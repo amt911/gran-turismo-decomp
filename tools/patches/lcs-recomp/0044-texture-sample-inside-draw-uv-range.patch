@@ -1,0 +1,186 @@
+GT patch 0044: a draw samples at least half a texel inside the texture-coordinate range its vertices span (a side
+that reaches the texture edge stays open, so repeating textures still wrap). At an internal scale the bilinear
+filter along a draw edge blended in texels the PSP never reads at 1x: the row after GT's 480x272 full-screen
+pictures holds their palette and showed as a coloured line along the bottom of the screen.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -70,8 +70,9 @@
+     std::uint32_t pixel0[4]{};
+     std::uint32_t pixel1[4]{};
+     float sample_scale[4]{1.0f, 1.0f, 0.0f, 0.0f};  // GT patch 0022: texture uv -> render-target uv
++    float uv_clamp[4]{-1.0e9f, -1.0e9f, 1.0e9f, 1.0e9f};  // GT patch 0044: min u, min v, max u, max v
+ };
+-static_assert(sizeof(DrawUniforms) == 208u);
++static_assert(sizeof(DrawUniforms) == 224u);
+ static_assert(offsetof(DrawUniforms, control) == 112u);
+ static_assert(offsetof(DrawUniforms, pixel0) == 160u);
+ 
+@@ -99,6 +100,10 @@
+     GeGpuHardwareTransform transform{};
+     bool framebuffer_feedback{};
+     std::uint32_t feedback_address{};
++    // GT patch 0044: the range of the texture coordinates the batch's vertices sample (u0, v0, u1, v1), when
++    // every one is an affine (q = 1) coordinate.
++    bool uv_box_valid{};
++    float uv_box[4]{};
+ };
+ 
+ struct GpuImage {
+@@ -824,6 +829,49 @@
+ 
+ std::array<std::uint32_t, 3> shader_blend_uniforms(const GeGpuDrawDescriptor &draw) noexcept;  // GT patch 0021
+ 
++// GT patch 0044: the bilinear filter at the PSP's own pixel centres never reaches more than half a texel past the
++// texture coordinates a draw's vertices span, so the texels outside that range never show on the console. At an
++// internal scale the pixel centres along the draw's edges fall between texels and the filter blended them in: GT
++// draws its full-screen pictures from the top 480x272 of a 512x512 texture whose next row holds the palette, and
++// that row showed as a thin line of changing colour along the bottom of the screen. Keeping the sample at least
++// half a texel inside the range is a no-op at 1x for draws that map texels to pixels one to one. A side of the
++// range that reaches the texture's edge (or beyond: a repeating texture) stays open, so tiled textures still wrap.
++void extend_uv_box(Batch &batch, float u, float v, float q) noexcept {
++    if (!std::isfinite(u) || !std::isfinite(v) || std::fabs(q - 1.0f) > 1.0e-6f) {
++        batch.uv_box_valid = false;
++        batch.uv_box[0] = -1.0e30f;  // stays invalid after a merge
++        return;
++    }
++    if (batch.uv_box[0] <= -1.0e30f) return;
++    if (!batch.uv_box_valid) {
++        batch.uv_box_valid = true;
++        batch.uv_box[0] = batch.uv_box[2] = u;
++        batch.uv_box[1] = batch.uv_box[3] = v;
++        return;
++    }
++    batch.uv_box[0] = std::min(batch.uv_box[0], u);
++    batch.uv_box[1] = std::min(batch.uv_box[1], v);
++    batch.uv_box[2] = std::max(batch.uv_box[2], u);
++    batch.uv_box[3] = std::max(batch.uv_box[3], v);
++}
++
++void apply_uv_clamp(const Batch &batch, DrawUniforms &uniforms) noexcept {
++    const GeGpuDrawDescriptor &draw = batch.draw;
++    if (!batch.uv_box_valid || !draw.texture_enabled || (!draw.texture_min_linear && !draw.texture_mag_linear) ||
++        draw.texture_width == 0u || draw.texture_height == 0u)
++        return;
++    constexpr float kEdge = 1.0e-4f;
++    const auto axis = [&](float low, float high, std::uint32_t size, float &clamp_low, float &clamp_high) {
++        if (low < -kEdge || high > 1.0f + kEdge) return;  // a repeating texture: leave the axis open
++        const float half = 0.5f / static_cast<float>(size);
++        if (low > kEdge) clamp_low = low + half;
++        if (high < 1.0f - kEdge) clamp_high = high - half;
++        if (clamp_low > clamp_high) clamp_low = clamp_high = (low + high) * 0.5f;  // narrower than a texel
++    };
++    axis(batch.uv_box[0], batch.uv_box[2], draw.texture_width, uniforms.uv_clamp[0], uniforms.uv_clamp[2]);
++    axis(batch.uv_box[1], batch.uv_box[3], draw.texture_height, uniforms.uv_clamp[1], uniforms.uv_clamp[3]);
++}
++
+ DrawUniforms make_uniforms(const Batch &batch, std::uint32_t logical_width, std::uint32_t logical_height,
+                            bool sampled) noexcept {
+     DrawUniforms constants{};
+@@ -3627,6 +3675,7 @@
+     const bool sampled = draw.texture_enabled && ge_gpu_backend_texture_available(draw);
+     const std::uint32_t first = static_cast<std::uint32_t>(s.vertices.size());
+     const float lod = vertex_lod(s, draw);  // GT patch 0039, 0043
++    Batch batch{};
+     for (const GeGpuVertex &source : triangle_vertices) {
+         UploadVertex vertex = make_upload_vertex(source);
+         vertex.lod = lod;
+@@ -3634,9 +3683,9 @@
+             vertex.u /= static_cast<float>(draw.texture_width);
+             vertex.v /= static_cast<float>(draw.texture_height);
+         }
++        if (sampled) extend_uv_box(batch, vertex.u, vertex.v, vertex.q);  // GT patch 0044
+         s.vertices.push_back(vertex);
+     }
+-    Batch batch{};
+     batch.draw = draw;
+     batch.first_vertex = first;
+     batch.vertex_count = static_cast<std::uint32_t>(triangle_vertices.size());
+@@ -3694,6 +3743,21 @@
+         for (const GeGpuVertex &source : vertices) s.vertices.push_back(upload(source));
+     }
+     const std::uint32_t logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
++    Batch box{};  // GT patch 0044: the texture coordinates the shader computes, inUv * scale + offset
++    if (draw.texture_enabled && !sampled_target) {
++        for (const GeGpuVertex &source : vertices)
++            extend_uv_box(box, source.u * transform.uv_scale_u + transform.uv_offset_u,
++                          source.v * transform.uv_scale_v + transform.uv_offset_v, source.q);
++    }
++    const auto merge_box = [&box](Batch &into) {
++        if (!into.uv_box_valid || !box.uv_box_valid) {
++            into.uv_box_valid = false;
++            into.uv_box[0] = -1.0e30f;
++            return;
++        }
++        extend_uv_box(into, box.uv_box[0], box.uv_box[1], 1.0f);
++        extend_uv_box(into, box.uv_box[2], box.uv_box[3], 1.0f);
++    };
+     // GT patch 0036: GT sends ~10,000 small draws a frame, runs of them with the same state (an object's parts).
+     // A triangle list with the same descriptor and transform as the batch before joins it: one draw of both lists
+     // in order covers the same pixels in the same order, and every per-draw cost (batch, state, uniforms,
+@@ -3722,6 +3786,7 @@
+                 last.vertex_count += static_cast<std::uint32_t>(append);
+                 last.index_count += static_cast<std::uint32_t>(triangle_indices.size());
+                 last.logical_draw_count += logical;
++                merge_box(last);
+                 s.report.game_draw_calls += logical;
+                 s.report.game_triangles += emitted / 3u;
+                 s.report.game_vertices += emitted;
+@@ -3730,6 +3795,7 @@
+             if (!indexed && last.first_vertex + last.vertex_count == first_vertex) {
+                 last.vertex_count += static_cast<std::uint32_t>(append);
+                 last.logical_draw_count += logical;
++                merge_box(last);
+                 s.report.game_draw_calls += logical;
+                 s.report.game_triangles += emitted / 3u;
+                 s.report.game_vertices += emitted;
+@@ -3747,6 +3813,8 @@
+     batch.logical_draw_count = logical;
+     batch.hardware_transform = true;
+     batch.transform = transform;
++    batch.uv_box_valid = box.uv_box_valid;
++    std::copy(std::begin(box.uv_box), std::end(box.uv_box), std::begin(batch.uv_box));
+     batch.feedback_address = draw.texture_address & 0x001FFFF0u;
+     batch.framebuffer_feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;  // GT patch 0029
+     s.batches.push_back(batch);
+@@ -4146,6 +4214,7 @@
+             uniforms.sample_scale[0] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_width)) / kTargetSpace;
+             uniforms.sample_scale[1] = static_cast<float>(std::max<std::uint32_t>(1u, batch.draw.texture_height)) / kTargetSpace;
+         }
++        else if (textured) apply_uv_clamp(batch, uniforms);  // GT patch 0044
+         // GT patch 0032: the same uniforms and texture as the draw before reuse its slot and binding.
+         if (!descriptors_bound || sampled_set != bound_set ||
+             std::memcmp(&uniforms, &bound_uniforms, sizeof uniforms) != 0) {
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -21,6 +21,7 @@
+     uvec4 pixel0;
+     uvec4 pixel1;
+     vec4 sampleScale;
++    vec4 uvClamp;  // GT patch 0044: the sampled uv stays inside the draw's texels (min uv, max uv)
+ } u;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D sourceTexture;
+@@ -130,9 +131,10 @@
+     vec4 color = clamp(vColor, 0.0, 1.0);
+     if (textureControl.w != 0u) {
+         float q = abs(vQ) < 1.0e-20 ? 1.0 : vQ;
++        vec2 st = clamp(vUv / q, u.uvClamp.xy, u.uvClamp.zw);  // GT patch 0044
+         // GT patch 0039: the draw's level selection: a fixed level, or the PSP's offset as a bias.
+-        vec4 texel = vLod >= 128.0 ? textureLod(sourceTexture, vUv / q, vLod - 256.0)
+-                                   : texture(sourceTexture, vUv / q, vLod);
++        vec4 texel = vLod >= 128.0 ? textureLod(sourceTexture, st, vLod - 256.0)
++                                   : texture(sourceTexture, st, vLod);
+         if ((u.pixel1.x & 0x1000u) != 0u) texel = storedFramebufferTexel(texel, (u.pixel1.x >> 8u) & 3u);  // GT patch 0022
+         color = applyTextureFunction(color, texel, textureControl, textureEnv);
+     }
+--- a/lcs/host/vulkan/ge.vert
++++ b/lcs/host/vulkan/ge.vert
+@@ -27,6 +27,7 @@
+     uvec4 pixel0;
+     uvec4 pixel1;
+     vec4 sampleScale;  // GT patch 0022: render-target textures cover their own size of the target
++    vec4 uvClamp;  // GT patch 0044: the sampled uv stays inside the draw's texels (min uv, max uv)
+ } u;
+ 
+ void main() {

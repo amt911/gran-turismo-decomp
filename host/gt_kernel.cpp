@@ -1859,6 +1859,8 @@ std::uint64_t perf_audio_frames = 0u;  // sceAudioOutput2 frames submitted
 std::atomic<std::uint64_t> perf_ge_frames{0u};  // display lists that start a new frame
 std::atomic<std::uint64_t> perf_frames_skipped{0u};  // of those, drawn with the frameskip on
 std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the GE worker
+// Where the guest thread waited for the GE worker: before queueing a list, in sceGeDrawSync, in sceGeListSync.
+std::array<std::atomic<std::uint64_t>, 3> perf_ge_wait_site_us{};
 std::atomic<std::uint64_t> perf_ge_list_us{0u};  // GE thread executing lists (decode, accumulate), presents excluded
 PerfLog perf_log;
 bool perf_log_enabled() {
@@ -1882,7 +1884,7 @@ void perf_log_tick() {
     std::fprintf(stderr,
                  "[perf] %.1f s: vblanks %.1f/s skipped %.1f/s presented %.1f/s dropped %.1f/s | "
                  "GE frames %.1f/s (frameskip %.1f/s), present %.2f ms avg, pump %.2f ms avg (max %.1f), vblank sleep %.1f%%, "
-                 "GE wait %.1f%% | audio %.0f Hz | guest time %.2fx\n",
+                 "GE wait %.1f%% (queue %.1f, drawsync %.1f, listsync %.1f) | audio %.0f Hz | guest time %.2fx\n",
                  seconds, perf_log.vblanks / seconds, perf_log.skipped / seconds, presented / seconds,
                  perf_log.dropped / seconds, static_cast<double>(perf_ge_frames.exchange(0u)) / seconds,
                  static_cast<double>(perf_frames_skipped.exchange(0u)) / seconds,
@@ -1890,6 +1892,9 @@ void perf_log_tick() {
                  perf_log.vblanks ? perf_log.pump_ms / perf_log.vblanks : 0.0, perf_log.pump_max_ms,
                  100.0 * perf_log.sleep_ms / (seconds * 1000.0),
                  100.0 * static_cast<double>(perf_ge_wait_us.exchange(0u)) / (seconds * 1e6),
+                 100.0 * static_cast<double>(perf_ge_wait_site_us[0].exchange(0u)) / (seconds * 1e6),
+                 100.0 * static_cast<double>(perf_ge_wait_site_us[1].exchange(0u)) / (seconds * 1e6),
+                 100.0 * static_cast<double>(perf_ge_wait_site_us[2].exchange(0u)) / (seconds * 1e6),
                  perf_audio_frames / seconds,
                  static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6));
     if (ge_gpu_backend_active()) {  // GT patch 0028: what the GPU itself spent, from Vulkan timestamps
@@ -2017,14 +2022,16 @@ void ge_worker_submit(std::function<void()> task) {
     ge_worker.cv.notify_all();
 }
 
-void ge_worker_wait_idle() {
+void ge_worker_wait_idle(int site = -1) {
     std::unique_lock lock(ge_worker.mutex);
     if (!ge_worker.started) return;
     if (ge_worker.tasks.empty() && !ge_worker.busy) return;
     const auto begin = std::chrono::steady_clock::now();
     ge_worker.cv.wait(lock, [] { return ge_worker.tasks.empty() && !ge_worker.busy; });
-    perf_ge_wait_us.fetch_add(static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin).count()));
+    const auto waited = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin).count());
+    perf_ge_wait_us.fetch_add(waited);
+    if (site >= 0) perf_ge_wait_site_us[static_cast<std::size_t>(site)].fetch_add(waited);
 }
 
 void ge_worker_stop() {
@@ -2721,7 +2728,7 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
 
     // --- sceGe_user / sceAudio / power / misc ---
     runtime.register_hle("sceGe_user", 0x03444EB4u,  // sceGeListSync: lists complete synchronously here
-        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ge_worker_wait_idle(); set_success(ctx); });
+        [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ge_worker_wait_idle(2); set_success(ctx); });
     runtime.register_hle("sceAudio", 0x01562BA3u,  // sceAudioOutput2Reserve(samples)
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { g_output2_samples = ctx.gpr[4]; set_success(ctx); });
     runtime.register_hle("sceAudio", 0x2D53F36Eu,  // sceAudioOutput2OutputBlocking(vol, buf): blocks one buffer
@@ -4339,7 +4346,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 const GeListPrescan scan = prescan_ge_list(rt.memory(), list_address);
                 list_finished = scan.finished;
                 finish_argument = scan.finish_argument;
-            } else if (ge_worker_wait_idle(); ge_async_enabled()) {
+            } else if (ge_worker_wait_idle(0); ge_async_enabled()) {
                 lcs_menu_enqueue();
                 const GeListPrescan scan = prescan_ge_list(rt.memory(), list_address);
                 list_finished = scan.finished;
@@ -4377,7 +4384,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         });
     runtime.register_hle("sceGe_user", 0xB287BD61u,
         [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
-            ge_worker_wait_idle();
+            ge_worker_wait_idle(1);
             ctx.set_gpr(2, 0u);
         });
     runtime.register_hle("sceGe_user", 0xA4FC06A4u,

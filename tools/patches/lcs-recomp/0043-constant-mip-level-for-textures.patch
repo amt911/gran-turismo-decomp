@@ -1,0 +1,44 @@
+GT patch 0043: texture level mode 1 (constant level) samples the level its offset names for decoded textures too,
+not only for render targets (as the DX12 backend and PPSSPP do). GT draws millions of race draws in mode 1 with
+offset 0, which 0039 sampled with the automatic level.
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -504,11 +504,15 @@
+ // and clamps the sum the same way, so the level picked is the same.
+ float sampler_lod_bias(const VulkanState &, const GeGpuDrawDescriptor &) noexcept { return 0.0f; }
+ 
+-// What the samplers did before, per draw: a render target sampled as a texture pinned the fixed level of mode 1
+-// (minLod = maxLod); a decoded texture's sampler never did (its bias applies in every mode).
+-float vertex_lod(const VulkanState &s, const GeGpuDrawDescriptor &draw, bool feedback) noexcept {
++// GT patch 0043: mode 1 (constant level) samples the level the offset names, with no slope term, for decoded
++// textures as for render targets (the DX12 backend and PPSSPP do the same). GT draws millions of its race
++// draws (4 minutes of the race route: ~5.5M with mipmaps on) in mode 1 with offset 0 - level 0 - and 0039 sampled
++// those with the automatic level, so distant
++// signboards picked small mip levels GT never shows: white streaks on the black boards. 256 + level tells ge.frag
++// to use textureLod.
++float vertex_lod(const VulkanState &s, const GeGpuDrawDescriptor &draw) noexcept {
+     if (!draw.texture_enabled) return 0.0f;
+-    if (feedback && draw.texture_level_mode == 1u)  // a fixed level (textureLod); 256 + level tells ge.frag so
++    if (draw.texture_level_mode == 1u)
+         return 256.0f + static_cast<float>(draw.texture_selected_level);
+     const float bias = static_cast<float>(draw.texture_level_offset16) / 16.0f + rendering_texture_lod_bias() +
+                        internal_scale_lod_bias(s, draw);
+@@ -3622,7 +3626,7 @@
+     }
+     const bool sampled = draw.texture_enabled && ge_gpu_backend_texture_available(draw);
+     const std::uint32_t first = static_cast<std::uint32_t>(s.vertices.size());
+-    const float lod = vertex_lod(s, draw, draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr);  // GT patch 0039
++    const float lod = vertex_lod(s, draw);  // GT patch 0039, 0043
+     for (const GeGpuVertex &source : triangle_vertices) {
+         UploadVertex vertex = make_upload_vertex(source);
+         vertex.lod = lod;
+@@ -3670,7 +3674,7 @@
+     const std::uint32_t first_vertex = static_cast<std::uint32_t>(s.vertices.size());
+     const std::uint32_t first_index = static_cast<std::uint32_t>(s.indices.size());
+     const bool sampled_target = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
+-    const float lod = vertex_lod(s, draw, sampled_target);  // GT patch 0039
++    const float lod = vertex_lod(s, draw);  // GT patch 0039, 0043
+     const auto upload = [lod](const GeGpuVertex &source) {
+         UploadVertex vertex = make_upload_vertex(source);
+         vertex.lod = lod;
