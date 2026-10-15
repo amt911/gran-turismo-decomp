@@ -827,6 +827,26 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08BE78E8`, `func_08C246E4` y los borrados de vector `func_08C49A28`, `func_08C49C28`, `func_08C49D08`, `func_08B89338`, `func_08B895E0`, `func_08C0DBBC`) y tres sin ningún caso que cambie memoria (`func_08B043D8`,
       `func_08872E18`, `func_08C49930`). Sabotajes detectados en las 51 (51 registradas), `contract_audit` 0, `--check` 0 filas malas, puerta rápida 51/51 comparadas (654 casos, 569 que cambian memoria), 0 discrepancias.
       **6.013 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 85 integrado: ver el PR #212).
+- [x] **Lote 87 de funciones calientes** (2026-10-16, `src/game/unsorted/hot_batch_87.cpp`, 46 registradas y 14 escritas sin registrar; del sondeo del lote 78 con los lotes 85 y 86 ya en `main`; antes de leer cada función se buscó su
+      dirección en `src/` y en las ramas abiertas: ninguna). Funciones de 10-70 instrucciones que las rutas alcanzan, sin VFPU, sin llamadas a los stubs de imports (>= 0x08C70000; se dejaron fuera `func_08AC45F4`, que termina
+      saltando a uno, y la envoltura variádica `func_08C46D74`), sin bucles sin fin ni puntos de entrada múltiples (ni las dos conmutaciones por tabla de saltos `func_08AEFB40` y `func_088A0DD4`), leídas a mano con
+      `tools/disasm.py` (la única tabla de saltos, D_08C8B3E8, leída del ELF). Grupos: destructores y desmontajes con la liberación del puntero compartido y la destrucción de arrays (`func_0887ED48`, `func_0886DE00`,
+      `func_088AF1D0`, `func_088A11F8`, `func_08BD67B8`, `func_08BE46A8`, `func_089EF8A8`, `func_08ABF590`, `func_0889A4F0`, `func_08BAEF98`, `func_08BE45C4`, `func_08BC0808`, `func_08BAC9EC`, `func_08BE0724`), accesores
+      con «holder» y temporales de cadena de las clases de script (`func_08A83474`, `func_08A83AC0`, `func_08A52F9C`, `func_08A20EC0`, `func_089ADE38`, `func_089C0360`, `func_0880C1DC`, `func_088797F8`, `func_0887894C`,
+      `func_08A57D74`, `func_08A1503C`, `func_08A2A724`, `func_08993FCC`, `func_08A0BF5C`…), constructores con estáticos protegidos y sencillos (`func_0889DA58`, `func_0892BE4C`, `func_08809650`, `func_08ACFA08`, `func_08922CF8`,
+      `func_089E6520`, `func_0894CD28`), el crecimiento de un vector (`func_08C4A4AC`), una división tipo `strtok` (`func_08ABD5EC`) y lectores pequeños (`func_0894D934`, `func_088D2E78`, `func_08915DEC`, `func_08898D30`).
+      Cada función fija `s0-s7`/`fp` como el original durante las llamadas (`SavedRegs`) y pasa todo por `call_keep`. Dos lecciones nuevas en FINDINGS: una puerta rápida en una máquina cargada «no compara» lo que las rutas
+      alcanzan en una tranquila (carga 57 en 24 núcleos: 17 de 48 comparadas; con los tiempos de las rutas duplicados, 43 de 60), y los descendientes tragados por un padre registrado se pueden registrar `GT_DECOMP_NESTED` (el
+      sabotaje no los fija dentro de sus 4 rondas: una segunda ejecución con solo ellos sabotajeados). Más un caso de la regla del retardo (`func_0880D478` tomó la asignación por la respuesta anterior: un `move` en el hueco
+      de retardo de un `jal` ve el `v0` de ANTES de esa llamada). **Comparadas por su camino principal con un camino lateral leído solo del asm** (cada comentario lista lo que los casos no toman): `func_08A57D74` (modo 0),
+      `func_08A20EC0` y `func_089C0360` (su segunda mitad), `func_089ADE38` (la mitad que escribe), `func_08A52F9C` (n > 0), las liberaciones de contadores de `func_08BC0808`, `func_08BAC9EC`, `func_08BD67B8`, `func_08BE45C4`,
+      `func_08BAEF98` y `func_0889A4F0`, `func_088A23EC` (la llamada final), `func_08ABD5EC` (todos los tokens), `func_0881D450` (un par distinto de -1:-1), `func_08C4A4AC`, `func_08BE0724` y `func_0894D934` (qué entradas
+      de la tabla usaron los casos). Sin registrar: dos padres cuyo único `delete` por ruta de menú destruye un objeto miembro con todo su árbol decompilado y se traga las llamadas comparadas de sus descendientes
+      (`func_0880D564`, `func_0880D478`), ocho cuyos casos paran en un cerrojo, un sleep, un arranque de hilo o un import que el harness no reproduce (`func_0883B600`, `func_0897BFEC`, `func_089C1368`, `func_089C151C`,
+      `func_08ABAFCC`, `func_08AC2BD8`, `func_08BCFEF8`, `func_08BD787C`), tres sin ningún caso que cambie memoria (`func_0888CFCC`, `func_08ABECA0`, `func_08B8ECAC`) y `func_08B9355C` (solo se comparó con el nodo nulo).
+      Sabotajes detectados en las 46 (43 en la primera ejecución y las 3 anidadas restantes en una segunda), `contract_audit` 0, `--check` 0 filas malas (el lote no tiene filas de tabla), puerta rápida 46/46 comparadas
+      (250 casos, 246 que cambian memoria, más 20 casos anidados de las cinco registradas `GT_DECOMP_NESTED`), 0 discrepancias. **6.059 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 85 y 86
+      integrados: 5.048 comparadas, 7 menos que `main` (5.055): 34 funciones ya decompiladas dejan de contarse (callees de las nuevas, tragados por sus casos) y 27 nuevas se alcanzan (22 comparadas y 5 anidadas); las otras 19 nuevas solo las alcanza la puerta rápida sin tope; ver el PR del lote 87).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

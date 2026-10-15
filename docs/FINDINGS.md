@@ -1425,6 +1425,8 @@ passed the byte, not the handle. (3) The delay slot of `bnez` ran (`sltiu $v0,$v
 **Fix / workaround.** `.venv/bin/python -m tools.disasm ADDR [ADDR:N ...]` prints every branch as `-> ADDRESS` (resolved from the delay slot), the relocated `lui`/`addiu`/load addresses and the `jal` targets: take
 targets from it, never count `pc + 4 + (N << 2)` by hand. When a register is reused between a load and a delay-slot use, follow the register, not the name in the comment; the delay slot of every branch is part of the
 branch's path, taken or not (a likely branch skips it when not taken). The gate only catches the paths its cases take: read the untaken ones in the coverage list against the asm again.
+Batch 87 added a fourth form: a `move s0, v0` in the delay slot of the `jal` that follows a call captures the PREVIOUS call's `v0` (`func_0880D478` kept the allocation of the next `jal` instead of the earlier answer and
+faulted on all 6 compared cases), so a register written in a delay slot is read as of before the call it sits in.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_81.cpp (func_08B54FB8, func_08C436F4)
 
@@ -1578,6 +1580,28 @@ only when the lost functions are not callees of a registered function whose case
 batch 83's `func_08A9DD14` (not re-checked).
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0880BEF8)
+
+## A fast gate on a loaded machine "never compares" what the routes reach on a quiet one: read `uptime` before reading `never compared`
+
+**Symptom.** Batch 87's first fast gate: 48 functions installed, 17 compared, 31 `never compared` (`calls 0`), although the batch-78 probe had reached every one of them 1-5 times on the same routes.
+**Cause.** The routes are wall-clock bound (`--max-seconds`, uncapped but not unlimited): the host ran at a load average of 57 on 24 cores (an Android emulator at 1,000 % CPU beside another agent's GPU gate), so each route
+reached fewer game states in the same seconds and never got to the late, rarely called functions. Nothing in the gate's output says so.
+**Fix / workaround.** Check `uptime` first; when the machine is loaded run the same gate with the route times doubled (`ROUTES["fast"]` scaled in a wrapper script, race 400 / dealer 200 / garage 206 / buy 220 / options 460):
+43 of 60 compared then (every function written for the batch installed), 47 of 47 after the parents were left out (next entry; one more was unregistered afterwards, so the final batch registers 46), and the sabotage needed the same doubling. Re-run at the usual times once the load is gone. A heavy job of another agent
+holding `gt-heavy.lock` also delays `tools.recomp` (it takes both slots) by the length of that job: the gate waits silently (it showed no output for 40 minutes).
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (the whole batch)
+
+## Descendants swallowed by a registered parent can be registered NESTED instead of being left behind: the gate then counts them in the parent's equal cases
+
+**Symptom.** Batch 87's first complete gate: nine destructors (`func_0886DE00`, `func_0887ED48`, `func_0889A4F0`, `func_088A11F8`, `func_088AF1D0`, `func_08BD67B8`, `func_08ABF590`, `func_08B9355C`, `func_088A23EC`) compared 0 although
+the probe reaches each once per menu route. Two functions of the batch, `func_0880D564` and `func_0880D478`, destroy the same member object (a virtual slot-0 call): their cases swallow everything below, as in the batch 86 entry.
+**Cause.** Same as that entry (`call_guest` into a registered function that is not `GT_DECOMP_NESTED` runs and counts nothing); here the chain is two levels deep, so leaving the two parents out made four of the nine compared
+but the other five were still swallowed, now by those four.
+**Fix / workaround.** The two parents stay written but unregistered; the five that only run inside their parents' cases are registered `GT_DECOMP_NESTED` (`tools.contract_audit` 0): the gate reports them as `nested in 4 equal / 0 mismatched cases`
+and `sabotage` pins them, but not within its 4 rounds: 43 of 46 were detected, and the last three (all nested) were pinned by a second run that sabotaged only them with the other 43 installed (`--also`).
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (func_0880D564, func_0880D478)
 
 ## Mode 1 (constant mip level) was sampled with the automatic level on decoded textures: GT draws millions of race draws that way
 
