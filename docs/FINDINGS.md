@@ -1280,3 +1280,41 @@ Also patch 0035: the present shader clamps its bilinear filter to the shown crop
 lay outside the picture in the larger target, a thin line of changing colour at the bottom of the window.
 
 Found: 2026-10-14 · tools/patches/lcs-recomp/0034-gpu-keep-display-contents.patch, 0035-present-filter-inside-crop.patch
+
+## The frameskip only skipped software rasterizing; with the GPU on, a slow CPU never caught up
+
+**Symptom.** Laptop on battery, `NativeGE=true`: the race at ~27 shown fps with uneven pacing, audio produced at
+13–14 kHz instead of 44.1 kHz (it stutters and cuts out), `GE wait` 74 % and `frameskip 26/s` in the perf log —
+the frameskip was on most frames yet nothing got faster. Reproduced on the desktop by pinning gt_play to two
+cores (`taskset -c 0,1`): race audio 32–35 kHz with `GT_FRAMESKIP=0`.
+**Cause.** `g_frameskip` was read only by the software rasterizer. On the GPU path every draw of a skipped frame
+was still decoded, accumulated and recorded, so the GE worker (the bottleneck: the game thread waits for it before
+each list) did the same work whether the frame was skipped or not.
+**Fix / workaround.** lcs-recomp patch 0036: when the frameskip is on, a draw into one of the two shown screens
+only advances the GE's vertex/index pointer (render-to-texture draws still run). The backend presents only frames
+that drew into the display target, so the window keeps the last picture. Two cores, race: audio 44 kHz, GE wait
+27–37 % (was 59–62 %), GE frames 75–78/s (was 53–64). The same patch cuts per-draw CPU: a job prepared and
+committed at once points at the caller's state instead of copying several KB, and a triangle list with the same
+descriptor and transform as the previous batch joins it, unless it samples a render target (each such batch
+snapshots its target first) (gperftools race samples 36,677 → 35,323, `tools/ge_profile.sh`). The host decides the
+skip once per frame (between two flips), so a frame whose lists straddle a vblank wait is never shown half drawn.
+The GPU gate runs with `GT_FRAMESKIP=0`, so the frameskip is checked on the laptop; the batch merging is in the gate.
+
+Found: 2026-10-14 · tools/patches/lcs-recomp/0036-gpu-frameskip-and-cheaper-draws.patch
+
+## Distant textures shimmered at high internal scales: the mip level was measured in the wrong pixels
+
+**Symptom.** Laptop screenshot at x3/x4: distant signboards and barriers aliased ("se renderizan mal en la
+distancia"). At x4 the race's GPU frames, box-downsampled to 480x272, differed more from the x1 GPU frames than they
+should.
+**Cause.** In the automatic mip mode the PSP picks the level from the texels per pixel of its own 480x272 screen
+(PPSSPP's software GPU: `log2(max(ds/dx * width, dt/dy * height))` + the level offset). Vulkan measures that slope
+in internal-resolution pixels, N times smaller at xN, so it sampled log2(N) levels finer than the PSP.
+**Fix / workaround.** lcs-recomp patch 0037: in the automatic mode the sampler's LOD bias adds log2(N) (the bias is
+part of the sampler key, so a scale change makes new samplers). x1 is unchanged, so the pixel gate is unchanged;
+race at x4: closer to the x1 picture in 399 of 418 frames (mean |x4 - x1| 13.06 → 11.63).
+**Also found.** lcs-recomp's software rasterizer (the gate's reference and `NativeGE=false`) always samples
+level 0 in the automatic mode (`selected_texture_level` returns 0 unless the mode is constant), which the PSP does
+not do: part of the race's GPU-vs-software differences are the GPU being closer to the PSP. Not fixed yet.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0037-mip-level-at-psp-resolution.patch
