@@ -16,7 +16,7 @@ Usage (from the repository root; reads extracted/EBOOT.elf, recomp/analysis/func
   .venv/bin/python -m tools.family_members --write-probe-symbols PATH [--max-insns 70] [--exclude-ref REF ...]
   #    then run them with `.venv/bin/python -m tools.decomp_gate probe TAG --symbols PATH` (five routes, --decomp off)
   # 2. the families with a decompiled template and reached pending members:
-  .venv/bin/python -m tools.family_members --list --probe recomp/analysis/probe_TAG_*.log [--min-reached 3]
+  .venv/bin/python -m tools.family_members --list --probe recomp/analysis/probe_TAG_*.log [--min-reached 3] [--limit N]
   # 3. one family: the members and the values of each (template = any member's runtime address):
   .venv/bin/python -m tools.family_members 0x08C379F8 --probe LOGS... [-v] [--cpp pair_call_a]
   # 4. check the rows already written in a source file (a path, or REF:PATH for a branch) against the words:
@@ -540,6 +540,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="probe logs (GT_PROBE_SYMBOLS); only reached functions are members")
     parser.add_argument("--list", action="store_true", help="list the families with a template and reached members")
     parser.add_argument("--min-reached", type=int, default=3)
+    parser.add_argument("--limit", type=int, default=60, metavar="N",
+                        help="--list: show at most N families (default 60; 0 = all)")
     parser.add_argument("--any-template", action="store_true", help="--list: families with no decompiled member too")
     parser.add_argument("--write-probe-symbols", type=Path, metavar="FILE")
     parser.add_argument("--max-insns", type=int, default=70)
@@ -599,7 +601,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     reached = None if hits is None else set(hits)
 
     if args.list:
-        for family in families(code, reached, done, args.min_reached, need_template=not args.any_template)[:60]:
+        found = families(code, reached, done, args.min_reached, need_template=not args.any_template)
+        for family in found if args.limit <= 0 else found[:args.limit]:
             print(f"{len(family.pending):4d} x {sizes[family.template] // 4:3d} insns  template 0x{family.template + LOAD_BASE:08X}"
                   f"  e.g. 0x{family.pending[0] + LOAD_BASE:08X}")
         return 0
