@@ -674,6 +674,25 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08C41A04`: ningún caso comparado cambió memoria, como `func_08C401C4` en el lote 68). Fuera por ahora: 6 accesores de contenedor vacío de 32 instrucciones
       que son una variante (dos estáticos más y otro desplazamiento: plantilla propia tras leer uno entero), el «pair call A» restante y las familias de 47-68 instrucciones.
       **5.319 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 72 integrado: ver el PR #186).
+- [x] **Lote 74 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_74.cpp`, 46 registradas de 55 escritas; sondeo del lote 70, `--exclude-ref origin/decomp/hot-batch-73`):
+      6 accesores de contenedor vacío de 32 instrucciones (los de palabras distintas a las del lote 68: otros estáticos y un desplazamiento distinto, guarda + 8 / + 24; leído uno
+      entero contra el asm y el resto con la misma plantilla), 8 «target setting» de 68 instrucciones (`func_088492F8`) y 2 de la variante booleana de 62, 5 «getter, luego setter
+      con el valor» (47), 3 «static record» (44), 2 «map find», 2 «getter, luego setter con argumentos», 2 «static linked object», 2 «destroy range», 4 «call with a constant»,
+      3 «convert, then tail», 1 «holder conversion», 5 «base constructor, luego dos stores» (el segundo store en +16, no +8) y 1 «range erase». Las filas se generan con `--cpp`
+      y se releen con `--check` (46 coinciden con sus propias palabras, 0 sin analizar). Ramas no tomadas (`member_function` virtual, `null_check`, `map_find`, el guarda que
+      otro construye) leídas contra el asm y listadas en los comentarios. Cada `call_guest` / `tail_call` pasa los registros de argumento que el original fija antes del `jal`.
+      Sabotajes detectados en las 46, `contract_audit` 0. Escritas pero sin registrar: 5 «clamp step» y 2 «range erase» (ningún caso comparado cambió memoria) y 2 «holder
+      conversion» (su única llamada es «no comparable»). Fuera por ahora: los 4 «organizer» de 37 instrucciones (plantilla en `organizer.cpp`), `func_08C0BC20` y `func_08BC48B4` (sin
+      registrar desde el lote 67 por la misma razón) y las familias de 2-3 miembros de menos de 30 instrucciones.
+      **5.365 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 73 integrado: ver el PR #188).
+- [x] **Lote 75 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_75.cpp`, 39 registradas de 61 escritas; sondeo del lote 70, `--exclude-ref origin/decomp/hot-batch-73 --exclude-ref origin/decomp/hot-batch-74`):
+      hojas de 2 instrucciones (devolver el primer argumento ×6, salto a otra función, `a1 = 0/1` + salto, `a0 += n` + salto, `a0 = *(a0+n)` + salto, constante, vacía),
+      «load, then call» (7), «store vtable» (4), «call, then tail» (10 y variantes), «record query» (15, 3), «function-local static» (9), «swap and jump» (2),
+      «uso del objeto de un holder» (19), fábricas de objetos (2 + 2) y los 2 «organizer getter» de 37 instrucciones que el lote 74 dejó fuera (helper propio en el lote; la plantilla de `organizer.cpp` vive en un espacio de nombres anónimo).
+      Filas generadas con `--cpp` y releídas con `--check` (53 coinciden con sus propias palabras, 0 sin analizar). Ramas no tomadas (objeto nulo, `out` igual al holder local) leídas contra el asm.
+      Sabotajes detectados en las 40 comparadas; `func_08B77BF4` queda sin registrar porque `contract_audit` marca tres llamadores que leen v1. 21 escritas sin registrar (compared 0 en las cinco rutas rápidas).
+      Fuera: «clamp step», «range erase» y «holder conversion» sin registrar desde el lote 74, `func_08825AE8`/`func_08825B74` (UMD y hilos), los setters de organizer ya listados como compared 0.
+      **5.404 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73 y 74 integrados: ver el PR #190).
 - [x] **Lote 76 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_76.cpp`, 62 registradas de 73 escritas; elegidas por alcance, no por forma: sondeo del lote 70
       ordenado por llamadas y llamadores ya decompilados, `--exclude-ref` de los lotes 74 y 75): 31 funciones leídas una a una contra el asm (20 de ellas registradas: escritores de la lista de display de la
       biblioteca gráfica, ayudantes de coma flotante, pegamento de coma flotante por software, `func_08B34C1C`, llamadas virtuales a través de un temporal, tablas de bytes) y 5
@@ -684,7 +703,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Escritas pero sin registrar (no comparables: el original llega a imports que bloquean o que el harness no reproduce): `func_08AD96A0`, `func_08AEB908`, `func_08AEB930`,
       `func_08B0C650`, `func_08B33A24`, `func_08B52D58`, `func_08B58E28`, `func_08B58E84`, `func_08B590D0`, `func_08B83C84`, `func_08B84270`. Fuera: las funciones con VFPU (no hay
       ayudantes para sus instrucciones) y los envoltorios de `sceSasCore` (mismo motivo que `func_08B83C84`).
-      **5.381 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 73 integrado; los PR #188 y #190 tendrán que rebasar los recuentos al integrarse).
+      **5.466 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-75 integrados: ver el PR #192).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
