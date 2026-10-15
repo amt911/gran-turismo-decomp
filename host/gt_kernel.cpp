@@ -1859,6 +1859,7 @@ std::uint64_t perf_audio_frames = 0u;  // sceAudioOutput2 frames submitted
 std::atomic<std::uint64_t> perf_ge_frames{0u};  // display lists that start a new frame
 std::atomic<std::uint64_t> perf_frames_skipped{0u};  // of those, drawn with the frameskip on
 std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the GE worker
+std::atomic<std::uint64_t> perf_ge_list_us{0u};  // GE thread executing lists (decode, accumulate), presents excluded
 PerfLog perf_log;
 bool perf_log_enabled() {
     static const bool enabled = std::getenv("GT_PERF_LOG") != nullptr;
@@ -1905,6 +1906,15 @@ void perf_log_tick() {
                      static_cast<double>(gpu.primitives) / frames,
                      gpu.target_pixels ? static_cast<double>(gpu.fragments) / frames / static_cast<double>(gpu.target_pixels)
                                        : 0.0);
+        // GT patch 0038: the GE thread's time, split. "lists" decode and accumulate the draws; a finish records
+        // the frame (uploads, commands, the present pass), submits it and presents it.
+        const double finishes = gpu.finishes ? static_cast<double>(gpu.finishes) : 1.0;
+        std::fprintf(stderr,
+                     "[perf]   GE thread: lists %.0f ms/s, finishes %.0f ms/s (%.2f ms each: record %.2f, submit %.2f, "
+                     "present %.2f)\n",
+                     static_cast<double>(perf_ge_list_us.exchange(0u)) / 1000.0 / seconds, gpu.finish_ms / seconds,
+                     gpu.finish_ms / finishes, gpu.record_ms / finishes, gpu.submit_ms / finishes,
+                     gpu.queue_present_ms / finishes);
     }
     perf_audio_frames = 0u;
     perf_log = PerfLog{};
@@ -2132,7 +2142,10 @@ void execute_ge_list_frame(psprecomp::Runtime &rt, std::uint32_t list_address, s
         ge_finish_shows_this_frame() = true;
     }
     ge_set_frameskip(skip_screen_draws, g_screen_buffers[0], g_screen_buffers[1]);
+    const auto list_begin = std::chrono::steady_clock::now();
     execute_ge_list_rendered(rt.memory(), list_address);
+    if (perf_log_enabled())
+        perf_ge_list_us.fetch_add(static_cast<std::uint64_t>(milliseconds_since(list_begin) * 1000.0));
     ge_set_frameskip(false, 0u, 0u);
     if (std::atomic<bool> *stale = screen_staleness(rendered_render_target())) *stale = skip_screen_draws;
     g_ge_list_since_finish = true;
