@@ -22,6 +22,8 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
    in the branch name so two agents don't take the same function.
 2. **Context** — collect what's known: `include/` types, `config/symbol_addrs.txt`, FACTS, REA/Ghidra
    pseudocode of the function and its callers ([reverse engineering](reverse-engineering.md)).
+   Read the asm with `.venv/bin/python -m tools.disasm ADDR` (relocations applied, every branch printed as `-> ADDRESS`): a target counted by
+   hand was once a word off (FINDINGS).
 3. **Draft** — m2c (`-t mipsel-gcc-c`) and Ghidra pseudocode are **reading aids**. The C/C++ in `src/`
    is written by hand, with real names, types and structure. PSPRecomp's generated C++ is never the
    draft (`AGENTS.md` § Decompilation).

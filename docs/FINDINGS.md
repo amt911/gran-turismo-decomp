@@ -1415,6 +1415,19 @@ family only if the tool says so: `func_08B8705C` moves a3 where the family of `f
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_80.cpp (func_08B8705C, func_08B86FB0)
 
+## A branch target counted by hand was one word off, and a delay slot reused a register: read the asm with `tools.disasm`
+
+**Symptom.** Batch 81's first gate run: `func_08B54FB8` mismatched on RAM (`0x08D6CE71: original 02, decompiled 06`, state 0x8002: the original set bit 10 of the graphics state's flag word, the
+decompiled code bit 7) and `func_08C436F4` answered 1 where the original answered 0 (21 of 29 cases). The coverage review of the untaken states then found a third: the states 0 and 1 leave with v0 = 0, not 1.
+**Cause.** Three reading errors, none visible in the C: (1) for `beq $a0,$v0, . + 4 + (0x4 << 2)` I counted the target as `0x08B55034`, the instruction before the real `0x08B55038`; the skipped word is
+`addiu $v1,$zero,7`, so the delay slot's `addiu $v1,$zero,0xA` stays the shift. (2) `lbu $v1,0x13($a0)` overwrote the handle `lw $v1,0x18($a0)` had put in v1, and the `addu $a0,$v1,$zero` in a later `jal` delay slot
+passed the byte, not the handle. (3) The delay slot of `bnez` ran (`sltiu $v0,$v1,7`) before the return, so v0 was already that value, not the `sltiu` before the branch.
+**Fix / workaround.** `.venv/bin/python -m tools.disasm ADDR [ADDR:N ...]` prints every branch as `-> ADDRESS` (resolved from the delay slot), the relocated `lui`/`addiu`/load addresses and the `jal` targets: take
+targets from it, never count `pc + 4 + (N << 2)` by hand. When a register is reused between a load and a delay-slot use, follow the register, not the name in the comment; the delay slot of every branch is part of the
+branch's path, taken or not (a likely branch skips it when not taken). The gate only catches the paths its cases take: read the untaken ones in the coverage list against the asm again.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_81.cpp (func_08B54FB8, func_08C436F4)
+
 ## A function that stores `ra` or `sp` (setjmp) cannot be registered: inside a harness case `ra` is the case sentinel
 
 **Symptom.** Batch 82's first fast gates stopped every route after about a dozen compared functions with `Unsupported Allegrex instruction 0x00000000 at 0x0BAD0000: diff harness sentinel reached
