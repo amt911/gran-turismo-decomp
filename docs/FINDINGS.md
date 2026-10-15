@@ -1427,3 +1427,35 @@ targets from it, never count `pc + 4 + (N << 2)` by hand. When a register is reu
 branch's path, taken or not (a likely branch skips it when not taken). The gate only catches the paths its cases take: read the untaken ones in the coverage list against the asm again.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_81.cpp (func_08B54FB8, func_08C436F4)
+
+## A function that stores `ra` or `sp` (setjmp) cannot be registered: inside a harness case `ra` is the case sentinel
+
+**Symptom.** Batch 82's first fast gates stopped every route after about a dozen compared functions with `Unsupported Allegrex instruction 0x00000000 at 0x0BAD0000: diff harness sentinel reached
+without a pending continuation` (exit 2 or 3, 52 of 62 functions never compared). The one mismatch the first run did show (`func_08B34CA0`, a `v0` left by a load before a tail call) was not the cause;
+dropping the functions whose cases stop at blocking imports (vblank wait, `sceIoRead`) changed nothing.
+**Cause.** `func_08B7B2E4` is `setjmp`: it writes `s0-s7`, `sp`, `fp` and `ra` into the buffer it is given. A case runs the original and the decompiled version with `ra` = the case's sentinel
+(`0x0BAD00xx`), so the buffer written into the live memory holds the sentinel as the return address; the game's later `longjmp` through that buffer returned to a sentinel that no case is waiting on. The
+case itself compared equal (both runs stored the same sentinel), so the gate looked green for the function.
+**Fix / workaround.** `setjmp`-like functions (anything that stores `ra` or `sp` to memory, or hands them out) stay recompiled; the batch file keeps the written version unregistered with this reason.
+Found by dropping suspects in the order "stops at an import" then "stores `ra`" — read the buffer-writing functions of a batch before the first gate when the run dies at the sentinel.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_82.cpp (func_08B7B2E4)
+
+## An import that is `replay_safe` still leaves the register that a tail call hands on: the stub sets no `v0`
+
+**Symptom.** `func_08B34CA0` (the twin of batch 76's `func_08B34C1C`) mismatched all 4 first cases on `v0` (original 0, decompiled 1).
+**Cause.** The function ends with `j sceKernelCpuResumeIntr`; the HLE of that import does not write `v0`, so the value the caller sees is the last load before the jump (the word `+0x20`, then `+0x18`,
+then `+0x14` on the paths that go further). The decompiled version left the `v0` of the earlier `sceKernelCpuSuspendIntr` call.
+**Fix / workaround.** Before the `tail_call` into an import stub set `ctx.gpr[2]` to the last value the original's instructions load into `v0` (as `func_08B34C1C` does).
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_82.cpp (func_08B34CA0)
+
+## `tools.decomp_gate coverage`: "never false at X" means the condition was always true
+
+**Symptom.** Reading batch 82's coverage list, three comments were first written with the branches reversed (`func_08B18088`: "the routes take the answer 0 with a non-zero counter" when the counter was always non-zero and
+the answer always 0 was not what the list said; `func_08C21C84`, `func_08B34CA0` likewise).
+**Cause.** The list names the *outcome that never occurred*: "branches never false at 845:9" for `if (object != 0u)` is a condition that was true in every compared case, not a branch that was not reached.
+**Fix / workaround.** Turn each entry into "the routes always take X; Y is not taken" before writing the comment and check the Y path against the asm; a `true`/`false` pair at the same column with a
+`regions never run` entry means the operand was never even evaluated.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_82.cpp
