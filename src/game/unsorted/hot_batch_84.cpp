@@ -11,7 +11,7 @@
 // Every call_guest / tail_call passes the argument registers the original sets before the jal (a0-a3, t0-t3, f12-f14): the ones it leaves alone keep the caller's value, which call_guest
 // copies from ctx. Every call goes through `call_keep` (the callee's v0, v1 and f0 stay in the registers like the original's; a callee that sets no v0 hands the previous one on).
 //
-// Written but not registered (the commented HOT84 lines say why): func_08881C38 (its tail call reaches the Void-registered, nested func_088A599C = car_parameter::set_color, whose decompiled run leaves a different v0: the full gate mismatched on v0), func_08B6E4FC, func_08B6E268, func_0887BC90, func_08875038 and func_0886C31C were compared 0 times (the last five) in the fast gate (their callers did not run in the
+// Written but not registered (the commented HOT84 lines say why): func_08881C38 (its tail call reaches the Void-registered, nested func_088A599C = CarParameter::set_color, whose decompiled run leaves a different v0: the full gate mismatched on v0), func_08B6E4FC, func_08B6E268, func_0887BC90, func_08875038 and func_0886C31C were compared 0 times (the last five) in the fast gate (their callers did not run in the
 // routes' window); func_089C4C20 stops every case at a blocking import; func_08A1F520 (only op 0) and func_08BDD7D8 (only the empty range) were compared on their early exit only, so their bodies are unverified.
 // Compared on a side path only, kept registered (their comments list what was read from the asm only): func_0886E008 (flag != 0 side) and func_08BF8A7C (answer 1 only).
 // s0 / s1 are loaded with the original's values around calls in func_0880BF70, func_08869988 and func_08B1BC98: a callee
@@ -1491,7 +1491,7 @@ HOT84(0x08B9D834u, func_08B9D834, Word);
 HOT84(0x08A81BF4u, func_08A81BF4, Word);
 HOT84N(0x088AA698u, func_088AA698, Word);
 HOT84(0x088A3750u, func_088A3750, Word);
-// Not registered (the tail call reaches func_088A599C, car_parameter::set_color, registered Void and nested: its decompiled run leaves the entry v0 where the original leaves 1, and this function hands that v0 on; 3 full-gate cases mismatched on v0): HOT84(0x08881C38u, func_08881C38, Word);
+// Not registered (the tail call reaches func_088A599C, CarParameter::set_color, registered Void and nested: its decompiled run leaves the entry v0 where the original leaves 1, and this function hands that v0 on; 3 full-gate cases mismatched on v0): HOT84(0x08881C38u, func_08881C38, Word);
 HOT84(0x0894D094u, func_0894D094, Word);
 HOT84(0x08C283A8u, func_08C283A8, Word);
 HOT84(0x08C1C89Cu, func_08C1C89C, Word);

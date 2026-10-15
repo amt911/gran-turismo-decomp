@@ -1910,10 +1910,11 @@ void perf_log_tick() {
         // the frame (uploads, commands, the present pass), submits it and presents it.
         const double finishes = gpu.finishes ? static_cast<double>(gpu.finishes) : 1.0;
         std::fprintf(stderr,
-                     "[perf]   GE thread: lists %.0f ms/s, finishes %.0f ms/s (%.2f ms each: record %.2f, submit %.2f, "
-                     "present %.2f)\n",
+                     "[perf]   GE thread: lists %.0f ms/s, finishes %.0f ms/s (%.2f ms each: record %.2f [uploads %.2f, "
+                     "draws %.2f, present pass %.2f], submit %.2f, present %.2f)\n",
                      static_cast<double>(perf_ge_list_us.exchange(0u)) / 1000.0 / seconds, gpu.finish_ms / seconds,
-                     gpu.finish_ms / finishes, gpu.record_ms / finishes, gpu.submit_ms / finishes,
+                     gpu.finish_ms / finishes, gpu.record_ms / finishes, gpu.uploads_ms / finishes,
+                     gpu.draws_ms / finishes, gpu.present_pass_ms / finishes, gpu.submit_ms / finishes,
                      gpu.queue_present_ms / finishes);
     }
     perf_audio_frames = 0u;

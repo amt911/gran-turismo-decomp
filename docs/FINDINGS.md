@@ -1460,6 +1460,68 @@ the answer always 0 was not what the list said; `func_08C21C84`, `func_08B34CA0`
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_82.cpp
 
+## A decompiled function can switch off code the gate never sees: watch the compared count between full gates
+
+**Symptom.** Batch 83's full gate: 0 mismatches, but 4,761 functions compared against 5,034 the batch before, the
+same on a rerun at low load. 328 functions that ran exactly once on every route (start-up code, not called
+directly: through a table) now ran 0 times; the routes' total call volume was unchanged.
+**Cause.** Installing `func_08A9DD14` alone reproduces it (bisected in 25 s runs of `gt_native --decomp diff` with
+`GT_DECOMP_ONLY`, counting the calls of one of the lost functions, `func_0880A500`). Its body matches the asm word for
+word (`tools/disasm`); what differs is that its calls run nested through `call_guest`, and one of them
+(`func_08A9C340`, through a virtual-call chain) evidently does not behave as when the original jumps to it.
+The gate compares each call's result, not what never runs afterwards, so it stayed green.
+**Fix / workaround.** `func_08A9DD14` stays written but not registered. A batch's full gate is also judged by its
+compared count against the previous main: a drop of hundreds is a behaviour change to bisect (`GT_DECOMP_ONLY` with
+halves of the batch), not noise. Root cause of the nested-call difference not established yet.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_83.cpp
+
+## Noise on distant signboards: GT's small mip levels are not the bigger one halved
+
+**Symptom.** Laptop at 1080p after 0037: lettering on distant banners (TRD, elf) with black lines; at x4 the Gran
+Turismo logo banners came out as red/blue noise, correct with `TextureLodBias=-8` (level 0 only).
+**Cause.** A PSP mip level has its own size registers, and GT keeps the small levels 32 texels wide (128x128 →
+64x64 → 32x32 → **32x16 → 32x8**, CLUT4/CLUT8). The decoder packed each level at its own size, while the upload
+copies level n as level 0 halved n times: every level after the first odd one was read at the wrong stride and
+offset. 0037 made the game pick those levels as the PSP does, which put the noise on screen.
+**Fix / workaround.** lcs-recomp patch 0041: a level of another size is box-resampled to the halved size (assuming the
+PSP samples a level with normalised coordinates, not verified on hardware). GPU gate x1: every race window closer to the software reference
+(mean 0.086 → 0.076, 0.057 → 0.044, 0.087 → 0.075, 0.061 → 0.047, 0.091 → 0.074), dealer windows 0.022 → 0.016,
+garage unchanged.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0041-mip-chain-own-level-sizes.patch
+
+## The laptop spent 3 ms per frame recording even in menus: measure the windowed path, not only headless
+
+**Symptom.** Laptop log with 0038's split: `record 3.0 ms` per frame in menus with 6 primitives, where a headless
+race on the desktop records in 0.35 ms. The headless gate and `tools/gpu_perf.sh` never present to a window,
+so the present path (swapchain checks, overlay, acquire) and the window-only per-frame work were never timed.
+**Cause (being narrowed).** Per frame the backend asked the driver and SDL for the surface capabilities, formats and
+window size (`ensure_swapchain`, round trips to the display server on X11), and every texture upload allocated, mapped
+and later freed its own staging buffer (a kernel call each on an integrated GPU's driver). On the desktop with a
+window those cost little; on the laptop they are suspects, not yet proven.
+**Fix / workaround.** lcs-recomp patch 0042: one persistent 8 MB upload buffer reused every frame (the previous
+frame's fence is waited before recording), the swapchain checks skipped while the window size is unchanged and
+nothing marked it out of date (`VK_SUBOPTIMAL_KHR` sends the next present back to the full check), and
+`GT_PERF_LOG` splits `record` into uploads, draws and the present pass (the three don't add up to all of it), so the
+next laptop log names what is left. GPU gate x1: identical windows and pass counts to 0041.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0042-fixed-frame-costs.patch
+
+## Caching decoded geometry made the GE thread slower: GT's draws are tiny, the cost is per draw
+
+**Symptom.** 99.8 % of a race frame's vertices are byte-identical to the previous frame's, so a cache of each draw's
+converted vertices and indices (keyed by a hash of its inputs, `docs/superpowers/specs/2026-10-15-gpu-geometry-cache-
+design.md`) looked like half of `lists`. Built and exact (verify mode: 0 mismatches over ~1M hits/s), it measured
+**slower**: two cores, race, `lists` 404 → 556 ms/s, GE wait 20 → 34 %.
+**Cause.** A race draw has ~14 vertices. Decoding reads 10-14 compact bytes per vertex; a hit copies 40-byte
+converted vertices out of a ~30 MB scattered table and adds a lookup. The cost is the fixed work of each of ~660,000
+draws per second (~600 ns each on the desktop), not the vertices.
+**Fix / workaround.** Not merged. Cut the per-draw overhead instead (descriptor copies and comparisons, per-draw
+allocations, backend queries); measure any cache against `lists` on two cores before keeping it.
+
+Found: 2026-10-15 · docs/superpowers/specs/2026-10-15-gpu-geometry-cache-design.md
+
 ## A callee can read the caller's `s0`: a decompiled constructor that leaves the entry `s0` in place mismatches on RAM
 
 **Symptom.** Batch 84's first fast gate: `func_0880BF70` (a constructor: `func_08B28DCC(this)`, `func_089BD4DC(a1)`, `func_08869988(this + 0x30)`, tail `func_08A76AA0`) mismatched on both cases and a single-function run
@@ -1474,7 +1536,7 @@ Found: 2026-10-15 · src/game/unsorted/hot_batch_84.cpp (func_0880BF70, func_088
 
 ## A tail call into a `Void`-registered nested function leaks its `v0`: the caller mismatches on `v0` only in the full gate
 
-**Symptom.** `func_08881C38` (tail call through a vtable slot to `func_088A599C`, `car_parameter::set_color`) was equal in all fast-gate cases and mismatched on `v0` in 3 routes of the full gate
+**Symptom.** `func_08881C38` (tail call through a vtable slot to `func_088A599C`, `CarParameter::set_color`) was equal in all fast-gate cases and mismatched on `v0` in 3 routes of the full gate
 (`original 0x1, decompiled 0x09D0B700`, case "nested 0x088A599C").
 **Cause.** `set_color` is registered `GT_DECOMP_NESTED(..., Void)`: its `v0` is never compared, and in the decompiled run it leaves the entry `v0` (the object) where the original leaves 1, the `v0` of its last callee. A function that ends
 with a tail call to it returns that `v0` to its own caller. `tools.contract_audit` does not follow tail calls through a vtable.
