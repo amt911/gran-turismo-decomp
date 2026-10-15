@@ -242,9 +242,28 @@ compiles on other platforms, so byte-matching is not the gate. Instead:
    and libraries first, then game code by subsystem, following the
    [decomp workflow](docs/agents/decomp-workflow.md). Progress = share of functions (and bytes) that
    are decompiled and pass the gate.
-5. **Later / optional** — dropping the recompiled remainder (100 % decompiled source), other platforms,
-   and a **matching track** if the exact compilers ever surface: `psp-gcc-1.7.1` already reproduces some
+5. **End state — no emulation of any kind** (user, 2026-10-15; see below), then other platforms, and a
+   **matching track** if the exact compilers ever surface: `psp-gcc-1.7.1` already reproduces some
    functions byte for byte, so matching stays possible per function as extra evidence, never as the gate.
+
+**End state: 100 % decompiled, no emulation** (user, 2026-10-15). Everything PSP-shaped that runs today
+is scaffolding to remove, in this order, each step keeping the differential gate green:
+1. **No recompiled code** — every function decompiled (the gate compares against the recompiled
+   original until the last one is gone; then the decompiled build is the reference).
+2. **No emulated memory** — guest addresses (`word(rt, self + 0x1C)`, `call_guest`) become C++ types:
+   structs, pointers, classes, containers. This is also the naming/typing work that makes mods possible.
+   While both kinds of code coexist they must share one memory layout, so the move goes by subsystem,
+   from the leaves up, behind typed accessors.
+3. **No PSP interfaces** — the game's renderer calls the host GPU API instead of building GE command
+   lists, sound and input go straight to the platform layer, and the Sony libraries (HLE today) become
+   that platform layer, as in a PC port.
+Write new decompiled code so this is easy: typed helpers and named fields instead of raw offsets where
+the evidence allows, no new dependence on recompiler internals. The plan (stages, how the gate survives
+each one) is its own spec, to be written and approved before any code (planned:
+`docs/superpowers/specs/*-no-emulation-design.md`).
+**For a new decompilation project, reuse the path:** recompiled baseline that runs → per-function
+differential gate against it → decompile leaves first, in batches → retype the memory → native platform
+layer. Read [lessons](docs/agents/lessons.md) and FINDINGS before planning; they are the expensive part.
 
 **The goal is the decomp, and through it mods** (user, 2026-10-09). The recompiler is scaffolding:
 the measure of progress is decompiled, gate-passing, *understandable* source — named functions,
