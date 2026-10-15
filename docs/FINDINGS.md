@@ -1367,3 +1367,14 @@ unchanged; the race profile lost `multiply_mat4` and half of `hash_mix` (process
 28,411 → 25,903), the GE thread's `lists` on two cores did not move beyond noise.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0040-per-draw-memos.patch
+
+## `tools.family_members --list --any-template` lists families that earlier batches wrote and left unregistered
+
+**Symptom.** Batch 77 wrote the "clamp" family (func_08C401C4 and four instances) and "release a vector" (func_08C4B740 and three more) from scratch, and
+only afterwards found them in batches 65 / 68 / 73 / 74, written and commented out because no compared case changes memory.
+**Cause.** The tool counts as done only the *active* registrations (and `--exclude-ref` branches), so a function written but left unregistered is
+pending again, and a family with no registered member shows up as new.
+**Fix / workaround.** Before reading a family, `grep -rn <address> src/` for its members: a hit in a commented-out `HOTnn(...)` line is a function that
+was already tried. The decision made there (no case changes memory: stays recompiled) holds until a route reaches the non-empty case.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_77.cpp

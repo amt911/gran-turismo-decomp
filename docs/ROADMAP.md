@@ -704,6 +704,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08B0C650`, `func_08B33A24`, `func_08B52D58`, `func_08B58E28`, `func_08B58E84`, `func_08B590D0`, `func_08B83C84`, `func_08B84270`. Fuera: las funciones con VFPU (no hay
       ayudantes para sus instrucciones) y los envoltorios de `sceSasCore` (mismo motivo que `func_08B83C84`).
       **5.466 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-75 integrados: ver el PR #192).
+- [x] **Lote 77 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_77.cpp`, 64 registradas; familias de forma sin plantilla registrada, del sondeo del lote 70 con `--exclude-ref` del lote 76, `tools.family_members --list --any-template`):
+      16 familias, cada una con un miembro leído entero contra el asm a mano (desensamblado con las reubicaciones aplicadas) y el resto comparado palabra a palabra por la herramienta: «holder apply» (58 instrucciones, 9),
+      «guarded static con tamaño» (40, 6), «counted assign» (35, 6; el puntero con cuenta de referencias con `ll`/`sc`), «llamada por puntero a función miembro + cola con float» (47, 6), «lower bound en un árbol de
+      cadenas» (40, 6), «para cada elemento, llamar un puntero a miembro» (45, 5), «init con vtable + cola» (14, 4), «construir cada elemento» (32, 4), «borrar un subárbol» (31, 4; recursiva por su propia dirección;
+      `func_08C00860` es la que más casos recibe: 98 comparados) y las pequeñas «copiar cuatro floats» (13, 3), «handle init» (14, 3), «construir con base» (17, 3), «destructor de dos holders» (19, 2; la forma de
+      `func_08C1EB60` del lote 59) y «record call» (19, 3). Las filas se generan con `--cpp` y se releen con `--check` (49 coinciden con sus propias palabras, 0 sin analizar; 15 filas sin argumentos no se comparan por
+      columnas, sus palabras ya coinciden con la plantilla). Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios: las rutas solo comparan `count > 0` en «holder apply», punteros a
+      miembro no virtuales, y el contador anterior nulo en «counted assign» (la rama de decremento y la llamada virtual quedan comprobadas solo contra el asm). Sabotajes detectados en las 64, `contract_audit` 0,
+      puerta rápida 64/64 comparadas, 0 discrepancias. Fuera: «clamp» (`func_08C401C4` y sus 4 instancias) y «release a vector» (`func_08C4B740` y 3 más): ya escritas y sin registrar en los lotes 65/68/73/74 porque ningún
+      caso comparado cambia memoria (la herramienta solo cuenta como hechas las registraciones activas, así que vuelve a listarlas). **5.530 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-76 integrados: ver el PR #195).
+      integrado, 4.825 comparadas; el PR #192 (lote 76) tendrá que rebasar los recuentos al integrarse).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
