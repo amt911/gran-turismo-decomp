@@ -11,6 +11,9 @@
 //    multiply is psp_mul) and the conversions go through the context's own `fpu_float_to_word_ct`;
 //  - matrix and quaternion builders (func_08B4B114, func_08C46184, func_08B4C804, func_08B4CBDC, func_08B4E360), the Euler angle extractors (func_08C52868, func_08C527C0);
 //  - graphics library state (func_08B54FB8 with 15.8 million calls, func_08B58D08, func_08B58F84, func_08B5547C);
+//  Evidence for the descriptive words (sin, cos, log, exp, pow, atan2, strcasecmp, strchr) is the behaviour each comment
+//  derives from the asm (range reduction by 2 pi, the polynomial, the ctype table, ...); the symbols keep their func_XXXXXXXX
+//  names and nothing goes into config/symbol_addrs.txt until a caller or string confirms them.
 //  - strings and libc (func_08B864EC reserve, func_08BEFC38 / func_08B86674 replace and resize, func_08B7B8C4 strcasecmp, func_08B7BA50 strchr);
 //  - for_each over lists and arrays with a pointer to member, serializers over virtual getters, holder / pointer-to-member chains and guarded statics.
 //
