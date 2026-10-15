@@ -1502,7 +1502,8 @@ and later freed its own staging buffer (a kernel call each on an integrated GPU'
 window those cost little; on the laptop they are suspects, not yet proven.
 **Fix / workaround.** lcs-recomp patch 0042: one persistent 8 MB upload buffer reused every frame (the previous
 frame's fence is waited before recording), the swapchain checks skipped while the window size is unchanged and
-nothing marked it out of date, and `GT_PERF_LOG` splits `record` into uploads, draws and the present pass, so the
+nothing marked it out of date (`VK_SUBOPTIMAL_KHR` sends the next present back to the full check), and
+`GT_PERF_LOG` splits `record` into uploads, draws and the present pass (the three don't add up to all of it), so the
 next laptop log names what is left. GPU gate x1: identical windows and pass counts to 0041.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0042-fixed-frame-costs.patch

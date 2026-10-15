@@ -115,7 +115,23 @@
      if (!s.swapchain_dirty && s.swapchain != VK_NULL_HANDLE && s.present_pipeline != VK_NULL_HANDLE &&
          s.swap_width == extent.width && s.swap_height == extent.height && s.swap_present_mode == mode &&
          s.swap_format == format && !s.swap_framebuffers.empty() &&
-@@ -2542,6 +2581,12 @@
+@@ -2235,6 +2274,7 @@
+         error = "vkAcquireNextImageKHR failed";
+         return false;
+     }
++    if (result == VK_SUBOPTIMAL_KHR) s.last_drawable_width = 0u;  // GT patch 0042: the next present checks the surface again
+     return true;
+ }
+ 
+@@ -2526,6 +2566,7 @@
+     s.submit_time = std::chrono::steady_clock::now();
+     const VkResult presented = queue_present(s);
+     if (presented == VK_ERROR_OUT_OF_DATE_KHR) s.swapchain_dirty = true;
++    if (presented == VK_SUBOPTIMAL_KHR) s.last_drawable_width = 0u;  // GT patch 0042
+     if (presented == VK_ERROR_DEVICE_LOST) s.present_lost = true;
+     if (presented != VK_SUCCESS && presented != VK_SUBOPTIMAL_KHR) {
+         error = "vkQueuePresentKHR failed";
+@@ -2542,6 +2583,12 @@
          if (staging.memory) vkFreeMemory(s.device, staging.memory, nullptr);
      }
      s.staging.clear();
@@ -128,7 +144,7 @@
      s.submit_pending = false;
      s.pending_readback = false;
      s.pending_readback_bytes = 0u;
-@@ -3907,6 +3952,7 @@
+@@ -3907,6 +3954,7 @@
          return shown();
      }
      const auto record_begin = std::chrono::steady_clock::now();  // GT patch 0038
@@ -136,7 +152,7 @@
      follow_window_resolution(s);
      std::string error;
      const std::size_t vertex_bytes = s.vertices.size() * sizeof(UploadVertex);
-@@ -3960,10 +4006,13 @@
+@@ -3960,10 +4008,13 @@
                           VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
                           0, 1u, &host, 0, nullptr, 0, nullptr);
@@ -150,7 +166,7 @@
  
      bool touched_display = false;
      std::uint32_t executed = 0u;
-@@ -4175,6 +4224,7 @@
+@@ -4175,6 +4226,7 @@
      }
      end_pass(s);
      Target *display = find_target(s, s.display_framebuffer);
@@ -158,7 +174,7 @@
      const bool display_ready = touched_display && display != nullptr && display->color.image != VK_NULL_HANDLE;
      bool present_this_frame = false;
      if (publish && display_ready && s.swapchain_extension && !s.present_lost) {
-@@ -4183,7 +4233,10 @@
+@@ -4183,7 +4235,10 @@
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, 1u);
          }
          std::string present_error;
@@ -170,3 +186,11 @@
              present_this_frame = true;
          else if (!present_error.empty())
              log_frame_failure(s, present_error.c_str(), VK_ERROR_SURFACE_LOST_KHR);
+@@ -4246,6 +4301,7 @@
+                     const VkResult presented = queue_present(s);
+                     s.perf.queue_present_ms += std::chrono::duration<double, std::milli>(
+                         std::chrono::steady_clock::now() - present_begin).count();
++                    if (presented == VK_SUBOPTIMAL_KHR) s.last_drawable_width = 0u;  // GT patch 0042
+                     if (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR) {
+                         presented_now = true;
+                         s.direct_present_ok = true;
