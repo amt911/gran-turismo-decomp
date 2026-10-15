@@ -7,7 +7,7 @@
 //  - strings and containers of the engine: append (func_08B89054), range constructor (func_08B85E00), reverse find (func_08BFD224, func_08B7C9E4), substring (func_08B8D96C), representation allocator
 //    (func_08B93B20), list / tree walkers and destructors (func_08BEE778, func_08BEEE28, func_08C1ED14, func_08BF913C, func_08A782D8), erase (func_08C01DFC), a sort of 16-bit values (func_08C49140);
 //  - the heap's block list (func_08BE3B38, func_08BE40AC, func_08962918, func_089626C8), the thread record stack (func_08B77B1C), guarded statics and static-init holders (func_0890B2F4, func_08B5E0EC, func_08B6441C);
-//  - maths: a lerp (func_08BB9130), a cosine by range (func_08B66524), quaternion rotation (func_08BAC284, func_08AFEAB8), a component-wise select (func_08C465EC), soft-double helpers (func_08B71A90, func_08B71328);
+//  - maths: a lerp (func_08BB9130), a sine by range (func_08B66524), quaternion rotation (func_08BAC284, func_08AFEAB8), a component-wise select (func_08C465EC), soft-double helpers (func_08B71A90, func_08B71328);
 //  - counters, pools and small initialisers (func_08C3DB68, func_08C3E24C, func_08B1C820, func_08B52730, func_08B344B0, func_08C3C6D4, func_08B515FC, func_08B658FC, func_088A8B14, ...).
 //
 // Every call_guest / tail_call passes the argument registers the original sets before the jal (a0-a3, t0-t3, f12-f14): the ones it leaves alone keep the caller's value, which call_guest
@@ -1469,9 +1469,9 @@ void func_0890B2F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, out + 4u, kStatic);
 }
 
-// func_08B66524(x) (f12): the cosine by range: |x| (bit pattern, sign cleared) up to 0x3F490FD8 (pi / 4): func_08B6DEF8(0, x, 0) (the cosine kernel); a non-finite x (above 0x7F7FFFFF) answers x - x; otherwise
-// func_08B6BAFC(&y) reduces x into y0, y1 (the stack) and the quadrant (v0 & 3): 0 -> kernel_cos(1, y0, y1), 1 -> kernel_sin(y0, y1) (func_08B6D564), 2 -> -kernel_cos(1, y0, y1), 3 -> -kernel_sin(y0, y1).
-// The same shape as batch 81's func_08B662C4 with the quadrants swapped. f0 is compared (ReturnKind::Float).
+// func_08B66524(x) (f12): the sine by range: |x| (bit pattern, sign cleared) up to 0x3F490FD8 (pi / 4): func_08B6DEF8(0, x, 0) (the sine kernel: an odd polynomial, x * z); a non-finite x (above 0x7F7FFFFF) answers x - x; otherwise
+// func_08B6BAFC(&y) reduces x into y0, y1 (the stack) and the quadrant (v0 & 3): 0 -> kernel_sin(1, y0, y1) (func_08B6DEF8), 1 -> kernel_cos(y0, y1) (func_08B6D564, the 1 - z/2 polynomial), 2 -> -kernel_sin(1, y0, y1), 3 -> -kernel_cos(y0, y1).
+// The same shape as batch 81's func_08B662C4 (the cosine by range) with the quadrants swapped, as sin and cos are. f0 is compared (ReturnKind::Float).
 // Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): a non-finite x (x - x), the quadrants 0, 2 and 3 (func_08B6DEF8(1) plain / negated, func_08B6D564 negated): the compared cases take |x| below pi / 4 and quadrant 1.
 void func_08B66524(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const float x = ctx.fpr[12];

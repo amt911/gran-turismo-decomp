@@ -784,7 +784,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       sin imports que el harness no reproduce (semáforos, la espera del vblank, `sceSasCore`, hilos, `setjmp`/`longjmp`) y sin «funciones» que son varios puntos de entrada; leídas a mano palabra a palabra con
       `tools/disasm.py` (destinos de salto y relocaciones resueltos por la herramienta, cada hueco de retardo parte de su rama): cadenas y contenedores del motor (añadir, constructor por rango, `rfind`, subcadena,
       el reservador de representaciones, recorridos y destructores de listas y árboles, el borrado de un búfer, una ordenación de valores de 16 bits), la lista de bloques del heap, la pila de registros por hilo,
-      estáticos con guarda, matemáticas (interpolación, coseno por rango, rotación por cuaternión, selección componente a componente, ayudantes de doble blando) y contadores, piscinas e inicializadores pequeños.
+      estáticos con guarda, matemáticas (interpolación, seno por rango, rotación por cuaternión, selección componente a componente, ayudantes de doble blando) y contadores, piscinas e inicializadores pequeños.
       Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en el comentario de cada función; **compradas solo por una salida temprana o una rama lateral** (el cuerpo sin verificar, solo leído):
       `func_08C30E0C` (cuenta 0), `func_08A782D8` (origen vacío), `func_08B0B36C` (solo la salida `*ok = 0`; en la lectura a mano del cuerpo de éxito el `v0` que devuelve estaba mal y se corrigió contra el asm),
       `func_08C49140` (rangos de hasta 16 valores), `func_08B18A58`, `func_08BEEE28`, `func_08B66524` (cuadrante 1), `func_089445D8` y `func_08ADBFE0`. Sabotajes detectados en las 57 (57 registradas), `contract_audit` 0,
