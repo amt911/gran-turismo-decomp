@@ -1475,3 +1475,18 @@ compared count against the previous main: a drop of hundreds is a behaviour chan
 halves of the batch), not noise. Root cause of the nested-call difference not established yet.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_83.cpp
+
+## Noise on distant signboards: GT's small mip levels are not the bigger one halved
+
+**Symptom.** Laptop at 1080p after 0037: lettering on distant banners (TRD, elf) with black lines; at x4 the Gran
+Turismo logo banners came out as red/blue noise, correct with `TextureLodBias=-8` (level 0 only).
+**Cause.** A PSP mip level has its own size registers, and GT keeps the small levels 32 texels wide (128x128 →
+64x64 → 32x32 → **32x16 → 32x8**, CLUT4/CLUT8). The decoder packed each level at its own size, while the upload
+copies level n as level 0 halved n times: every level after the first odd one was read at the wrong stride and
+offset. 0037 made the game pick those levels as the PSP does, which put the noise on screen.
+**Fix / workaround.** lcs-recomp patch 0041: a level of another size is box-resampled to the halved size (assuming the
+PSP samples a level with normalised coordinates, not verified on hardware). GPU gate x1: every race window closer to the software reference
+(mean 0.086 → 0.076, 0.057 → 0.044, 0.087 → 0.075, 0.061 → 0.047, 0.091 → 0.074), dealer windows 0.022 → 0.016,
+garage unchanged.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0041-mip-chain-own-level-sizes.patch
