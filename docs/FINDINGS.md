@@ -1355,7 +1355,7 @@ Found: 2026-10-15 · src/game/unsorted/hot_batch_76.cpp (func_08B34C1C)
 **Symptom.** Patch 0040 (two memos, provably equivalent) seemed to cost the race 30 passing frames (339 → 309,
 30 worse, 0 better than the run before).
 **Cause.** The run's software frames differ from the previous run's at the same index just as much as its GPU
-frames (mean |diff| ~29 per channel, 4 of 88 identical): loading took a different time, so the race started ~900
+frames (mean |diff| ~29 per byte averaged over 88 sampled frames, up to ~97 on single frames; 4 of 88 identical): loading took a different time, so the race started ~900
 frames earlier and 30 pre-race frames (which pass) became race frames (which never pass: the software reference
 samples mip level 0 in the automatic mode — see "Distant textures shimmered"). Pass counts across runs measure
 when the race started as much as the renderer.
