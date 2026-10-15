@@ -752,6 +752,19 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08C217F4`. No leídas: las funciones con VFPU (`func_08B54474`, `func_08B564A8`, `func_089A900C`, `func_08B5A838`, `func_08B5A7A8`, `func_08B580F0`, `func_08B54288`), las que llegan a imports que no se reproducen
       (`func_08B31AB4`, `func_08AF219C`), la familia de `func_08B8443C` (flag de depuración + `sceSasCore`) y las familias de 48-68 instrucciones con pocas llamadas. Sabotajes detectados en las 65 escritas (61 registradas),
       `contract_audit` 0, puerta rápida 61/61 comparadas (2.658 casos, 1.792 que cambian memoria), 0 discrepancias. **5.699 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-79 integrados: ver el PR #201).
+- [x] **Lote 82 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_82.cpp`, 57 registradas y 11 escritas sin registrar; del sondeo del lote 78 con `--exclude-ref origin/decomp/hot-batch-81` (el PR #202,
+      que añade `tools/disasm.py`, aún abierto: se leyó con una copia suelta de ese script) y sin ninguna dirección que #202 escriba, registre o deje sin registrar; antes de leer cada función se buscó su dirección en `src/` y
+      en la rama del lote 81). Las candidatas son las sueltas alcanzadas por las **cinco** rutas, ordenadas por llamadas (`func_088FC214` con 85.258, `func_08B71CE0` con 266.025 en las rutas, `func_08B8543C` con 2,9 millones
+      de llamadas), leídas a mano palabra a palabra con los destinos de salto y las relocaciones que imprime `disasm.py` (nunca contados a mano): holders y punteros inteligentes del motor, int a double blando
+      (`func_08B71CE0`, `DoubleWord`) y `ceilf` (`func_08B661E8`, `Float`), `strcat`, comparación de cadenas, el reservador de representaciones de cadena, destructores con borrado, inserción y `operator[]` de un árbol con clave
+      de cadena, el lector/escritor de un búfer circular, ayudantes de cola y constructores pequeños. La primera puerta rápida se paró en el centinela del harness en las cinco rutas: `func_08B7B2E4` es un `setjmp` y guarda `ra`
+      (dentro de un caso, el centinela) en el búfer; un `longjmp` posterior volvía a un centinela sin caso (FINDINGS). `func_08B34CA0` dejaba el `v0` del `CpuSuspendIntr` antes del `tail_call` al stub (FINDINGS); `func_08BE6674`
+      olvidaba el `lui v0` del retardo del primer `beqz`. Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios: en varias funciones las rutas solo pasan por la salida temprana
+      (`func_088FC214`, `func_08ACCE04`, `func_08C40EBC`, `func_08C41BE4`: el cuerpo sin verificar, solo leído). Sin registrar: `func_08B59A24`, `func_08ACF390`, `func_08B33E50`, `func_08B0EBF0`, `func_08AD083C`, `func_08ABCE2C`
+      (todos sus casos paran en imports que bloquean o cambian de hilo: vblank, `sceIoRead`, un hilo, `sceUtility`), `func_08B7B2E4` (el `setjmp`) y `func_08B44B24`, `func_08BE834C`, `func_08C15E8C`, `func_08BE6674` (escriben memoria
+      y ningún caso comparado la cambió). No leídas: VFPU, las que llegan a imports que no se reproducen (`func_08B35418`, `func_08B7771C`, la familia de `func_08B8443C`, hilos) y las de más de 70 instrucciones. Sabotajes detectados
+      en las 58 comprobadas (57 registradas), `contract_audit` 0, `--check` 0 filas malas (el lote no tiene envolturas con argumentos), puerta rápida 57/57 comparadas (2.098 casos, 1.459 que cambian memoria), 0 discrepancias.
+      **5.756 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 61-80: 4.978 comparadas, las 57 del lote alcanzadas por la rápida y 45 también por la completa; si #202 entra antes hay que rebasar las cuentas).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
