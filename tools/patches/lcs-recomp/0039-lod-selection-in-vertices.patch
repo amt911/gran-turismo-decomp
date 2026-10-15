@@ -1,0 +1,206 @@
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -51,8 +51,10 @@
+     float v{};
+     float fog_factor{1.0f};
+     float q{1.0f};
++    // GT patch 0039: the draw's mip level selection, read by ge.frag: an LOD bias, or 256 + a fixed level.
++    float lod{0.0f};
+ };
+-static_assert(sizeof(UploadVertex) == 36u);
++static_assert(sizeof(UploadVertex) == 40u);
+ 
+ struct DrawUniforms {
+     float row0[4]{};
+@@ -332,10 +334,7 @@
+     key = hash_mix(key, static_cast<std::uint64_t>(draw.texture_mipmap_enabled));
+     key = hash_mix(key, static_cast<std::uint64_t>(draw.texture_mipmap_linear));
+     key = hash_mix(key, draw.texture_max_level);
+-    key = hash_mix(key, draw.texture_level_mode);
+-    key = hash_mix(key, static_cast<std::uint32_t>(draw.texture_level_offset16));
+-    key = hash_mix(key, draw.texture_selected_level);
+-    key = hash_mix(key, static_cast<std::uint64_t>(draw.texture_clamp_u));
++    key = hash_mix(key, static_cast<std::uint64_t>(draw.texture_clamp_u));  // GT patch 0039: no level selection
+     key = hash_mix(key, static_cast<std::uint64_t>(draw.texture_clamp_v));
+     return key;
+ }
+@@ -490,7 +489,19 @@
+     return std::log2(std::max(1.0f, s.pixel_scale_x));
+ }
+ 
+-float sampler_lod_bias(const VulkanState &s, const GeGpuDrawDescriptor &draw) noexcept {
++// GT patch 0039: the draw's own level selection (offset, fixed level, the internal-scale term of 0037) is no
++// longer sampler state but a vertex value ge.frag applies: GT gives each object its own LOD offset, so the offset
++// in the sampler and in the texture key made ~1,500 textures of ~300 images in a race frame and a texture switch
++// on almost every draw, which kept ~8,800 draws a frame from merging. Vulkan adds a shader bias to the sampler's
++// and clamps the sum the same way, so the level picked is the same.
++float sampler_lod_bias(const VulkanState &, const GeGpuDrawDescriptor &) noexcept { return 0.0f; }
++
++// What the samplers did before, per draw: a render target sampled as a texture pinned the fixed level of mode 1
++// (minLod = maxLod); a decoded texture's sampler never did (its bias applies in every mode).
++float vertex_lod(const VulkanState &s, const GeGpuDrawDescriptor &draw, bool feedback) noexcept {
++    if (!draw.texture_enabled) return 0.0f;
++    if (feedback && draw.texture_level_mode == 1u)  // a fixed level (textureLod); 256 + level tells ge.frag so
++        return 256.0f + static_cast<float>(draw.texture_selected_level);
+     const float bias = static_cast<float>(draw.texture_level_offset16) / 16.0f + rendering_texture_lod_bias() +
+                        internal_scale_lod_bias(s, draw);
+     const float limit = s.max_sampler_lod_bias > 0.0f ? s.max_sampler_lod_bias : 2.0f;
+@@ -593,15 +604,9 @@
+     key = hash_mix(key, (draw.texture_mipmap_enabled && draw.texture_mipmap_linear) ? 1u : 0u);
+     key = hash_mix(key, draw.texture_clamp_u ? 1u : 0u);
+     key = hash_mix(key, draw.texture_clamp_v ? 1u : 0u);
+-    key = hash_mix(key, draw.texture_level_mode);
+-    key = hash_mix(key, static_cast<std::uint32_t>(draw.texture_level_offset16));
+-    key = hash_mix(key, draw.texture_selected_level);
+-    key = hash_mix(key, draw.texture_max_level);
++    key = hash_mix(key, draw.texture_max_level);  // GT patch 0039: the level selection is in the vertices
+     key = hash_mix(key, anisotropy);
+-    float scale_bias = internal_scale_lod_bias(s, draw);  // GT patch 0037
+-    std::uint32_t scale_bits = 0u;
+-    std::memcpy(&scale_bits, &scale_bias, sizeof scale_bits);
+-    key = hash_mix(key, scale_bits);
++    (void)s;  // GT patch 0039: the 0037 bias moved into the vertices
+     return key;
+ }
+ 
+@@ -625,11 +630,6 @@
+     info.mipLodBias = sampler_lod_bias(s, draw);
+     info.minLod = 0.0f;
+     info.maxLod = static_cast<float>(std::max<std::uint32_t>(1u, draw.texture_max_level + 1u));
+-    if (draw.texture_level_mode == 1u) {
+-        const float level = static_cast<float>(draw.texture_selected_level);
+-        info.minLod = level;
+-        info.maxLod = level;
+-    }
+     if (s.sampler_anisotropy && anisotropy > 1u && draw.texture_mipmap_enabled) {
+         info.anisotropyEnable = VK_TRUE;
+         info.maxAnisotropy = std::min(static_cast<float>(anisotropy), s.max_sampler_anisotropy);
+@@ -1153,17 +1153,18 @@
+     binding.binding = 0u;
+     binding.stride = sizeof(UploadVertex);
+     binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+-    VkVertexInputAttributeDescription attributes[5]{};
++    VkVertexInputAttributeDescription attributes[6]{};
+     attributes[0] = {0u, 0u, VK_FORMAT_R32G32B32A32_SFLOAT, 0u};
+     attributes[1] = {1u, 0u, VK_FORMAT_R8G8B8A8_UNORM, 16u};
+     attributes[2] = {2u, 0u, VK_FORMAT_R32G32_SFLOAT, 20u};
+     attributes[3] = {3u, 0u, VK_FORMAT_R32_SFLOAT, offsetof(UploadVertex, q)};
+     attributes[4] = {4u, 0u, VK_FORMAT_R32_SFLOAT, offsetof(UploadVertex, fog_factor)};
++    attributes[5] = {5u, 0u, VK_FORMAT_R32_SFLOAT, offsetof(UploadVertex, lod)};  // GT patch 0039
+     VkPipelineVertexInputStateCreateInfo vertex{};
+     vertex.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+     vertex.vertexBindingDescriptionCount = 1u;
+     vertex.pVertexBindingDescriptions = &binding;
+-    vertex.vertexAttributeDescriptionCount = 5u;
++    vertex.vertexAttributeDescriptionCount = 6u;
+     vertex.pVertexAttributeDescriptions = attributes;
+     VkPipelineInputAssemblyStateCreateInfo assembly{};
+     assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+@@ -3558,8 +3559,10 @@
+     }
+     const bool sampled = draw.texture_enabled && ge_gpu_backend_texture_available(draw);
+     const std::uint32_t first = static_cast<std::uint32_t>(s.vertices.size());
++    const float lod = vertex_lod(s, draw, draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr);  // GT patch 0039
+     for (const GeGpuVertex &source : triangle_vertices) {
+         UploadVertex vertex = make_upload_vertex(source);
++        vertex.lod = lod;
+         if (sampled && draw.texture_width != 0u && draw.texture_height != 0u) {
+             vertex.u /= static_cast<float>(draw.texture_width);
+             vertex.v /= static_cast<float>(draw.texture_height);
+@@ -3603,8 +3606,15 @@
+     }
+     const std::uint32_t first_vertex = static_cast<std::uint32_t>(s.vertices.size());
+     const std::uint32_t first_index = static_cast<std::uint32_t>(s.indices.size());
++    const bool sampled_target = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
++    const float lod = vertex_lod(s, draw, sampled_target);  // GT patch 0039
++    const auto upload = [lod](const GeGpuVertex &source) {
++        UploadVertex vertex = make_upload_vertex(source);
++        vertex.lod = lod;
++        return vertex;
++    };
+     if (indexed) {
+-        for (const GeGpuVertex &source : vertices) s.vertices.push_back(make_upload_vertex(source));
++        for (const GeGpuVertex &source : vertices) s.vertices.push_back(upload(source));
+         for (std::uint32_t index : triangle_indices) {
+             if (index >= vertices.size()) {
+                 s.vertices.resize(first_vertex);
+@@ -3614,7 +3624,7 @@
+             s.indices.push_back(index);
+         }
+     } else {
+-        for (const GeGpuVertex &source : vertices) s.vertices.push_back(make_upload_vertex(source));
++        for (const GeGpuVertex &source : vertices) s.vertices.push_back(upload(source));
+     }
+     const std::uint32_t logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
+     // GT patch 0036: GT sends ~10,000 small draws a frame, runs of them with the same state (an object's parts).
+@@ -3625,16 +3635,20 @@
+     // The vertex count is the only descriptor field allowed to differ.
+     if (transform.primitive == 3u && !s.batches.empty()) {
+         Batch &last = s.batches.back();
+-        const bool feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
++        const bool feedback = sampled_target;
+         constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
+-        constexpr std::size_t kCountBegin = offsetof(GeGpuDrawDescriptor, vertex_count);
+-        constexpr std::size_t kCountEnd = kCountBegin + sizeof(draw.vertex_count);
+-        const auto *last_bytes = reinterpret_cast<const unsigned char *>(&last.draw);
+-        const auto *draw_bytes = reinterpret_cast<const unsigned char *>(&draw);
++        // GT patch 0039: nor the level selection, which the vertices carry; the texture keys are equal then too.
++        const auto same_draw = [&]() {
++            GeGpuDrawDescriptor previous = last.draw;
++            previous.vertex_count = draw.vertex_count;
++            previous.texture_level_mode = draw.texture_level_mode;
++            previous.texture_level_offset16 = draw.texture_level_offset16;
++            previous.texture_selected_level = draw.texture_selected_level;
++            return std::memcmp(&previous, &draw, sizeof draw) == 0;
++        };
+         if (!feedback && last.hardware_transform && !last.framebuffer_feedback && last.transform.primitive == 3u &&
+             last.indexed == indexed && std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
+-            std::memcmp(last_bytes, draw_bytes, kCountBegin) == 0 &&
+-            std::memcmp(last_bytes + kCountEnd, draw_bytes + kCountEnd, sizeof draw - kCountEnd) == 0) {
++            same_draw()) {
+             if (indexed && last.first_index + last.index_count == first_index) {
+                 const std::uint32_t shift = first_vertex - last.first_vertex;
+                 for (std::size_t i = first_index; i < s.indices.size(); ++i) s.indices[i] += shift;
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -3,6 +3,7 @@
+ layout(location = 1) in vec2 vUv;
+ layout(location = 2) in float vQ;
+ layout(location = 3) in float vFog;
++layout(location = 4) flat in float vLod;  // GT patch 0039
+ layout(location = 0, index = 0) out vec4 outColor;
+ layout(location = 0, index = 1) out vec4 outBlendFactor;  // GT patch 0021: dual-source destination factor
+ 
+@@ -129,7 +130,9 @@
+     vec4 color = clamp(vColor, 0.0, 1.0);
+     if (textureControl.w != 0u) {
+         float q = abs(vQ) < 1.0e-20 ? 1.0 : vQ;
+-        vec4 texel = texture(sourceTexture, vUv / q);
++        // GT patch 0039: the draw's level selection: a fixed level, or the PSP's offset as a bias.
++        vec4 texel = vLod >= 128.0 ? textureLod(sourceTexture, vUv / q, vLod - 256.0)
++                                   : texture(sourceTexture, vUv / q, vLod);
+         if ((u.pixel1.x & 0x1000u) != 0u) texel = storedFramebufferTexel(texel, (u.pixel1.x >> 8u) & 3u);  // GT patch 0022
+         color = applyTextureFunction(color, texel, textureControl, textureEnv);
+     }
+--- a/lcs/host/vulkan/ge.vert
++++ b/lcs/host/vulkan/ge.vert
+@@ -5,11 +5,13 @@
+ layout(location = 2) in vec2 inUv;
+ layout(location = 3) in float inQ;
+ layout(location = 4) in float inFog;
++layout(location = 5) in float inLod;  // GT patch 0039: an LOD bias, or 256 + a fixed level
+ 
+ layout(location = 0) out vec4 vColor;
+ layout(location = 1) out vec2 vUv;
+ layout(location = 2) out float vQ;
+ layout(location = 3) out float vFog;
++layout(location = 4) flat out float vLod;
+ 
+ layout(std140, set = 0, binding = 0) uniform DrawUniforms {
+     vec4 row0;
+@@ -67,4 +69,5 @@
+     vUv = uv * u.sampleScale.xy;
+     vQ = inQ;
+     vFog = fog;
++    vLod = inLod;
+ }
