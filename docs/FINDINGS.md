@@ -1484,8 +1484,8 @@ Turismo logo banners came out as red/blue noise, correct with `TextureLodBias=-8
 64x64 → 32x32 → **32x16 → 32x8**, CLUT4/CLUT8). The decoder packed each level at its own size, while the upload
 copies level n as level 0 halved n times: every level after the first odd one was read at the wrong stride and
 offset. 0037 made the game pick those levels as the PSP does, which put the noise on screen.
-**Fix / workaround.** lcs-recomp patch 0041: a level of another size is box-resampled to the halved size (the PSP
-samples a level with normalised coordinates). GPU gate x1: every race window closer to the software reference
+**Fix / workaround.** lcs-recomp patch 0041: a level of another size is box-resampled to the halved size (assuming the
+PSP samples a level with normalised coordinates, not verified on hardware). GPU gate x1: every race window closer to the software reference
 (mean 0.086 → 0.076, 0.057 → 0.044, 0.087 → 0.075, 0.061 → 0.047, 0.091 → 0.074), dealer windows 0.022 → 0.016,
 garage unchanged.
 

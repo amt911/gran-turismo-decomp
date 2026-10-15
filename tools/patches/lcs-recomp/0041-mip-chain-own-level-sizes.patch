@@ -1,14 +1,15 @@
 --- a/lcs/host/ge_renderer.cpp
 +++ b/lcs/host/ge_renderer.cpp
-@@ -4409,12 +4409,18 @@
+@@ -4409,12 +4409,19 @@
              (gpu_draw.texture_mipmap_enabled
                  ? std::min<std::uint32_t>(8u, gpu_draw.texture_max_level + 1u) : 1u);
          std::array<TextureSetup, 8> mip_setups{};
 +        // GT patch 0041: the GPU image's level n is level 0 halved n times, but a PSP level has its own size
 +        // registers: GT keeps its small levels 32 texels wide (128x128 -> 64x64 -> 32x32 -> 32x16 -> 32x8). Packing them
 +        // at their own size made the upload read every level after the first odd one at the wrong stride and offset:
-+        // noise on distant signboards. A level is sampled with normalised coordinates on the PSP, so a level of
-+        // another size is box-resampled to the halved size here.
++        // noise on distant signboards. A level of another size is box-resampled to the halved size here, on the
++        // assumption that the PSP samples a level with normalised coordinates (not verified on hardware; the GPU gate
++        // moved closer to the software rasterizer, which samples each level at its own size).
 +        const auto chain_width = [&](std::uint32_t level) { return std::max(1u, mip_setups[0].width >> level); };
 +        const auto chain_height = [&](std::uint32_t level) { return std::max(1u, mip_setups[0].height >> level); };
          std::size_t total_bytes = 0u;
@@ -21,7 +22,7 @@
              if (bytes > std::numeric_limits<std::size_t>::max() - total_bytes) {
                  all = false;
                  break;
-@@ -4426,13 +4432,42 @@
+@@ -4426,13 +4433,43 @@
              try { decoded.resize(total_bytes); } catch (...) { all = false; }
          }
          std::size_t offset = 0u;
@@ -43,7 +44,8 @@
 +                    break;
 +                }
 +            } else {
-+                own_size.resize(static_cast<std::size_t>(source_width) * source_height * 4u);
++                try { own_size.resize(static_cast<std::size_t>(source_width) * source_height * 4u); }
++                catch (...) { all = false; break; }  // a garbage size register (up to 32768 x 32768)
 +                if (source_width == 0u || source_height == 0u ||
 +                    !decode_texture_rgba_into(memory, mip_setups[level], own_size)) {
 +                    all = false;
