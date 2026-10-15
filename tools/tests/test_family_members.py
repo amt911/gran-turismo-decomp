@@ -517,6 +517,18 @@ def test_main_list_shows_families_with_a_decompiled_template(family_files, capsy
     assert f"template 0x{0x28 + LOAD_BASE:08X}" in capsys.readouterr().out
 
 
+def test_main_list_limit_shows_more_than_sixty_families(family_files, capsys, monkeypatch):
+    common, _ = family_files
+    fake = [fm.Family(0x28, [0x4C, 0x70, 0x94]) for _ in range(70)]
+    monkeypatch.setattr(fm, "families", lambda *a, **k: fake)
+    base = ["--list", *common]
+    shown = lambda extra: [l for l in (fm.main(base + extra), capsys.readouterr().out)[1].splitlines() if "template" in l]
+    assert len(shown([])) == 60                       # default keeps today's cut
+    assert len(shown(["--limit", "65"])) == 65
+    assert len(shown(["--limit", "0"])) == 70         # 0 = all
+    assert len(shown(["--limit", "3"])) == 3
+
+
 def test_main_writes_probe_symbols(family_files, capsys):
     common, tmp_path = family_files
     out = tmp_path / "syms.txt"
