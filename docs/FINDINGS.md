@@ -1490,3 +1490,19 @@ PSP samples a level with normalised coordinates, not verified on hardware). GPU 
 garage unchanged.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0041-mip-chain-own-level-sizes.patch
+
+## The laptop spent 3 ms per frame recording even in menus: measure the windowed path, not only headless
+
+**Symptom.** Laptop log with 0038's split: `record 3.0 ms` per frame in menus with 6 primitives, where a headless
+race on the desktop records in 0.35 ms. The headless gate and `tools/gpu_perf.sh` never present to a window,
+so the present path (swapchain checks, overlay, acquire) and the window-only per-frame work were never timed.
+**Cause (being narrowed).** Per frame the backend asked the driver and SDL for the surface capabilities, formats and
+window size (`ensure_swapchain`, round trips to the display server on X11), and every texture upload allocated, mapped
+and later freed its own staging buffer (a kernel call each on an integrated GPU's driver). On the desktop with a
+window those cost little; on the laptop they are suspects, not yet proven.
+**Fix / workaround.** lcs-recomp patch 0042: one persistent 8 MB upload buffer reused every frame (the previous
+frame's fence is waited before recording), the swapchain checks skipped while the window size is unchanged and
+nothing marked it out of date, and `GT_PERF_LOG` splits `record` into uploads, draws and the present pass, so the
+next laptop log names what is left. GPU gate x1: identical windows and pass counts to 0041.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0042-fixed-frame-costs.patch
