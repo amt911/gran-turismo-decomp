@@ -1,7 +1,9 @@
 // Hot batch 82: reached functions that no earlier batch has written, picked from the call probe of batch 78 (every function of up to 70 instructions not yet decompiled, run on the five routes with
 // --decomp off; batch 81 = PR #202 excluded with --exclude-ref origin/decomp/hot-batch-81, and no address that #202 writes, registers or leaves unregistered is taken here). Before reading any
 // function its address was searched for in src/ and in the branch of batch 81. The candidates are the reached singles called by all five routes, ordered by calls, read by hand word by word
-// with `tools/disasm.py` of #202 (branch targets and relocations resolved by the tool, never counted by hand; every delay slot is part of its branch's path).
+// with `tools/disasm.py` of #202 (since merged; branch targets and relocations resolved by the tool, never counted by hand; every delay slot is part of its branch's path).
+// The descriptive words (ceilf, strcat, string compare, ...) rest on the behaviour each comment derives from the asm; the symbols keep
+// their func_XXXXXXXX names and nothing goes into config/symbol_addrs.txt until a caller or string confirms them.
 //
 //  - holders, smart pointers and virtual getters of the engine (func_08C20838, func_08C21C84, func_08C20224, func_08C218D0, func_08C25CCC, func_08C34520, func_08C31FB4, func_088FC214, ...);
 //  - soft-float and libm: int to double func_08B71CE0 (DoubleWord), ceilf func_08B661E8 (Float), a generator step func_08B3A37C, a float settings update func_089455E0;
@@ -114,8 +116,8 @@ void func_08ACF390(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_088FC214(this, object): the owner this->slot 0xC (virtual slot 0x30 of this) answers an entry; none gives 0. Otherwise the object's slot 2 answers a name (s2) and the
-// entry's list at entry + 0x540 takes the object by func_089613A8(entry + 0x540, object, flag): flag 0 when the entry's type word [[entry + 4] + 0x2C] is set and func_08906398(entry + 0x34) answers
-// non-zero, or func_08B35FD8(name, D_08CA0DBC) answers non-zero; flag 1 after the object's slot 3 ran with (object, [[[entry + 0x18] + 0x48] + 0x18]). v0 = 1 then.
+// entry's list at entry + 0x540 takes the object by func_089613A8(entry + 0x540, object, flag): flag 0 when the entry's type word [[entry + 4] + 0x2C] is zero and func_08906398(entry + 0x34) answers
+// non-zero, or (a non-zero word, or a zero answer) func_08B35FD8(name, D_08CA0DBC) answers non-zero; flag 1 after the object's slot 3 ran with (object, [[[entry + 0x18] + 0x48] + 0x18]). v0 = 1 then.
 // Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): every compared case leaves at the first test (no entry from the owner's slot 0xC: v0 = 0, a0 = the object). Everything after it is read from the asm only: the object's slot 2 call, the entry's type word +0x2C (non-zero goes to the func_08B35FD8 test, zero asks func_08906398 first, an answer of 0 there also goes to func_08B35FD8, the `lui a1` of the delay slot restoring a1 = D_08CA0DBC), the flag-0 insertion when func_08906398 or func_08B35FD8 answers non-zero, the slot-3 call with (object, [[[entry + 0x18] + 0x48] + 0x18], 0) and the flag-1 insertion, v0 = 1.
 void func_088FC214(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], object = ctx.gpr[5];
@@ -1448,7 +1450,7 @@ void func_08C40EBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08C41BE4(a0, array, count): the twin of func_08C40EBC. func_08C4130C(a0) runs; with *array zero it ends (v0 = that call's answer). Otherwise for i = 0 .. count - 1:
 // func_08C412A4(a0, *array + 4 * i) and func_08AF98C0((*array)[i], a0), the pointer read again after the first call. v0 as the last call leaves it.
-// Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): everything past the first test: every compared case has *array == 0. The loop (func_08C412A4(a0, *array + 4 * i), then func_08AF98C0((*array)[i], a0)) is read from the asm only; the count 0 returns the array pointer, the last iteration returns the call's answer (the `bnel` delay slot reloads the pointer only when it continues).
+// Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): everything past the first test: every compared case has *array == 0. The loop (func_08C412A4(a0, *array + 4 * i), then func_08AF98C0((*array)[i], a0)) is read from the asm only; a count of 0 leaves v0 as func_08C4130C answered (a1 holds the array pointer), the last iteration returns the call's answer (the `bnel` delay slot reloads the pointer only when it continues).
 void func_08C41BE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t first = ctx.gpr[4], array = ctx.gpr[5], count = ctx.gpr[6];
     GuestFrame frame(ctx, 0x20u);
