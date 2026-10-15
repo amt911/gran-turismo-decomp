@@ -1,0 +1,57 @@
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -741,9 +741,25 @@
+                                 0.0f, 0.0f, 1.0f, 0.0f,
+                                 0.0f, 0.0f, 0.0f, 1.0f}
+         : affine_4x3_to_mat4(transform.world);
+-    const auto view = affine_4x3_to_mat4(transform.view);
+-    const auto model_to_view = multiply_mat4(view, world);
+-    hw.model_to_clip = multiply_mat4(transform.projection, model_to_view);
++    // GT patch 0040: consecutive draws mostly share their matrices (an object's parts, a track section);
++    // the two products are reused while world, view and projection are unchanged.
++    thread_local std::array<float, 16> cached_world{}, cached_projection{};
++    thread_local std::array<float, 12> cached_view{};
++    thread_local std::array<float, 16> cached_model_to_view{}, cached_model_to_clip{};
++    thread_local bool cached = false;
++    if (!cached || std::memcmp(cached_world.data(), world.data(), sizeof world) != 0 ||
++        std::memcmp(cached_view.data(), transform.view.data(), sizeof cached_view) != 0 ||
++        std::memcmp(cached_projection.data(), transform.projection.data(), sizeof cached_projection) != 0) {
++        const auto view = affine_4x3_to_mat4(transform.view);
++        cached_model_to_view = multiply_mat4(view, world);
++        cached_model_to_clip = multiply_mat4(transform.projection, cached_model_to_view);
++        cached_world = world;
++        std::memcpy(cached_view.data(), transform.view.data(), sizeof cached_view);
++        std::memcpy(cached_projection.data(), transform.projection.data(), sizeof cached_projection);
++        cached = true;
++    }
++    const auto &model_to_view = cached_model_to_view;
++    hw.model_to_clip = cached_model_to_clip;
+     hw.model_to_view_z = {model_to_view[2], model_to_view[6],
+                           model_to_view[10], model_to_view[14]};
+     hw.viewport_scale_x = decode_float24(data24(commands[0x42u]));
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -3427,7 +3427,23 @@
+         draw.texture_image_key_hint = 0u;
+         return;
+     }
++    // GT patch 0040: the key hashes ~50 words; consecutive draws mostly sample the same texture with the same
++    // state, so the descriptor (hints cleared) is compared with the last one first. Called on the GE thread only.
++    draw.texture_cache_key_hint = 0u;
++    draw.texture_image_key_hint = 0u;
++    thread_local GeGpuDrawDescriptor last_draw{};
++    thread_local std::uint64_t last_key = 0u;
++    GeGpuDrawDescriptor probe = draw;
++    probe.vertex_count = 0u;
++    probe.primitive = 0u;
++    if (last_key != 0u && std::memcmp(&probe, &last_draw, sizeof probe) == 0) {
++        draw.texture_cache_key_hint = last_key;
++        draw.texture_image_key_hint = last_key;
++        return;
++    }
+     const std::uint64_t key = texture_key(draw);
++    last_draw = probe;
++    last_key = key;
+     draw.texture_cache_key_hint = key;
+     draw.texture_image_key_hint = key;
+ }

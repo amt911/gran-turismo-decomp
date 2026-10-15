@@ -1350,6 +1350,24 @@ function: `this[8]`, then `this[6]`, then the old tail). The same holds for any 
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_76.cpp (func_08B34C1C)
 
+## Two GPU gate runs don't race the same frames: compare a run's GPU against its own software frames
+
+**Symptom.** Patch 0040 (two memos, provably equivalent) seemed to cost the race 30 passing frames (339 → 309,
+30 worse, 0 better than the run before).
+**Cause.** The run's software frames differ from the previous run's at the same index just as much as its GPU
+frames (mean |diff| ~29 per byte averaged over 88 sampled frames, up to ~97 on single frames; 4 of 88 identical): loading took a different time, so the race started ~900
+frames earlier and 30 pre-race frames (which pass) became race frames (which never pass: the software reference
+samples mip level 0 in the automatic mode — see "Distant textures shimmered"). Pass counts across runs measure
+when the race started as much as the renderer.
+**Fix / workaround.** Judge a renderer change by windows of the same content (pre-race frames, race frames) and
+by each run's GPU-vs-software agreement, not by the pass count difference between runs; a CPU-side memo is
+checked by reading it for equivalence. Patch 0040 itself: the texture key (~50 hash mixes a draw) is reused when
+the descriptor equals the previous draw's, and the two 4x4 matrix products when world, view and projection are
+unchanged; the race profile lost `multiply_mat4` and half of `hash_mix` (process samples over the same 40 s:
+28,411 → 25,903), the GE thread's `lists` on two cores did not move beyond noise.
+
+Found: 2026-10-15 · tools/patches/lcs-recomp/0040-per-draw-memos.patch
+
 ## `tools.family_members --list --any-template` lists families that earlier batches wrote and left unregistered
 
 **Symptom.** Batch 77 wrote the "clamp" family (func_08C401C4 and four instances) and "release a vector" (func_08C4B740 and three more) from scratch, and
