@@ -704,6 +704,18 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08B0C650`, `func_08B33A24`, `func_08B52D58`, `func_08B58E28`, `func_08B58E84`, `func_08B590D0`, `func_08B83C84`, `func_08B84270`. Fuera: las funciones con VFPU (no hay
       ayudantes para sus instrucciones) y los envoltorios de `sceSasCore` (mismo motivo que `func_08B83C84`).
       **5.466 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-75 integrados: ver el PR #192).
+- [x] **Lote 78 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_78.cpp`, 57 registradas; familias de forma sin plantilla registrada, de un sondeo nuevo (`tools.decomp_gate probe`, las cinco rutas, `--decomp off`)
+      con `--exclude-ref origin/decomp/hot-batch-77`; antes de leer cada miembro se buscó su dirección en `src/` y en la rama del lote 77): 17 familias, cada una con un miembro leído entero contra el asm a mano
+      (desensamblado con las reubicaciones aplicadas, con la base de segmento de cada una) y el resto comparado palabra a palabra por `tools.family_members`: «wrap a» (10 instrucciones, 4), «setter de float» (2, 4),
+      «copiar tres floats» (7, 3), «llamada + cola» (11, 3), «pair call» (15, 3), «guarded static de tres ceros» (25, 3), «caja compartida» (25, 3; el bloque de cuenta de referencias de 16 bytes), «llamada por puntero a miembro +
+      cola por puntero a miembro» (37, 4; y la variante con argumento extra, 38, 3), «nuevo holder» (37, 3), «borrar un subárbol con claves de cadena» (42, 4; recursiva), «holder pair» (41, 3), «destructor con
+      liberación» (43, 3; dos decrementos atómicos con llamadas virtuales), «reservar un vector» (63, 4; y por `malloc`, 61, 6: palabras y pares) y «buscar en un árbol de cadenas» (66, 4). Las filas se generan con `--cpp` y se
+      releen con `--check` (46 coinciden con sus propias palabras, 0 sin analizar; 11 filas sin argumentos no se comparan por columnas, sus palabras ya coinciden con la plantilla). Ramas no tomadas (cobertura LLVM)
+      leídas contra el asm y listadas en los comentarios: las rutas solo comparan «reservar un vector» con capacidad suficiente (el cuerpo de crecimiento queda comprobado solo contra el asm), el destructor solo con el
+      primer contador distinto de 1 (las llamadas virtuales, solo contra el asm) y punteros a miembro no virtuales. Sabotajes detectados en las 57, `contract_audit` 0, puerta rápida 57/57 comparadas, 0 discrepancias.
+      Fuera: «clamp», «release a vector» y las demás ya escritas y sin registrar (lotes 65/68/73/74/75), la familia de `func_08B8443C` (llama a imports de `sceSasCore` que el harness no reproduce) y las familias
+      de 48-68 instrucciones con pocas llamadas, para otro lote (`func_08877418`/`func_08877D64` (atributo + cadena), `func_0884A3AC`, `func_08BCFDEC`, `func_08BB0F28`, `func_08A1503C`, `func_08BA0D34`).
+      **5.523 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 61-76: 4.899 comparadas; el PR #195 (lote 77) tendrá que rebasar los recuentos al integrarse).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
