@@ -779,6 +779,19 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       y ningún caso comparado la cambió). No leídas: VFPU, las que llegan a imports que no se reproducen (`func_08B35418`, `func_08B7771C`, la familia de `func_08B8443C`, hilos) y las de más de 70 instrucciones. Sabotajes detectados
       en las 58 comprobadas (57 registradas), `contract_audit` 0, `--check` 0 filas malas (el lote no tiene envolturas con argumentos), puerta rápida 57/57 comparadas (2.098 casos, 1.459 que cambian memoria), 0 discrepancias.
       **5.811 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 73-81 integrados: ver el PR #203).
+- [x] **Lote 84 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_84.cpp`, 47 registradas y 9 escritas sin registrar; del sondeo del lote 78 con `--exclude-ref origin/decomp/hot-batch-83` (el PR #204) y sin ninguna
+      dirección que #204 escriba o registre; antes de leer cada función se buscó su dirección en `src/` y en la rama del lote 83). La reserva de sueltas calientes está casi agotada (las ~80 primeras por llamadas están hechas,
+      escritas sin registrar, son stubs de imports o llevan VFPU), así que el lote toma el escalón siguiente: funciones que las rutas llaman pocas veces (2 a 50 llamadas por ruta), sin VFPU, sin imports que el harness no reproduce,
+      sin variadicas (`func_08C46D74` guarda `a2-t3` en el marco) y sin puntos de entrada múltiples (`func_08B207A4`, `func_08ABEA40`); leídas a mano con `tools/disasm.py`. Grupos: el cluster de objetos de menú
+      (`func_0880B5E8` … `func_0886xxxx`, constructores, la cadena con cerrojo `func_0880BA98` → `func_0886978C` → `func_0886E008`), cadenas (`operator+`, `find`, `find_first_not_of`, el reservador `func_08B644BC`), estáticos
+      con guarda, vectores y floats pequeños, destructores y holders. Siete funciones alcanzables solo desde otra función comparada se registran `GT_DECOMP_NESTED` (contract_audit 0). Tres lecciones nuevas en FINDINGS: un
+      constructor que deja el `s0` de entrada en su sitio hace que un callee guarde otra palabra (`func_0880BF70`: 306 bytes de RAM, con la misma secuencia de llamadas; se resolvió trazando los dos despachos), una cola a una
+      función `Void` anidada se lleva su `v0` (`func_08881C38`, sin registrar) y el total «comparadas» de la completa no cayó en cientos. Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en el comentario de cada
+      función; **comparadas solo por una salida temprana o una rama lateral**: `func_08A1F520` (solo op 0) y `func_08BDD7D8` (solo el rango vacío) quedan SIN registrar por eso; `func_0886E008` (solo flag != 0) y `func_08BF8A7C`
+      (solo la respuesta 1) se mantienen con la parte no verificada anotada. Sin registrar: `func_08A1F520`, `func_08BDD7D8`, `func_08881C38`, `func_08B6E4FC`, `func_08B6E268`, `func_0887BC90`, `func_08875038`, `func_0886C31C`,
+      `func_089C4C20`. Sabotajes detectados en las 50 comprobadas con la primera lista (las 47 registradas incluidas), `contract_audit` 0, `--check` 0 filas malas (el lote no tiene envolturas con argumentos), puerta rápida 47/47
+      comparadas, 0 discrepancias. **5.858 funciones, 0 discrepancias** (puerta completa sobre `main` con los lotes 61-82: 5.020 comparadas, 0 discrepancias, 31 de las 47 del lote (425 casos) alcanzadas también por la completa;
+      las cuentas están sobre `main` con los lotes 61-82 (5.811): si #204 entra antes hay que rebasarlas).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)
