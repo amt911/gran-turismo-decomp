@@ -1507,3 +1507,17 @@ nothing marked it out of date (`VK_SUBOPTIMAL_KHR` sends the next present back t
 next laptop log names what is left. GPU gate x1: identical windows and pass counts to 0041.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0042-fixed-frame-costs.patch
+
+## Caching decoded geometry made the GE thread slower: GT's draws are tiny, the cost is per draw
+
+**Symptom.** 99.8 % of a race frame's vertices are byte-identical to the previous frame's, so a cache of each draw's
+converted vertices and indices (keyed by a hash of its inputs, `docs/superpowers/specs/2026-10-15-gpu-geometry-cache-
+design.md`) looked like half of `lists`. Built and exact (verify mode: 0 mismatches over ~1M hits/s), it measured
+**slower**: two cores, race, `lists` 404 → 556 ms/s, GE wait 20 → 34 %.
+**Cause.** A race draw has ~14 vertices. Decoding reads 10-14 compact bytes per vertex; a hit copies 40-byte
+converted vertices out of a ~30 MB scattered table and adds a lookup. The cost is the fixed work of each of ~660,000
+draws per second (~600 ns each on the desktop), not the vertices.
+**Fix / workaround.** Not merged. Cut the per-draw overhead instead (descriptor copies and comparisons, per-draw
+allocations, backend queries); measure any cache against `lists` on two cores before keeping it.
+
+Found: 2026-10-15 · docs/superpowers/specs/2026-10-15-gpu-geometry-cache-design.md
