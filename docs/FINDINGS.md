@@ -1459,3 +1459,19 @@ the answer always 0 was not what the list said; `func_08C21C84`, `func_08B34CA0`
 `regions never run` entry means the operand was never even evaluated.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_82.cpp
+
+## A decompiled function can switch off code the gate never sees: watch the compared count between full gates
+
+**Symptom.** Batch 83's full gate: 0 mismatches, but 4,761 functions compared against 5,034 the batch before, the
+same on a rerun at low load. 328 functions that ran exactly once on every route (start-up code, not called
+directly: through a table) now ran 0 times; the routes' total call volume was unchanged.
+**Cause.** Installing `func_08A9DD14` alone reproduces it (bisected in 25 s runs of `gt_native --decomp diff` with
+`GT_DECOMP_ONLY`, counting the calls of one of the lost functions, `func_0880A500`). Its body matches the asm word for
+word (`tools/disasm`); what differs is that its calls run nested through `call_guest`, and one of them
+(`func_08A9C340`, through a virtual-call chain) evidently does not behave as when the original jumps to it.
+The gate compares each call's result, not what never runs afterwards, so it stayed green.
+**Fix / workaround.** `func_08A9DD14` stays written but not registered. A batch's full gate is also judged by its
+compared count against the previous main: a drop of hundreds is a behaviour change to bisect (`GT_DECOMP_ONLY` with
+halves of the batch), not noise. Root cause of the nested-call difference not established yet.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_83.cpp

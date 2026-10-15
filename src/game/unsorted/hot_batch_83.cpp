@@ -1623,7 +1623,9 @@ HOT83(0x08A32618u, func_08A32618, Word);
 HOT83(0x08B488BCu, func_08B488BC, Word);
 HOT83(0x08ADBFE0u, func_08ADBFE0, Word);
 HOT83(0x08B6441Cu, func_08B6441C, Word);
-HOT83(0x08A9DD14u, func_08A9DD14, Word);
+// Not registered: installing func_08A9DD14 stops ~330 functions that run once at start-up from running at all (calls 0 instead of 1 on every
+// route), with 0 mismatches in the gate; its body matches the asm word for word, so the difference is in running its calls nested (call_guest).
+// See docs/FINDINGS.md. // HOT83(0x08A9DD14u, func_08A9DD14, Word);
 HOT83(0x08AE6B34u, func_08AE6B34, Word);
 HOT83(0x08AE85E8u, func_08AE85E8, Word);
 HOT83(0x08B344B0u, func_08B344B0, Word);
