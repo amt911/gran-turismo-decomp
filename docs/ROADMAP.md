@@ -674,6 +674,17 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `func_08C41A04`: ningún caso comparado cambió memoria, como `func_08C401C4` en el lote 68). Fuera por ahora: 6 accesores de contenedor vacío de 32 instrucciones
       que son una variante (dos estáticos más y otro desplazamiento: plantilla propia tras leer uno entero), el «pair call A» restante y las familias de 47-68 instrucciones.
       **5.319 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 72 integrado: ver el PR #186).
+- [x] **Lote 76 de funciones calientes** (2026-10-15, `src/game/unsorted/hot_batch_76.cpp`, 62 registradas de 73 escritas; elegidas por alcance, no por forma: sondeo del lote 70
+      ordenado por llamadas y llamadores ya decompilados, `--exclude-ref` de los lotes 74 y 75): 31 funciones leídas una a una contra el asm (20 de ellas registradas: escritores de la lista de display de la
+      biblioteca gráfica, ayudantes de coma flotante, pegamento de coma flotante por software, `func_08B34C1C`, llamadas virtuales a través de un temporal, tablas de bytes) y 5
+      familias con plantilla leída entera: «init handle con índice» (18 instrucciones, 10), «pair call D» (19, 9), «relocation loop» (36, 9; tres miembros los llama `func_08AF771C`),
+      «handle wrapper» (21, 6) y «guarded static sin tamaño» (35, 8). Las filas de familia se generan con `--cpp` y se releen con `--check` (42 coinciden con sus propias palabras, 0 sin
+      analizar). Ramas no tomadas (cobertura LLVM) leídas contra el asm y listadas en los comentarios; `func_08B34C1C` reproduce v0 en cada camino porque el HLE de
+      `sceKernelCpuResumeIntr` no lo escribe. `func_08B70F28` devuelve 64 bits (`contract_audit` marcó a los llamadores que leen v1). Sabotajes detectados en las 62, `contract_audit` 0.
+      Escritas pero sin registrar (no comparables: el original llega a imports que bloquean o que el harness no reproduce): `func_08AD96A0`, `func_08AEB908`, `func_08AEB930`,
+      `func_08B0C650`, `func_08B33A24`, `func_08B52D58`, `func_08B58E28`, `func_08B58E84`, `func_08B590D0`, `func_08B83C84`, `func_08B84270`. Fuera: las funciones con VFPU (no hay
+      ayudantes para sus instrucciones) y los envoltorios de `sceSasCore` (mismo motivo que `func_08B83C84`).
+      **5.381 funciones, 0 discrepancias** (puerta completa sobre `main` con el lote 73 integrado; los PR #188 y #190 tendrán que rebasar los recuentos al integrarse).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

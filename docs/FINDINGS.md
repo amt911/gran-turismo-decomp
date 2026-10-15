@@ -1318,3 +1318,15 @@ level 0 in the automatic mode (`selected_texture_level` returns 0 unless the mod
 not do: part of the race's GPU-vs-software differences are the GPU being closer to the PSP. Not fixed yet.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0037-mip-level-at-psp-resolution.patch
+
+## A tail call to an import stub leaves v0 as the last load set it: func_08B34C1C mismatched on every case
+
+**Symptom.** A hand-written function ended with `tail_call(ctx, 0x08C7A8A8, {flags})` (the resume-interrupts import) and the
+diff harness reported `v0: original 0x0, decompiled 0x1` on all of its cases, although the call sequence matched.
+**Cause.** The HLE of `sceKernelCpuResumeIntr` (`host/gt_kernel.cpp`) does not write v0, so the function's result is
+whatever v0 held when the original jumped to the stub: the word its last `lw v0` loaded on that path (a field
+tested, or compared, just before). The decompiled code left the case's entry v0.
+**Fix / workaround.** Set `ctx.gpr[2]` before the tail call to what the original's last load leaves on each path (this
+function: `this[8]`, then `this[6]`, then the old tail). The same holds for any import whose HLE returns void.
+
+Found: 2026-10-15 · src/game/unsorted/hot_batch_76.cpp (func_08B34C1C)
