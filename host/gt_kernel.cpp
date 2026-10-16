@@ -1898,6 +1898,15 @@ void perf_log_tick() {
                  100.0 * static_cast<double>(perf_ge_wait_site_us[2].exchange(0u)) / (seconds * 1e6),
                  perf_audio_frames / seconds,
                  static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6));
+    {   // GT patch 0047: the quad-strip fast path (GT_GE_FASTPATH_VERIFY=1 compares it with the general path)
+        const auto fast = ge_renderer_fastpath_draws();
+        const auto verified = ge_renderer_fastpath_verified();
+        const auto mismatches = ge_renderer_fastpath_mismatches();
+        if (fast != 0u || verified != 0u)
+            std::fprintf(stderr, "[perf]   fast path: %.0f draws/s, verify: %llu draws, %llu mismatches\n",
+                         static_cast<double>(fast) / seconds, static_cast<unsigned long long>(verified),
+                         static_cast<unsigned long long>(mismatches));
+    }
     static const bool revision_verify = std::getenv("GT_GE_REVISION_VERIFY") != nullptr;
     if (revision_verify)  // GT_GE_REVISION_VERIFY=1: the draw-state caches checked against a rebuild on every hit
         std::fprintf(stderr, "[perf]   revision verify: %llu mismatches\n",
