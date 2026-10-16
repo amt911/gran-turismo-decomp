@@ -108,3 +108,37 @@ def test_recompiled_functions_are_the_registered_entries_as_elf_addresses():
     unit = ("    runtime.register_function(0x0891A484u, &recomp_unit_0034, \"recomp_unit_0034\");\n"
             "    ctx.pc = 0x0891A454u;\n")
     assert shapes.recompiled_functions([unit]) == {0x0891A484 - 0x08804000}
+
+
+LW_V0_8_A1 = 0x8CA20008      # lw v0, 8(a1)
+ADDU_V0_A0_ZERO = 0x00801021  # addu v0, a0, zero
+ADDU_V1_A1_ZERO = 0x00A01821  # addu v1, a1, zero
+BEQ_V1_V0_FWD_2 = 0x10620002  # beq v1, v0, +2
+BEQ_V1_V0_FWD_3 = 0x10620003  # beq v1, v0, +3
+BLTZ_V0_FWD_2 = 0x04400002   # bltz v0, +2
+BGEZ_V0_FWD_2 = 0x04410002   # bgez v0, +2
+ADD_S = 0x46000000           # add.s f0, f0, f0
+SUB_S = 0x46000001           # sub.s f0, f0, f0
+MFC1_V0_F0 = 0x44020000      # mfc1 v0, f0
+CFC1_V0 = 0x44420000         # cfc1 v0, fcr0
+
+
+def test_skeleton_ignores_registers_immediates_and_offsets_that_normalize_keeps():
+    one = words(LW_V0_8_A0, ADDU_V0_A0_ZERO, BEQ_V1_V0_FWD_2, JAL_A, JR_RA)
+    other = words(LW_V0_8_A1, ADDU_V1_A1_ZERO, BEQ_V1_V0_FWD_3, JAL_B, JR_RA)
+    assert shapes.normalize(one) != shapes.normalize(other)
+    assert shapes.skeleton(one) == shapes.skeleton(other)
+
+
+def test_skeleton_keeps_the_kind_of_instruction():
+    assert shapes.skeleton(words(ADDU_V0_A0_ZERO)) != shapes.skeleton(words(NOP))  # addu vs sll
+    assert shapes.skeleton(words(BLTZ_V0_FWD_2)) != shapes.skeleton(words(BGEZ_V0_FWD_2))  # REGIMM rt
+    assert shapes.skeleton(words(LW_V0_8_A0)) != shapes.skeleton(words(BEQ_V1_V0_FWD_2))
+    assert shapes.skeleton(words(ADD_S)) != shapes.skeleton(words(SUB_S))  # COP1 function
+    assert shapes.skeleton(words(MFC1_V0_F0)) != shapes.skeleton(words(CFC1_V0))  # COP1 format
+
+
+def test_clusters_by_skeleton_join_register_allocations():
+    code = {0x100: words(LW_V0_8_A0, JR_RA, NOP), 0x200: words(LW_V1_8_A0, JR_RA, NOP), 0x300: words(JR_RA, NOP)}
+    assert shapes.clusters(code) == [[0x100], [0x200], [0x300]]
+    assert shapes.clusters(code, shapes.skeleton)[0] == [0x100, 0x200]

@@ -134,6 +134,9 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   (immediates and jump targets masked, branches kept). A cluster with a decompiled member is the cheapest
   batch: turn that member into a template (its constants in a table keyed by address, as `src/core/`
   does) and register it for the others — each still passes the gate and the sabotage on its own.
+  `tools.shapes --skeleton` ignores the registers too (instruction kinds only): one function compiled into two
+  register allocations is one cluster there and two in the masked view (batch 93: seven families of the 121-170 pool,
+  among them the same 154-instruction parser four times and a vector fill-insert twelve times, were only found that way).
   A cluster means "same shape", not "same constants" (bounds, offsets, frame sizes and call targets are
   masked): decode each member's constants from its own instructions, compare raw words where a constant
   is the template's own (e.g. the shared empty holder of `as_class`), and let the gate prove each one.
