@@ -1898,7 +1898,7 @@ void perf_log_tick() {
                  100.0 * static_cast<double>(perf_ge_wait_site_us[2].exchange(0u)) / (seconds * 1e6),
                  perf_audio_frames / seconds,
                  static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6));
-    {   // GT patch 0047: the quad-strip fast path (GT_GE_FASTPATH_VERIFY=1 compares it with the general path)
+    {   // GT patch 0049: the quad-strip fast path (GT_GE_FASTPATH_VERIFY=1 compares it with the general path)
         const auto fast = ge_renderer_fastpath_draws();
         const auto verified = ge_renderer_fastpath_verified();
         const auto mismatches = ge_renderer_fastpath_mismatches();
