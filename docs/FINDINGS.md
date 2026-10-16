@@ -1791,3 +1791,27 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_96.cpp (func_089230A4, func_089
 **Open.** With `--decomp on` the import trace leaves `--decomp off`'s at import 4,406 (two `off` runs are identical over 200,000 imports) and the route no longer reaches the race in 60 s. Not shown to be a decompilation fault: `call_guest` counts its steps as dispatches while the recompiled code chains calls inside a unit without counting them, so preemption lands elsewhere and the thread order changes. The differential gate (`--decomp diff`) is unaffected; `--decomp on` fidelity is its own question.
 
 Found: 2026-10-16 · host/guest_call.cpp, host/fiber.cpp, host/diff_harness.cpp, tools/patches/lcs-recomp/0050-dispatch-entry-points-for-host-loops.patch
+
+## A decompiled function that calls `sceRtcGetCurrentClockLocalTime` itself was "not comparable" in every case until the import was recordable
+
+**Symptom.** Batch 97's `func_08812CEC` (a clock window that calls the import stub `0x08C7B018` on its own stack buffer) came out of the first fast gate with `compared 0, not comparable 17` and `first not comparable: original: import stub 0x08C7B018 (sceRtc::0xE7C27D1B)`.
+**Cause.** The harness runs an import twice only when it is replay-safe (`kReplaySafeNids`) and records it once otherwise (`kRecordableNids`); a third kind is refused inside a case. It was in neither list. (`rtc_now_ticks` is a fixed start date plus the virtual time, deterministic and read-only, so replay-safe would have worked too, like `GetSystemTimeLow`; recording is also valid.)
+**Fix.** `{0xE7C27D1B, 0x01}` in `kRecordableNids` (host/main.cpp): reads a0, writes the 16-byte date through `GuestMemory`, never switches threads. `func_08812CEC` then compared 17 of 17 equal. The other imports that block (`sceKernelWaitSema` 0x08C7AA20, `sceKernelWaitEventFlag` 0x08C7AA10) are still refused: `func_08AF0B78` (a ring-buffer read that waits on a semaphore every call) is not comparable in 89 of 89 cases and `func_08AEB4CC` in 88 of 99, so both stay unregistered.
+
+Found: 2026-10-16 · host/main.cpp, src/game/unsorted/hot_batch_97.cpp (func_08812CEC, func_08AF0B78, func_08AEB4CC)
+
+## A once-only initialiser that runs inside another decompiled function's case shows `calls 0`: register it `GT_DECOMP_NESTED`
+
+**Symptom.** `func_08B610C0` (called once, from a static-constructor chain) was compared 1 of 1 equal when it was the only installed function (`GT_DECOMP_ONLY=0x08B610C0`) and `calls 0` as soon as `func_08B5BB0C` (the function whose static initialisation reaches it) was installed too, in all five routes.
+**Cause.** With `func_08B5BB0C` installed the call happens inside one of its cases; a nested call is not counted in `calls`/`compared` unless the callee is registered nested, in which case it runs decompiled in the decompiled run and is counted in `nested in N equal cases`.
+**Fix.** `HOT97N` (= `GT_DECOMP_NESTED`) for `func_08B610C0`: the run reports `nested in 1 equal / 0 mismatched cases`. The return contract is fine for nesting: `tools.contract_audit` lists no caller that reads a register the function leaves differently (it sets v0 / v1 like the original). Before unregistering a function for `calls 0`, install it alone once: `GT_DECOMP_ONLY` shows whether another installed function swallows its calls.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_97.cpp (func_08B610C0)
+
+## A function whose tail callee reads uninitialised stack cannot be proven: the new elements of a vector were filled with the dead stack of earlier calls
+
+**Symptom.** Batch 97's `func_08B04D98` (builds an object of seven vectors and tail-calls `func_08B039F8` → `func_08B05DC4`) mismatched on all 11 compared cases of every route, `RAM at 0x093FDC08: original A0, decompiled 00 (3876 bytes differ)`, with or without the tail call replaced by a `call_set`. Every store, call and argument of the C++ matches the asm; the allocator's bookkeeping words (`0x08D69338`) also differ, and the differing bytes are records of 0x70 bytes that contain the `out` pointer and return addresses (`0x08C4A630`).
+**Cause (inferred).** `func_08B05DC4` grows the vector at `object + 0xC8` with `func_08C4C0A0(vector, position, count, sp + 0x20)`, where `sp + 0x20` is an element of the callee's own frame that nothing initialises: the new records are copies of whatever the earlier calls left there (saved registers, return addresses). The decompiled function does not reproduce dead-stack spills (`docs/agents/decomp-workflow.md`), so the two runs fill the records differently.
+**Fix.** None: the function stays written and unregistered (commented `HOT97` line). A function whose callee builds elements from an uninitialised temporary has no deterministic result to compare; before reading such a function look for a `jal` whose last argument is `sp + N` in a callee that never stored it.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_97.cpp (func_08B04D98)
