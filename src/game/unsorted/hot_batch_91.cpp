@@ -12,7 +12,7 @@
 //
 // Registered (47): func_0882222C, func_0885C5C0, func_0889D738, func_089CB164, func_08A9CB38, func_08AD6AB8, func_08B166F8, func_08B6F37C (a 64-bit pair, `ReturnKind::DoubleWord`), func_08B20A78, func_089BDD18, func_08C20540, func_08A54830, func_08C34FE8, func_08A46DCC, func_08A9FFD0, func_08991490, func_08A206E8, func_0896DFCC, func_08A42E10,
 // func_08A32678, func_08A4BBC0, func_08A4412C, func_08A3C544, func_08A4A960, func_08A4BA50, func_08A10468, func_089A44F0, func_08B9A5C4, func_0894D484, func_08988BB8, func_08A6CFC0, func_08C22B54, func_08C1ABE0, func_08C25730, func_08AA6B80, func_08B8AD88, func_08BFBB38, func_08C287AC, func_0880602C, func_08A6F704, func_08A954B8,
-// func_089B6408, func_08826C50, func_0899CE20, func_0881D004, func_08898C10, func_0880C9B8. The role words in the comments (holder, string, vector, node, tree, cell, record, list, object, virtual slot, key) describe the shape of the accesses; none is a name from the game. Thirteen of the functions are registered under Adhoc script names in
+// func_089B6408, func_08826C50, func_0899CE20, func_0881D004, func_08898C10, func_0880C9B8. The role words in the comments (holder, string, vector, node, tree, cell, record, list, object, virtual slot, key) describe the shape of the accesses; none is a name from the game. Fourteen of the functions are registered under Adhoc script names in
 // config/symbol_addrs.txt (from the registrations of the script classes); the comments keep the func_ names and say only what the asm does.
 //
 // Written but not registered (the commented HOT91 lines say why): func_089B439C (every case stops on `kernel isolation (LwMutex contention)`), func_089CA118 (the import stub sceIoRead), func_08A235F8 (the import stub sceSasCore::0x33D4AB37), func_08A243FC (`kernel isolation (sleep would block)`) - none compares - and func_08B666E8
@@ -1755,7 +1755,7 @@ void func_08B9A5C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, vector, block);
 }
 
-// func_0894D484(a, index, vec1, vec2, steps): index >= a[8] returns 0. Otherwise r = func_0894CF40() (v1 is r too): r[1] == 0 returns 0 (r[2] = 0 is stored first in both cases); o = func_0894CFF8(a, index); func_08941510(o, -1, -1, 0) with f12 = vec1[0], f13 = -vec1[2], f14 = vec1[1], f15 = vec2[1];
+// func_0894D484(a, index, vec1, vec2, steps): index >= a[8] returns 0. Otherwise r = func_0894CF40() (v1 is r too): r[1] == 0 returns 0 leaving r[2] as it is; otherwise r[2] = 0 (stored in the delay slot of the next jal); o = func_0894CFF8(a, index); func_08941510(o, -1, -1, 0) with f12 = vec1[0], f13 = -vec1[2], f14 = vec1[1], f15 = vec2[1];
 // func_089559B8(o) with f12 = 0.0f; steps > 0 calls func_08940610(o) with f12 = (float)steps * 0x3E8E38E4 (as a float constant); func_08945EE8(o), func_08956540(o), func_089567C0(o), func_08956B20(o), func_0895900C(a, index); v0 = 1.
 // Branches the routes do not take (from `tools.decomp_gate coverage` of the fast gate, then checked against the asm by hand, reading the branch TARGETS): steps > 0 (0x0894D528 blez not taken: f12 = (float)steps * 0x3E8E38E4 and func_08940610) never occurred, so that product and its constant are read from the asm only; index >= a[8] (0x0894D4BC beqz) and r[1] == 0 (0x0894D4D8 beqz) never occurred either.
 void func_0894D484(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -1779,11 +1779,11 @@ void func_0894D484(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = armed;
     ctx.gpr[5] = index;
     ctx.gpr[4] = list;
-    put(rt, entry + 8u, 0u);  // the delay slot of the beqz
     if (armed == 0u) {
         ctx.gpr[2] = 0u;
         return;
     }
+    put(rt, entry + 8u, 0u);  // the delay slot of the jal to func_0894CFF8: only when r[1] != 0
     const std::uint32_t object = call_set(rt, ctx, 0x0894CFF8u, {list, index});
     ctx.gpr[4] = object;
     ctx.fpr[13] = -float_at(rt, vec1 + 8u);

@@ -910,7 +910,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       La primera puerta rápida encontró un fallo real: `func_0899CE20` leía el `addu s1, v0, zero` del hueco de retardo de un `jal` como el resultado de la llamada (se ejecuta antes). **Caminos leídos solo del asm** (cada comentario los lista, con `tools.decomp_gate coverage` y revisados a mano): la parte de `func_08A9FFD0` tras `func_08A69530` (solo corrió el retorno temprano), el bucle de
       `func_08A4A960` (nunca corrió), las mitades con hueco de `func_08B9A5C4`, `func_08C1ABE0` y `func_08C25730`, el modo 0 de `func_08A10468`, el otro modo de `func_08A6F704`, tres de los cuatro caminos de `func_08B20A78`, el producto con `0x3E8E38E4` de `func_0894D484` y la rama `0x101` de `func_08988BB8`. Puerta rápida (cinco rutas sin tope): 47 de 47 comparadas, 0 discrepancias;
       sabotajes 47 de 47 detectados en la primera ronda; `contract_audit` 0 nuevos (siguen los dos del lote 90). **6.276 funciones, 0 discrepancias** (puerta completa: 5.087 comparadas, 6 menos que `main` (5.093), 0 discrepancias; 37 de las 47 se comparan en la puerta completa en tiempo real y las otras 10 solo las alcanza la rápida sin tope; 47 funciones que `main` comparaba ya no se comparan porque corren dentro de los casos de estas
-      (sus llamadas ya no se cuentan aparte, FINDINGS lote 86) y 40 son nuevas; carga de la máquina 5-8).
+      (sus llamadas ya no se cuentan aparte, FINDINGS lote 86) y 40 son nuevas, cuentas por dirección de otra pasada que no cuadran al uno con las 5.087; la verificación del PR dio 5.088; carga de la máquina 5-8).
 - [ ] Más nativos de los 286 que se ejecutan hasta la carrera (`GT_PROBE_SYMBOLS`).
 
 ## Jugable — `gt_play` (2026-10-10)

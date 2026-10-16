@@ -9,6 +9,10 @@ literal the asm builds in two steps that are not an address (a `lui` / `ori` pai
 
 Usage (from the repository root): .venv/bin/python -m tools.literal_check src/game/unsorted/hot_batch_91.cpp [--allow 0xADDR:0xVALUE ...]
 Exit 1 when a literal is missing.
+
+Limits: it checks set membership over the whole function (a typo that lands on a value used elsewhere in the same function
+passes, and it does not check which register or call a value reaches), and only `void func_XXXXXXXX(...)` bodies: shared
+template and helper bodies are not scanned, so their constants are checked by hand.
 """
 
 from __future__ import annotations
