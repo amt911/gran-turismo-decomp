@@ -1749,3 +1749,20 @@ Found: 2026-10-16 · tools/patches/lcs-recomp/0046-draw-state-revision-caches.pa
 **Fix / workaround.** Not merged (2026-10-16). Measure first: `tools.thread_cpu --name gt_play` shows the CPU per thread (the GE thread is named `gt-ge`; the game thread keeps the process name): on two desktop cores in a race the GE thread is ~47 % and the game thread ~35 % of a core.
 
 Found: 2026-10-16 · tools/thread_cpu.py
+
+## A string release that finds the shared empty cell leaves the `v0` the asm held, and a `lui v0` / `addiu s1, v0` pair leaves only the high half there
+
+**Symptom.** Batch 95: eight functions end, or run to a point with no call after it, with the string-cell release sequence (`beq data - 0xC, D_08D74FD0` skips `func_08B60804` / `func_08B8542C`). When it skips nothing is called, so the function returns the `v0` the instructions before it left, and `v0` is compared (`ReturnKind::Word`). Nothing in `tools.disasm` says which constant that is.
+**Cause.** The asm builds the shared cell's address in `v0` before the compare: `lui v0, 0xA` then either `addiu v0, v0, -0x7530` (v0 = 0x08D74FD0: `func_08A233B0`, `func_08A31244`, `func_08A26744`, `func_08A26940`) or `addiu s1, v0, -0x7530` (`func_08A6E974`: v0 keeps only the high half). `tools.disasm` prints the pair with its resolved address ([HI] / [LO] = 0x08D74FD0), so the half is invisible; the recompiled unit shows it (`recomp/generated`, label L_08A6EA24: `ctx.gpr[2] = (2263u << 16u)`, 0x08D70000). The vector writers (`func_08BEFA18` and its two siblings) leave 0x08CCD990 in `v0` after the single element for the same reason.
+**Fix / workaround.** Set `ctx.gpr[2]` to what the asm holds before `release_cell` (a call inside it overwrites it, so only the skip path keeps it) and read the constant from the generated unit (`grep -n "^L_<address>:"`), not from the annotated pair; `tools.literal_check` reports 0x8D70000 as missing, so it is an `--allow` entry. The gate confirmed the constants: `release_cell`'s skip and release arms both ran in the compared cases of the batch with `v0` equal.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_95.cpp (func_08A6E974, func_08A233B0, release_cell)
+
+## The 121-170 pool ran dry at batch 95: 27 of the 111 left were writable, and a 171-230 probe reached 104 functions and one family of five
+
+**Symptom.** After batch 94 the b93p probe still had 111 reached functions without a `func_X` in `src/`; `tools.shapes --skeleton` finds no cluster among them and what is left is jump tables, recursion, tangled likely-branch code, float code, imports that block and units made of several tail-called blocks. Batch 95 wrote 31 of them (27 registered) by reading, one by one.
+**Cause.** Not a tooling fault: batches 89-94 took the cheap part of the pool (the same thing the batch-89 and batch-93 entries say for 10-70 and 71-120).
+**Fix / workaround.** `tools.family_members --write-probe-symbols FILE --max-insns 230`, filtered to 171-230 (348 not-done functions), `tools.decomp_gate probe b95p --symbols FILE` reached 104; `tools.shapes --skeleton` found one family with reached members: five copies of a 182-instruction hinted insertion into a string-keyed red-black tree, equal except for two callees (their own unique-position search and node insertion), so one body and five table rows, `tools.family_members --check` reading the rows. Its (word, string)-keyed sibling (`func_08C34C58`, 45,104 calls) shares no skeleton and was read separately. Next time probe 231-300 from the start, or everything above 170, and cluster with `--skeleton` before reading by hand.
+Also new: `tools.arg_reads` (5 tests) lists the calls that pass fewer argument registers than their callee reads (the batch-93 stale-argument bug, found by a scratch script then): six in this batch, all harmless; the scan is by address order, so each line is a place to read the callee's head.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_95.cpp (hinted_insert), tools/arg_reads.py

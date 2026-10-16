@@ -14969,14 +14969,16 @@ void func_08AD5AC4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08A568EC(this, a, b): func_08A76E3C(this, a, b); while *a is still empty, the virtual +0x10C (a, b)
-// of the object at +0x14.
+// of the object at +0x14. When *a is already set the function returns it (the `lw v0, 0(s1)` the test reads: batch 95's real-time
+// full gate hit that path once, on the options route, and the original's v0 was *a where this returned the call's result).
 void func_08A568EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t a = ctx.gpr[5], b = ctx.gpr[6];
     {
         GuestFrame frame(ctx, 0x10u);
         ctx.gpr[2] = call_guest(rt, ctx, 0x08A76E3Cu, {self, a, b});
-        if (word(rt, a) != 0u) return;
+        ctx.gpr[2] = word(rt, a);
+        if (ctx.gpr[2] != 0u) return;
         if (word(rt, self + 0x14u) == 0u) (void)call_guest(rt, ctx, 0x08A5BB7Cu, {0x08CAF798u});
     }
     const std::uint32_t object = word(rt, self + 0x14u);
