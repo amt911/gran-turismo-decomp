@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
             {0x109F50BCu, 0x07u},  // sceIoOpen(path, flags, mode): synchronous host open
             {0x27EB27B8u, 0x1Du},  // sceIoLseek(fd, -, offset lo, offset hi, whence): a1 is padding
             {0xF475845Du, 0x07u},  // sceKernelStartThread(uid, size, args): refused in a case when it would preempt
-            {0xE7C27D1Bu, 0x01u},  // sceRtcGetCurrentClockLocalTime(time): the wall clock, written as a 16-byte date to guest RAM
+            {0xE7C27D1Bu, 0x01u},  // sceRtcGetCurrentClockLocalTime(time): a fixed start date plus the virtual time, written as a 16-byte date to guest RAM
         };
         std::vector<gt::ImportStub> import_stubs;
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
