@@ -4,6 +4,7 @@
 #include "psprecomp/runtime.hpp"
 
 #include <cstdint>
+#include <exception>
 #include <initializer_list>
 
 namespace gt {
@@ -17,6 +18,13 @@ namespace gt {
 // a switch stops the runtime with an explanation instead.
 std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
                          std::initializer_list<std::uint32_t> arguments);
+
+// Thrown by call_guest when the runtime is already stopped. Answering 0 would leave a decompiled loop that waits
+// for a callee's progress spinning forever, with the stop reason never printed; instead the decompiled code unwinds
+// to the dispatcher's entry (the decomp trampoline, or the fiber), which returns and lets the dispatcher end the run.
+struct GuestStopped : std::exception {
+    const char *what() const noexcept override { return "call_guest on a stopped runtime"; }
+};
 
 // The same for callees with float arguments ($f12, $f13, ...) and a float result ($f0).
 struct GuestResult {

@@ -82,6 +82,19 @@ int main() {
     again.gpr[31] = kCallerReturn;
     gt::fiber::run(rt, again, [](psprecomp::Runtime &, psprecomp::AllegrexContext &c) { c.gpr[2] = 5u; }, kEntry);
     check(again.gpr[2] == 5u && again.pc == kCallerReturn, "a non-blocking call returns directly");
+
+    // A decompiled call on a stopped runtime unwinds by GuestStopped; the fiber absorbs it and the dispatcher
+    // (which checks the stop) gets control back.
+    psprecomp::AllegrexContext stopped{};
+    stopped.gpr[31] = kCallerReturn;
+    bool escaped = false;
+    try {
+        gt::fiber::run(rt, stopped, [](psprecomp::Runtime &, psprecomp::AllegrexContext &) { throw gt::GuestStopped{}; },
+                       kEntry);
+    } catch (...) {
+        escaped = true;
+    }
+    check(!escaped && !gt::fiber::on_fiber(), "GuestStopped thrown on a fiber ends the fiber and returns to the dispatcher");
     if (failures == 0) std::puts("fiber: all tests passed");
     return failures == 0 ? 0 : 1;
 }

@@ -1,0 +1,35 @@
+GT patch 0050: a host loop that dispatches guest code itself (gt::call_guest, used by decompiled code) gets what the
+dispatcher has: dispatch_function_at() finds the generated unit that holds a pc (a thread that blocked inside a call
+resumes at its return address, in the middle of a function, which only the unit knows), and dispatch_boundary() runs the
+scheduler boundary after a dispatch (virtual time, preemption, the wall-clock limit).
+
+--- a/include/psprecomp/runtime.hpp
++++ b/include/psprecomp/runtime.hpp
+@@ -89,6 +89,13 @@
+     // The function currently registered at `address` (nullptr if none). Lets a host keep the
+     // original recompiled entry before replacing it, e.g. to run both in a differential test.
+     [[nodiscard]] RecompiledFunction function_at(std::uint32_t address) const noexcept;
++    // GT patch 0050: what the dispatcher runs at `address`: the generated unit that holds it, else the function
++    // registered there. A thread that blocked inside a call resumes at the call's return address, in the middle of a
++    // function; only the unit knows that pc. A host loop that dispatches guest code (gt::call_guest) uses this.
++    [[nodiscard]] RecompiledFunction dispatch_function_at(std::uint32_t address) const noexcept;
++    // GT patch 0050: the scheduler boundary the dispatcher runs after each outer dispatch (virtual time, preemption,
++    // the wall-clock limit), for a host loop that dispatches guest code itself. False when it switched PSP threads.
++    bool dispatch_boundary(AllegrexContext &ctx) { return account_dispatch_work(ctx, true); }
+     void register_hle(std::string library, std::uint32_t nid, HleFunction function);
+     [[nodiscard]] bool has_function(std::uint32_t address) const;
+     [[nodiscard]] std::size_t function_count() const noexcept;
+--- a/src/runtime.cpp
++++ b/src/runtime.cpp
+@@ -455,6 +455,11 @@
+     return lookup_function(address);
+ }
+ 
++Runtime::RecompiledFunction Runtime::dispatch_function_at(std::uint32_t address) const noexcept {  // GT patch 0050
++    const RecompiledFunction unit = lookup_generated_unit(address);
++    return unit != nullptr ? unit : lookup_function(address);
++}
++
+ Runtime::RecompiledFunction Runtime::lookup_function(std::uint32_t address) const noexcept {
+     const std::uint32_t c = memory_.canonical(address);
+     const std::uint32_t delta = c - direct_base_;
