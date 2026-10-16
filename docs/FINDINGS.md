@@ -1742,6 +1742,14 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_94.cpp (func_08A1F328), tools/s
 
 Found: 2026-10-16 · tools/patches/lcs-recomp/0046-draw-state-revision-caches.patch, 0049-ge-fast-path-quad-strips.patch
 
+## A backend entry of its own for the fast path was slower: measured and dropped
+
+**Symptom.** After 0049 the backend's general accumulate call was still the top function of the GE thread (11.5 % of samples, two cores, race). A dedicated entry for the fast draws (one lock, strip indices written directly, the render-target lookup once per revision, merging by revision instead of comparing 352 + 180 bytes) measured slower: 300-334 vs 286-290 ns per draw, two interleaved runs each.
+**Cause.** Merging by revision alone made more batches (the general path's first draw of each revision could not be joined: recording +11 %); with the general merge test as fallback it was still no faster: the compares and the lock it removed are not where the time goes.
+**Fix / workaround.** Not merged (2026-10-16). Measure first: `tools.thread_cpu --name gt_play` shows the CPU per thread (the GE thread is named `gt-ge`; the game thread keeps the process name): on two desktop cores in a race the GE thread is ~47 % and the game thread ~35 % of a core.
+
+Found: 2026-10-16 · tools/thread_cpu.py
+
 ## A string release that finds the shared empty cell leaves the `v0` the asm held, and a `lui v0` / `addiu s1, v0` pair leaves only the high half there
 
 **Symptom.** Batch 95: eight functions end, or run to a point with no call after it, with the string-cell release sequence (`beq data - 0xC, D_08D74FD0` skips `func_08B60804` / `func_08B8542C`). When it skips nothing is called, so the function returns the `v0` the instructions before it left, and `v0` is compared (`ReturnKind::Word`). Nothing in `tools.disasm` says which constant that is.
