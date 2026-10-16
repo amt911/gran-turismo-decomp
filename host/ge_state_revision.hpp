@@ -10,6 +10,7 @@ namespace gt {
 class GeStateRevision {
 public:
     static bool per_draw_register(std::uint32_t command) noexcept;
+    static bool matrix_stream_register(std::uint32_t command) noexcept;  // bumps on every write
     // Call before storing `data` in `commands[command]`.
     void on_command(std::uint32_t command, std::uint32_t old_data, std::uint32_t data) noexcept;
     void on_list_start() noexcept;      // new list: hashes and remembered content are forgotten

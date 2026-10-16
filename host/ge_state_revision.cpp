@@ -14,8 +14,14 @@ bool GeStateRevision::per_draw_register(std::uint32_t command) noexcept {
     }
 }
 
+bool GeStateRevision::matrix_stream_register(std::uint32_t command) noexcept {
+    // Bone, world, view, projection and texture-generation matrix data: each write fills the next element, so the
+    // previous write's value says nothing about the element it replaces.
+    return command == 0x2Bu || command == 0x3Bu || command == 0x3Du || command == 0x3Fu || command == 0x41u;
+}
+
 void GeStateRevision::on_command(std::uint32_t command, std::uint32_t old_data, std::uint32_t data) noexcept {
-    if (old_data != data && !per_draw_register(command)) ++value_;
+    if (matrix_stream_register(command) || (old_data != data && !per_draw_register(command))) ++value_;
 }
 
 void GeStateRevision::on_list_start() noexcept { ++value_; }

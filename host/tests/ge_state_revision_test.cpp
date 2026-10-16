@@ -37,6 +37,19 @@ int main() {
     r.on_command(0x3Bu, 0u, 1u);
     check(r.value() != v1, "matrix data change bumps");
 
+    // matrix_stream_repeated_value_bumps: matrix data registers fill the next element on each write, so a write of
+    // the same value as the previous element can still change the matrix (review of #221).
+    for (unsigned c : {0x2Bu, 0x3Bu, 0x3Du, 0x3Fu, 0x41u}) {
+        const auto before = r.value();
+        r.on_command(c, 7u, 7u);
+        check(r.value() != before, "matrix data write with a repeated value bumps");
+    }
+    {
+        const auto before = r.value();
+        r.on_command(0x3Au, 0u, 0u);
+        check(r.value() == before, "a matrix index register with the same value does not bump");
+    }
+
     // transfer_and_list_start_bump
     const auto v2 = r.value();
     r.on_block_transfer();
