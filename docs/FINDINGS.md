@@ -1726,6 +1726,14 @@ Also seen: a function that ends with a void callee returns the `v0` the original
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_93.cpp (scan_block, func_08896780, args_to_vector, fill_insert_scalar)
 
+## A disassembly view with the callee-saved reloads hidden also hides a real `lw $s0, 4($sp)`: `tools.sp_loads` lists the ones to read
+
+**Symptom.** Batch 94's first fast gate with `func_08A1F328`: both compared cases of each menu route ended `decompiled run faulted: Guest memory access outside PSP RAM/EDRAM at 0x13990043` (0x1398F983 in the next run), not inside the function's own code; the other 34 functions of the batch passed the first time.
+**Cause.** The functions were read through a scratch view of `tools.disasm` that dropped every `lw $sN/$fp/$ra, off($sp)` and `sw` of them to skip the prologue and the epilogues. At 0x08A1F3E0 `lw $s0, 4($sp)` is not a restore: `func_08A1EC18(.., sp + 4, ..)` stores a new object there and the next calls (func_08AF771C, func_08AF7B0C, func_08A44D9C) work on it, while the C++ kept the argument object in `s0`.
+**Fix / workaround.** `tools.sp_loads` (new, 3 tests) lists the `lw $sN/$fp/$ra, off($sp)` of each function of a batch file whose register was not saved to that offset; on the 35 functions of batch 94 it found this one and 11 loads the C++ already models (the string data pointers re-read after a call in `parse_floats` and `func_089AF6A0`). Run it with `literal_check` before the first gate. A gate would not have found a hidden load on a path no route runs.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_94.cpp (func_08A1F328), tools/sp_loads.py
+
 ## The GE's per-draw cost was mostly redone state: a revision and a quad-strip fast path cut it by half
 
 **Symptom.** On two cores the GE thread spent ~730 ns per draw (~420 ms/s in a race), and the game thread waited for it 28 % of the time; on the laptop, 30-50 frames/s skipped and audio dips.

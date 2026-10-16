@@ -128,6 +128,10 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   0x11111111 for the asm's 0x01111111 on a path no route runs; the tool finds that kind of typo (it exits 1). A literal built
   in two steps that are not an immediate pair (a displacement added to a register) is listed with `--allow 0xFUNC:0xVALUE`.
   Run it before the first gate and after every edit of the file, and put its result in the PR body.
+- **Loads the disassembly view may hide** (`.venv/bin/python -m tools.sp_loads src/game/unsorted/hot_batch_N.cpp`): a view of
+  `tools.disasm` with the callee-saved saves and reloads filtered out also drops a REAL `lw $s0, 4($sp)` (batch 94: `func_08A1F328`
+  reloaded `s0` from the word a callee stored at sp + 4 and the first gate faulted). The tool lists, per function of a batch file, the
+  `lw $sN/$fp/$ra, off($sp)` whose register was never saved to that offset; each one must be modelled in the C++ (`word(rt, frame.at(off))`).
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape
