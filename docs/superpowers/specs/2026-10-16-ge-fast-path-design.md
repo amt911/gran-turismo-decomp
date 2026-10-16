@@ -1,6 +1,6 @@
 # GE fast path: GT's common draw without the per-draw rebuilds
 
-Status: **draft for the user's review** (2026-10-16). Nothing is implemented until it is approved.
+Status: **approved by the user on 2026-10-16** (chat: "el pr 214 me parece bien, continúa"). Plan: `docs/superpowers/plans/2026-10-16-ge-fast-path.md`.
 
 ## Problem (measured)
 
