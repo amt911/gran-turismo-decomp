@@ -1725,3 +1725,11 @@ to the stack).
 Also seen: a function that ends with a void callee returns the `v0` the original had at that call, which can be an unrelated `sll v0, s3, 2` between the previous call and it (`func_08BFB68C` returned the destination of the previous call, the original `tail << 2`): the first gate caught it as `v0: original 0x0, decompiled 0x094AD1D4`.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_93.cpp (scan_block, func_08896780, args_to_vector, fill_insert_scalar)
+
+## The GE's per-draw cost was mostly redone state: a revision and a quad-strip fast path cut it by half
+
+**Symptom.** On two cores the GE thread spent ~730 ns per draw (~420 ms/s in a race), and the game thread waited for it 28 % of the time; on the laptop, 30-50 frames/s skipped and audio dips.
+**Cause.** GT's executor passed no state revision, so the renderer's revision-keyed caches never hit: every draw rebuilt the 352-byte descriptor, the lighting, the hardware transform, ran 3-4 texture-map lookups and 7-9 backend locks — while before 97 % of race draws only the texture level 0xC8 (or nothing) changed, and 94 % of the draws are textured quad strips of at most 8 vertices.
+**Fix / workaround.** Two steps (spec `docs/superpowers/specs/2026-10-16-ge-fast-path-design.md`): `host/ge_state_revision.cpp` + lcs-recomp patch 0046 (the caches hit; ns per draw 730 → 574), and patch 0049, a fast path for the quad strips on a revision hit (→ 372 ns, lists 252 ms/s, GE wait 12 %). Both have byte-for-byte verify modes (`GT_GE_REVISION_VERIFY`, `GT_GE_FASTPATH_VERIFY`) and sabotage runs that the verify caught. Pitfalls met on the way: struct copies do not keep padding (compare member-wise, build into zeroed bytes); a matrix data register is a stream (bump on every write); the content signature is set only on the draws that re-check a texture, so the verify compares the texture keys it produces, not the signature itself; A/B runs of the same route drift to different scenes, so compare ns per draw, not ms/s.
+
+Found: 2026-10-16 · tools/patches/lcs-recomp/0046-draw-state-revision-caches.patch, 0049-ge-fast-path-quad-strips.patch
