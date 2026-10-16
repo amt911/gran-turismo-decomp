@@ -132,6 +132,12 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   `tools.disasm` with the callee-saved saves and reloads filtered out also drops a REAL `lw $s0, 4($sp)` (batch 94: `func_08A1F328`
   reloaded `s0` from the word a callee stored at sp + 4 and the first gate faulted). The tool lists, per function of a batch file, the
   `lw $sN/$fp/$ra, off($sp)` whose register was never saved to that offset; each one must be modelled in the C++ (`word(rt, frame.at(off))`).
+- **Argument registers a call leaves unset** (`.venv/bin/python -m tools.arg_reads src/game/unsorted/hot_batch_N.cpp`): for every
+  `call_set` / `call_keep` with a literal address it lists the argument registers (a0-a3, t0-t3) the callee reads before writing them
+  that the call does not pass (a callee then sees whatever the C++ context holds from an earlier, different call: batch 93). The scan is
+  by address order, not a flow analysis, so a line is a place to read the callee's head: batch 95 got six, all harmless (a variadic
+  `sprintf` and a register spill read the unused argument registers, `func_08B36170` copies `t3` to `t2` only to compare them with each
+  other, `func_089AAC8C` writes `a1` before its first use on the path that matters). Exit 1 while there is one; put the verdicts in the PR.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape
