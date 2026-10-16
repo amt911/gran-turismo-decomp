@@ -36,6 +36,18 @@ void scale(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {  // f0 = f12
     ctx.pc = ctx.gpr[31];
 }
 
+// A generated unit (16 KiB of guest code): it accepts any pc inside it, like the recompiled units do for a
+// return address in the middle of a function (where a thread switch resumes).
+constexpr std::uint32_t kUnit = 0x08910000u;
+constexpr std::uint32_t kMidFunction = kUnit + 0x0Cu;  // not a function start: only the unit knows it
+void unit(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    if (ctx.pc == kMidFunction) ctx.gpr[2] = 7u;
+    ctx.pc = ctx.gpr[31];
+}
+
+int g_boundaries = 0;
+void count_boundary(psprecomp::Runtime &, psprecomp::AllegrexContext &) { ++g_boundaries; }
+
 void switch_thread(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
     psprecomp::set_runtime_thread_identity(7, "other");
     ctx.pc = ctx.gpr[31];
@@ -60,9 +72,29 @@ int main() {
     check(gt::call_guest(rt, caller, kScale, {1u}, {2.5f, 4.0f}).f0 == 11.0f, "float arguments in $f12.., result in $f0");
     check(!rt.stopped(), "normal calls don't stop the runtime");
 
+    // Every guest step is a dispatch: the scheduler's starvation boundary (virtual time, preemption, the wall-clock
+    // limit) runs as in the dispatcher, or a guest loop polling another PSP thread would never see it progress.
+    psprecomp::set_runtime_starvation_hook(&count_boundary, 1u);
+    (void)gt::call_guest(rt, caller, kDoubleThenAdd, {20u, 2u});
+    psprecomp::set_runtime_starvation_hook(nullptr, 0u);
+    check(g_boundaries == 2, "one scheduler boundary per guest dispatch");
+
     check(gt::call_guest(rt, caller, kSwitchThread, {}) == 0u, "a thread switch returns 0");
     check(rt.stopped() && rt.stop_reason().find("switched PSP threads") != std::string::npos,
           "a thread switch stops the runtime with the reason");
+
+    psprecomp::Runtime units;
+    units.register_generated_unit(0u, kUnit, 0x4000u, &unit);
+    check(gt::call_guest(units, caller, kMidFunction, {}) == 7u && !units.stopped(),
+          "a pc inside a generated unit runs through the unit, as the dispatcher does");
+
+    bool threw = false;
+    try {
+        (void)gt::call_guest(rt, caller, kAdd, {1u, 2u});  // rt stopped above
+    } catch (const gt::GuestStopped &) {
+        threw = true;
+    }
+    check(threw, "a call on a stopped runtime throws GuestStopped instead of answering 0 (a decompiled loop would spin)");
 
     psprecomp::Runtime empty;
     check(gt::call_guest(empty, caller, 0x08900300u, {}) == 0u && empty.stopped(), "a missing function stops");

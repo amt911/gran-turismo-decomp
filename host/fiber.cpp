@@ -1,5 +1,7 @@
 #include "fiber.hpp"
 
+#include "guest_call.hpp"
+
 #include <ucontext.h>
 
 #include <memory>
@@ -39,7 +41,11 @@ void fiber_main() {
     Fiber &f = *g_current;
     f.top = *f.live;
     f.top.pc = f.entry;
-    f.fn(*f.rt, f.top);
+    try {
+        f.fn(*f.rt, f.top);
+    } catch (const GuestStopped &) {
+        // The runtime stopped under the decompiled code (gt::call_guest): end the fiber; the dispatcher sees the stop.
+    }
     f.top.gpr[0] = 0u;
     if (f.top.pc == f.entry) f.top.pc = f.top.gpr[31];
     *f.live = f.top;

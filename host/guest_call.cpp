@@ -32,8 +32,9 @@ GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext 
     ctx.pc = address;
     std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
     for (std::uint64_t step = 0; ctx.pc != sentinel; ++step) {
-        if (rt.stopped()) return {};
-        const auto function = rt.function_at(ctx.pc);
+        if (rt.stopped()) throw GuestStopped{};
+        // As the dispatcher: a callee that blocked resumes at its return address, inside a generated unit.
+        const auto function = rt.dispatch_function_at(ctx.pc);
         if (function == nullptr || step >= kMaxSteps) {
             rt.stop("call_guest(" + psprecomp::hex32(address) + "): no function at " + psprecomp::hex32(ctx.pc) +
                     " or no return");
@@ -41,7 +42,9 @@ GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext 
         }
         function(rt, ctx);
         ctx.gpr[0] = 0u;
-        if (kernel_isolation_broken()) return {};  // a harness case gave up; its result is discarded
+        if (kernel_isolation_broken()) return {};
+        if (rt.stopped()) return {};  // the callee stopped the runtime: this call ends, the next one throws
+        (void)rt.dispatch_boundary(ctx);  // as the dispatcher: time advances, a poll lets other threads run  // a harness case gave up; its result is discarded
         if (!psprecomp::runtime_thread_switch_generation_matches(generation)) {
             if (!fiber::on_fiber()) {
                 rt.stop("call_guest(" + psprecomp::hex32(address) +

@@ -1,6 +1,7 @@
 #include "diff_harness.hpp"
 
 #include "fiber.hpp"
+#include "guest_call.hpp"
 #include "import_replay.hpp"
 #include "kernel_isolation.hpp"
 #include "kernel_replay_state.hpp"
@@ -391,7 +392,7 @@ void run_decompiled(Entry &entry, psprecomp::Runtime &rt, psprecomp::AllegrexCon
     if (ctx.pc == entry.info.address) ctx.pc = ctx.gpr[31];
 }
 
-void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const auto it = g_entries.find(ctx.pc);
     if (it == g_entries.end()) {
         rt.unsupported(ctx.pc, 0u, "decomp trampoline reached for an unregistered address");
@@ -619,6 +620,16 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     keep_original_result();
     ctx = original_ctx;
     ctx.pc = entry_ctx.gpr[31];
+}
+
+// The dispatcher's entry into decompiled code. A call_guest on a stopped runtime unwinds the decompiled frames with
+// GuestStopped (host/guest_call.hpp); it ends here, and the dispatcher, which checks the stop, ends the run with its
+// reason.
+void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    try {
+        trampoline_body(rt, ctx);
+    } catch (const GuestStopped &) {
+    }
 }
 
 } // namespace
