@@ -1603,6 +1603,25 @@ and `sabotage` pins them, but not within its 4 rounds: 43 of 46 were detected, a
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (func_0880D564, func_0880D478)
 
+## A wrapper whose memory effects live in its callees shows "cases that changed memory 0" from the sample, not from the code: run it dense before unregistering
+
+**Symptom.** Batch 88's `func_08BFA640` (the recursion of a stable sort: it only calls `func_08BFA07C` on both halves and tail-calls the merge `func_08BFA3E0`) came out of two fast gates with `compared 23, equal 23, cases that changed memory 0`
+(58 calls on the routes), which the rule "a function that writes memory needs a compared case that changed memory" reads as unverified.
+**Cause.** The compared calls are a geometric sample of the 58 (23 of them); the few calls whose merge actually moves elements were not in it. The function writes nothing itself, but a wrong argument of its tail call only shows when the merged data changes.
+**Fix / workaround.** `GT_DECOMP_DENSE=0x08BFA640 .venv/bin/python -m tools.decomp_gate fast TAG --only ...` (the tool inherits it) compared all 58 calls: 3 changed memory, 0 mismatches, and the function stayed registered. Before unregistering a function
+for "no case changed memory", check `calls` against `compared`: when they differ, run it dense first (the nine unregistered getters/setters of batch 88 had `calls` = `compared`, so dense could not help them).
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_88.cpp (func_08BFA640)
+
+## `tools.decomp_gate` writes to a redirected log in 8 KB blocks: a sabotage run's round summaries can show up long after the round
+
+**Symptom.** `nohup .venv/bin/python -m tools.decomp_gate sabotage ... > out &` (batch 88: three rounds of ~7 minutes) left the output file empty for the first ~10 minutes and then showed the mismatch lines of a round whose summary line
+(`sabotage round N: ...`) was still missing, although the per-route logs under `recomp/analysis/gt_diff_<TAG>*_<route>.log` were filling.
+**Cause.** Python block-buffers stdout when it is not a terminal; the tool's `print`s (route lines, mismatch lines, round summaries) reach the file only when 8 KB have accumulated or the process exits.
+**Fix / workaround.** Follow a long run through its route logs (`ls recomp/analysis/gt_diff_<TAG>*`, `.venv/bin/python -m tools.decomp_gate report <TAG>`), or start it with `python -u`; the summary is complete once the process ends.
+
+Found: 2026-10-16 · tools/decomp_gate.py
+
 ## Mode 1 (constant mip level) was sampled with the automatic level on decoded textures: GT draws millions of race draws that way
 
 **Symptom.** The GPU gate's dealer route failed 413 of 588 frame pairs (most menus with 3D cars); distant objects in the race picked smaller mip levels than the console shows.
