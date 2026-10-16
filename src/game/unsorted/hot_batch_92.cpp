@@ -686,7 +686,7 @@ void func_08ADE8C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
 }
 
-// func_08A0F344(this): m = byte this[0x63] & 0xF; m == 0 returns v0 = 0. Otherwise a prefix call on this and a tail jump: m = 1..5 call func_08A0F0BC(this), m = 6..10 func_08A0F15C(this), m = 11..15 func_08A0F16C(this) (the jump table at D_08C8E0D0 of the original); then the tail goes to the virtual slot 0x1B0, 0x1B4 or 0x1B8 of this (this) for the
+// func_08A0F344(this): m = byte this[0x63] & 0xF; m == 0 returns v0 = 0x08C8E0D0 (the jump table, as the original computes table + 4*m). Otherwise a prefix call on this and a tail jump: m = 1..5 call func_08A0F0BC(this), m = 6..10 func_08A0F15C(this), m = 11..15 func_08A0F16C(this) (the jump table at D_08C8E0D0 of the original); then the tail goes to the virtual slot 0x1B0, 0x1B4 or 0x1B8 of this (this) for the
 // positions 1-3 of each group of five, or to func_08A0F0CC(this) for the 4th and func_08A0F114(this) for the 5th.
 // Branches the routes do not take (from `tools.decomp_gate coverage` of the fast gate, read against the asm by hand, branch targets and delay slots included): `target = position == 3u ? 0x08A0F0CCu : 0x08A0F114u`
 void func_08A0F344(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -792,6 +792,8 @@ void func_088721DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             } else {
                 target = slot_of(rt, item3, 0x28u);
                 last = item3;
+                ctx.gpr[2] = word(rt, item3);  // the original jumps with v0 = item3's vtable (0x08872380)
+                ctx.gpr[3] = word(rt, slot);   // and v1 = the pair (0x08872368)
             }
             return true;
         };
@@ -3532,8 +3534,8 @@ void func_08905D18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (last != 0u) return;
     const std::uint32_t record = word(rt, self + 0xA8u);
     ctx.gpr[5] = record;
+    ctx.gpr[2] = 0x44u;  // the delay slot of the beqz at 0x08905DDC: runs on both paths
     if (record == 0u) return;
-    ctx.gpr[2] = 0x44u;
     const std::uint32_t first = sext8(byte_u(rt, record));
     ctx.gpr[3] = first;
     if (first != 0x44u) return;
