@@ -48,3 +48,29 @@ def test_missing_arguments_are_the_read_registers_beyond_the_passed_ones():
     assert arg_reads.missing({4, 5}, 2) == []
     assert arg_reads.missing({8}, 4) == [8]  # t0 is the fifth argument register
     assert arg_reads.missing({8}, 5) == []
+
+
+FORWARDER = [
+    "  08000000: 0810E93A  j           func_43A4E8  -> func_08C3E4E8",
+    "  08000004: 00000000  nop",
+]
+
+
+def test_a_short_callee_that_ends_in_a_jump_is_a_forwarder_to_its_target():
+    assert arg_reads.forwarder_target(FORWARDER) == 0x08C3E4E8
+    assert arg_reads.forwarder_target(CALLEE) is None  # ends in jr, not j
+
+
+def test_a_long_callee_with_a_jump_inside_is_not_a_forwarder():
+    long_body = ["  08000000: 08100000  j           func_400000  -> func_08400000"] + ["  08000004: 00000000  nop"] * 12
+    assert arg_reads.forwarder_target(long_body) is None
+
+
+def test_a_forwarder_also_reads_what_its_target_reads_except_what_it_writes_first():
+    # the forwarder moves a0 into a1 (writes a1, reads a0); the target reads a0, a1, a2
+    forwarder = [
+        "  08000000: 00802821  addu        $a1, $a0, $zero",
+        "  08000004: 0810E93A  j           func_43A4E8  -> func_08C3E4E8",
+    ]
+    assert arg_reads.with_forwarded(forwarder, {4, 5, 6}) == {4, 6}  # a1 is written by the forwarder, a2 is the hidden third argument
+    assert arg_reads.with_forwarded(FORWARDER, {4, 5, 6}) == {4, 5, 6}
