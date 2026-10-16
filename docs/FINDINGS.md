@@ -1668,3 +1668,15 @@ call per route, a table-driven registration function): one template with the tab
 batch are `compared 0` in the real-time full gate (all 56 members among them), so their proof is the uncapped fast gate and the sabotage. Next time probe 71-120 (or 1-120) from the start and cluster before reading by hand.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_89.cpp (register_table)
+
+## A hot function that never writes in its sampled cases may never write at all: the fast gate's DENSE stays at 32 cases per route, so run the binary by hand with `--decomp-cases` before judging
+
+**Symptom.** Batch 90's `func_08BA9498` (a vector erase, 86,623 calls over the five routes of the fast gate) and `func_08C070FC` (a vector assignment, 74 calls) came out of the fast gate with `cases that changed memory 0` (160 and 24 compared cases,
+all equal). `GT_DECOMP_DENSE=0x08BA9498 .venv/bin/python -m tools.decomp_gate fast ...` (the tool inherits it, FINDINGS batch 88) still compared only 32 cases per route (160 in all) and none wrote, so it could not tell "never writes" from "the sample missed it".
+**Cause.** `route_shell` runs `build/gt_native --decomp diff` with the default case budget (32 per function per route) and has no way to pass `--decomp-cases`: DENSE only chooses which calls fill that budget, which is enough for a function with 58 calls (batch 88) and not for one with tens of thousands.
+**Fix / workaround.** Run the binary by hand with the same environment and a larger budget, inside the slice:
+`GT_DECOMP_ONLY=0xADDR GT_DECOMP_DENSE=0xADDR LCS_UNCAPPED=1 GT_PAD="$(grep -v '^#' config/pad_routes/race.pad)" systemd-run --user --scope --slice=gt-heavy.slice -- build/gt_native --max-seconds 200 --decomp diff --decomp-cases 3000`
+(about 5 minutes per route). The race route compared 3,000 cases of `func_08BA9498` (12,231 calls) and every call of `func_08C070FC` (58 on race, 4 on dealer, 4 on garage); none changed memory, so both stay written but unregistered (a registered function needs a compared case that writes).
+Also: `tools.decomp_gate coverage` prints the line numbers of the file as the build compiled it; comments edited while the run is going shift them, so map each report line by function (or by the offset of the lines added above) before editing the comments.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_90.cpp (func_08BA9498, func_08C070FC)
