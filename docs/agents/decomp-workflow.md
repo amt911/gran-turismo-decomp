@@ -122,6 +122,12 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   case took and the code regions that never ran. Compare each such path with the asm by hand and list it in the function's
   comment ("Branches the routes do not take (checked against the asm by hand): ..."). Read the branch **target** block, not
   only the delay slot: a value set in a delay slot is the result only if the target does not overwrite it.
+- **Literals the gate cannot see** (`.venv/bin/python -m tools.literal_check src/game/unsorted/hot_batch_N.cpp`): every
+  hexadecimal literal of every `void func_X(` must appear in that function's own `tools.disasm` output (immediates, resolved
+  addresses, call targets, the 32-bit value of a `lui`/`ori` pair or of a bare `lui` float constant). Batch 90 shipped
+  0x11111111 for the asm's 0x01111111 on a path no route runs; the tool finds that kind of typo (it exits 1). A literal built
+  in two steps that are not an immediate pair (a displacement added to a register) is listed with `--allow 0xFUNC:0xVALUE`.
+  Run it before the first gate and after every edit of the file, and put its result in the PR body.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape

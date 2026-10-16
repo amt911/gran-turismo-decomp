@@ -1425,6 +1425,8 @@ passed the byte, not the handle. (3) The delay slot of `bnez` ran (`sltiu $v0,$v
 **Fix / workaround.** `.venv/bin/python -m tools.disasm ADDR [ADDR:N ...]` prints every branch as `-> ADDRESS` (resolved from the delay slot), the relocated `lui`/`addiu`/load addresses and the `jal` targets: take
 targets from it, never count `pc + 4 + (N << 2)` by hand. When a register is reused between a load and a delay-slot use, follow the register, not the name in the comment; the delay slot of every branch is part of the
 branch's path, taken or not (a likely branch skips it when not taken). The gate only catches the paths its cases take: read the untaken ones in the coverage list against the asm again.
+Batch 87 added a fourth form: a `move s0, v0` in the delay slot of the `jal` that follows a call captures the PREVIOUS call's `v0` (`func_0880D478` kept the allocation of the next `jal` instead of the earlier answer and
+faulted on all 6 compared cases), so a register written in a delay slot is read as of before the call it sits in.
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_81.cpp (func_08B54FB8, func_08C436F4)
 
@@ -1579,6 +1581,47 @@ batch 83's `func_08A9DD14` (not re-checked).
 
 Found: 2026-10-15 · src/game/unsorted/hot_batch_86.cpp (func_0880BEF8)
 
+## A fast gate on a loaded machine "never compares" what the routes reach on a quiet one: read `uptime` before reading `never compared`
+
+**Symptom.** Batch 87's first fast gate: 48 functions installed, 17 compared, 31 `never compared` (`calls 0`), although the batch-78 probe had reached every one of them 1-5 times on the same routes.
+**Cause.** The routes are wall-clock bound (`--max-seconds`, uncapped but not unlimited): the host ran at a load average of 57 on 24 cores (an Android emulator at 1,000 % CPU beside another agent's GPU gate), so each route
+reached fewer game states in the same seconds and never got to the late, rarely called functions. Nothing in the gate's output says so.
+**Fix / workaround.** Check `uptime` first; when the machine is loaded run the same gate with the route times doubled (`ROUTES["fast"]` scaled in a wrapper script, race 400 / dealer 200 / garage 206 / buy 220 / options 460):
+43 of 60 compared then (every function written for the batch installed), 47 of 47 after the parents were left out (next entry; one more was unregistered afterwards, so the final batch registers 46), and the sabotage needed the same doubling. Re-run at the usual times once the load is gone. A heavy job of another agent
+holding `gt-heavy.lock` also delays `tools.recomp` (it takes both slots) by the length of that job: the gate waits silently (it showed no output for 40 minutes).
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (the whole batch)
+
+## Descendants swallowed by a registered parent can be registered NESTED instead of being left behind: the gate then counts them in the parent's equal cases
+
+**Symptom.** Batch 87's first complete gate: nine destructors (`func_0886DE00`, `func_0887ED48`, `func_0889A4F0`, `func_088A11F8`, `func_088AF1D0`, `func_08BD67B8`, `func_08ABF590`, `func_08B9355C`, `func_088A23EC`) compared 0 although
+the probe reaches each once per menu route. Two functions of the batch, `func_0880D564` and `func_0880D478`, destroy the same member object (a virtual slot-0 call): their cases swallow everything below, as in the batch 86 entry.
+**Cause.** Same as that entry (`call_guest` into a registered function that is not `GT_DECOMP_NESTED` runs and counts nothing); here the chain is two levels deep, so leaving the two parents out made four of the nine compared
+but the other five were still swallowed, now by those four.
+**Fix / workaround.** The two parents stay written but unregistered; the five that only run inside their parents' cases are registered `GT_DECOMP_NESTED` (`tools.contract_audit` 0): the gate reports them as `nested in 4 equal / 0 mismatched cases`
+and `sabotage` pins them, but not within its 4 rounds: 43 of 46 were detected, and the last three (all nested) were pinned by a second run that sabotaged only them with the other 43 installed (`--also`).
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_87.cpp (func_0880D564, func_0880D478)
+
+## A wrapper whose memory effects live in its callees shows "cases that changed memory 0" from the sample, not from the code: run it dense before unregistering
+
+**Symptom.** Batch 88's `func_08BFA640` (the recursion of a stable sort: it only calls `func_08BFA07C` on both halves and tail-calls the merge `func_08BFA3E0`) came out of two fast gates with `compared 23, equal 23, cases that changed memory 0`
+(58 calls on the routes), which the rule "a function that writes memory needs a compared case that changed memory" reads as unverified.
+**Cause.** The compared calls are a geometric sample of the 58 (23 of them); the few calls whose merge actually moves elements were not in it. The function writes nothing itself, but a wrong argument of its tail call only shows when the merged data changes.
+**Fix / workaround.** `GT_DECOMP_DENSE=0x08BFA640 .venv/bin/python -m tools.decomp_gate fast TAG --only ...` (the tool inherits it) compared all 58 calls: 3 changed memory, 0 mismatches, and the function stayed registered. Before unregistering a function
+for "no case changed memory", check `calls` against `compared`: when they differ, run it dense first (the nine unregistered getters/setters of batch 88 had `calls` = `compared`, so dense could not help them).
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_88.cpp (func_08BFA640)
+
+## `tools.decomp_gate` writes to a redirected log in 8 KB blocks: a sabotage run's round summaries can show up long after the round
+
+**Symptom.** `nohup .venv/bin/python -m tools.decomp_gate sabotage ... > out &` (batch 88: three rounds of ~7 minutes) left the output file empty for the first ~10 minutes and then showed the mismatch lines of a round whose summary line
+(`sabotage round N: ...`) was still missing, although the per-route logs under `recomp/analysis/gt_diff_<TAG>*_<route>.log` were filling.
+**Cause.** Python block-buffers stdout when it is not a terminal; the tool's `print`s (route lines, mismatch lines, round summaries) reach the file only when 8 KB have accumulated or the process exits.
+**Fix / workaround.** Follow a long run through its route logs (`ls recomp/analysis/gt_diff_<TAG>*`, `.venv/bin/python -m tools.decomp_gate report <TAG>`), or start it with `python -u`; the summary is complete once the process ends.
+
+Found: 2026-10-16 · tools/decomp_gate.py
+
 ## Mode 1 (constant mip level) was sampled with the automatic level on decoded textures: GT draws millions of race draws that way
 
 **Symptom.** The GPU gate's dealer route failed 413 of 588 frame pairs (most menus with 3D cars); distant objects in the race picked smaller mip levels than the console shows.
@@ -1613,3 +1656,45 @@ winding was also inverted: every front face was culled (the race showed the insi
 board's black is clean and the lower panel is see-through as in the software frame.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0045-hardware-back-face-culling.patch
+
+## The 10-70 instruction pool of the batch-78 probe ran dry at batch 89: a probe over 71-120 instructions found two families of 56 functions that the first one could not list
+
+**Symptom.** Batch 89's selection (the batch-78 probe of reached functions, 10-70 instructions, no VFPU, no import-stub calls) left 25 candidates: of the 1,177 functions that probe reached, 48 of 10-70 instructions were
+still absent from `src/`, and 9 had VFPU and 14 called stubs from 0x08C70000. So the pool could not supply another batch of about fifty.
+**Cause.** Not a tooling fault: batches 78-88 had taken the pool, and the probe only ever listed functions of up to 70 instructions (`tools.family_members --write-probe-symbols PATH --max-insns` defaults to 70).
+**Fix / workaround.** A new probe (`tools.decomp_gate probe b89p`) over the 1,403 not-yet-done functions of 71-120 instructions (a scratch script made the symbol list with the same filter; the tool's `--max-insns 120` was not
+run) reached 281, 264 without VFPU, stubs or register jumps, and their masked-shape clusters (`tools.shapes` signature) held two families of the SAME 75-instruction function in two register allocations (46 + 10 members, one
+call per route, a table-driven registration function): one template with the table in each row, and every member compared once per route in the fast gate (`cases that changed memory 1`), but 61 of the 67 functions of the
+batch are `compared 0` in the real-time full gate (all 56 members among them), so their proof is the uncapped fast gate and the sabotage. Next time probe 71-120 (or 1-120) from the start and cluster before reading by hand.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_89.cpp (register_table)
+
+## A hot function that never writes in its sampled cases may never write at all: the fast gate's DENSE stays at 32 cases per route, so run the binary by hand with `--decomp-cases` before judging
+
+**Symptom.** Batch 90's `func_08BA9498` (a vector erase, 86,623 calls over the five routes of the fast gate) and `func_08C070FC` (a vector assignment, 74 calls) came out of the fast gate with `cases that changed memory 0` (160 and 24 compared cases,
+all equal). `GT_DECOMP_DENSE=0x08BA9498 .venv/bin/python -m tools.decomp_gate fast ...` (the tool inherits it, FINDINGS batch 88) still compared only 32 cases per route (160 in all) and none wrote, so it could not tell "never writes" from "the sample missed it".
+**Cause.** `route_shell` runs `build/gt_native --decomp diff` with the default case budget (32 per function per route) and has no way to pass `--decomp-cases`: DENSE only chooses which calls fill that budget, which is enough for a function with 58 calls (batch 88) and not for one with tens of thousands.
+**Fix / workaround.** Run the binary by hand with the same environment and a larger budget, inside the slice:
+`GT_DECOMP_ONLY=0xADDR GT_DECOMP_DENSE=0xADDR LCS_UNCAPPED=1 GT_PAD="$(grep -v '^#' config/pad_routes/race.pad)" systemd-run --user --scope --slice=gt-heavy.slice -- build/gt_native --max-seconds 200 --decomp diff --decomp-cases 3000`
+(about 5 minutes per route). The race route compared 3,000 cases of `func_08BA9498` (12,231 calls) and every call of `func_08C070FC` (58 on race, 4 on dealer, 4 on garage); none changed memory, so both stay written but unregistered (a registered function needs a compared case that writes).
+Also: `tools.decomp_gate coverage` prints the line numbers of the file as the build compiled it; comments edited while the run is going shift them, so map each report line by function (or by the offset of the lines added above) before editing the comments.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_90.cpp (func_08BA9498, func_08C070FC)
+
+## A typo in a constant on an unexercised path is invisible to the gate: `tools.literal_check` compares every literal of a batch with the function's own disassembly
+
+**Symptom.** Batch 90's review found `func_08C4A6B0` written with the limit 0x11111111 where the asm builds 0x01111111 (`lui 0x111` / `ori 0x1111`) on a path no route runs; the fast gate, the sabotage and the coverage run were all green.
+**Cause.** The gate proves what its cases execute; the coverage report lists the untaken paths but nothing forces the constants on them to be re-read, and `tools.family_members --check` reads only one-line wrapper rows (template arguments and arguments of an inner call are not rows).
+**Fix / workaround.** `.venv/bin/python -m tools.literal_check src/game/unsorted/hot_batch_N.cpp` (batch 91): each `void func_X(` body's hexadecimal literals (comments stripped, values below 5 skipped) must be a value of that function's `tools.disasm` output: immediates, displacements, resolved addresses, call targets, the 32-bit value of a `lui`/`ori` pair
+or of a bare `lui`. Batch 91: 52 functions, 0 missing with one manual `--allow` (a displacement 8 + 0x34 of a store through `s1 + 0x34`); two literals mutated by hand (`0x3E8E38E4` to `...E5`, `0x08C99738` to `...39`) are reported. It does not check which register or which call a value goes to: that is still the reading.
+Also seen in batch 91: a function can be sampled with `calls 0` on all five routes of the fast gate although the batch-89 probe counted hits for it (`func_08B666E8`, 12 hits): a probe hit is not a promise that the dispatcher sees the call.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp, tools/literal_check.py
+
+## The delay slot of a `jal` sees the register BEFORE the call: `addu s1, v0, zero` there is the previous result
+
+**Symptom.** Batch 91's first fast gate: `func_0899CE20` mismatched on all 11 of its cases with `Guest memory access outside PSP RAM/EDRAM at 0x00000005`, not at its own code.
+**Cause.** `jal func_08A5BA08` has `addu $s1, $v0, $zero` in its delay slot (it runs before the call), so s1 is the word the function loaded into v0 earlier, not what the call returns; written as `s1 = call_set(...)` the function stored the callee's result at `u[0x20]` and a later callee dereferenced it.
+**Fix / workaround.** Set the register before the call (`ctx.gpr[17] = pending;`). It was visible only because the stored word was used by a callee in the same case; a stored word nothing reads in the case would have passed. Re-read every `addu rX, v0, zero` that sits in a delay slot, the `bnel`/`beql`/`bgtzl` ones (executed only when taken) included.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp (func_0899CE20)
