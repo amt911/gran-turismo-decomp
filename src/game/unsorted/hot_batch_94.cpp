@@ -1461,8 +1461,8 @@ void func_08933C5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t s1 = ctx.gpr[4];
     GuestFrame frame(ctx, 0xC0u);
     const std::uint32_t s2 = word(rt, s1 + 0x48u);
+    const std::uint32_t s3 = word(rt, s1 + 0x4Cu);  // the delay slot of the jal: read before the call runs
     const std::uint32_t configuration = call_set(rt, ctx, 0x089363FCu, {s1});
-    const std::uint32_t s3 = word(rt, s1 + 0x4Cu);  // the delay slot of the jal
     const std::uint32_t usable = call_set(rt, ctx, 0x089368DCu, {configuration, ctx.gpr[5], s2, s3});
     if (usable == 0u) {
         ctx.gpr[3] = 0u;
