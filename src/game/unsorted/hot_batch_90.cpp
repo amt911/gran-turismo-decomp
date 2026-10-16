@@ -685,7 +685,7 @@ inline void vector_reserve_scaled(psprecomp::Runtime &rt, psprecomp::AllegrexCon
     }
 }
 void func_08C4A594(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_reserve_scaled<1u>(rt, ctx, 6u, 0xAAAAAAABu, 0x2AAAAAAAu, 0x08C49F24u, 0x08C49F14u); }
-void func_08C4A6B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_reserve_scaled<4u>(rt, ctx, 240u, 0xEEEEEEEFu, 0x11111111u, 0x08C49F74u, 0x08C49F64u); }
+void func_08C4A6B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_reserve_scaled<4u>(rt, ctx, 240u, 0xEEEEEEEFu, 0x01111111u, 0x08C49F74u, 0x08C49F64u); }
 void func_08C4A7CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_reserve_scaled<2u, true>(rt, ctx, 84u, 0x3CF3CF3Du, 0x030C30C3u, 0x08C49E50u, 0x08C49E40u); }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -2096,9 +2096,9 @@ inline void refresh_then(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
 void func_0898A5F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { refresh_then(rt, ctx, 0x089660A0u); }
 void func_0898A7A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { refresh_then(rt, ctx, 0x089699D8u); }
 
-// func_08B03A48(p): o = p[0] and four tables of o are reset when they are full, i.e. when the count word equals the number of elements between the table's begin and end: [o[0], o[4]) with 16-byte elements against o[0x10] (func_08C49A28(o, o[0], o[4])),
-// [o[0x44], o[0x48]) with 8-byte elements against o[0x54] (func_08C49B00(o + 0x44, ...)), [o[0x60], o[0x64]) with 4-byte elements against o[0x70] (func_08C49C28(o + 0x60, ...)) and [o[0x7C], o[0x80]) with 2-byte elements against o[0x8C] (a tail call
-// to func_08C49D08(o + 0x7C, ...)). The element counts are the arithmetic shift of the byte difference times the modular inverse of the odd part of the element size (0xEEEEEEEF, none, 0x3CF3CF3D, 0xAAAAAAAB: a 32-bit mult, low word). A reset stores 0xFFFF in the halfwords
+// func_08B03A48(p): o = p[0] and four tables of o are reset when they are full, i.e. when the count word equals the number of elements between the table's begin and end: [o[0], o[4]) with 240-byte elements against o[0x10] (func_08C49A28(o, o[0], o[4])),
+// [o[0x44], o[0x48]) with 8-byte elements against o[0x54] (func_08C49B00(o + 0x44, ...)), [o[0x60], o[0x64]) with 84-byte elements against o[0x70] (func_08C49C28(o + 0x60, ...)) and [o[0x7C], o[0x80]) with 6-byte elements against o[0x8C] (a tail call
+// to func_08C49D08(o + 0x7C, ...)). The element counts are the arithmetic shift of the byte difference times the modular inverse of the odd part of the element size (shift 4 and 0xEEEEEEEF for 240 bytes, shift 3 alone for 8, shift 2 and 0x3CF3CF3D for 84, shift 1 and 0xAAAAAAAB for 6: a 32-bit mult, low word). A reset stores 0xFFFF in the halfwords
 // at group + 2 and group + 0 and 0 in the count word group + 4 (group = o + 0xC, o + 0x50, o + 0x6C and o + 0x88 for the four tables), then runs the callee.
 // Branches the routes do not take (from `tools.decomp_gate coverage` of the fast gate, then checked against the asm by hand, reading the branch TARGETS): the fourth table was never full (0x08B03B5C always branched to 0x08B03B88), so its reset and the tail call to func_08C49D08 (0x08B03B60-0x08B03B84) never ran; the first three tables took both outcomes in the single compared case.
 void func_08B03A48(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
