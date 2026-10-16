@@ -480,9 +480,9 @@ void func_0887D4EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, tail_target, {tail_object});
 }
 
-// func_088DAEB0(this, object): this[0x148] = object; a null object returns (v0 = 0). Otherwise the object's virtual slot 0x1C is called with (object, D_088E97B0, this), then (object read again from this[0x148]) slot 0x20 with
-// (object, D_088E9804, this) and slot 0x84 with (object). A null this[0x154] returns (v0 = the slot 0x84's answer); otherwise func_088F4AA0(this[0x154]) answers x and the function ends with a tail call to the virtual slot 0x88 of
-// the object (read once more) with (object, x). D_088E97B0 and D_088E9804 are code addresses (callbacks).
+// func_088DAEB0(this, object): this[0x148] = object; a null object returns (v0 = 0). Otherwise the object's virtual slot 0x1C is called with (object, func_088E97B0, this), then (object read again from this[0x148]) slot 0x20 with
+// (object, func_088E9804, this) and slot 0x84 with (object). A null this[0x154] returns (v0 = the slot 0x84's answer); otherwise func_088F4AA0(this[0x154]) answers x and the function ends with a tail call to the virtual slot 0x88 of
+// the object (read once more) with (object, x). func_088E97B0 and func_088E9804 are code addresses (function entries).
 // Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): a null `object` (the `beqz` at 0x088DAED8, target 0x088DAF5C, v0 = 0) and a null this[0x154] (the `beqz` at 0x088DAF24, target 0x088DAF5C, v0 = the slot 0x84 answer) never occurred: every compared case reached the tail call.
 void func_088DAEB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], object = ctx.gpr[5];
