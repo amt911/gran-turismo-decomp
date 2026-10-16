@@ -24,7 +24,7 @@
 // Every call_guest / tail_call passes the argument registers the original sets before the jal (a0-a3, t0-t3, f12-f14): the ones it leaves alone keep the caller's value, which call_guest copies from ctx.
 // Every call goes through `call_keep` (the callee's v0, v1 and f0 stay in the registers like the original's), and the callee-saved registers (s0-s7, fp) hold the original's values around the calls (`SavedRegs`
 // restores the entry values on the way out, like the original's epilogue): a callee may store the caller's s0 (FINDINGS, batch 84). The delay slot of a `jal` runs BEFORE the call: a move from v0 there captures the
-// PREVIOUS call's result (func_08C4FF60 and func_0883365C read it that way). v0 (and v1 / f0 where a caller could read them) is set as the original leaves it on every path, including the early returns; the other caller-saved
+// PREVIOUS call's result (func_08C4FF60, func_0883365C and func_08BCF61C read it that way). v0 (and v1 / f0 where a caller could read them) is set as the original leaves it on every path, including the early returns; the other caller-saved
 // registers (a0-a3, t0-t9) are set to the original's value where it is cheap and a callee could read them, not otherwise (the gate compares v0, s0-s7, sp, ra and RAM).
 //
 #include "decomp_registry.hpp"
@@ -1127,7 +1127,7 @@ void func_08C4FF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
 }
 
-// func_08BCF61C(this): when this[0x538] is set, func_08900148(this + 0x78) is stored at sp, func_08BCF5D8(sp, this + 0x78) and func_08900350(this + 0x78) run; then func_0890633C(this + 0x34, this + 0x6C) and func_08906378(this + 0x34, this + 0x6C); then the ring
+// func_08BCF61C(this): when this[0x538] is set, func_08900148(this + 0x78) runs and the store in its jal delay slot puts the previous v0 (the this[0x538] flag) at sp, not its result, func_08BCF5D8(sp, this + 0x78) and func_08900350(this + 0x78) run; then func_0890633C(this + 0x34, this + 0x6C) and func_08906378(this + 0x34, this + 0x6C); then the ring
 // list headed at this + 0x540 is walked: for every node whose byte node[0xC] is clear, node[0xC] = func_08BBD828(this, (virtual slot 8 of node[8])(node[8]), node[8]). v0 is the last flag byte or call answer.
 // Branches the routes do not take (checked against the asm by hand, reading the branch TARGETS): this[0x538] clear (the preamble skipped, 0x08BCF638), an empty node list (0x08BCF68C), a node whose flag byte is already set (the skip at 0x08BCF69C) and a second node never occurred: the list always held one unflagged node.
 void func_08BCF61C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
