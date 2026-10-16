@@ -1,6 +1,7 @@
 GT patch 0048: the GPU path drops the half-pixel offset GT adds to its 3D projection on every other frame (temporal
 anti-aliasing the PSP LCD blended; a side-to-side wobble on a modern screen). [Rendering] KeepTemporalJitter=true keeps it.
 
+
 --- a/lcs/host/ge_renderer.cpp
 +++ b/lcs/host/ge_renderer.cpp
 @@ -734,6 +734,22 @@
@@ -9,9 +10,9 @@ anti-aliasing the PSP LCD blended; a side-to-side wobble on a modern screen). [R
  
 +// GT patch 0048: GT adds a half-pixel offset to its 3D projection on every other frame (P[8] = 1/480, P[9] = 1/272,
 +// the next frame 0: measured on the race route, 2026-10-16), anti-aliasing that the PSP's slow LCD blended into one
-+// picture. On a modern screen the whole scene jumps half a pixel back and forth, at x4 two pixels. The GPU path drops
-+// exactly that offset unless [Rendering] KeepTemporalJitter=true (the GPU gate keeps it, to compare with the software
-+// renderer, which always draws it).
++// picture. On a modern screen the whole scene jumps half a pixel back and forth, at x4 two pixels. Both the hardware
++// transform and the CPU vertex decoders drop exactly that offset unless [Rendering] KeepTemporalJitter=true (the GPU
++// gate sets it, so the GPU and the software reference draw the same frames; gt_native always keeps it).
 +std::array<float, 16> projection_without_temporal_jitter(const std::array<float, 16> &projection) noexcept {
 +    std::array<float, 16> p = projection;
 +    if (rendering_keep_temporal_jitter() || p[11] == 0.0f) return p;
@@ -35,6 +36,24 @@ anti-aliasing the PSP LCD blended; a side-to-side wobble on a modern screen). [R
          cached_world = world;
          std::memcpy(cached_view.data(), transform.view.data(), sizeof cached_view);
          std::memcpy(cached_projection.data(), transform.projection.data(), sizeof cached_projection);
+@@ -1246,7 +1262,7 @@
+     } else {
+         vertex.fog_factor = 1.0f;
+     }
+-    const Vec4 clip = transform_4x4(transform.projection, view);
++    const Vec4 clip = transform_4x4(projection_without_temporal_jitter(transform.projection), view);  // GT patch 0048
+     vertex.x = clip.x;
+     vertex.y = clip.y;
+     vertex.z = clip.z;
+@@ -1320,7 +1336,7 @@
+     } else {
+         vertex.fog_factor = 1.0f;
+     }
+-    const Vec4 clip = transform_4x4(transform.projection, view);
++    const Vec4 clip = transform_4x4(projection_without_temporal_jitter(transform.projection), view);  // GT patch 0048
+     vertex.x = clip.x;
+     vertex.y = clip.y;
+     vertex.z = clip.z;
 --- a/lcs/host/lcs_render_config.cpp
 +++ b/lcs/host/lcs_render_config.cpp
 @@ -293,6 +293,11 @@
