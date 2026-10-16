@@ -6,7 +6,7 @@ template, registered once more per address, may cover them — each still goes t
 
 Usage (from the repository root):
   .venv/bin/python -m tools.shapes [--elf extracted/EBOOT.elf] [--functions recomp/analysis/functions.tsv]
-                                   [--min 3] [--top 40]
+                                   [--min 3] [--top 40] [--skeleton]
 """
 
 from __future__ import annotations
@@ -45,11 +45,36 @@ def normalize(code: bytes) -> tuple[int, ...]:
     return tuple(out)
 
 
-def clusters(code: Mapping[int, bytes]) -> list[list[int]]:
-    """Functions grouped by shape, largest group first (ties: lowest first address)."""
-    groups: dict[tuple[int, ...], list[int]] = {}
+_COP1 = 0x11
+_SPECIAL, _REGIMM = 0x00, 0x01
+
+
+def skeleton(code: bytes) -> tuple[tuple[int, ...], ...]:
+    """The instruction kinds only: no registers, no immediates, no jump targets and no branch offsets.
+
+    `normalize` keeps registers, so one function compiled into two register allocations (batch 93: the same 154-instruction
+    parser four times, the same vector fill-insert twelve times with different element types) lands in different clusters;
+    the skeleton puts them together. R-type keeps its function field, REGIMM its rt field, COP1 its format and function."""
+    out = []
+    for (word,) in struct.iter_unpack("<I", code[: len(code) // 4 * 4]):
+        op = word >> 26
+        if op == _SPECIAL:
+            out.append((op, word & 0x3F))
+        elif op == _REGIMM:
+            out.append((op, (word >> 16) & 0x1F))
+        elif op == _COP1:
+            out.append((op, (word >> 21) & 0x1F, word & 0x3F))
+        else:
+            out.append((op,))
+    return tuple(out)
+
+
+def clusters(code: Mapping[int, bytes], shape=normalize) -> list[list[int]]:
+    """Functions grouped by shape, largest group first (ties: lowest first address). `shape` is `normalize` (the
+    default) or `skeleton` (registers ignored too)."""
+    groups: dict[tuple, list[int]] = {}
     for address in sorted(code):
-        groups.setdefault(normalize(code[address]), []).append(address)
+        groups.setdefault(shape(code[address]), []).append(address)
     return sorted(groups.values(), key=lambda g: (-len(g), g[0]))
 
 
@@ -125,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the 
                         help="generated units; functions they don't register are left out")
     parser.add_argument("--min", type=int, default=3, help="pending functions a cluster needs to be listed")
     parser.add_argument("--top", type=int, default=40)
+    parser.add_argument("--skeleton", action="store_true",
+                        help="group by instruction kinds only (registers ignored too): finds one function in several register allocations")
     args = parser.parse_args(argv)
     base, text = text_section(args.elf.read_bytes())
     sizes = load_functions(args.functions)
@@ -142,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - reads the 
         print(f"{len(unreachable)} functions the recompiler never emitted (unreachable: not clustered)")
     code = {a: text[a - base:a - base + n] for a, n in inside.items()}
     done = done_functions(args.src)
-    rows = report(clusters(code), sizes, done, args.min)
+    rows = report(clusters(code, skeleton if args.skeleton else normalize), sizes, done, args.min)
     print(f"{len(rows)} clusters with >= {args.min} pending functions; "
           f"{sum(len(r.pending) for r in rows)} functions in them; "
           f"{sum(len(r.pending) for r in rows if r.done)} of them share a shape with a decompiled one")
