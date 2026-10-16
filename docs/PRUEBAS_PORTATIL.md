@@ -1,6 +1,6 @@
 # Pruebas pendientes en el portátil
 
-**Última actualización: 2026-10-16 12:56** — prueba nueva: punto 1 (parche 0048, el temblor).
+**Última actualización: 2026-10-16 15:00** — pruebas nuevas: punto 1 (0048, el temblor) y punto 3 (0049, rendimiento).
 
 Lista viva de lo que hace falta probar en el portátil (Ryzen 7 PRO 5850U, gráfica integrada Vega 8).
 Cuando una prueba está hecha y sus resultados están en el chat (o en `my_tests/`), se borra de aquí.
@@ -9,11 +9,11 @@ Cuando una prueba está hecha y sus resultados están en el chat (o en `my_tests
 
 ```bash
 git pull
-tools/setup.sh                         # vuelve a aplicar los parches de lcs-recomp (hay nuevos: 0046 y 0048)
+tools/setup.sh                         # vuelve a aplicar los parches de lcs-recomp (hay nuevos: 0046, 0048 y 0049)
 .venv/bin/python -m tools.recomp
 cmake --build build -j8
 git log --oneline -1                   # pega esta línea junto con los resultados
-grep -c "GT patch 0048" tools/src/lcs-recomp/lcs/host/ge_renderer.cpp   # debe dar más de 0
+grep -c "GT patch 0049" tools/src/lcs-recomp/lcs/host/ge_renderer.cpp   # debe dar más de 0
 ```
 
 `config/gt_play.ini` se copia junto a `build/gt_play` al compilar: los cambios de las pruebas se hacen en
@@ -37,12 +37,21 @@ En tu captura del DeLorean no sé qué ves raro (en la comparación automática 
 salen idénticos). ¿Qué es lo que no cuadra: los reflejos de la carrocería, los cristales, las ruedas, el brillo?
 Si puedes, una captura del mismo coche en PPSSPP para comparar.
 
-## 3. Rendimiento y sonido con batería
+## 3. Rendimiento y sonido con batería (parches 0046 y 0049, el camino rápido)
 
-Tu último log (`perf_bateria_0045.txt`): en carrera se saltan 30-50 fotogramas por segundo, el juego espera a la
-GPU un 35 % del tiempo y el audio baja a 42.000 Hz en los tramos más duros (de ahí los cortes). Estoy con el
-camino rápido de la GE que aprobaste (la primera parte ya está en `main`; la segunda, la grande, en marcha). Te
-aviso con otra entrada cuando esté.
+Hecho el camino rápido que aprobaste. En mi máquina con dos núcleos (simulando el portátil), en carrera: el trabajo
+de la GE por cada dibujo baja de 730 a 372 nanosegundos (-49 %), y el tiempo que el juego espera a la GE baja del
+28 % al 12 %. Debería notarse en los tramos de 11-20 fps y en los cortes de audio (que venían de lo mismo).
+
+Igual que antes, **con batería** (modo de energía normal), menús y 30-40 s de carrera:
+
+```bash
+GT_PERF_LOG=1 build/gt_play 2>&1 | grep -E '^\[perf\]|internal scale' | tee my_tests/perf_bateria_0049.txt
+```
+
+- [ ] ¿Va mejor (menos tirones, fps más estables, menos cortes de audio)?
+- [ ] Deja el log en `my_tests/perf_bateria_0049.txt`: la línea `GE thread` dice ahora `ns per draw` y hay una
+      línea `fast path: N draws/s`.
 
 ## 4. Velocidad del coche
 

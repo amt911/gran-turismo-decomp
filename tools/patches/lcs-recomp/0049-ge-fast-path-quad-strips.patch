@@ -1,0 +1,292 @@
+GT patch 0049: GT's quad strips (94 % of race draws) take a fast path on a draw-state revision hit: the previous draw's
+descriptor and hardware transform are reused (with this draw's 0xC8 fields), the vertices decoded with the same readers
+and handed to the same backend call. GT_GE_FASTPATH_VERIFY=1 compares it with the general path; GT_GE_NO_FASTPATH=1 turns it off.
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -1947,6 +1947,20 @@
+ enum class DualPass { None, GpuOnly, SoftwareOnly };
+ thread_local DualPass g_dual_pass = DualPass::None;
+ 
++// GT patch 0049: also read by the quad-strip fast path, which skips the software raster without asking per draw.
++bool software_raster_skip_everything() noexcept {
++    static const bool skip_everything = [] {
++        const char *value = std::getenv("PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER");
++        if (value != nullptr && *value != '\0') return *value != '0';
++        const LcsConfiguration &cfg = lcs_render_configuration();
++        const bool gpu_backend = cfg.rendering.backend == RenderingBackend::DirectX12 ||
++                                 cfg.rendering.backend == RenderingBackend::Vulkan;
++        return cfg.initialized && gpu_backend && cfg.rendering.dx12_ge_color;
++    }();
++    return skip_everything;
++}
++
++
+ bool software_raster_skipped(const std::array<std::uint32_t, 256> &commands) noexcept {
+     if (g_dual_pass == DualPass::GpuOnly) return true;
+     if (g_dual_pass == DualPass::SoftwareOnly) return false;
+@@ -1956,14 +1970,7 @@
+             target == g_frameskip_screen_b.load(std::memory_order_relaxed))
+             return true;
+     }
+-    static const bool skip_everything = [] {
+-        const char *value = std::getenv("PSPRECOMP_GE_GPU_SKIP_SOFTWARE_RASTER");
+-        if (value != nullptr && *value != '\0') return *value != '0';
+-        const LcsConfiguration &cfg = lcs_render_configuration();
+-        const bool gpu_backend = cfg.rendering.backend == RenderingBackend::DirectX12 ||
+-                                 cfg.rendering.backend == RenderingBackend::Vulkan;
+-        return cfg.initialized && gpu_backend && cfg.rendering.dx12_ge_color;
+-    }();
++    const bool skip_everything = software_raster_skip_everything();
+     static const bool skip_owned = [] {
+         const char *value = std::getenv("PSPRECOMP_GE_GPU_SKIP_OWNED_RASTER");
+         return value == nullptr || (*value != '\0' && *value != '0');
+@@ -4205,6 +4212,109 @@
+     return queue;
+ }
+ 
++// GT patch 0049: GT's quad strips on a draw-state revision hit (docs/superpowers/specs/2026-10-16-ge-fast-path-design.md).
++// 94 % of a race's draws are textured strips of at most 8 vertices with no lighting, UV generation, morph, skinning,
++// normals, indices or flat shading; before ~97 % of draws only the texture level 0xC8 or nothing changes. A draw like
++// the previous one of the same revision reuses its descriptor and hardware transform (and with them the texture and
++// target lookups the general path does per draw), decodes its vertices with the same readers and hands them to the
++// same backend call the general path uses, with the same strip-to-list indices.
++struct FastStripCache {
++    std::uint64_t revision{};
++    std::uint64_t write_clock{};  // ge_gpu_backend_write_clock() when filled: a noted guest write ends the reuse
++    std::uint32_t layout_type{};
++    DualPass dual_pass{DualPass::None};
++    bool eligible{};
++    GeGpuDrawDescriptor draw{};
++    GeGpuHardwareTransform hw{};
++    Color material{};
++};
++
++FastStripCache &fast_strip_cache() noexcept {
++    static thread_local FastStripCache cache;
++    return cache;
++}
++
++bool fastpath_verify_enabled() noexcept {
++    static const bool enabled = std::getenv("GT_GE_FASTPATH_VERIFY") != nullptr;
++    return enabled;
++}
++
++bool fastpath_enabled() noexcept {
++    static const bool enabled = std::getenv("GT_GE_NO_FASTPATH") == nullptr;
++    return enabled;
++}
++
++std::atomic<std::uint64_t> g_fastpath_draws{0u};
++std::atomic<std::uint64_t> g_fastpath_verified{0u};
++std::atomic<std::uint64_t> g_fastpath_mismatches{0u};
++
++// The inputs of the backend call for a fast draw: the cached descriptor and transform with this draw's per-draw fields,
++// the vertices decoded from `raw` and the strip's triangle indices (as hw_job_prepare emits them).
++void fast_strip_inputs(const FastStripCache &cache, const std::array<std::uint32_t, 256> &commands,
++                       const VertexLayout &layout, const std::uint8_t *raw, std::uint32_t count,
++                       GeGpuDrawDescriptor &draw, GeGpuHardwareTransform &hw,
++                       std::vector<GeGpuVertex> &vertices, std::vector<std::uint32_t> &indices) {
++    std::memcpy(static_cast<void *>(&draw), &cache.draw, sizeof draw);
++    const std::uint32_t texture_level = data24(commands[0xC8u]);
++    draw.texture_level_mode = texture_level & 3u;
++    draw.texture_level_offset16 = signed_texture_lod_offset16(texture_level);
++    draw.texture_selected_level = selected_texture_level(commands);
++    draw.vertex_count = count;
++    hw = cache.hw;
++    hw.unique_vertices_decoded = count;
++    hw.index_reuses = 0u;
++    hw.primitive = 3u;  // the strip goes as a triangle list, as hw_job_commit sends it
++    vertices.resize(count);
++    for (std::uint32_t i = 0u; i < count; ++i) {
++        const std::uint8_t *vertex_bytes = raw + static_cast<std::size_t>(i) * layout.stride;
++        float u = 0.0f, v = 0.0f;
++        read_texcoord_raw(vertex_bytes + layout.tc_offset, layout.tc_type, u, v);
++        const Color color = layout.color_type < 4u
++            ? cache.material : read_vertex_color_raw(vertex_bytes + layout.color_offset, layout.color_type);
++        const Vec3 position = read_vector3_raw(vertex_bytes + layout.position_offset, layout.position_type);
++        GeGpuVertex &out = vertices[i];
++        out = {};
++        out.x = position.x;
++        out.y = position.y;
++        out.z = position.z;
++        out.w = 1.0f;
++        out.u = u;
++        out.v = v;
++        out.q = 1.0f;
++        out.fog_factor = 1.0f;
++        out.rgba = pack_gpu_color(color);
++    }
++    indices.clear();
++    for (std::uint32_t i = 0u; i + 2u < count; ++i) {
++        if ((i & 1u) == 0u) {
++            indices.push_back(i);
++            indices.push_back(i + 1u);
++        } else {
++            indices.push_back(i + 1u);
++            indices.push_back(i);
++        }
++        indices.push_back(i + 2u);
++    }
++}
++
++bool same_upload_vertex(const GeGpuVertex &a, const GeGpuVertex &b) noexcept {  // the fields UploadVertex keeps
++    return std::memcmp(&a.x, &b.x, sizeof(float)) == 0 && std::memcmp(&a.y, &b.y, sizeof(float)) == 0 &&
++           std::memcmp(&a.z, &b.z, sizeof(float)) == 0 && std::memcmp(&a.w, &b.w, sizeof(float)) == 0 &&
++           a.rgba == b.rgba && std::memcmp(&a.u, &b.u, sizeof(float)) == 0 &&
++           std::memcmp(&a.v, &b.v, sizeof(float)) == 0 && std::memcmp(&a.q, &b.q, sizeof(float)) == 0 &&
++           std::memcmp(&a.fog_factor, &b.fog_factor, sizeof(float)) == 0;
++}
++
++}  // namespace
++
++std::uint64_t ge_renderer_fastpath_draws() noexcept { return g_fastpath_draws.exchange(0u, std::memory_order_relaxed); }
++std::uint64_t ge_renderer_fastpath_verified() noexcept { return g_fastpath_verified.exchange(0u, std::memory_order_relaxed); }
++std::uint64_t ge_renderer_fastpath_mismatches() noexcept {
++    return g_fastpath_mismatches.exchange(0u, std::memory_order_relaxed);
++}
++
++namespace {
++
+ }  // namespace
+ 
+ void ge_renderer_forget_content_hashes() noexcept {  // GT patch 0030
+@@ -4365,6 +4475,32 @@
+         queue.pending() && (framebuffer_address(commands) & 0x001FFFF0u) != queue.last_target())
+         queue.drain();
+ 
++    // GT patch 0049: GT's quad strips on a revision hit. The texture-content clock is read here, before any texture
++    // work of this draw, so a write noted while the draw runs ends the reuse instead of being taken as already seen.
++    // Only where the software raster is skipped unconditionally (the GPU path, or the GPU pass of the dual gate):
++    // software_raster_skipped otherwise depends on backend state no register describes.
++    const bool fast_candidate = draw_state_revision != 0u && primitive == 4u && layout.type != 0x000115u &&
++        fastpath_enabled() && (g_dual_pass == DualPass::GpuOnly ||
++                               (g_dual_pass == DualPass::None && software_raster_skip_everything()));
++    const std::uint64_t entry_clock = fast_candidate ? ge_gpu_backend_write_clock() : 0u;
++    if (FastStripCache &fast = fast_strip_cache();
++        fast_candidate && fast.eligible && fast.revision == draw_state_revision &&
++        fast.layout_type == layout.type && fast.dual_pass == g_dual_pass &&
++        !fastpath_verify_enabled() && fast.write_clock == entry_clock) {
++        const std::uint8_t *raw = memory.raw_pointer(vertex_address, static_cast<std::size_t>(count) * layout.stride);
++        if (raw != nullptr && count >= 3u) {
++            static thread_local std::vector<GeGpuVertex> fast_vertices;
++            static thread_local std::vector<std::uint32_t> fast_indices;
++            GeGpuDrawDescriptor draw;
++            GeGpuHardwareTransform hw;
++            fast_strip_inputs(fast, commands, layout, raw, count, draw, hw, fast_vertices, fast_indices);
++            ge_gpu_backend_accumulate_hardware_triangles(draw, hw, fast_vertices, fast_indices);
++            g_fastpath_draws.fetch_add(1u, std::memory_order_relaxed);
++            stats.next_vertex_address = vertex_address + count * layout.stride;
++            return true;
++        }
++    }
++
+     const bool gpu_backend_enabled = ge_gpu_backend_active() && g_dual_pass != DualPass::SoftwareOnly;
+     GeGpuDrawDescriptor gpu_draw{};
+     {
+@@ -4851,6 +4987,60 @@
+                 error = job.error;
+                 return false;
+             }
++            // GT patch 0049: a quad strip like the next ones of its revision fills the fast-path cache; with
++            // GT_GE_FASTPATH_VERIFY=1 the fast inputs are built for every such draw and compared with the general
++            // path's (vertices as UploadVertex keeps them, indices, descriptor, transform).
++            FastStripCache &fast = fast_strip_cache();
++            // (Only inline jobs fill it: with PSPRECOMP_GE_DECODE_THREADS > 0 eligible draws are deferred and the fast
++            // path stays off, so it never reorders against queued jobs.)
++            const bool strip_eligible = fast_candidate && !indexed &&
++                job.submit == HwDrawJob::Submit::Indexed && !layout.through && layout.morph_count == 1u &&
++                layout.weight_type == 0u && layout.normal_type == 0u && layout.position_type != 0u &&
++                !lighting_on && uv_generation == 0u && !flat_shading && contiguous_raw != nullptr && count >= 3u &&
++                (!effective_draw.texture_enabled || sampled_texture_ready) && !job.reused_vertices;
++            const std::uint64_t write_clock = entry_clock;
++            if (fastpath_verify_enabled() && strip_eligible && fast.eligible && fast.revision == draw_state_revision &&
++                fast.layout_type == layout.type && fast.dual_pass == g_dual_pass && fast.write_clock == write_clock) {
++                static thread_local std::vector<GeGpuVertex> check_vertices;
++                static thread_local std::vector<std::uint32_t> check_indices;
++                GeGpuDrawDescriptor check_draw;
++                GeGpuHardwareTransform check_hw;
++                fast_strip_inputs(fast, commands, layout, contiguous_raw, count, check_draw, check_hw,
++                                  check_vertices, check_indices);
++                GeGpuHardwareTransform general_hw = job.hw;
++                general_hw.primitive = 3u;
++                // The content signature only feeds the texture key (ge_gpu_backend_finalize_texture_key): the general
++                // path sets it on the draws that re-check the content and leaves it 0 on the others, which reuse the
++                // address's last content key. What selects the image is the key, so the keys must match and the
++                // signature is not compared.
++                GeGpuDrawDescriptor general_draw = *job.draw_in;
++                general_draw.texture_content_signature = check_draw.texture_content_signature;
++                bool same = check_vertices.size() == job.decoded_vertices.size() &&
++                            check_indices == job.triangle_indices && check_draw == general_draw &&
++                            std::memcmp(&check_hw, &general_hw, sizeof check_hw) == 0;
++                for (std::size_t i = 0u; same && i < check_vertices.size(); ++i)
++                    same = same_upload_vertex(check_vertices[i], job.decoded_vertices[i]);
++                g_fastpath_verified.fetch_add(1u, std::memory_order_relaxed);
++                if (!same && !(check_draw == general_draw) && g_fastpath_mismatches.load() < 8u)
++                    std::fprintf(stderr, "[fastpath-verify] descriptor differs: tex %08X\n", job.draw_in->texture_address);
++                if (!same && g_fastpath_mismatches.fetch_add(1u, std::memory_order_relaxed) < 8u)
++                    std::fprintf(stderr, "[fastpath-verify] mismatch: vertices %d indices %d draw %d hw %d\n",
++                                 int(check_vertices.size() == job.decoded_vertices.size()),
++                                 int(check_indices == job.triangle_indices), int(check_draw == general_draw),
++                                 int(std::memcmp(&check_hw, &general_hw, sizeof check_hw) == 0));
++            }
++            if (strip_eligible) {
++                fast.eligible = true;
++                fast.revision = draw_state_revision;
++                fast.write_clock = write_clock;
++                fast.layout_type = layout.type;
++                fast.dual_pass = g_dual_pass;
++                std::memcpy(static_cast<void *>(&fast.draw), &effective_draw, sizeof effective_draw);
++                fast.hw = hw;
++                fast.material = material_ambient_color(commands);
++            } else if (fast.revision != draw_state_revision) {
++                fast.eligible = false;
++            }
+             hw_job_commit(job);
+         }
+         advance_stream();
+--- a/lcs/host/ge_renderer.hpp
++++ b/lcs/host/ge_renderer.hpp
+@@ -70,6 +70,12 @@
+ // call (the counter is reset).
+ std::uint64_t ge_renderer_revision_verify_mismatches() noexcept;
+ 
++// GT patch 0049: draws taken by the quad-strip fast path, and with GT_GE_FASTPATH_VERIFY=1 the draws whose fast inputs
++// were compared with the general path's and how many differed (each call resets its counter).
++std::uint64_t ge_renderer_fastpath_draws() noexcept;
++std::uint64_t ge_renderer_fastpath_verified() noexcept;
++std::uint64_t ge_renderer_fastpath_mismatches() noexcept;
++
+ // Host frameskip: while enabled, draws whose target is one of the two screen framebuffers (VRAM
+ // offsets, & 0x1FFFF0) are not rasterized; vertices are still decoded, so the list's state advances.
+ // Draws into other targets (render-to-texture) are kept.
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -338,6 +338,9 @@
+ // GT patch 0023: guest memory [address, address + bytes) was written outside a GE draw (a block
+ // transfer); textures read from it are re-checked on their next draw, even within the same frame.
+ void ge_gpu_backend_note_guest_write(std::uint32_t address, std::uint32_t bytes) noexcept;
++// GT patch 0049: the texture-content clock: changes with every noted guest write (ge_gpu_backend_note_guest_write)
++// and every closed frame, the moments the general path re-checks a texture's content.
++std::uint64_t ge_gpu_backend_write_clock() noexcept;
+ // GT patch 0023: after the content signature is known, key the texture by its content, so draws of the
+ // same address with different bytes in one frame each keep their own image.
+ void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &draw) noexcept;
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -3493,6 +3493,15 @@
+ }
+ 
+ 
++// GT patch 0049: the texture-content clock, for the renderer's quad-strip fast path: a draw reuses the previous
++// draw's texture state only while no guest write was noted and no frame was closed since (the general path re-checks
++// a texture's content after a noted write and once per frame; the CPU rewrites some textures while a list runs).
++std::uint64_t ge_gpu_backend_write_clock() noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    return s.write_clock ^ (s.frame_epoch << 40u);
++}
++
+ void ge_gpu_backend_note_guest_write(std::uint32_t address, std::uint32_t bytes) noexcept {
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);

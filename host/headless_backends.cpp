@@ -63,6 +63,7 @@ void ge_gpu_backend_record_draw(const GeGpuDrawDescriptor &) noexcept {}
 bool ge_gpu_backend_stage_vertices(const GeGpuDrawDescriptor &, std::span<const GeGpuVertex>) noexcept { return false; }
 bool ge_gpu_backend_texture_available(const GeGpuDrawDescriptor &) noexcept { return false; }
 void ge_gpu_backend_note_guest_write(std::uint32_t, std::uint32_t) noexcept {}
+std::uint64_t ge_gpu_backend_write_clock() noexcept { return 0u; }
 void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &) noexcept {}
 bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &) noexcept { return false; }
 bool ge_gpu_backend_texture_signature_needed(const GeGpuDrawDescriptor &) noexcept { return false; }
