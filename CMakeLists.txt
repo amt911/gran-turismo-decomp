@@ -85,6 +85,7 @@ add_library(gt_host_objs OBJECT
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"
     "${GT_LCS_HOST_DIR}/lcs_media_decoder.cpp"
     host/gt_ge_exec.cpp
+    host/ge_state_revision.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
 target_include_directories(gt_host_objs PRIVATE host include "${GT_LCS_HOST_DIR}")
@@ -169,6 +170,9 @@ enable_testing()
 add_executable(host_tests host/tests/diff_compare_test.cpp host/diff_compare.cpp)
 target_include_directories(host_tests PRIVATE host)
 add_test(NAME diff_compare COMMAND host_tests)
+add_executable(ge_state_revision_tests host/tests/ge_state_revision_test.cpp host/ge_state_revision.cpp)
+target_include_directories(ge_state_revision_tests PRIVATE host)
+add_test(NAME ge_state_revision COMMAND ge_state_revision_tests)
 add_executable(dirty_pages_tests host/tests/dirty_pages_test.cpp host/dirty_pages.cpp)
 target_include_directories(dirty_pages_tests PRIVATE host)
 target_link_libraries(dirty_pages_tests PRIVATE Threads::Threads)
