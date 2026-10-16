@@ -7,6 +7,7 @@
 #   SCALE   InternalScale for the GPU (default 1: the pixel-equality gate; >1 only for speed and visual checks); the GPU frame is box-downsampled to 480x272.
 #   ROUTES  space-separated route:seconds (default "race:600 dealer:300 garage:310").
 # GPU_GATE_LOD0=1 makes the GPU sample mip level 0 like the software reference (see below).
+# The GPU keeps GT's half-pixel temporal jitter here (KeepTemporalJitter=true), as the software reference draws it.
 # Exit code: 0 every route passes, 1 some route fails, 2 a run or the setup failed.
 # The dumps are game output: OUT_DIR must stay out of git (use recomp/analysis/gpu/...).
 # One route at a time, each inside the memory cgroup and the shared heavy-job lock.
@@ -26,6 +27,7 @@ Backend=Vulkan
 NativeGE=true
 InternalResolutionMode=Scale
 InternalScale=$scale
+KeepTemporalJitter=true
 EOF
 # GPU_GATE_LOD0=1: the GPU samples mip level 0, as the software reference does (it never applies the automatic
 # mip level, docs/FINDINGS.md). Every race frame fails on distant textures otherwise, so the race checks nothing

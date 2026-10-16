@@ -1698,3 +1698,11 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp, tools/literal_check.py
 **Fix / workaround.** Set the register before the call (`ctx.gpr[17] = pending;`). It was visible only because the stored word was used by a callee in the same case; a stored word nothing reads in the case would have passed. Re-read every `addu rX, v0, zero` that sits in a delay slot, the `bnel`/`beql`/`bgtzl` ones (executed only when taken) included.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp (func_0899CE20)
+
+## The side-to-side wobble: GT jitters its 3D projection by half a pixel on alternate frames
+
+**Symptom.** On the laptop (a 15 s screen recording, 60 fps, time trial with the car stopped) the whole 3D scene jumped back and forth between two positions frame after frame (±1-2 px horizontally and 2 px vertically at 1080p) while the HUD stayed still.
+**Cause.** Not the presentation and not the viewport (both framebuffers use the same viewports and the same present size). Logging the projection of the first perspective draw of each list on the race route: the lists drawing into the framebuffer at VRAM 0 carry `P[8] = 1/480 = 0.0020833` and `P[9] = 1/272 = 0.0036764`, the ones drawing at 0x44000 carry 0 — half a pixel in both axes, every other frame. GT's temporal anti-aliasing: the PSP's slow LCD blended the two pictures into one. The software renderer draws it too (it is in the game's matrices).
+**Fix / workaround.** lcs-recomp patch 0048: the GPU path drops exactly that offset (`projection_without_temporal_jitter`, only `|P[8]| = 1/480`, `|P[9]| = 1/272` on a perspective projection) unless `[Rendering] KeepTemporalJitter=true`; `tools/gpu_gate.sh` keeps it, to stay comparable with the software reference (GPU gate x1 unchanged: race 344/943, dealer 488/488, garage 476/476). x4 dumps of the start grid (camera almost still): consecutive-frame differences alternate high/low with the jitter (5.1 2.8 2.7 6.3 2.9 4.7 …) and grow smoothly without it (1.8 1.8 1.9 1.9 …).
+
+Found: 2026-10-16 · tools/patches/lcs-recomp/0048-drop-temporal-jitter.patch
