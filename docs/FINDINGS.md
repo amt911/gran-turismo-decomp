@@ -1680,3 +1680,21 @@ all equal). `GT_DECOMP_DENSE=0x08BA9498 .venv/bin/python -m tools.decomp_gate fa
 Also: `tools.decomp_gate coverage` prints the line numbers of the file as the build compiled it; comments edited while the run is going shift them, so map each report line by function (or by the offset of the lines added above) before editing the comments.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_90.cpp (func_08BA9498, func_08C070FC)
+
+## A typo in a constant on an unexercised path is invisible to the gate: `tools.literal_check` compares every literal of a batch with the function's own disassembly
+
+**Symptom.** Batch 90's review found `func_08C4A6B0` written with the limit 0x11111111 where the asm builds 0x01111111 (`lui 0x111` / `ori 0x1111`) on a path no route runs; the fast gate, the sabotage and the coverage run were all green.
+**Cause.** The gate proves what its cases execute; the coverage report lists the untaken paths but nothing forces the constants on them to be re-read, and `tools.family_members --check` reads only one-line wrapper rows (template arguments and arguments of an inner call are not rows).
+**Fix / workaround.** `.venv/bin/python -m tools.literal_check src/game/unsorted/hot_batch_N.cpp` (batch 91): each `void func_X(` body's hexadecimal literals (comments stripped, values below 5 skipped) must be a value of that function's `tools.disasm` output: immediates, displacements, resolved addresses, call targets, the 32-bit value of a `lui`/`ori` pair
+or of a bare `lui`. Batch 91: 52 functions, 0 missing with one manual `--allow` (a displacement 8 + 0x34 of a store through `s1 + 0x34`); two literals mutated by hand (`0x3E8E38E4` to `...E5`, `0x08C99738` to `...39`) are reported. It does not check which register or which call a value goes to: that is still the reading.
+Also seen in batch 91: a function can be sampled with `calls 0` on all five routes of the fast gate although the batch-89 probe counted hits for it (`func_08B666E8`, 12 hits): a probe hit is not a promise that the dispatcher sees the call.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp, tools/literal_check.py
+
+## The delay slot of a `jal` sees the register BEFORE the call: `addu s1, v0, zero` there is the previous result
+
+**Symptom.** Batch 91's first fast gate: `func_0899CE20` mismatched on all 11 of its cases with `Guest memory access outside PSP RAM/EDRAM at 0x00000005`, not at its own code.
+**Cause.** `jal func_08A5BA08` has `addu $s1, $v0, $zero` in its delay slot (it runs before the call), so s1 is the word the function loaded into v0 earlier, not what the call returns; written as `s1 = call_set(...)` the function stored the callee's result at `u[0x20]` and a later callee dereferenced it.
+**Fix / workaround.** Set the register before the call (`ctx.gpr[17] = pending;`). It was visible only because the stored word was used by a callee in the same case; a stored word nothing reads in the case would have passed. Re-read every `addu rX, v0, zero` that sits in a delay slot, the `bnel`/`beql`/`bgtzl` ones (executed only when taken) included.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp (func_0899CE20)
