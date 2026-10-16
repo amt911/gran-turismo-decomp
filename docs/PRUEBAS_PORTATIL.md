@@ -1,6 +1,6 @@
 # Pruebas pendientes en el portátil
 
-**Última actualización: 2026-10-16 15:00** — pruebas nuevas: punto 1 (0048, el temblor) y punto 3 (0049, rendimiento).
+**Última actualización: 2026-10-16 18:10** — prueba nueva: punto 3 (qué hilo se satura).
 
 Lista viva de lo que hace falta probar en el portátil (Ryzen 7 PRO 5850U, gráfica integrada Vega 8).
 Cuando una prueba está hecha y sus resultados están en el chat (o en `my_tests/`), se borra de aquí.
@@ -37,21 +37,23 @@ En tu captura del DeLorean no sé qué ves raro (en la comparación automática 
 salen idénticos). ¿Qué es lo que no cuadra: los reflejos de la carrocería, los cristales, las ruedas, el brillo?
 Si puedes, una captura del mismo coche en PPSSPP para comparar.
 
-## 3. Rendimiento y sonido con batería (parches 0046 y 0049, el camino rápido)
+## 3. Qué hilo se satura en el portátil
 
-Hecho el camino rápido que aprobaste. En mi máquina con dos núcleos (simulando el portátil), en carrera: el trabajo
-de la GE por cada dibujo baja de 730 a 372 nanosegundos (-49 %), y el tiempo que el juego espera a la GE baja del
-28 % al 12 %. Debería notarse en los tramos de 11-20 fps y en los cortes de audio (que venían de lo mismo).
-
-Igual que antes, **con batería** (modo de energía normal), menús y 30-40 s de carrera:
+Tu último log: el audio va bien y de 10 a 20 fps, pero en carrera aún se saltan 17-38 fotogramas por segundo. En mi
+máquina, con dos núcleos, el hilo de la GE va al 47 % y el del juego al 35 %, ninguno al límite; en el portátil con
+batería todo va ~2,5 veces más lento y necesito saber cuál de los dos llega al 100 %. Con una carrera en marcha, en
+**otra terminal**:
 
 ```bash
-GT_PERF_LOG=1 build/gt_play 2>&1 | grep -E '^\[perf\]|internal scale' | tee my_tests/perf_bateria_0049.txt
+.venv/bin/python -m tools.thread_cpu --name gt_play --every 5 --count 12 | tee my_tests/hilos_bateria.txt
 ```
 
-- [ ] ¿Va mejor (menos tirones, fps más estables, menos cortes de audio)?
-- [ ] Deja el log en `my_tests/perf_bateria_0049.txt`: la línea `GE thread` dice ahora `ns per draw` y hay una
-      línea `fast path: N draws/s`.
+(`gt-ge` es el hilo de la GE; el que se llama `gt_play` es el del juego.)
+
+- [ ] Deja `my_tests/hilos_bateria.txt` (y, si puedes, a la vez el log de siempre en `my_tests/perf_bateria_hilos.txt`).
+- [ ] Una prueba aparte: con `MaxInternalScale=2` en `[Rendering]` de `build/gt_play.ini` (imagen a 960x544), ¿va
+      más fluido? Con batería la gráfica integrada y la CPU comparten el mismo límite de energía: si la GPU gasta
+      menos, la CPU puede ir más rápida.
 
 ## 4. Velocidad del coche
 

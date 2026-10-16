@@ -44,6 +44,7 @@
 #include "psprecomp/common.hpp"
 
 #include <algorithm>
+#include <pthread.h>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -2008,6 +2009,8 @@ bool ge_async_enabled() {
 }
 
 void ge_worker_main() {
+    // Named so tools.thread_cpu (and top -H) tell the GE thread from the game thread, which keeps the process name.
+    pthread_setname_np(pthread_self(), "gt-ge");
     for (;;) {
         std::function<void()> task;
         {
