@@ -87,6 +87,9 @@ int main() {
     units.register_generated_unit(0u, kUnit, 0x4000u, &unit);
     check(gt::call_guest(units, caller, kMidFunction, {}) == 7u && !units.stopped(),
           "a pc inside a generated unit runs through the unit, as the dispatcher does");
+    units.register_function(kMidFunction, &add, "override");  // a host override (a decomp trampoline) in the unit
+    check(gt::call_guest(units, caller, kMidFunction, {40u, 2u}) == 42u,
+          "a function registered over a generated unit wins over the unit");
 
     bool threw = false;
     try {

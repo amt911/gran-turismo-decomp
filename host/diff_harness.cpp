@@ -555,6 +555,9 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     } catch (const ReplayMismatch &error) {  // a different import call than the original's
         replay_error = error.what();
         decompiled_ran = true;
+    } catch (const GuestStopped &) {  // the runtime stopped under the case: not the function's fault, and nothing to compare
+        g_last_stop = "runtime stopped: " + rt.stop_reason();
+        decompiled_ran = false;
     } catch (const std::exception &error) {  // e.g. a guest memory access the original never made
         decompiled_fault = error.what();
         decompiled_ran = true;

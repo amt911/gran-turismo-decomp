@@ -42,9 +42,9 @@ GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext 
         }
         function(rt, ctx);
         ctx.gpr[0] = 0u;
-        if (kernel_isolation_broken()) return {};
+        if (kernel_isolation_broken()) return {};  // a harness case gave up; its result is discarded
         if (rt.stopped()) return {};  // the callee stopped the runtime: this call ends, the next one throws
-        (void)rt.dispatch_boundary(ctx);  // as the dispatcher: time advances, a poll lets other threads run  // a harness case gave up; its result is discarded
+        (void)rt.dispatch_boundary(ctx);  // as the dispatcher: time advances, a poll lets other threads run
         if (!psprecomp::runtime_thread_switch_generation_matches(generation)) {
             if (!fiber::on_fiber()) {
                 rt.stop("call_guest(" + psprecomp::hex32(address) +
