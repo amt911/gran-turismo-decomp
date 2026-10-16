@@ -43,10 +43,14 @@ def usage(before: Sample, after: Sample, seconds: float, ticks_per_second: int) 
 
 
 def format_usage(rows: Sequence[tuple[str, int, float]]) -> str:
+    """One line per thread, busiest first; "(idle)" when no thread ran (a loading screen)."""
+    if not rows:
+        return "  (idle)"
     return "\n".join(f"{percent:6.1f}%  {name} ({tid})" for name, tid, percent in rows)
 
 
 def find_pid(name: str, proc: Path = Path("/proc")) -> int | None:
+    """The first process whose /proc comm is `name` (the kernel keeps 15 characters), never this one."""
     own = os.getpid()
     for entry in proc.iterdir():
         if not entry.name.isdigit() or int(entry.name) == own:
@@ -67,6 +71,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--every", type=float, default=5.0)
     parser.add_argument("--count", type=int, default=0)
     args = parser.parse_args(argv)
+    if args.every <= 0:
+        print("thread_cpu: --every must be positive", file=sys.stderr)
+        return 2
     pid = args.pid if args.pid is not None else find_pid(args.name)
     if pid is None:
         print(f"thread_cpu: no process named {args.name}", file=sys.stderr)
@@ -75,13 +82,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     windows = 0
     try:
         before = sample(pid)
+    except FileNotFoundError:
+        print(f"thread_cpu: no such process {pid}", file=sys.stderr)
+        return 2
+    started = last = time.monotonic()
+    try:
         while args.count == 0 or windows < args.count:
             time.sleep(args.every)
             after = sample(pid)
+            now = time.monotonic()
             windows += 1
-            print(f"-- {windows * args.every:.0f} s", flush=True)
-            print(format_usage([row for row in usage(before, after, args.every, ticks) if row[2] >= 1.0]), flush=True)
-            before = after
+            print(f"-- {now - started:.0f} s", flush=True)
+            rows = [row for row in usage(before, after, now - last, ticks) if row[2] >= 1.0]
+            print(format_usage(rows), flush=True)
+            before, last = after, now
     except FileNotFoundError:
         pass  # the process exited
     return 0

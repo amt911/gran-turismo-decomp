@@ -52,10 +52,30 @@ def test_main_prints_one_window_for_a_live_process(capsys) -> None:
     finally:
         child.kill()
         child.wait()
+    import re
+
     out = capsys.readouterr().out
-    assert out.startswith("-- 0 s") and "%" in out
+    assert out.startswith("-- 0 s") and re.search(r"\d+\.\d%  ", out)
 
 
 def test_main_reports_a_missing_name(capsys) -> None:
     assert thread_cpu.main(["--name", "no-such-process-name-xyz"]) == 2
     assert "no process named" in capsys.readouterr().err
+
+
+def test_main_reports_a_missing_pid(capsys) -> None:
+    assert thread_cpu.main(["--pid", "999999999", "--count", "1", "--every", "0.1"]) == 2
+    assert "no such process" in capsys.readouterr().err
+
+
+def test_main_rejects_a_non_positive_interval(capsys) -> None:
+    assert thread_cpu.main(["--pid", "1", "--every", "0"]) == 2
+
+
+def test_format_says_idle_when_nothing_ran() -> None:
+    assert thread_cpu.format_usage([]) == "  (idle)"
+
+
+def test_samples_parse_a_name_with_parentheses(tmp_path: Path) -> None:
+    write_task(tmp_path, 30, 30, "a (b) c", 7, 3)
+    assert thread_cpu.sample(30, proc=tmp_path) == {30: ("a (b) c", 10)}

@@ -51,8 +51,8 @@ batería todo va ~2,5 veces más lento y necesito saber cuál de los dos llega a
 (`gt-ge` es el hilo de la GE; el que se llama `gt_play` es el del juego.)
 
 - [ ] Deja `my_tests/hilos_bateria.txt` (y, si puedes, a la vez el log de siempre en `my_tests/perf_bateria_hilos.txt`).
-- [ ] Una prueba aparte: con `MaxInternalScale=2` en `[Rendering]` de `build/gt_play.ini` (imagen a 960x544), ¿va
-      más fluido? Con batería la gráfica integrada y la CPU comparten el mismo límite de energía: si la GPU gasta
+- [ ] Una prueba aparte: con `MaxInternalScale=2` en `[Rendering]` de `build/gt_play.ini` (imagen a 960x544; solo
+      cuenta con `NativeGE=true`, compruébalo en el mismo fichero), ¿va más fluido? Con batería la gráfica integrada y la CPU comparten el mismo límite de energía: si la GPU gasta
       menos, la CPU puede ir más rápida.
 
 ## 4. Velocidad del coche
