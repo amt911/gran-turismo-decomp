@@ -21,6 +21,7 @@
 
 #include "ge_gpu_backend.hpp"
 #include "ge_renderer.hpp"
+#include "ge_state_revision.hpp"
 #include "lcs_menu.hpp"
 
 #include <array>
@@ -66,6 +67,7 @@ private:
 };
 
 std::array<std::uint32_t, 256> ge_commands{};
+gt::GeStateRevision ge_revision;  // bumped when a draw-state register changes (host/ge_state_revision.hpp)
 GeTransformState ge_transform{};
 std::uint32_t ge_base_register = 0u;
 std::uint32_t ge_offset_address = 0u;
@@ -141,6 +143,7 @@ std::uint32_t relative_address(std::uint32_t data24) {
 
 void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list_address) {
     lcs::ge_renderer_forget_content_hashes();  // texture/palette hashes are remembered only within a list
+    ge_revision.on_list_start();  // the caches keyed by the revision start over with the list
     ge_finish_seen = false;
     ge_finish_arg = 0u;
     if (list_address == 0u) return;
@@ -157,6 +160,7 @@ void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list
         pc = (pc + 4u) & 0x0FFFFFFFu;
         const std::uint32_t command = word >> 24u;
         const std::uint32_t data = word & 0x00FFFFFFu;
+        ge_revision.on_command(command, ge_commands[command], data);
         ge_commands[command] = data;
 
         if (command >= 0x2Au && command <= 0x3Fu)
@@ -199,13 +203,17 @@ void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list
         case 0xEAu:
             flush_ge_deferred_rasterization(memory);  // earlier draws read the old contents
             execute_block_transfer(memory, data);
+            ge_revision.on_block_transfer();  // guest memory changed under the cached texture state
             break;
         case 0x04u: {
             GeRenderStats stats{};
             std::string error;
             lcs_set_ge_command(op_pc);
+            // The revision lets the renderer reuse the draw state, lighting and transform of the previous draw
+            // (docs/superpowers/specs/2026-10-16-ge-fast-path-design.md).
+            const std::uint64_t revision = ge_revision.value();
             if (!render_ge_primitive(memory, ge_commands, ge_transform, ge_vertex_address,
-                                     ge_index_address, data, stats, error)) {
+                                     ge_index_address, data, stats, error, 1u, revision, revision, revision)) {
                 flush_ge_deferred_rasterization(memory);
                 return;
             }

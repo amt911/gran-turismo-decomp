@@ -1,0 +1,279 @@
+GT patch 0046: the draw-state caches key on the revision the GT list executor now passes (host/ge_state_revision.cpp):
+the descriptor is built once per revision (0xC8, per draw, is re-read), with GT_GE_REVISION_VERIFY=1 checking each
+hit against a rebuild; equal states compare member-wise (a struct copy does not keep padding).
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -665,7 +665,7 @@
+     return static_cast<float>(static_cast<std::int16_t>(value)) / 32768.0f;
+ }
+ 
+-struct Vec3 { float x{}, y{}, z{}; };
++struct Vec3 { float x{}, y{}, z{}; bool operator==(const Vec3 &) const = default; };  // == : GT patch 0046
+ struct Vec4 { float x{}, y{}, z{}, w{}; };
+ 
+ Vec3 operator+(Vec3 a, Vec3 b) noexcept { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+@@ -906,7 +906,7 @@
+     return value;
+ }
+ 
+-struct FloatColor { float r{}, g{}, b{}, a{}; };
++struct FloatColor { float r{}, g{}, b{}, a{}; bool operator==(const FloatColor &) const = default; };  // == : GT patch 0046
+ 
+ FloatColor to_float_color(Color color) noexcept {
+     return {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f};
+@@ -944,6 +944,7 @@
+     FloatColor ambient{};
+     FloatColor diffuse{};
+     FloatColor specular{};
++    bool operator==(const PreparedLight &) const = default;  // GT patch 0046
+ };
+ 
+ struct PreparedLighting {
+@@ -957,6 +958,7 @@
+     FloatColor global_ambient{};
+     float specular_exponent{};
+     std::array<PreparedLight, 4> lights{};
++    bool operator==(const PreparedLighting &) const = default;  // GT patch 0046: padding-free compare
+ };
+ 
+ PreparedLighting prepare_lighting(bool has_vertex_color,
+@@ -4193,6 +4195,113 @@
+     g_content_generation.fetch_add(1u, std::memory_order_relaxed);
+ }
+ 
++// GT patch 0046: the draw state the registers describe, built on a revision miss (and, with
++// GT_GE_REVISION_VERIFY=1, again on every hit to check the cache).
++GeGpuDrawDescriptor build_draw_state(const std::array<std::uint32_t, 256> &commands, const VertexLayout &layout) {
++    GeGpuDrawDescriptor gpu_draw{};
++    gpu_draw.vertex_type = data24(commands[0x12u]);
++    gpu_draw.framebuffer_address = framebuffer_address(commands);
++    gpu_draw.framebuffer_stride = data24(commands[0x9Du]) & 0x7FCu;
++    gpu_draw.framebuffer_format = data24(commands[0xD2u]) & 3u;
++    gpu_draw.texture_format = data24(commands[0xC3u]) & 0xFu;
++    gpu_draw.texture_selected_level=selected_texture_level(commands);
++    for(std::uint32_t level=0;level<8;++level){gpu_draw.texture_level_addresses[level]=texture_address(commands,level);gpu_draw.texture_level_buffer_widths[level]=std::max<std::uint32_t>(1u,data24(commands[0xA8u+level])&0x7FFu);const auto sz=data24(commands[0xB8u+level]);gpu_draw.texture_level_widths[level]=1u<<(sz&0xFu);gpu_draw.texture_level_heights[level]=1u<<((sz>>8u)&0xFu);}
++    gpu_draw.texture_address=gpu_draw.texture_level_addresses[0];gpu_draw.texture_buffer_width=gpu_draw.texture_level_buffer_widths[0];gpu_draw.texture_width=gpu_draw.texture_level_widths[0];gpu_draw.texture_height=gpu_draw.texture_level_heights[0];
++    const std::uint32_t gpu_texfunc = data24(commands[0xC9u]);
++    gpu_draw.texture_function = gpu_texfunc & 7u;
++    gpu_draw.texture_use_alpha = (gpu_texfunc & 0x100u) != 0u;
++    gpu_draw.texture_double_color = (gpu_texfunc & 0x10000u) != 0u;
++    gpu_draw.texture_env = data24(commands[0xCAu]) & 0x00FFFFFFu;
++    gpu_draw.clut_address = clut_address(commands);
++    const std::uint32_t clut_data = data24(commands[0xC5u]);
++    gpu_draw.clut_format = clut_data & 3u;
++    gpu_draw.clut_shift = (clut_data >> 2u) & 0x1Fu;
++    gpu_draw.clut_mask = (clut_data >> 8u) & 0xFFu;
++    gpu_draw.clut_start = ((clut_data >> 16u) & 0x1Fu) << 4u;
++    const std::uint32_t texture_mode = data24(commands[0xC2u]);
++    const std::uint32_t texture_filter = data24(commands[0xC6u]);
++    const std::uint32_t texture_level = data24(commands[0xC8u]);
++    gpu_draw.texture_swizzled = (texture_mode & 1u) != 0u;
++    gpu_draw.texture_min_linear = (texture_filter & 1u) != 0u;
++    gpu_draw.texture_mipmap_linear = (texture_filter & 2u) != 0u;
++    gpu_draw.texture_mipmap_enabled = (texture_filter & 4u) != 0u;
++    gpu_draw.texture_mag_linear = ((texture_filter >> 8u) & 1u) != 0u;
++    gpu_draw.texture_linear = gpu_draw.texture_mag_linear;
++    gpu_draw.texture_max_level = (texture_mode >> 16u) & 7u;
++    gpu_draw.texture_level_mode = texture_level & 3u;
++    gpu_draw.texture_level_offset16 = signed_texture_lod_offset16(texture_level);
++    gpu_draw.texture_lod_slope = decode_float24(data24(commands[0xD0u]));
++    const std::uint32_t texture_wrap = data24(commands[0xC7u]);
++    gpu_draw.texture_clamp_u = (texture_wrap & 1u) != 0u;
++    gpu_draw.texture_clamp_v = (texture_wrap & 0x100u) != 0u;
++    const std::uint32_t gpu_scissor1 = data24(commands[0xD4u]);
++    const std::uint32_t gpu_scissor2 = data24(commands[0xD5u]);
++    gpu_draw.scissor_x0 = static_cast<std::int32_t>(gpu_scissor1 & 0x3FFu);
++    gpu_draw.scissor_y0 = static_cast<std::int32_t>((gpu_scissor1 >> 10u) & 0x3FFu);
++    gpu_draw.scissor_x1 = gpu_scissor2 == 0u
++        ? static_cast<std::int32_t>(gpu_draw.framebuffer_stride - 1u)
++        : static_cast<std::int32_t>(gpu_scissor2 & 0x3FFu);
++    gpu_draw.scissor_y1 = gpu_scissor2 == 0u
++        ? 271 : static_cast<std::int32_t>((gpu_scissor2 >> 10u) & 0x3FFu);
++    gpu_draw.through = layout.through;
++    gpu_draw.texture_enabled = (data24(commands[0x1Eu]) & 1u) != 0u;
++    gpu_draw.blend_enabled = (data24(commands[0x21u]) & 1u) != 0u;
++    const std::uint32_t blend_mode = data24(commands[0xDFu]);
++    gpu_draw.blend_source_factor = blend_mode & 0xFu;
++    gpu_draw.blend_dest_factor = (blend_mode >> 4u) & 0xFu;
++    gpu_draw.blend_equation = (blend_mode >> 8u) & 7u;
++    gpu_draw.blend_fix_source = data24(commands[0xE0u]) & 0x00FFFFFFu;
++    gpu_draw.blend_fix_dest = data24(commands[0xE1u]) & 0x00FFFFFFu;
++    gpu_draw.color_write_mask = data24(commands[0xE8u]) |
++        ((data24(commands[0xE9u]) & 0xFFu) << 24u);
++    const std::uint32_t alpha_test = data24(commands[0xDBu]);
++    gpu_draw.alpha_test_enabled = (data24(commands[0x22u]) & 1u) != 0u;
++    gpu_draw.alpha_function = alpha_test & 7u;
++    gpu_draw.alpha_reference = (alpha_test >> 8u) & 0xFFu;
++    gpu_draw.alpha_mask = (alpha_test >> 16u) & 0xFFu;
++    gpu_draw.depth_test_enabled = (data24(commands[0x23u]) & 1u) != 0u;
++    gpu_draw.depth_write_enabled = (data24(commands[0xE7u]) & 1u) == 0u;
++    gpu_draw.depth_function = data24(commands[0xDEu]) & 7u;
++    gpu_draw.fog_enabled = (data24(commands[0x1Fu]) & 1u) != 0u;
++    gpu_draw.fog_color = data24(commands[0xCFu]) & 0x00FFFFFFu;
++    gpu_draw.fog_end = decode_float24(data24(commands[0xCDu]));
++    gpu_draw.fog_slope = decode_float24(data24(commands[0xCEu]));
++    const std::uint32_t gpu_clear = data24(commands[0xD3u]);
++    gpu_draw.clear_mode = (gpu_clear & 1u) != 0u;
++    gpu_draw.clear_color = (gpu_clear & 0x100u) != 0u;
++    gpu_draw.clear_alpha = (gpu_clear & 0x200u) != 0u;
++    gpu_draw.clear_depth = (gpu_clear & 0x400u) != 0u;
++    gpu_draw.texture_content_signature = 0u;
++    gpu_draw.clut_checksum = 0u;
++    return gpu_draw;
++}
++
++// GT patch 0046: GT_GE_REVISION_VERIFY=1 rebuilds the cached state on every hit and counts the differences.
++std::atomic<std::uint64_t> g_revision_verify_mismatches{0u};
++bool revision_verify_enabled() noexcept {
++    static const bool enabled = std::getenv("GT_GE_REVISION_VERIFY") != nullptr;
++    return enabled;
++}
++
++std::uint64_t ge_renderer_revision_verify_mismatches() noexcept {
++    return g_revision_verify_mismatches.exchange(0u, std::memory_order_relaxed);
++}
++
++void verify_cached_draw_state(const std::array<std::uint32_t, 256> &commands, const VertexLayout &layout,
++                              const GeGpuDrawDescriptor &cached) noexcept {
++    const GeGpuDrawDescriptor fresh = build_draw_state(commands, layout);
++    if (!(cached == fresh)) {
++        const auto count = g_revision_verify_mismatches.fetch_add(1u, std::memory_order_relaxed);
++        if (count < 8u) {
++            const auto *x = reinterpret_cast<const unsigned char *>(&cached);
++            const auto *y = reinterpret_cast<const unsigned char *>(&fresh);
++            std::size_t at = 0u;
++            while (at < sizeof fresh && x[at] == y[at]) ++at;
++            std::fprintf(stderr, "[revision-verify] descriptor differs at byte %zu\n", at);
++        }
++    }
++}
++
+ bool render_ge_primitive_pass(psprecomp::GuestMemory &memory,
+                          const std::array<std::uint32_t, 256> &commands,
+                          const GeTransformState &transform,
+@@ -4247,81 +4356,14 @@
+             cached_draw_revision == draw_state_revision;
+         if (reuse_draw_state) {
+             gpu_draw = cached_draw_state;
+-        } else {
+-            gpu_draw.vertex_type = data24(commands[0x12u]);
+-            gpu_draw.framebuffer_address = framebuffer_address(commands);
+-            gpu_draw.framebuffer_stride = data24(commands[0x9Du]) & 0x7FCu;
+-            gpu_draw.framebuffer_format = data24(commands[0xD2u]) & 3u;
+-            gpu_draw.texture_format = data24(commands[0xC3u]) & 0xFu;
+-            gpu_draw.texture_selected_level=selected_texture_level(commands);
+-            for(std::uint32_t level=0;level<8;++level){gpu_draw.texture_level_addresses[level]=texture_address(commands,level);gpu_draw.texture_level_buffer_widths[level]=std::max<std::uint32_t>(1u,data24(commands[0xA8u+level])&0x7FFu);const auto sz=data24(commands[0xB8u+level]);gpu_draw.texture_level_widths[level]=1u<<(sz&0xFu);gpu_draw.texture_level_heights[level]=1u<<((sz>>8u)&0xFu);}
+-            gpu_draw.texture_address=gpu_draw.texture_level_addresses[0];gpu_draw.texture_buffer_width=gpu_draw.texture_level_buffer_widths[0];gpu_draw.texture_width=gpu_draw.texture_level_widths[0];gpu_draw.texture_height=gpu_draw.texture_level_heights[0];
+-            const std::uint32_t gpu_texfunc = data24(commands[0xC9u]);
+-            gpu_draw.texture_function = gpu_texfunc & 7u;
+-            gpu_draw.texture_use_alpha = (gpu_texfunc & 0x100u) != 0u;
+-            gpu_draw.texture_double_color = (gpu_texfunc & 0x10000u) != 0u;
+-            gpu_draw.texture_env = data24(commands[0xCAu]) & 0x00FFFFFFu;
+-            gpu_draw.clut_address = clut_address(commands);
+-            const std::uint32_t clut_data = data24(commands[0xC5u]);
+-            gpu_draw.clut_format = clut_data & 3u;
+-            gpu_draw.clut_shift = (clut_data >> 2u) & 0x1Fu;
+-            gpu_draw.clut_mask = (clut_data >> 8u) & 0xFFu;
+-            gpu_draw.clut_start = ((clut_data >> 16u) & 0x1Fu) << 4u;
+-            const std::uint32_t texture_mode = data24(commands[0xC2u]);
+-            const std::uint32_t texture_filter = data24(commands[0xC6u]);
++            // GT patch 0046: 0xC8 (texture level) is per draw: the revision ignores it.
+             const std::uint32_t texture_level = data24(commands[0xC8u]);
+-            gpu_draw.texture_swizzled = (texture_mode & 1u) != 0u;
+-            gpu_draw.texture_min_linear = (texture_filter & 1u) != 0u;
+-            gpu_draw.texture_mipmap_linear = (texture_filter & 2u) != 0u;
+-            gpu_draw.texture_mipmap_enabled = (texture_filter & 4u) != 0u;
+-            gpu_draw.texture_mag_linear = ((texture_filter >> 8u) & 1u) != 0u;
+-            gpu_draw.texture_linear = gpu_draw.texture_mag_linear;
+-            gpu_draw.texture_max_level = (texture_mode >> 16u) & 7u;
+             gpu_draw.texture_level_mode = texture_level & 3u;
+             gpu_draw.texture_level_offset16 = signed_texture_lod_offset16(texture_level);
+-            gpu_draw.texture_lod_slope = decode_float24(data24(commands[0xD0u]));
+-            const std::uint32_t texture_wrap = data24(commands[0xC7u]);
+-            gpu_draw.texture_clamp_u = (texture_wrap & 1u) != 0u;
+-            gpu_draw.texture_clamp_v = (texture_wrap & 0x100u) != 0u;
+-            const std::uint32_t gpu_scissor1 = data24(commands[0xD4u]);
+-            const std::uint32_t gpu_scissor2 = data24(commands[0xD5u]);
+-            gpu_draw.scissor_x0 = static_cast<std::int32_t>(gpu_scissor1 & 0x3FFu);
+-            gpu_draw.scissor_y0 = static_cast<std::int32_t>((gpu_scissor1 >> 10u) & 0x3FFu);
+-            gpu_draw.scissor_x1 = gpu_scissor2 == 0u
+-                ? static_cast<std::int32_t>(gpu_draw.framebuffer_stride - 1u)
+-                : static_cast<std::int32_t>(gpu_scissor2 & 0x3FFu);
+-            gpu_draw.scissor_y1 = gpu_scissor2 == 0u
+-                ? 271 : static_cast<std::int32_t>((gpu_scissor2 >> 10u) & 0x3FFu);
+-            gpu_draw.through = layout.through;
+-            gpu_draw.texture_enabled = (data24(commands[0x1Eu]) & 1u) != 0u;
+-            gpu_draw.blend_enabled = (data24(commands[0x21u]) & 1u) != 0u;
+-            const std::uint32_t blend_mode = data24(commands[0xDFu]);
+-            gpu_draw.blend_source_factor = blend_mode & 0xFu;
+-            gpu_draw.blend_dest_factor = (blend_mode >> 4u) & 0xFu;
+-            gpu_draw.blend_equation = (blend_mode >> 8u) & 7u;
+-            gpu_draw.blend_fix_source = data24(commands[0xE0u]) & 0x00FFFFFFu;
+-            gpu_draw.blend_fix_dest = data24(commands[0xE1u]) & 0x00FFFFFFu;
+-            gpu_draw.color_write_mask = data24(commands[0xE8u]) |
+-                ((data24(commands[0xE9u]) & 0xFFu) << 24u);
+-            const std::uint32_t alpha_test = data24(commands[0xDBu]);
+-            gpu_draw.alpha_test_enabled = (data24(commands[0x22u]) & 1u) != 0u;
+-            gpu_draw.alpha_function = alpha_test & 7u;
+-            gpu_draw.alpha_reference = (alpha_test >> 8u) & 0xFFu;
+-            gpu_draw.alpha_mask = (alpha_test >> 16u) & 0xFFu;
+-            gpu_draw.depth_test_enabled = (data24(commands[0x23u]) & 1u) != 0u;
+-            gpu_draw.depth_write_enabled = (data24(commands[0xE7u]) & 1u) == 0u;
+-            gpu_draw.depth_function = data24(commands[0xDEu]) & 7u;
+-            gpu_draw.fog_enabled = (data24(commands[0x1Fu]) & 1u) != 0u;
+-            gpu_draw.fog_color = data24(commands[0xCFu]) & 0x00FFFFFFu;
+-            gpu_draw.fog_end = decode_float24(data24(commands[0xCDu]));
+-            gpu_draw.fog_slope = decode_float24(data24(commands[0xCEu]));
+-            const std::uint32_t gpu_clear = data24(commands[0xD3u]);
+-            gpu_draw.clear_mode = (gpu_clear & 1u) != 0u;
+-            gpu_draw.clear_color = (gpu_clear & 0x100u) != 0u;
+-            gpu_draw.clear_alpha = (gpu_clear & 0x200u) != 0u;
+-            gpu_draw.clear_depth = (gpu_clear & 0x400u) != 0u;
+-            gpu_draw.texture_content_signature = 0u;
+-            gpu_draw.clut_checksum = 0u;
++            gpu_draw.texture_selected_level = selected_texture_level(commands);
++            if (revision_verify_enabled()) verify_cached_draw_state(commands, layout, gpu_draw);
++        } else {
++            gpu_draw = build_draw_state(commands, layout);
+             if (draw_state_revision != 0u) {
+                 cached_draw_state = gpu_draw;
+                 cached_draw_revision = draw_state_revision;
+@@ -4517,6 +4559,13 @@
+                 lighting_cache.revision == lighting_state_revision &&
+                 lighting_cache.has_vertex_color == has_vertex_color) {
+                 prepared_lighting = lighting_cache.state;
++                if (revision_verify_enabled()) {  // GT patch 0046
++                    const PreparedLighting fresh = prepare_lighting(has_vertex_color, commands);
++                    if (!(fresh == prepared_lighting)) {
++                        if (g_revision_verify_mismatches.fetch_add(1u, std::memory_order_relaxed) < 8u)
++                            std::fprintf(stderr, "[revision-verify] lighting differs\n");
++                    }
++                }
+             } else {
+                 prepared_lighting = prepare_lighting(has_vertex_color, commands);
+                 if (lighting_state_revision != 0u) {
+--- a/lcs/host/ge_renderer.hpp
++++ b/lcs/host/ge_renderer.hpp
+@@ -66,6 +66,10 @@
+ 
+ void flush_ge_deferred_rasterization(psprecomp::GuestMemory &memory);
+ 
++// GT patch 0046: with GT_GE_REVISION_VERIFY=1, cached draw state that differed from a fresh build since the last
++// call (the counter is reset).
++std::uint64_t ge_renderer_revision_verify_mismatches() noexcept;
++
+ // Host frameskip: while enabled, draws whose target is one of the two screen framebuffers (VRAM
+ // offsets, & 0x1FFFF0) are not rasterized; vertices are still decoded, so the list's state advances.
+ // Draws into other targets (render-to-texture) are kept.
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -86,6 +86,8 @@
+     bool clear_color{};
+     bool clear_alpha{};
+     bool clear_depth{};
++    // GT patch 0046: member-wise, so padding never makes two equal states differ (a copy does not keep padding).
++    bool operator==(const GeGpuDrawDescriptor &) const = default;
+ };
+ 
+ struct GeGpuHardwareTransform {
