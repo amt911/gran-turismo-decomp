@@ -211,7 +211,9 @@ void execute_ge_list_rendered(psprecomp::GuestMemory &memory, std::uint32_t list
             lcs_set_ge_command(op_pc);
             // The revision lets the renderer reuse the draw state, lighting and transform of the previous draw
             // (docs/superpowers/specs/2026-10-16-ge-fast-path-design.md).
-            const std::uint64_t revision = ge_revision.value();
+            // GT_GE_NO_REVISION=1 passes none (the caches never hit), to measure what they save.
+            static const bool no_revision = std::getenv("GT_GE_NO_REVISION") != nullptr;
+            const std::uint64_t revision = no_revision ? 0u : ge_revision.value();
             if (!render_ge_primitive(memory, ge_commands, ge_transform, ge_vertex_address,
                                      ge_index_address, data, stats, error, 1u, revision, revision, revision)) {
                 flush_ge_deferred_rasterization(memory);

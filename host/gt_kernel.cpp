@@ -1919,10 +1919,18 @@ void perf_log_tick() {
         // GT patch 0038: the GE thread's time, split. "lists" decode and accumulate the draws; a finish records
         // the frame (uploads, commands, the present pass), submits it and presents it.
         const double finishes = gpu.finishes ? static_cast<double>(gpu.finishes) : 1.0;
+        // The lists' cost per draw: A/B runs drift to different scenes (a faster GE changes the game's pacing), so
+        // ms/s alone compares different workloads (docs/superpowers/plans/2026-10-16-ge-fast-path.md, Task 3).
+        static std::uint64_t previous_draw_calls = 0u;
+        const std::uint64_t draw_calls = ge_gpu_backend_report().game_draw_calls;
+        const double draws = static_cast<double>(draw_calls - std::min(previous_draw_calls, draw_calls));
+        previous_draw_calls = draw_calls;
+        const double list_us = static_cast<double>(perf_ge_list_us.exchange(0u));
         std::fprintf(stderr,
-                     "[perf]   GE thread: lists %.0f ms/s, finishes %.0f ms/s (%.2f ms each: record %.2f [uploads %.2f, "
-                     "draws %.2f, present pass %.2f], submit %.2f, present %.2f)\n",
-                     static_cast<double>(perf_ge_list_us.exchange(0u)) / 1000.0 / seconds, gpu.finish_ms / seconds,
+                     "[perf]   GE thread: lists %.0f ms/s (%.0f ns per draw, %.0f draws/s), finishes %.0f ms/s "
+                     "(%.2f ms each: record %.2f [uploads %.2f, draws %.2f, present pass %.2f], submit %.2f, present %.2f)\n",
+                     list_us / 1000.0 / seconds, draws > 0.0 ? list_us * 1000.0 / draws : 0.0, draws / seconds,
+                     gpu.finish_ms / seconds,
                      gpu.finish_ms / finishes, gpu.record_ms / finishes, gpu.uploads_ms / finishes,
                      gpu.draws_ms / finishes, gpu.present_pass_ms / finishes, gpu.submit_ms / finishes,
                      gpu.queue_present_ms / finishes);
