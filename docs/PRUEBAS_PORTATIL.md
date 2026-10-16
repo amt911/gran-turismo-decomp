@@ -1,6 +1,6 @@
 # Pruebas pendientes en el portátil
 
-**Última actualización: 2026-10-16 18:10** — prueba nueva: punto 3 (qué hilo se satura).
+**Última actualización: 2026-10-16 21:00** — repetir el punto 3 con la carrera ya en marcha; quitados 1 y 2 (hechos).
 
 Lista viva de lo que hace falta probar en el portátil (Ryzen 7 PRO 5850U, gráfica integrada Vega 8).
 Cuando una prueba está hecha y sus resultados están en el chat (o en `my_tests/`), se borra de aquí.
@@ -20,40 +20,23 @@ grep -c "GT patch 0049" tools/src/lcs-recomp/lcs/host/ge_renderer.cpp   # debe d
 **`build/gt_play.ini`** (o en otro fichero con `PSPRECOMP_CONFIG=<ruta>`). Comprueba que tiene `NativeGE=true`,
 `InternalResolutionMode=Window` y `GpuBudgetMs=10` en `[Rendering]`.
 
-## 1. El temblor de la imagen (parche 0048)
+## 3. Qué hilo se satura en el portátil (repetir, con la carrera ya en marcha)
 
-Tu vídeo lo dejó clarísimo: con el coche parado, toda la escena 3D salta entre dos posiciones fotograma a
-fotograma (1-2 píxeles), y el marcador no se mueve. Es cosa del propio juego: GT desplaza la cámara medio píxel
-en un fotograma sí y en otro no, un truco de antialiasing que en la pantalla del PSP (lenta) se mezclaba en una
-sola imagen. En una pantalla moderna se ve como temblor. Ahora se quita ese medio píxel.
+Gracias por `hilos_bateria.txt`. Los primeros 55 s eran menús y cargas (hilos al 5-17 %) y la carrera empezó justo en
+la última ventana (juego 63 %, GE 46 %), así que la carrera se quedó fuera. Lo de `MaxInternalScale=2` (algo más
+fluido) apunta a que la gráfica también cuenta. Hace falta la carrera entera:
 
-- [ ] En la misma contrarreloj del vídeo, con el coche parado, ¿sigue temblando la imagen?
-- [ ] Si quisieras compararlo con el temblor original: `KeepTemporalJitter=true` en la sección `[Rendering]`
-      de `build/gt_play.ini` lo vuelve a poner.
+1. Arranca el juego con el log de siempre, en una terminal:
+   ```bash
+   GT_PERF_LOG=1 build/gt_play 2>&1 | grep -E '^\[perf\]|internal scale' | tee my_tests/perf_bateria_hilos.txt
+   ```
+2. **Cuando ya estés corriendo en la pista** (no en el menú), en otra terminal:
+   ```bash
+   .venv/bin/python -m tools.thread_cpu --name gt_play --every 5 --count 12 | tee my_tests/hilos_carrera.txt
+   ```
+3. Sigue en carrera el minuto que tarda (con `MaxInternalScale` como lo tengas normalmente; apunta cuál).
 
-## 2. Coches en el concesionario
-
-En tu captura del DeLorean no sé qué ves raro (en la comparación automática con el renderizador por software
-salen idénticos). ¿Qué es lo que no cuadra: los reflejos de la carrocería, los cristales, las ruedas, el brillo?
-Si puedes, una captura del mismo coche en PPSSPP para comparar.
-
-## 3. Qué hilo se satura en el portátil
-
-Tu último log: el audio va bien y de 10 a 20 fps, pero en carrera aún se saltan 17-38 fotogramas por segundo. En mi
-máquina, con dos núcleos, el hilo de la GE va al 47 % y el del juego al 35 %, ninguno al límite; en el portátil con
-batería todo va ~2,5 veces más lento y necesito saber cuál de los dos llega al 100 %. Con una carrera en marcha, en
-**otra terminal**:
-
-```bash
-.venv/bin/python -m tools.thread_cpu --name gt_play --every 5 --count 12 | tee my_tests/hilos_bateria.txt
-```
-
-(`gt-ge` es el hilo de la GE; el que se llama `gt_play` es el del juego.)
-
-- [ ] Deja `my_tests/hilos_bateria.txt` (y, si puedes, a la vez el log de siempre en `my_tests/perf_bateria_hilos.txt`).
-- [ ] Una prueba aparte: con `MaxInternalScale=2` en `[Rendering]` de `build/gt_play.ini` (imagen a 960x544; solo
-      cuenta con `NativeGE=true`, compruébalo en el mismo fichero), ¿va más fluido? Con batería la gráfica integrada y la CPU comparten el mismo límite de energía: si la GPU gasta
-      menos, la CPU puede ir más rápida.
+- [ ] Deja `my_tests/hilos_carrera.txt` y `my_tests/perf_bateria_hilos.txt`, con batería.
 
 ## 4. Velocidad del coche
 
