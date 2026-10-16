@@ -137,7 +137,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   that the call does not pass (a callee then sees whatever the C++ context holds from an earlier, different call: batch 93). The scan is
   by address order, not a flow analysis, so a line is a place to read the callee's head: batch 95 got six, all harmless (a variadic
   `sprintf` and a register spill read the unused argument registers, `func_08B36170` copies `t3` to `t2` only to compare them with each
-  other, `func_089AAC8C` writes `a1` before its first use on the path that matters). Exit 1 while there is one; put the verdicts in the PR.
+  other, `func_089AAC8C` writes `a1` before its first use on the path that matters). A callee that is only a forwarder (a few instructions ending in `j target`) is followed to its target (batch 96: `func_08AD6A00` jumps to a three-argument partial sort, the call passed two and every case mismatched on the first gate). Exit 1 while there is one; put the verdicts in the PR.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape

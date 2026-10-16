@@ -7,6 +7,10 @@ batch file, the argument registers (a0-a3, t0-t3) the callee reads before writin
 is by address order over the whole callee (not a flow analysis), so a register first used on a path that writes it later in
 the text is reported too: each line is a place to read the callee's head, not a verdict.
 
+A callee that is only a forwarder (a handful of instructions ending in `j target`, e.g. `func_08AD6A00`: `j func_08C3E4E8`) also
+reads what its target reads, except for the argument registers the forwarder itself writes first (batch 96: the forwarder hid that
+the sort behind it takes a third argument, and the first gate mismatched on every case).
+
 Usage (from the repository root): .venv/bin/python -m tools.arg_reads src/game/unsorted/hot_batch_95.cpp
 Exit 1 when a call passes fewer arguments than its callee reads.
 """
@@ -15,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import struct
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -29,10 +34,12 @@ _READ_ALL = {"sw", "sh", "sb", "swl", "swr", "swc1", "beq", "bne", "beql", "bnel
 # Instructions that also read their destination (a conditional move keeps it, a left/right load merges into it).
 _READ_DESTINATION = {"movz", "movn", "lwl", "lwr", "ins"}
 _CALL = re.compile(r"call_(?:set|keep)\(rt, ctx, 0x([0-9A-Fa-f]{8})u, \{")
+_JUMP = re.compile(r"^\s*[0-9A-F]{8}: [0-9A-F]{8}\s+j\s+\S+\s+->\s+func_([0-9A-F]{8})\b")
+FORWARDER_LENGTH = 8  # a callee of at most this many instructions that ends in `j` is a forwarder
 
 
-def arg_reads(lines: Sequence[str]) -> set[int]:
-    """Register numbers (4-11) whose first mention in the disassembly, in address order, is a read."""
+def first_mentions(lines: Sequence[str]) -> dict[int, bool]:
+    """Argument register number (4-11) -> whether its first mention, in address order, is a read."""
     first: dict[int, bool] = {}  # register -> first mention was a read
     for line in lines:
         match = _LINE.match(line)
@@ -55,7 +62,30 @@ def arg_reads(lines: Sequence[str]) -> set[int]:
             first.setdefault(number, True)
         for number in writes:
             first.setdefault(number, False)
-    return {number for number, was_read in first.items() if was_read}
+    return first
+
+
+def arg_reads(lines: Sequence[str]) -> set[int]:
+    """Register numbers (4-11) whose first mention in the disassembly, in address order, is a read."""
+    return {number for number, was_read in first_mentions(lines).items() if was_read}
+
+
+def forwarder_target(lines: Sequence[str]) -> int | None:
+    """The address a short callee ends by jumping to (`j target`), None when it is not a forwarder."""
+    body = [line for line in lines if _LINE.match(line)]
+    if not body or len(body) > FORWARDER_LENGTH:
+        return None
+    for line in body:
+        jump = _JUMP.match(line)
+        if jump:
+            return int(jump[1], 16)
+    return None
+
+
+def with_forwarded(lines: Sequence[str], target_reads: set[int]) -> set[int]:
+    """The reads of a forwarder plus the reads of its target that the forwarder does not write first."""
+    first = first_mentions(lines)
+    return arg_reads(lines) | {number for number in target_reads if number not in first}
 
 
 def literal_calls(source: str) -> list[tuple[int, int, int]]:
@@ -96,14 +126,27 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - reads 
     image = TextImage.from_elf(args.elf.read_bytes())
     sizes = load_functions(args.functions_tsv)
     cache: dict[int, set[int]] = {}
-    found = 0
-    for address, passed, line in literal_calls(args.source.read_text()):
+
+    def reads_of(address: int, depth: int = 0) -> set[int] | None:
         vaddr = address - LOAD_BASE
         if vaddr not in sizes:
-            continue
-        if address not in cache:
+            return None
+        try:
             words, relocs = image.function(vaddr, sizes[vaddr])
-            cache[address] = arg_reads(disassemble(words, relocs, image.segments, address))
+        except struct.error:  # a stub outside the text image (imports): nothing to read
+            return None
+        lines = disassemble(words, relocs, image.segments, address)
+        target = forwarder_target(lines) if depth < 3 else None
+        forwarded = reads_of(target, depth + 1) if target is not None else None
+        return with_forwarded(lines, forwarded) if forwarded is not None else arg_reads(lines)
+
+    found = 0
+    for address, passed, line in literal_calls(args.source.read_text()):
+        if address not in cache:
+            reads = reads_of(address)
+            if reads is None:
+                continue
+            cache[address] = reads
         gaps = missing(cache[address], passed)
         if gaps:
             print(f"{args.source}:{line}: call of func_{address:08X} passes {passed}, the callee reads {', '.join(_NAME[n] for n in gaps)}", file=sys.stderr)

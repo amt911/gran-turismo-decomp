@@ -1766,3 +1766,19 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_95.cpp (func_08A6E974, func_08A
 Also new: `tools.arg_reads` (5 tests) lists the calls that pass fewer argument registers than their callee reads (the batch-93 stale-argument bug, found by a scratch script then): six in this batch, all harmless; the scan is by address order, so each line is a place to read the callee's head.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_95.cpp (hinted_insert), tools/arg_reads.py
+
+## A `j` forwarder hides the argument registers of its target: `tools.arg_reads` read only the stub and printed nothing
+
+**Symptom.** Batch 96's `func_08AD6EBC` came out of its first fast gate with `compared 98, equal 0, mismatched 98` (`RAM at 0x093EDF00: original 00, decompiled 55 (60 bytes differ)`), although the C++ matched the asm line by line and `tools.arg_reads` was clean. The 60 bytes were the first elements of the array the function fills (`0xFFF85555` over them).
+**Cause.** Its last call, `func_08AD6A00(begin, end)`, is a two-instruction forwarder (`j func_08C3E4E8`) of a partial sort `(first, middle, last)`; the original still held `last` (the cursor) in a2 when it made the call, the C++ passed two arguments and the sort saw whatever a2 held in the context (a stack address), writing its heap bookkeeping into the vector. `tools.arg_reads` scanned only the forwarder's own two instructions, which read no register.
+**Fix.** The call passes `{begin, end, cursor}`; `tools.arg_reads` now follows a callee of at most 8 instructions that ends in `j target` to the target (minus the registers the forwarder writes first; 3 tests) and flags the old two-argument call. The other forwarders of the file (`func_08A06E94`, `func_08A06EC8`, `func_08AD5EC8`, `func_08AD5ED0`, `func_08B344E0`, `func_08B4E9D4`) read nothing past the arguments the calls pass. A function whose first gate mismatches on every case and whose C++ looks right: read the callees' callees.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_96.cpp (func_08AD6EBC), tools/arg_reads.py
+
+## The v0 a function returns can be the constant of a test, not of a computation: `andi v0, v1, 0x20` before a last `jal`, `addiu v0, zero, 2` in a loop bound
+
+**Symptom.** Two of the 24 functions of batch 96's second fast gate mismatched on v0 only: `func_089230A4` (original 0, decompiled the previous call's v0) and `func_0895C140` (original 2, decompiled a stack address), both registered as Word.
+**Cause.** Neither v0 is a result. `func_089230A4` ends with `jal func_08B4E9D4`, a forwarder that sets no v0, so its v0 is whatever the instruction before the last branch left: `andi v0, v1, 0x20` (zero, because the branch around the 0x20 block was taken). `func_0895C140` ends with a loop that tests `bne s2, v0, ...` after `addiu v0, zero, 2`, so every exit leaves v0 = 2. The C++ left the v0 of the last guest call.
+**Fix.** The C++ sets `ctx.gpr[2]` to the constant the test leaves (`= 0` in the not-taken arm, `= 2` after the loop). A Void registration would not have seen it; a Word one saw it on the first gate. For every Word function read the last three instructions of each exit for a `slti/sltiu/andi/xori/addiu v0` before the last `jal` or the final `bne`.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_96.cpp (func_089230A4, func_0895C140)
