@@ -111,13 +111,14 @@ inline void release_counted(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-// func_08819170(a0, a1, count, list): nothing happens (v0 as it was) when count < 3 (signed). Otherwise the holder sp[0x1C] = func_08817FCC(sp + 0x1C, a1) (null: func_08A5BB7C(D_08C98D6C (0x08C98D6C)) first) gives fp = func_08817A54(it) and is destroyed (func_08A5B9EC); the objects list[0..4] (null: func_08A5BB7C(D_08C98D34 (0x08C98D34)) first) are asked:
+// func_08819170(a0, a1, count, list): nothing happens (v0 = 1, the slti's answer) when count < 3 (signed). Otherwise the holder sp[0x1C] = func_08817FCC(sp + 0x1C, a1) (null: func_08A5BB7C(D_08C98D6C (0x08C98D6C)) first) gives fp = func_08817A54(it) and is destroyed (func_08A5B9EC); the objects list[0..4] (null: func_08A5BB7C(D_08C98D34 (0x08C98D34)) first) are asked:
 // slot 0xC of list[0] fills the string sp + 0x18, v = func_08B20A54(D_08CE2AA4 (0x08CE2AA4), sp[0x18], 0) is kept at sp[0x30] and the string is released (flag sp + 0x12); the 64-bit answer of slot 0x50 of list[1] is (s4, s5) = (v0, v1), slot 0x4C of list[2] is s7 and, unless count is 3, slot 0x4C of list[3] (when non-null) is s6 (else 0). With count >= 5 the slot 0xC of list[4]
 // fills sp + 0x14, func_08B855E0(sp + 0x20, sp + 0x14) appends it to the cell sp[0x20] (initially the shared empty cell + 0xC) and sp + 0x14 is released (flag sp + 0x11). func_088183D4(fp, fp[0], sp[0x30], _, s4, s5, s7 & 0xFF, s6) runs with sp[0] = sp + 0x20 as the ninth argument; the cell sp + 0x20 is released (flag sp + 0x10). v0 = the last callee's.
 // Branches the compared cases do not take (from `tools.decomp_gate coverage` of the fast gate, read against the asm by hand, branch targets and delay slots included): `if (signed_of(count) < 3) return;`; `if (source == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C98D6Cu});`; `if (object == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C98D34u});`; `if (count != 3u) {`; `if (object != 0u) extra = call_set(rt, ctx, slot_of(rt, object, 0x4Cu), {object});`; `if (signed_of(count) >= 5) {`
 void func_08819170(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t second = ctx.gpr[5], count = ctx.gpr[6], list = ctx.gpr[7];
     GuestFrame frame(ctx, 0x70u);
+    ctx.gpr[2] = signed_of(count) < 3 ? 1u : 0u;  // the slti at 0x08819174 writes v0
     if (signed_of(count) < 3) return;
     const std::uint32_t holder = frame.at(0x1Cu);
     (void)call_set(rt, ctx, 0x08817FCCu, {holder, second});
