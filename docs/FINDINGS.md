@@ -1656,3 +1656,15 @@ winding was also inverted: every front face was culled (the race showed the insi
 board's black is clean and the lower panel is see-through as in the software frame.
 
 Found: 2026-10-15 · tools/patches/lcs-recomp/0045-hardware-back-face-culling.patch
+
+## The 10-70 instruction pool of the batch-78 probe ran dry at batch 89: a probe over 71-120 instructions found two families of 56 functions that the first one could not list
+
+**Symptom.** Batch 89's selection (the batch-78 probe of reached functions, 10-70 instructions, no VFPU, no import-stub calls) left 25 candidates: of the 1,177 functions that probe reached, 48 of 10-70 instructions were
+still absent from `src/`, and 9 had VFPU and 14 called stubs from 0x08C70000. So the pool could not supply another batch of about fifty.
+**Cause.** Not a tooling fault: batches 78-88 had taken the pool, and the probe only ever listed functions of up to 70 instructions (`tools.family_members --write-probe-symbols PATH --max-insns` defaults to 70).
+**Fix / workaround.** A new probe (`tools.decomp_gate probe b89p`) over the 1,403 not-yet-done functions of 71-120 instructions (a scratch script made the symbol list with the same filter; the tool's `--max-insns 120` was not
+run) reached 281, 264 without VFPU, stubs or register jumps, and their masked-shape clusters (`tools.shapes` signature) held two families of the SAME 75-instruction function in two register allocations (46 + 10 members, one
+call per route, a table-driven registration function): one template with the table in each row, and every member compared once per route in the fast gate (`cases that changed memory 1`), but 61 of the 67 functions of the
+batch are `compared 0` in the real-time full gate (all 56 members among them), so their proof is the uncapped fast gate and the sabotage. Next time probe 71-120 (or 1-120) from the start and cluster before reading by hand.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_89.cpp (register_table)
