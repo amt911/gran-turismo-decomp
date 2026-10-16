@@ -1717,3 +1717,11 @@ to the stack).
 Also seen: a function that ends with a void callee returns the `v0` the original had at that call, which can be an unrelated `sll v0, s3, 2` between the previous call and it (`func_08BFB68C` returned the destination of the previous call, the original `tail << 2`): the first gate caught it as `v0: original 0x0, decompiled 0x094AD1D4`.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_93.cpp (scan_block, func_08896780, args_to_vector, fill_insert_scalar)
+
+## A disassembly view with the callee-saved reloads hidden also hides a real `lw $s0, 4($sp)`: `tools.sp_loads` lists the ones to read
+
+**Symptom.** Batch 94's first fast gate with `func_08A1F328`: both compared cases of each menu route ended `decompiled run faulted: Guest memory access outside PSP RAM/EDRAM at 0x13990043` (0x1398F983 in the next run), not inside the function's own code; the other 34 functions of the batch passed the first time.
+**Cause.** The functions were read through a scratch view of `tools.disasm` that dropped every `lw $sN/$fp/$ra, off($sp)` and `sw` of them to skip the prologue and the epilogues. At 0x08A1F3E0 `lw $s0, 4($sp)` is not a restore: `func_08A1EC18(.., sp + 4, ..)` stores a new object there and the next calls (func_08AF771C, func_08AF7B0C, func_08A44D9C) work on it, while the C++ kept the argument object in `s0`.
+**Fix / workaround.** `tools.sp_loads` (new, 3 tests) lists the `lw $sN/$fp/$ra, off($sp)` of each function of a batch file whose register was not saved to that offset; on the 35 functions of batch 94 it found this one and 11 loads the C++ already models (the string data pointers re-read after a call in `parse_floats` and `func_089AF6A0`). Run it with `literal_check` before the first gate. A gate would not have found a hidden load on a path no route runs.
+
+Found: 2026-10-16 · src/game/unsorted/hot_batch_94.cpp (func_08A1F328), tools/sp_loads.py
