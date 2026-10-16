@@ -79,6 +79,7 @@ const LcsConfiguration &lcs_render_configuration() {
     static const LcsConfiguration configuration{};
     return configuration;
 }
+bool rendering_keep_temporal_jitter() noexcept { return true; }  // no GPU path here (GT patch 0048)
 bool ge_gpu_backend_active() noexcept { return false; }
 bool ge_gpu_backend_finish_color_frame(std::uint64_t) noexcept { return false; }
 GeGpuPerf ge_gpu_backend_take_perf() noexcept { return {}; }

@@ -1,0 +1,101 @@
+GT patch 0048: the GPU path drops the half-pixel offset GT adds to its 3D projection on every other frame (temporal
+anti-aliasing the PSP LCD blended; a side-to-side wobble on a modern screen). [Rendering] KeepTemporalJitter=true keeps it.
+
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -734,6 +734,22 @@
+     return result;
+ }
+ 
++// GT patch 0048: GT adds a half-pixel offset to its 3D projection on every other frame (P[8] = 1/480, P[9] = 1/272,
++// the next frame 0: measured on the race route, 2026-10-16), anti-aliasing that the PSP's slow LCD blended into one
++// picture. On a modern screen the whole scene jumps half a pixel back and forth, at x4 two pixels. Both the hardware
++// transform and the CPU vertex decoders drop exactly that offset unless [Rendering] KeepTemporalJitter=true (the GPU
++// gate sets it, so the GPU and the software reference draw the same frames; gt_native always keeps it).
++std::array<float, 16> projection_without_temporal_jitter(const std::array<float, 16> &projection) noexcept {
++    std::array<float, 16> p = projection;
++    if (rendering_keep_temporal_jitter() || p[11] == 0.0f) return p;
++    const auto half_pixel = [](float value, float pixels) {
++        return std::fabs(std::fabs(value) - 1.0f / pixels) <= 1.0e-6f;
++    };
++    if (half_pixel(p[8], 480.0f) && (half_pixel(p[9], 272.0f) || p[9] == 0.0f)) p[8] = 0.0f;
++    if (half_pixel(p[9], 272.0f) && p[8] == 0.0f) p[9] = 0.0f;
++    return p;
++}
++
+ GeGpuHardwareTransform build_gpu_hardware_transform(
+     const std::array<std::uint32_t, 256> &commands,
+     const GeTransformState &transform,
+@@ -757,7 +773,7 @@
+         std::memcmp(cached_projection.data(), transform.projection.data(), sizeof cached_projection) != 0) {
+         const auto view = affine_4x3_to_mat4(transform.view);
+         cached_model_to_view = multiply_mat4(view, world);
+-        cached_model_to_clip = multiply_mat4(transform.projection, cached_model_to_view);
++        cached_model_to_clip = multiply_mat4(projection_without_temporal_jitter(transform.projection), cached_model_to_view);
+         cached_world = world;
+         std::memcpy(cached_view.data(), transform.view.data(), sizeof cached_view);
+         std::memcpy(cached_projection.data(), transform.projection.data(), sizeof cached_projection);
+@@ -1246,7 +1262,7 @@
+     } else {
+         vertex.fog_factor = 1.0f;
+     }
+-    const Vec4 clip = transform_4x4(transform.projection, view);
++    const Vec4 clip = transform_4x4(projection_without_temporal_jitter(transform.projection), view);  // GT patch 0048
+     vertex.x = clip.x;
+     vertex.y = clip.y;
+     vertex.z = clip.z;
+@@ -1320,7 +1336,7 @@
+     } else {
+         vertex.fog_factor = 1.0f;
+     }
+-    const Vec4 clip = transform_4x4(transform.projection, view);
++    const Vec4 clip = transform_4x4(projection_without_temporal_jitter(transform.projection), view);  // GT patch 0048
+     vertex.x = clip.x;
+     vertex.y = clip.y;
+     vertex.z = clip.z;
+--- a/lcs/host/lcs_render_config.cpp
++++ b/lcs/host/lcs_render_config.cpp
+@@ -293,6 +293,11 @@
+             warning(config, line, "Rendering.AnisotropicFiltering must be between 1 and 16");
+         return;
+     }
++    if (key == "keeptemporaljitter") {  // GT patch 0048
++        if (!parse_bool(value, config.rendering.keep_temporal_jitter))
++            warning(config, line, "Rendering.KeepTemporalJitter expects true or false");
++        return;
++    }
+     if (key == "texturelodbias" || key == "mipbias" || key == "lodbias") {
+         if (!parse_float(value, -8.0f, 8.0f, config.rendering.texture_lod_bias))
+             warning(config, line, "Rendering.TextureLodBias must be between -8 and 8");
+@@ -513,6 +518,10 @@
+     return resolve_display_surface_dimensions(lcs_render_configuration().display);
+ }
+ 
++bool rendering_keep_temporal_jitter() noexcept {  // GT patch 0048
++    return lcs_render_configuration().rendering.keep_temporal_jitter;
++}
++
+ float rendering_texture_lod_bias() noexcept {
+     const float bias = lcs_render_configuration().rendering.texture_lod_bias;
+     if (!std::isfinite(bias)) return 0.0f;
+--- a/lcs/host/lcs_render_config.hpp
++++ b/lcs/host/lcs_render_config.hpp
+@@ -75,6 +75,7 @@
+ 
+ // Extra mip bias from Rendering.TextureLodBias, clamped to -8..8.
+ [[nodiscard]] float rendering_texture_lod_bias() noexcept;
++[[nodiscard]] bool rendering_keep_temporal_jitter() noexcept;  // GT patch 0048
+ 
+ [[nodiscard]] float view_distance_scale() noexcept;
+ 
+@@ -106,6 +107,9 @@
+     std::uint32_t internal_height{544u};
+     std::uint32_t anisotropic_filtering{1u};
+     float texture_lod_bias{0.0f};
++    // GT patch 0048: GT shifts its 3D projection by half a pixel on every other frame (temporal anti-aliasing the
++    // PSP's slow LCD blended); on a modern screen it is a side-to-side wobble. Off by default: the GPU path drops it.
++    bool keep_temporal_jitter{false};
+     // LOD distance (TheCamera+224), far clip (RwCamera+132), fog plane (RwCamera+136).
+     float view_distance{1.0f};
+     std::uint32_t msaa{4u};

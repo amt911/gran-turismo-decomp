@@ -1699,6 +1699,14 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp, tools/literal_check.py
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_91.cpp (func_0899CE20)
 
+## The side-to-side wobble: GT jitters its 3D projection by half a pixel on alternate frames
+
+**Symptom.** On the laptop (a 15 s screen recording, 60 fps, time trial with the car stopped) the whole 3D scene jumped back and forth between two positions frame after frame (±1-2 px horizontally and 2 px vertically at 1080p) while the HUD stayed still.
+**Cause.** Not the presentation and not the viewport (both framebuffers use the same viewports and the same present size). Logging the projection of the first perspective draw of each list on the race route: the lists drawing into the framebuffer at VRAM 0 carry `P[8] = 1/480 = 0.0020833` and `P[9] = 1/272 = 0.0036764`, the ones drawing at 0x44000 carry 0 — half a pixel in both axes, every other frame. GT's temporal anti-aliasing: the PSP's slow LCD blended the two pictures into one. The software renderer draws it too (it is in the game's matrices).
+**Fix / workaround.** lcs-recomp patch 0048: the hardware transform and the CPU vertex decoders drop exactly that offset (`projection_without_temporal_jitter`, only `|P[8]| = 1/480`, `|P[9]| = 1/272` on a perspective projection) unless `[Rendering] KeepTemporalJitter=true` (`gt_native` always keeps it, so the differential gate is unaffected); `tools/gpu_gate.sh` keeps it, to stay comparable with the software reference (GPU gate x1 unchanged: race 344/943, dealer 488/488, garage 476/476). x4 dumps of the start grid (camera almost still): consecutive-frame differences alternate high/low with the jitter (5.1 2.8 2.7 6.3 2.9 4.7 …) and grow smoothly without it (1.8 1.8 1.9 1.9 …).
+
+Found: 2026-10-16 · tools/patches/lcs-recomp/0048-drop-temporal-jitter.patch
+
 ## The 71-120 pool ran dry at batch 93: a probe over 121-170 instructions reached 192 more functions, and `tools.shapes --skeleton` joined the register allocations the masked shape kept apart
 
 **Symptom.** After batch 92 the batch-89 probe had 80 reached functions left without an active registration; the ones not yet written are VFPU, call the import stubs or jump through a register, are float-heavy, write no memory of their own or are tangled (the head comments of batches 89-92 say which, function by function), so only `func_08B0ACDC` could be written. `tools.family_members --list --any-template` over a probe of the next size class found one family (3 members).
