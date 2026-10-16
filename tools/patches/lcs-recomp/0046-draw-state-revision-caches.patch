@@ -38,14 +38,18 @@ hit against a rebuild; equal states compare member-wise (a struct copy does not 
  };
  
  PreparedLighting prepare_lighting(bool has_vertex_color,
-@@ -4193,6 +4195,113 @@
+@@ -4193,6 +4195,117 @@
      g_content_generation.fetch_add(1u, std::memory_order_relaxed);
  }
  
 +// GT patch 0046: the draw state the registers describe, built on a revision miss (and, with
 +// GT_GE_REVISION_VERIFY=1, again on every hit to check the cache).
-+GeGpuDrawDescriptor build_draw_state(const std::array<std::uint32_t, 256> &commands, const VertexLayout &layout) {
-+    GeGpuDrawDescriptor gpu_draw{};
++// The descriptor is filled field by field into zeroed bytes, and copied with memcpy: the backend compares descriptors
++// with memcmp (texture-key memo, batch merging), so padding must be zero in every copy (a member-wise copy leaves it
++// undefined, and a hit then missed every memo).
++void build_draw_state(const std::array<std::uint32_t, 256> &commands, const VertexLayout &layout,
++                      GeGpuDrawDescriptor &gpu_draw) {
++    std::memset(static_cast<void *>(&gpu_draw), 0, sizeof gpu_draw);
 +    gpu_draw.vertex_type = data24(commands[0x12u]);
 +    gpu_draw.framebuffer_address = framebuffer_address(commands);
 +    gpu_draw.framebuffer_stride = data24(commands[0x9Du]) & 0x7FCu;
@@ -120,7 +124,6 @@ hit against a rebuild; equal states compare member-wise (a struct copy does not 
 +    gpu_draw.clear_depth = (gpu_clear & 0x400u) != 0u;
 +    gpu_draw.texture_content_signature = 0u;
 +    gpu_draw.clut_checksum = 0u;
-+    return gpu_draw;
 +}
 +
 +// GT patch 0046: GT_GE_REVISION_VERIFY=1 rebuilds the cached state on every hit and counts the differences.
@@ -136,7 +139,8 @@ hit against a rebuild; equal states compare member-wise (a struct copy does not 
 +
 +void verify_cached_draw_state(const std::array<std::uint32_t, 256> &commands, const VertexLayout &layout,
 +                              const GeGpuDrawDescriptor &cached) noexcept {
-+    const GeGpuDrawDescriptor fresh = build_draw_state(commands, layout);
++    GeGpuDrawDescriptor fresh;
++    build_draw_state(commands, layout, fresh);
 +    if (!(cached == fresh)) {
 +        const auto count = g_revision_verify_mismatches.fetch_add(1u, std::memory_order_relaxed);
 +        if (count < 8u) {
@@ -152,10 +156,11 @@ hit against a rebuild; equal states compare member-wise (a struct copy does not 
  bool render_ge_primitive_pass(psprecomp::GuestMemory &memory,
                           const std::array<std::uint32_t, 256> &commands,
                           const GeTransformState &transform,
-@@ -4247,81 +4356,14 @@
+@@ -4246,84 +4359,17 @@
+         const bool reuse_draw_state = draw_state_revision != 0u &&
              cached_draw_revision == draw_state_revision;
          if (reuse_draw_state) {
-             gpu_draw = cached_draw_state;
+-            gpu_draw = cached_draw_state;
 -        } else {
 -            gpu_draw.vertex_type = data24(commands[0x12u]);
 -            gpu_draw.framebuffer_address = framebuffer_address(commands);
@@ -178,6 +183,7 @@ hit against a rebuild; equal states compare member-wise (a struct copy does not 
 -            gpu_draw.clut_start = ((clut_data >> 16u) & 0x1Fu) << 4u;
 -            const std::uint32_t texture_mode = data24(commands[0xC2u]);
 -            const std::uint32_t texture_filter = data24(commands[0xC6u]);
++            std::memcpy(static_cast<void *>(&gpu_draw), &cached_draw_state, sizeof gpu_draw);
 +            // GT patch 0046: 0xC8 (texture level) is per draw: the revision ignores it.
              const std::uint32_t texture_level = data24(commands[0xC8u]);
 -            gpu_draw.texture_swizzled = (texture_mode & 1u) != 0u;
@@ -235,11 +241,14 @@ hit against a rebuild; equal states compare member-wise (a struct copy does not 
 +            gpu_draw.texture_selected_level = selected_texture_level(commands);
 +            if (revision_verify_enabled()) verify_cached_draw_state(commands, layout, gpu_draw);
 +        } else {
-+            gpu_draw = build_draw_state(commands, layout);
++            build_draw_state(commands, layout, gpu_draw);
              if (draw_state_revision != 0u) {
-                 cached_draw_state = gpu_draw;
+-                cached_draw_state = gpu_draw;
++                std::memcpy(static_cast<void *>(&cached_draw_state), &gpu_draw, sizeof gpu_draw);
                  cached_draw_revision = draw_state_revision;
-@@ -4517,6 +4559,13 @@
+             }
+         }
+@@ -4517,6 +4563,13 @@
                  lighting_cache.revision == lighting_state_revision &&
                  lighting_cache.has_vertex_color == has_vertex_color) {
                  prepared_lighting = lighting_cache.state;
