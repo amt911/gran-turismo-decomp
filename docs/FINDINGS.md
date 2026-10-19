@@ -1909,3 +1909,11 @@ Found: 2026-10-19 · host/vblank_pacer.cpp, host/gt_kernel.cpp (laptop probe ove
 **Fix.** `tools/pgo.sh`: an instrumented build (`-DGT_PGO_GENERATE=ON`), a 220 s run of the race route, `llvm-profdata merge`, then `build/` built with `-DGT_PGO_PROFILE=...`; about 14 minutes. Laptop in power-saver, race route, A/B with two rounds each, binaries run from /tmp: game thread 59 % → 39 % of a core, GE 71 % → 63 %, 508 → 470 ns per draw, frameskip 0.13 → 0.06/s. The "GE wait" rose from 7 to 13 % because the game now reaches its draw sync sooner. The desktop agrees (GE ns per draw −10 to −18 %, noisy under load). Opt-in: the default build is unchanged. The profile comes from the user's own run of the game and stays out of git.
 
 Found: 2026-10-19 · CMakeLists.txt (GT_PGO_GENERATE / GT_PGO_PROFILE), tools/pgo.sh
+
+## Streaming GT's fast draws past the backend handshake saved only 1-3 %: the GE thread's cost is spread, not concentrated
+
+**Symptom.** After #236 and PGO, the laptop in power-saver spends ~500 ns per GE draw. The backend handshake per fast draw looked like the next target: a mutex, a 352-byte descriptor compare, a texture-map lookup and the LOD. It is the same answer for every draw of a run.
+**Cause.** Removing it (patch 0052, streamed draws: verified identical on 31.4 M draws, 85 % of fast draws streamed) moved the laptop's ns per draw from 507-508 to 493-504. A profile of the streamed build shows the remaining cost spread over many small pieces: `render_ge_primitive_pass` 5.4 %, the command loop 4.9 %, `hw_job_prepare` (non-strip draws) 4.8 %, the stream itself 6.6 %, the prescan 2.6 %.
+**Fix / lesson.** Not merged (spec `2026-10-19-ge-streamed-fast-draws-design.md`, result section); the code is on branch `perf/ge-streamed-fast-draws`. Before another per-draw micro-optimisation of the GE, profile the target machine: the next gains need structure, such as more than one core decoding lists or the renderer leaving the PSP command lists behind.
+
+Found: 2026-10-19 · laptop A/B and profile over SSH (binaries from /tmp)
