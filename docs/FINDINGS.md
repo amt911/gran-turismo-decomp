@@ -1815,3 +1815,17 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_97.cpp (func_08B610C0)
 **Fix.** None: the function stays written and unregistered (commented `HOT97` line). A function whose callee builds elements from an uninitialised temporary has no deterministic result to compare; before reading such a function look for a `jal` whose last argument is `sp + N` in a callee that never stored it.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_97.cpp (func_08B04D98)
+
+## A callee that reads a float argument register is not covered by `tools.arg_reads` or `tools.literal_check`: draft code passed the wrong f12 and a hex-less float constant (25.0f) as 100.0f
+
+**Symptom.** Batch 98's first gate: `func_0894A15C` mismatched 16 of 20 cases (`RAM at 0x093E1D90: original DF, decompiled CD`, a float at A + 0x38) and `func_0880E6EC` 8 bytes of a window cell (`original 41, decompiled 42`). Both came from a draft that had never been gated.
+**Cause.** (1) `func_08949B04(index; f12)` reads `f12` (a clamp of the float `A[0x30]` that the caller loaded into f12 earlier); the C++ called it with `call_set`, so the callee saw whatever f12 the context held. `call_guest` runs the callee on a copy of the context, so nothing carries over but v0/v1/f0. `tools.arg_reads` follows only the integer argument registers (a0-a3, t0-t3). (2) The cell width constant is `0x41C80000` = **25.0f**, written as `100.0f`; `tools.literal_check` checks only hexadecimal literals, and decimal float literals are invisible to it.
+**Fix.** `call_setf(..., {f12})` for the callee and 25.0f. Rule: for every guest call in a float function read the callee's head for `$f12`-`$f19` uses and pass them; check each decimal float literal against the asm constant by hand (`0x41C80000` = 25.0f, `0x42C80000` = 100.0f, `0x41A80000` = 21.0f, `0x41B00000` = 22.0f).
+
+Found: 2026-10-19 · src/game/unsorted/hot_batch_98.cpp (func_0894A15C, func_0880E6EC)
+
+## Pool: reached functions of 22-120 instructions that no batch had registered (batch 98 probe `b98s`)
+
+Probing every unregistered function of 20-120 instructions (7,866, `tools.decomp_gate probe b98s --symbols FILE`, 4 minutes) found 43 that the five routes call, among them hot float and table-search functions (`func_088C4BB0` 16,086 calls, `func_088C50D4` 23,102, `func_08977904` 46,257, `func_089C54B8` 60,047). The ones left out are VFPU (`func_08B53D2C` 7.2 million calls, `func_08B54D28`, `func_08B55218`, `func_08B565F8`, `func_089A900C`), reach `sce*` imports (`func_08ACB3B4`, `func_08B31AB4`, the `func_08B8443C` / `func_08B84564` family) or work on 64-bit values (`func_08B6728C`, `func_08B66E88`). Earlier probes covered only 121-230 and 231-300 instructions; probe the lower band again when the larger pools run dry.
+
+Found: 2026-10-19 · batch 98
