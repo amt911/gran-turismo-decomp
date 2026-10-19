@@ -175,7 +175,8 @@ void func_08B34C1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_08B71EC8(a0, a1): func_08B72314(&{a0, a1}, &out) fills out[0..7]; func_08B72004(out[0], out[1], out[2], a3, t0, 0) is called with
-// a3 = out[7] << 2 | out[6] >> 30 | t0 and t0 = whether the low 30 bits of out[6] are non-zero. v0 = its v0.
+// a3 = out[7] << 2 | out[6] >> 30 | t0 and t0 = whether the low 30 bits of out[6] are non-zero. v0 / v1 / f0 = its own: the float comes
+// back in $f0 (func_08B72564 ends every path with `mtc1 $a2, $f0`), so callers (func_08B71EC8(func_08B77BF4(text)) in hot_batch_94) read f0, not v0.
 void func_08B71EC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x30u);
     put(rt, frame.at(0u), ctx.gpr[4]);
@@ -188,7 +189,10 @@ void func_08B71EC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t a2 = word(rt, frame.at(0x10u));
     const std::uint32_t sticky = (low & 0x3FFFFFFFu) != 0u ? 1u : 0u;
     const std::uint32_t a3 = sticky | ((high << 2) | (low >> 30));
-    ctx.gpr[2] = call_guest(rt, ctx, 0x08B72004u, {a0, a1, a2, a3, sticky, 0u});
+    const GuestResult packed = call_guest(rt, ctx, 0x08B72004u, {a0, a1, a2, a3, sticky, 0u}, {});
+    ctx.gpr[2] = packed.v0;
+    ctx.gpr[3] = packed.v1;
+    ctx.fpr[0] = packed.f0;
 }
 
 // func_08B70F28(f12): func_08B71F2C(&x, &out) fills out[0..4] from the float x (kept on the stack); func_08B71E98(out[0], out[1], out[2], a3,
@@ -637,7 +641,7 @@ HOT76(0x08B4AD64u, func_08B4AD64, Word);
 HOT76(0x08B57D6Cu, func_08B57D6C, Word);
 HOT76(0x08B67C24u, func_08B67C24, Float);
 HOT76(0x08B34C1Cu, func_08B34C1C, Word);
-HOT76(0x08B71EC8u, func_08B71EC8, Word);
+HOT76(0x08B71EC8u, func_08B71EC8, Float);
 HOT76(0x08B70F28u, func_08B70F28, DoubleWord);
 HOT76(0x08AF432Cu, func_08AF432C, Word);
 HOT76(0x08872484u, func_08872484, Word);
