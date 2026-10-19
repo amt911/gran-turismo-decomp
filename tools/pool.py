@@ -50,7 +50,8 @@ class Row:
 def done_addresses(source: str) -> set[int]:
     """Runtime addresses that `src/` text already defines (`func_XXXXXXXX(`) or registers (`NAME(0xXXXXXXXXu, `), commented
     registrations and unregistered definitions included: such a function is not pending."""
-    done = {int(m, 16) for m in re.findall(r"func_([0-9A-Fa-f]{8})\(", source)}
+    # A definition is `void func_XXXXXXXX(`: a mention in a comment or a call to a recompiled function is not one.
+    done = {int(m, 16) for m in re.findall(r"\bvoid\s+func_([0-9A-Fa-f]{8})\(", source)}
     done |= {int(m, 16) for m in re.findall(r"\w+\(0x([0-9A-Fa-f]{8})u?\s*,", source)}
     return done
 
@@ -60,13 +61,13 @@ def walk_imports(words_of: Callable[[int], Sequence[int] | None], entry: int, de
     ELF virtual addresses; a target at or past `text_end` is an import stub."""
     stubs: set[int] = set()
     indirect = False
-    seen: set[int] = set()
+    best: dict[int, int] = {}  # the most depth left any visit had: a later visit with more depth goes further
 
     def visit(address: int, remaining: int) -> None:
         nonlocal indirect
-        if address in seen or remaining < 0:
+        if remaining < 0 or best.get(address, -1) >= remaining:
             return
-        seen.add(address)
+        best[address] = remaining
         words = words_of(address)
         if words is None:
             return

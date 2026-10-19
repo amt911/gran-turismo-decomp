@@ -851,8 +851,10 @@ void func_08A03FFC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put_float(rt, frame.at(0x18u), values[2]);
     put_float(rt, frame.at(0x1Cu), values[3]);
     put(rt, frame.at(0x20u), 0xFFFFFFFFu);
-    if (target != frame.at(0x10u)) (void)call_set(rt, ctx, 0x089641C4u, {target, frame.at(0x10u)});
-    put(rt, target + 0x10u, word(rt, frame.at(0x20u)));
+    if (target != frame.at(0x10u)) {  // beq s0, a1 at 0x08A04168 skips the call and the store both
+        (void)call_set(rt, ctx, 0x089641C4u, {target, frame.at(0x10u)});
+        put(rt, target + 0x10u, word(rt, frame.at(0x20u)));
+    }
     (void)call_set(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
 }
 

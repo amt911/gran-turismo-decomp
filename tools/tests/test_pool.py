@@ -116,3 +116,24 @@ def test_main_prints_the_table_for_a_synthetic_image(tmp_path: Path, monkeypatch
     assert out[0].startswith("hits addr")
     assert out[1] == "7 0x%08X 3 1 0 0 0 vf0 fp0" % (0x10 + LOAD_BASE)
     assert len(out) == 2  # 0x20 is defined in src/
+
+
+def test_walk_imports_revisits_a_function_reached_again_with_more_depth():
+    # E calls A then B; A calls B. Reached first through A (one call deeper), B used to be marked seen and never re-explored
+    # from E with more depth left, so the stub two calls under E was missed (review of #247).
+    code = {
+        0x10: [jal(0x20), jal(0x30), JR_RA, NOP],  # E
+        0x20: [jal(0x30), JR_RA, NOP],             # A
+        0x30: [jal(0x40), JR_RA, NOP],             # B
+        0x40: [jal(TEXT_END + 0x80), JR_RA, NOP],  # C
+    }
+    stubs, _ = pool.walk_imports(code.get, 0x10, 2, TEXT_END)
+    assert stubs == {TEXT_END + 0x80}  # E -> B -> C -> stub: within 2 calls
+
+
+def test_done_addresses_ignores_a_mention_in_a_comment_or_a_call():
+    source = """
+    // the caller passes func_08A5BB7C(0x10) its holder
+    (void)func_08B4B864(rt, ctx);
+    """
+    assert pool.done_addresses(source) == set()  # neither is a definition nor a registration
