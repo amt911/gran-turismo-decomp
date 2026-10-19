@@ -1853,3 +1853,19 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_99.cpp (func_0886AAA4; applied 
 **Fix / workaround.** None in code: lcs-recomp patch 0051 cut the per-draw cost a further 3-5 % (spec 2026-10-19). When a laptop report says the GE is slow, check `cat /sys/firmware/acpi/platform_profile` and `lscpu | grep MHz` first. A race measured in power-saver and one in performance are different machines.
 
 Found: 2026-10-19 · laptop measurements over SSH (docs/superpowers/specs/2026-10-19-ge-backend-per-draw-cost-design.md)
+
+## A setjmp cannot be diff-tested: it saves the harness's sentinel as the return address, and the later longjmp jumps to it outside the case
+
+**Symptom.** Batch 100's first fast gate stopped every route after 3 compared cases: `Unsupported Allegrex instruction 0x00000000 at 0x0BAD0004: diff harness sentinel reached without a pending continuation`.
+**Cause.** `func_08B7B2E4` stores s0-s7, sp, fp, ra and f20-f31 in the caller's buffer. Inside a case `ra` is the case's sentinel, so the buffer keeps the sentinel; the game's later `longjmp` (`func_08B7B34C`) restores it and returns into a sentinel whose case is long over. Bisected by running the batch halves with `GT_DECOMP_ONLY` (one function alone: clean).
+**Fix / workaround.** Leave setjmp-style functions recompiled (the HOT100 line is commented with this reason). A route-level stop with an "Unsupported instruction at 0x0BAD…" is a registered function that leaks the sentinel into guest memory: bisect the registrations, do not look at the arithmetic.
+
+Found: 2026-10-19 · src/game/unsorted/hot_batch_100.cpp (func_08B7B2E4)
+
+## Reached by the probe is not verifiable: of 40 written functions of the b100p pool only 11 had a compared case that changed memory
+
+**Symptom.** Batch 100 wrote 40 reached functions (probe `b100p` over the 14,121 unregistered recompiled functions: 638 of 20 or more instructions reached) and could register 11. Ten reach `sce*` imports in every case (compared 0, all not comparable: the `func_08B100D0` family that builds a 0x3C-byte object, `func_089C5BB8`, `func_08ACEB40`, ...). Eighteen were compared (up to 3,000 cases with `GT_DECOMP_DENSE`) but only on their empty paths: the array fills `func_08BE6D44` / `func_08BE6674` / `func_08BE834C` (805 / 352 / 192 dense cases, no dest or count 0), the range copies `func_08C2B76C` (3,000 cases), `func_08C15E8C`, `func_08C4B3C0`, the vector assignments `func_08C07E24` / `func_08C070FC`, `func_08AF2D20`, `func_08872E18`.
+**Cause.** The routes call the container helpers with empty containers (a probe hit count says a function runs, not that its body does).
+**Fix / workaround.** Read the coverage output (`tools.decomp_gate coverage`) before registering: "regions never run" over the whole body means the compared cases prove nothing. More routes (a race with several cars, the replay and photo modes) are what these need, not more code.
+
+Found: 2026-10-19 · batch 100
