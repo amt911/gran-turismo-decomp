@@ -148,7 +148,7 @@ build/gt_play
   A / D = girar (stick) · flechas = cruceta (menús) · Retroceso = Círculo (atrás) · F = Triángulo ·
   Q / E = L / R · Escape = START · V = SELECT · F10 = ajustes del host · F11 = pantalla completa.
 - **Mando:** gatillo derecho / A = acelerar, gatillo izquierdo / X = frenar, stick izquierdo = girar.
-- Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` al compilar): escala de la ventana,
+- Ajustes en `build/gt_play.ini` (se copia de `config/gt_play.ini` solo si no existe; después es tuyo: compilar o hacer `git pull` no lo pisa — para volver a la plantilla, bórralo y vuelve a configurar): escala de la ventana,
   FPS, controles. La GE se dibuja con el rasterizador por software (el verificado); el backend Vulkan
   de la GE (`NativeGE=true`) aún no está adaptado a GT.
 - **GPU (alta resolución y fluido):** en `build/gt_play.ini` pon `NativeGE=true` en `[Rendering]`. Con
