@@ -1854,10 +1854,34 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_99.cpp (func_0886AAA4; applied 
 
 Found: 2026-10-19 · laptop measurements over SSH (docs/superpowers/specs/2026-10-19-ge-backend-per-draw-cost-design.md)
 
+## A setjmp cannot be diff-tested: it saves the harness's sentinel as the return address, and the later longjmp jumps to it outside the case
+
+**Symptom.** Batch 100's first fast gate stopped every route after 3 compared cases: `Unsupported Allegrex instruction 0x00000000 at 0x0BAD0004: diff harness sentinel reached without a pending continuation`.
+**Cause.** `func_08B7B2E4` stores s0-s7, sp, fp, ra and f20-f31 in the caller's buffer. Inside a case `ra` is the case's sentinel, so the buffer keeps the sentinel; the game's later `longjmp` (`func_08B7B34C`) restores it and returns into a sentinel whose case is long over. Bisected by running the batch halves with `GT_DECOMP_ONLY` (one function alone: clean).
+**Fix / workaround.** Leave setjmp-style functions recompiled (the HOT100 line is commented with this reason). A route-level stop with an "Unsupported instruction at 0x0BAD…" is a registered function that leaks the sentinel into guest memory: bisect the registrations, do not look at the arithmetic.
+
+Found: 2026-10-19 · src/game/unsorted/hot_batch_100.cpp (func_08B7B2E4)
+
+## Reached by the probe is not verifiable: of 40 written functions of the b100p pool only 11 had a compared case that changed memory
+
+**Symptom.** Batch 100 wrote 40 reached functions (probe `b100p` over the 14,121 unregistered recompiled functions: 638 of 20 or more instructions reached) and could register 11. Ten reach `sce*` imports in every case (compared 0, all not comparable: the `func_08B100D0` family that builds a 0x3C-byte object, `func_089C5BB8`, `func_08ACEB40`, ...). Eighteen were compared (up to 3,000 cases with `GT_DECOMP_DENSE`) but only on their empty paths: the array fills `func_08BE6D44` / `func_08BE6674` / `func_08BE834C` (805 / 352 / 192 dense cases, no dest or count 0), the range copies `func_08C2B76C` (3,000 cases), `func_08C15E8C`, `func_08C4B3C0`, the vector assignments `func_08C07E24` / `func_08C070FC`, `func_08AF2D20`, `func_08872E18`.
+**Cause.** The routes call the container helpers with empty containers (a probe hit count says a function runs, not that its body does).
+**Fix / workaround.** Read the coverage output (`tools.decomp_gate coverage`) before registering: "regions never run" over the whole body means the compared cases prove nothing. More routes (a race with several cars, the replay and photo modes) are what these need, not more code.
+
+Found: 2026-10-19 · batch 100
+
+## `--decomp on` does not always reach the race on the race route: the outcome is not deterministic, so it cannot be bisected yet
+
+**Symptom.** With every decompiled function installed (`gt_native --decomp on`, race pad route), the run stayed in a menu (guest thread ~90 % asleep) for 200 s, where `--decomp off` reaches the race at ~45 s. The full list reproduced it three times in a row.
+**Cause (not found).** Bisecting with `GT_DECOMP_ONLY` (criterion: some 5 s window under 40 % vblank sleep within 120 s) gave no single culprit. Each half of the list ran fine alone, the halves together got stuck, and a minimal-set search wandered. Re-running two sets with known outcomes then flipped one: the half that got stuck reached the race twice in a row. Whether the route reaches the race with many functions installed depends on timing. `call_guest` counts every guest step as a dispatch, which moves the preemption points and changes the PSP threads' order (see the `--decomp on` freeze entry). The pad route presses buttons at fixed vblanks, so a menu that opens a few frames later misses a press.
+**Fix / next step.** None yet. A bisection needs a criterion that does not depend on timing: compare the menu/state the pad presses land in, or make the route wait for a state instead of a vblank count. The differential gate (`--decomp diff`) is not affected.
+
+Found: 2026-10-19 · scratch bisection scripts over host/gt_native (`--decomp on`, `GT_DECOMP_ONLY`)
+
 ## Frames skipped with the game 80 % idle on a slow CPU: GT's second vblank wait counted as "host late"
 
 **Symptom.** On the laptop in power-saver (1.9 GHz), gt_play skipped 7-14 frames/s in menu and race windows where the guest thread slept 75-80 % of the time and barely waited for the GE (2.5 %).
 **Cause.** GT waits for each vblank from two threads in the same guest instant. The first wait sleeps until the vblank's real time; the second targets the same vblank, already past, so it always arrives "late" by the work between the two waits. A probe over the race route on the laptop: ~300 of every 600 waits arrived 2-4 ms (or more) late, and every sleep woke < 0.25 ms after its due time. The frameskip took any wait more than 1 ms late as "the host cannot keep up". On a fast CPU the second wait came < 1 ms late and even cleared a first wait's real lag, so it never showed there.
-**Fix.** `gt::VblankPacer` (host/vblank_pacer.{hpp,cpp}, CTest `vblank_pacer`): only the first wait of each vblank measures the lag (keyed on the target vblank, not on the thread: any repeated wait for the same vblank is skipped), and late means more than 4 ms (a quarter vblank). Measured on the desktop with two cores, race route: first waits arrive 1-2 ms late only a few times per 5 s with the game 60 % idle, which the next frame catches up without skipping, plus isolated 10-50 ms stalls. Result there: frameskip 0.10/s on average (max 1.2), guest time 1.00x. The perf log has a new `vblank lag` line: first waits, how many were late by more than 1 / 4 / 8 ms, and the maximum.
+**Fix.** `gt::VblankPacer` (host/vblank_pacer.{hpp,cpp}, CTest `vblank_pacer`): only the first wait of each vblank measures the lag (keyed on the target vblank, not on the thread: any repeated wait for the same vblank is skipped), and late means more than 4 ms (a quarter vblank). Measured on the desktop with two cores, race route: first waits arrive 1-2 ms late only a few times per 5 s with the game 60 % idle, which the next frame catches up without skipping, plus isolated 10-50 ms stalls. Result there: frameskip 0.10/s on average (max 1.2), guest time 1.00x. On the laptop in power-saver (A/B, two rounds each, race route, binaries run from /tmp): frameskip 3.3-3.6/s (max 18.8) before, 0.12-0.15/s (max 2.4) after; GE wait 14-15 % before, 8.3 % after. The perf log has a new `vblank lag` line: first waits, how many were late by more than 1 / 4 / 8 ms, and the maximum.
 
 Found: 2026-10-19 · host/vblank_pacer.cpp, host/gt_kernel.cpp (laptop probe over SSH, binary run from /tmp)
