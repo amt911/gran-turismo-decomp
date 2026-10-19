@@ -1,6 +1,6 @@
 # Pruebas pendientes en el portátil
 
-**Última actualización: 2026-10-16 21:00** — repetir el punto 3 con la carrera ya en marcha; quitados 1 y 2 (hechos).
+**Última actualización: 2026-10-19 15:30** — el punto 3 lo he medido yo por SSH; queda el 4.
 
 Lista viva de lo que hace falta probar en el portátil (Ryzen 7 PRO 5850U, gráfica integrada Vega 8).
 Cuando una prueba está hecha y sus resultados están en el chat (o en `my_tests/`), se borra de aquí.
@@ -20,23 +20,12 @@ grep -c "GT patch 0049" tools/src/lcs-recomp/lcs/host/ge_renderer.cpp   # debe d
 **`build/gt_play.ini`** (o en otro fichero con `PSPRECOMP_CONFIG=<ruta>`). Comprueba que tiene `NativeGE=true`,
 `InternalResolutionMode=Window` y `GpuBudgetMs=10` en `[Rendering]`.
 
-## 3. Qué hilo se satura en el portátil (repetir, con la carrera ya en marcha)
+## Medido por SSH (2026-10-19)
 
-Gracias por `hilos_bateria.txt`. Los primeros 55 s eran menús y cargas (hilos al 5-17 %) y la carrera empezó justo en
-la última ventana (juego 63 %, GE 46 %), así que la carrera se quedó fuera. Lo de `MaxInternalScale=2` (algo más
-fluido) apunta a que la gráfica también cuenta. Hace falta la carrera entera:
-
-1. Arranca el juego con el log de siempre, en una terminal:
-   ```bash
-   GT_PERF_LOG=1 build/gt_play 2>&1 | grep -E '^\[perf\]|internal scale' | tee my_tests/perf_bateria_hilos.txt
-   ```
-2. **Cuando ya estés corriendo en la pista** (no en el menú), en otra terminal:
-   ```bash
-   .venv/bin/python -m tools.thread_cpu --name gt_play --every 5 --count 12 | tee my_tests/hilos_carrera.txt
-   ```
-3. Sigue en carrera el minuto que tarda (con `MaxInternalScale` como lo tengas normalmente; apunta cuál).
-
-- [ ] Deja `my_tests/hilos_carrera.txt` y `my_tests/perf_bateria_hilos.txt`, con batería.
+Con tu permiso las pruebas de rendimiento las lanzo yo en el portátil (contraseña, sin instalar claves). Resultado: en
+modo de energía **power-saver** la CPU va limitada a 1,9 GHz y en carrera se saltaban 7-9 fotogramas/s (el hilo de la
+GE al 80 %); en modo **performance** la carrera va fluida (0,3 saltados/s). La gráfica nunca fue el límite. Detalle en
+`docs/FINDINGS.md`.
 
 ## 4. Velocidad del coche
 
