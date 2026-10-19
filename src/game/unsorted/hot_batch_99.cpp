@@ -1874,6 +1874,10 @@ void func_08C053E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, holder);
     const std::uint32_t this1 = object + static_cast<std::uint32_t>(signed_of(adjust1) >> 1);
     const std::uint32_t target1 = (adjust1 & 1u) != 0u ? word(rt, word(rt, this1) + function1) : function1;
+    // The member is entered with v1 = adjust1 & 1 (andi at 0x08C05434) and, on the virtual arm, v0 = the address of the
+    // vtable entry (0x08C05454-58); on the other arm v0 is still func_08AA2898's. A member that never writes v0 returns them.
+    ctx.gpr[3] = adjust1 & 1u;
+    if ((adjust1 & 1u) != 0u) ctx.gpr[2] = word(rt, this1) + function1;
     const std::uint32_t result = call_set(rt, ctx, target1, {this1, adjust1, function1, target1});
     const std::uint32_t adjust2 = word(rt, binding + 0x20u);
     const std::uint32_t function2 = word(rt, binding + 0x1Cu);
