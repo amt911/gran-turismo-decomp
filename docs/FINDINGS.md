@@ -1885,3 +1885,19 @@ Found: 2026-10-19 · batch 101
 **Fix / workaround.** Set the register in the function (`ctx.gpr[5] = 0u;`) and let the shared helper read it, so the body is no longer a one-call row. Not a bug in the decompiled code: the gate compared both.
 
 Found: 2026-10-19 · src/game/unsorted/hot_batch_101.cpp (func_0885E794 / func_0885E7B8)
+
+## `--decomp on` does not always reach the race on the race route: the outcome is not deterministic, so it cannot be bisected yet
+
+**Symptom.** With every decompiled function installed (`gt_native --decomp on`, race pad route), the run stayed in a menu (guest thread ~90 % asleep) for 200 s, where `--decomp off` reaches the race at ~45 s. The full list reproduced it three times in a row.
+**Cause (not found).** Bisecting with `GT_DECOMP_ONLY` (criterion: some 5 s window under 40 % vblank sleep within 120 s) gave no single culprit. Each half of the list ran fine alone, the halves together got stuck, and a minimal-set search wandered. Re-running two sets with known outcomes then flipped one: the half that got stuck reached the race twice in a row. Whether the route reaches the race with many functions installed depends on timing. `call_guest` counts every guest step as a dispatch, which moves the preemption points and changes the PSP threads' order (see the `--decomp on` freeze entry). The pad route presses buttons at fixed vblanks, so a menu that opens a few frames later misses a press.
+**Fix / next step.** None yet. A bisection needs a criterion that does not depend on timing: compare the menu/state the pad presses land in, or make the route wait for a state instead of a vblank count. The differential gate (`--decomp diff`) is not affected.
+
+Found: 2026-10-19 · scratch bisection scripts over host/gt_native (`--decomp on`, `GT_DECOMP_ONLY`)
+
+## Frames skipped with the game 80 % idle on a slow CPU: GT's second vblank wait counted as "host late"
+
+**Symptom.** On the laptop in power-saver (1.9 GHz), gt_play skipped 7-14 frames/s in menu and race windows where the guest thread slept 75-80 % of the time and barely waited for the GE (2.5 %).
+**Cause.** GT waits for each vblank from two threads in the same guest instant. The first wait sleeps until the vblank's real time; the second targets the same vblank, already past, so it always arrives "late" by the work between the two waits. A probe over the race route on the laptop: ~300 of every 600 waits arrived 2-4 ms (or more) late, and every sleep woke < 0.25 ms after its due time. The frameskip took any wait more than 1 ms late as "the host cannot keep up". On a fast CPU the second wait came < 1 ms late and even cleared a first wait's real lag, so it never showed there.
+**Fix.** `gt::VblankPacer` (host/vblank_pacer.{hpp,cpp}, CTest `vblank_pacer`): only the first wait of each vblank measures the lag (keyed on the target vblank, not on the thread: any repeated wait for the same vblank is skipped), and late means more than 4 ms (a quarter vblank). Measured on the desktop with two cores, race route: first waits arrive 1-2 ms late only a few times per 5 s with the game 60 % idle, which the next frame catches up without skipping, plus isolated 10-50 ms stalls. Result there: frameskip 0.10/s on average (max 1.2), guest time 1.00x. On the laptop in power-saver (A/B, two rounds each, race route, binaries run from /tmp): frameskip 3.3-3.6/s (max 18.8) before, 0.12-0.15/s (max 2.4) after; GE wait 14-15 % before, 8.3 % after. The perf log has a new `vblank lag` line: first waits, how many were late by more than 1 / 4 / 8 ms, and the maximum.
+
+Found: 2026-10-19 · host/vblank_pacer.cpp, host/gt_kernel.cpp (laptop probe over SSH, binary run from /tmp)

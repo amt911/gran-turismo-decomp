@@ -86,6 +86,7 @@ add_library(gt_host_objs OBJECT
     "${GT_LCS_HOST_DIR}/lcs_media_decoder.cpp"
     host/gt_ge_exec.cpp
     host/ge_state_revision.cpp
+    host/vblank_pacer.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
 target_include_directories(gt_host_objs PRIVATE host include "${GT_LCS_HOST_DIR}")
@@ -162,7 +163,11 @@ if(GT_PLAY)
     target_include_directories(gt_play PRIVATE host "${GT_LCS_HOST_DIR}")
     target_link_libraries(gt_play PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::SDL2
                           PkgConfig::VULKAN Threads::Threads)
-    configure_file("${CMAKE_SOURCE_DIR}/config/gt_play.ini" "${CMAKE_BINARY_DIR}/gt_play.ini" COPYONLY)
+    # The user's settings live in build/gt_play.ini: copy the template only when there is none, so a reconfigure or a
+    # pull that changes config/gt_play.ini doesn't wipe them (keys an older copy lacks take the program's defaults).
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/gt_play.ini")
+        file(COPY "${CMAKE_SOURCE_DIR}/config/gt_play.ini" DESTINATION "${CMAKE_BINARY_DIR}")
+    endif()
 endif()
 
 # Host unit tests (plain executables run by CTest): `ctest --test-dir build`.
@@ -173,6 +178,9 @@ add_test(NAME diff_compare COMMAND host_tests)
 add_executable(ge_state_revision_tests host/tests/ge_state_revision_test.cpp host/ge_state_revision.cpp)
 target_include_directories(ge_state_revision_tests PRIVATE host)
 add_test(NAME ge_state_revision COMMAND ge_state_revision_tests)
+add_executable(vblank_pacer_tests host/tests/vblank_pacer_test.cpp host/vblank_pacer.cpp)
+target_include_directories(vblank_pacer_tests PRIVATE host)
+add_test(NAME vblank_pacer COMMAND vblank_pacer_tests)
 add_executable(dirty_pages_tests host/tests/dirty_pages_test.cpp host/dirty_pages.cpp)
 target_include_directories(dirty_pages_tests PRIVATE host)
 target_link_libraries(dirty_pages_tests PRIVATE Threads::Threads)

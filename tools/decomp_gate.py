@@ -400,6 +400,42 @@ def route_problem(text: str, exit_code: str) -> str | None:
     return None
 
 
+FLOOR_FILE = Path("config/decomp_gate_floor.txt")
+
+
+def compared_floor_problem(compared: int, floor: int) -> str | None:
+    """Why a full gate's compared total is too low, or None. A function that installs fine and passes its own cases
+    can still stop other code from running (FINDINGS: func_08A9DD14 cut ~300 compared functions with 0 mismatches),
+    and the only sign is fewer functions compared. Run-to-run noise on the real-time routes is ~40; the tolerance is
+    the larger of 50 and 1 % of the floor."""
+    tolerance = max(50, floor // 100)
+    if compared >= floor - tolerance:
+        return None
+    return (f"{compared} compared, below the floor {floor} (tolerance {tolerance}): an installed function may stop "
+            f"other code from running (FINDINGS) - bisect with GT_DECOMP_ONLY, never blame load without an idle re-run")
+
+
+def read_floor(path: Path) -> int | None:
+    """The floor recorded in `path` ("compared N" line), or None when there is none."""
+    if not path.exists():
+        return None
+    for line in path.read_text().splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == "compared" and parts[1].isdigit():
+            return int(parts[1])
+    return None
+
+
+def raise_floor(path: Path, compared: int) -> int:
+    """Raises the floor in `path` to `compared` when that is higher (a ratchet: it never goes down); returns it."""
+    current = read_floor(path)
+    floor = compared if current is None else max(current, compared)
+    path.write_text("# The full gate's compared total (tools.decomp_gate full fails below it minus a tolerance).\n"
+                    "# Raised with `tools.decomp_gate full TAG --raise-floor` after a passing full gate; never lowered.\n"
+                    f"compared {floor}\n")
+    return floor
+
+
 def coverage_left_configured(cmake_cache: str) -> bool:
     """Whether build/CMakeCache.txt still instruments sources for coverage (a coverage run killed before it could
     put the build back): a normal gate would then build them instrumented."""
@@ -408,7 +444,7 @@ def coverage_left_configured(cmake_cache: str) -> bool:
 
 
 def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover - drives the build
-              extra_env: dict[str, str] | None = None) -> int:
+              extra_env: dict[str, str] | None = None, raise_floor_after: bool = False) -> int:
     env = None
     if only is not None or extra_env:
         import os
@@ -438,19 +474,20 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
     slot = HeavySlot()
     slot.acquire()
     try:
-        return _gate_steps(kind, tag, env)
+        return _gate_steps(kind, tag, env, raise_floor_after)
     finally:
         slot.release()
 
 
-def _gate_steps(kind: str, tag: str, env: dict[str, str] | None) -> int:  # pragma: no cover - drives the build
+def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no cover - drives the build
+                raise_floor_after: bool = False) -> int:
     build = subprocess.run(heavy(["cmake", "--build", "build", f"-j{BUILD_JOBS}"]), capture_output=True, text=True)
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
         return 2
     subprocess.run(heavy(["sh", "-c", route_shell(Path("build/gt_native"), kind, tag, Path("recomp/analysis"))]),
                    env=env)
-    return _report(tag)
+    return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after)
 
 
 def _probe_run(tag: str, symbols: Path) -> int:  # pragma: no cover - runs the game
@@ -475,7 +512,7 @@ def _probe_run(tag: str, symbols: Path) -> int:  # pragma: no cover - runs the g
     return status
 
 
-def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
+def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False) -> int:  # pragma: no cover - reads the run's files
     reports = []
     status = 0
     for route, _ in ROUTES["full"]:
@@ -500,6 +537,12 @@ def _report(tag: str) -> int:  # pragma: no cover - reads the run's files
     for address, st in sorted(total.items()):
         if st.mismatched:
             print(f"  MISMATCH {st.name} @0x{address:08X}: {st.first_mismatch}")
+    floor = read_floor(FLOOR_FILE) if check_floor else None  # the full gate only: a fast gate compares a subset
+    if floor is not None and (problem := compared_floor_problem(s.compared, floor)):
+        print(f"  FLOOR: {problem}")
+        status = 1
+    if check_floor and raise_floor_after and status == 0:
+        print(f"floor: compared {raise_floor(FLOOR_FILE, s.compared)} ({FLOOR_FILE})")
     return status
 
 
@@ -599,6 +642,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     fast.add_argument("--only", required=True)
     full = sub.add_parser("full")
     full.add_argument("tag")
+    full.add_argument("--raise-floor", action="store_true",
+                      help=f"after a passing gate, raise the compared floor in {FLOOR_FILE} to this run's total")
     sab = sub.add_parser("sabotage")
     sab.add_argument("tag")
     sab.add_argument("--file", type=Path, required=True)
@@ -617,14 +662,14 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "fast":
         return _run_gate("fast", args.tag, parse_only(args.only))
     if args.command == "full":
-        return _run_gate("full", args.tag, None)
+        return _run_gate("full", args.tag, None, raise_floor_after=args.raise_floor)
     if args.command == "probe":
         return _probe_run(args.tag, args.symbols)
     if args.command == "coverage":
         return _coverage_run(args.tag, parse_only(args.only))
     if args.command == "sabotage":
         return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else ())
-    return _report(args.tag)
+    return _report(args.tag, check_floor=True)
 
 
 if __name__ == "__main__":  # pragma: no cover

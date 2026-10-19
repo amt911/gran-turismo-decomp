@@ -316,3 +316,37 @@ def test_a_probe_route_that_times_out_or_exits_non_zero_is_a_failure():
     assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "139") == "exit 139"
     assert "no exit code" in gate.probe_problem("", "?")
     assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "0") is None
+
+
+# The compared floor: a full gate whose compared total drops means an installed function stops other code from running
+# (FINDINGS: batch 83 and batch 100 lost ~300 compared functions to func_08A9DD14 with 0 mismatches).
+def test_floor_allows_run_to_run_noise():
+    assert gate.compared_floor_problem(5168, 5208) is None  # the spread seen between full gates on main
+
+
+def test_floor_fails_a_drop_like_batch_100s():
+    problem = gate.compared_floor_problem(4915, 5208)
+    assert problem is not None and "4915" in problem and "5208" in problem and "GT_DECOMP_ONLY" in problem
+
+
+def test_floor_tolerance_is_the_larger_of_50_and_one_percent():
+    assert gate.compared_floor_problem(5208 - 52, 5208) is None
+    assert gate.compared_floor_problem(5208 - 53, 5208) is not None
+    assert gate.compared_floor_problem(950, 1000) is None
+    assert gate.compared_floor_problem(949, 1000) is not None
+
+
+def test_read_floor(tmp_path: Path):
+    floor = tmp_path / "floor.txt"
+    assert gate.read_floor(floor) is None
+    floor.write_text("# the full gate's compared total on main\ncompared 5208\n")
+    assert gate.read_floor(floor) == 5208
+
+
+def test_raised_floor_only_goes_up(tmp_path: Path):
+    floor = tmp_path / "floor.txt"
+    floor.write_text("compared 5208\n")
+    assert gate.raise_floor(floor, 5190) == 5208 and gate.read_floor(floor) == 5208
+    assert gate.raise_floor(floor, 5230) == 5230 and gate.read_floor(floor) == 5230
+    fresh = tmp_path / "new.txt"
+    assert gate.raise_floor(fresh, 100) == 100 and gate.read_floor(fresh) == 100
