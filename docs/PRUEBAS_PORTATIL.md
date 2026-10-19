@@ -41,8 +41,8 @@ segundo llegaba "tarde" por el trabajo hecho entre medias, que a 1,9 GHz pasa de
 portátil (medido por SSH desde /tmp, sin tocar nada) la carrera pasó de 3,3-3,6 fotogramas saltados por segundo (picos
 de 18) a 0,12-0,15, y el juego espera a la GE la mitad (8 % en vez de 15 %).
 
-Después de `git pull`, `tools/setup.sh`, `.venv/bin/python -m tools.recomp` y `cmake --build build -j8` (recuerda que
-el build vuelve a dejar `build/gt_play.ini` con `NativeGE=false`: vuelve a poner tu configuración), en power-saver:
+Después de `git pull`, `tools/setup.sh`, `.venv/bin/python -m tools.recomp` y `cmake --build build -j8` (desde este
+cambio, compilar ya no pisa tu `build/gt_play.ini`; comprueba que sigue con `NativeGE=true`), en power-saver:
 
 - [ ] ¿Va fluido en menús y en carrera? ¿Notas algún tirón?
 - [ ] Si quieres dejar el log: `GT_PERF_LOG=1 build/gt_play 2>&1 | grep -E '^\[perf\]' | tee my_tests/perf_powersave.txt`

@@ -163,7 +163,11 @@ if(GT_PLAY)
     target_include_directories(gt_play PRIVATE host "${GT_LCS_HOST_DIR}")
     target_link_libraries(gt_play PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::SDL2
                           PkgConfig::VULKAN Threads::Threads)
-    configure_file("${CMAKE_SOURCE_DIR}/config/gt_play.ini" "${CMAKE_BINARY_DIR}/gt_play.ini" COPYONLY)
+    # The user's settings live in build/gt_play.ini: copy the template only when there is none, so a reconfigure or a
+    # pull that changes config/gt_play.ini doesn't wipe them (keys an older copy lacks take the program's defaults).
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/gt_play.ini")
+        file(COPY "${CMAKE_SOURCE_DIR}/config/gt_play.ini" DESTINATION "${CMAKE_BINARY_DIR}")
+    endif()
 endif()
 
 # Host unit tests (plain executables run by CTest): `ctest --test-dir build`.
