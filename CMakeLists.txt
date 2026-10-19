@@ -27,6 +27,31 @@ endif()
 # Optimisation for generated units: measured per-unit peak at -O1 with 0x8000 units is ~372 MB.
 set(GT_GENERATED_OPT "-O1" CACHE STRING "Optimisation flag for generated units")
 
+# Profile-guided optimisation (clang): GT_PGO_GENERATE=ON builds an instrumented game whose runs write .profraw files;
+# GT_PGO_PROFILE=<merged .profdata> optimises with one. tools/pgo.sh does both. Measured on the laptop in power-saver,
+# race route: the game thread 59 % -> 39 % of a core, the GE 508 -> 470 ns per draw (docs/FINDINGS.md, 2026-10-19).
+# The profile comes from the user's own runs of the game and stays out of git (recomp/analysis/pgo/).
+option(GT_PGO_GENERATE "Instrument the build for profile-guided optimisation (clang)" OFF)
+set(GT_PGO_PROFILE "" CACHE FILEPATH "Merged .profdata to optimise with (clang); empty = no PGO")
+if(GT_PGO_GENERATE OR GT_PGO_PROFILE)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "GT_PGO_GENERATE / GT_PGO_PROFILE need clang (-DCMAKE_CXX_COMPILER=clang++)")
+    endif()
+endif()
+if(GT_PGO_GENERATE AND GT_PGO_PROFILE)
+    message(FATAL_ERROR "GT_PGO_GENERATE and GT_PGO_PROFILE are exclusive: generate in one build dir, use in another")
+elseif(GT_PGO_GENERATE)
+    add_compile_options(-fprofile-instr-generate)
+    add_link_options(-fprofile-instr-generate)
+elseif(GT_PGO_PROFILE)
+    if(NOT EXISTS "${GT_PGO_PROFILE}")
+        message(FATAL_ERROR "GT_PGO_PROFILE: ${GT_PGO_PROFILE} does not exist (tools/pgo.sh writes it)")
+    endif()
+    # A profile from an older build still helps: functions that changed are simply not profiled.
+    add_compile_options("-fprofile-instr-use=${GT_PGO_PROFILE}" -Wno-profile-instr-unprofiled
+                        -Wno-profile-instr-out-of-date -Wno-backend-plugin)
+endif()
+
 add_library(psprecomp_core STATIC
     "${GT_FRAMEWORK_DIR}/src/decoder.cpp"
     "${GT_FRAMEWORK_DIR}/src/deflate.cpp"

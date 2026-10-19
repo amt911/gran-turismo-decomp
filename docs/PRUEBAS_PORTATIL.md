@@ -1,6 +1,6 @@
 # Pruebas pendientes en el portátil
 
-**Última actualización: 2026-10-19 18:10** — prueba nueva: punto 5 (fluidez en power-saver tras el arreglo del frameskip).
+**Última actualización: 2026-10-19 19:45** — prueba nueva: punto 6 (compilar con PGO, más rápido).
 
 Lista viva de lo que hace falta probar en el portátil (Ryzen 7 PRO 5850U, gráfica integrada Vega 8).
 Cuando una prueba está hecha y sus resultados están en el chat (o en `my_tests/`), se borra de aquí.
@@ -47,3 +47,14 @@ cambio, compilar ya no pisa tu `build/gt_play.ini`; comprueba que sigue con `Nat
 - [ ] ¿Va fluido en menús y en carrera? ¿Notas algún tirón?
 - [ ] Si quieres dejar el log: `GT_PERF_LOG=1 build/gt_play 2>&1 | grep -E '^\[perf\]' | tee my_tests/perf_powersave.txt`
       (la línea nueva `vblank lag` dice cuántas veces el juego llegó tarde a un fotograma).
+
+## 6. Compilación optimizada con PGO (opcional, ≈ 14 min)
+
+En tu portátil en power-saver (medido por SSH desde /tmp) el hilo del juego bajó del 59 % al 39 % de un núcleo con
+esta compilación. Después de actualizar y compilar como siempre:
+
+```bash
+tools/pgo.sh          # compila, juega sola 220 s sin ventana para medir, y recompila build/ optimizado
+```
+
+- [ ] ¿Notas el juego más suelto en power-saver? ¿Se calienta o gasta menos batería?
