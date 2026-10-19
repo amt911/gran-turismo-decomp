@@ -6,7 +6,7 @@
 # Usage: tools/gpu_gate.sh BUILD_DIR OUT_DIR [SCALE] [ROUTES]
 #   SCALE   InternalScale for the GPU (default 1: the pixel-equality gate; >1 only for speed and visual checks); the GPU frame is box-downsampled to 480x272.
 #   ROUTES  space-separated route:seconds (default "race:600 dealer:300 garage:310").
-# GPU_GATE_LOD0=1 makes the GPU sample mip level 0 like the software reference (see below).
+# The race samples mip level 0 like the software reference (see below); GPU_GATE_LOD0=1 forces it on every route, 0 on none.
 # The GPU keeps GT's half-pixel temporal jitter here (KeepTemporalJitter=true), as the software reference draws it.
 # Exit code: 0 every route passes, 1 some route fails, 2 a run or the setup failed.
 # The dumps are game output: OUT_DIR must stay out of git (use recomp/analysis/gpu/...).
@@ -29,10 +29,20 @@ InternalResolutionMode=Scale
 InternalScale=$scale
 KeepTemporalJitter=true
 EOF
-# GPU_GATE_LOD0=1: the GPU samples mip level 0, as the software reference does (it never applies the automatic
-# mip level, docs/FINDINGS.md). Every race frame fails on distant textures otherwise, so the race checks nothing
-# else; with it the race compares everything but the level choice.
-if [ "${GPU_GATE_LOD0:-0}" != 0 ]; then echo "TextureLodBias=-8" >> "$ini"; fi
+# Mip level 0 (TextureLodBias=-8): the software reference never applies the automatic mip level (docs/FINDINGS.md), so
+# every race frame failed on distant textures and the race checked nothing else. The race samples level 0 by default
+# (923/923 frames pass, 2026-10-19), comparing everything but the level choice; the dealer and garage keep the real
+# levels (they pass with them, patch 0043). GPU_GATE_LOD0=1 forces level 0 on every route, GPU_GATE_LOD0=0 on none.
+route_ini() {  # $1 route -> the run's ini path
+  local file="$out/$1.ini"
+  cp "$ini" "$file"
+  case "${GPU_GATE_LOD0:-race}" in
+    0) ;;
+    race) [ "$1" = race ] && echo "TextureLodBias=-8" >> "$file" ;;
+    *) echo "TextureLodBias=-8" >> "$file" ;;
+  esac
+  echo "$file"
+}
 status=0
 for entry in $routes; do
   route=${entry%:*}; seconds=${entry#*:}
@@ -42,7 +52,7 @@ for entry in $routes; do
   rm -rf "${out:?}/$route" "${out:?}/$route-diff" "${out:?}/$route-savedata"
   mkdir -p "$out/$route-savedata"
   flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G \
-    -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$ini" \
+    -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$(route_ini "$route")" \
     GT_SAVEDATA_DIR="$out/$route-savedata" PSPRECOMP_GE_GPU_DUAL=1 GT_FRAMESKIP=0 GT_GPU_NO_DROP=1 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
     GT_FRAME_EVERY="${GT_FRAME_EVERY:-30}" timeout $((seconds + 300)) "$build/gt_play" --max-seconds "$seconds" \
     > "$out/$route.log" 2>&1
