@@ -1877,3 +1877,11 @@ Found: 2026-10-19 · batch 100
 **Fix / next step.** None yet. A bisection needs a criterion that does not depend on timing: compare the menu/state the pad presses land in, or make the route wait for a state instead of a vblank count. The differential gate (`--decomp diff`) is not affected.
 
 Found: 2026-10-19 · scratch bisection scripts over host/gt_native (`--decomp on`, `GT_DECOMP_ONLY`)
+
+## Frames skipped with the game 80 % idle on a slow CPU: GT's second vblank wait counted as "host late"
+
+**Symptom.** On the laptop in power-saver (1.9 GHz), gt_play skipped 7-14 frames/s in menu and race windows where the guest thread slept 75-80 % of the time and barely waited for the GE (2.5 %).
+**Cause.** GT waits for each vblank from two threads in the same guest instant. The first wait sleeps until the vblank's real time; the second targets the same vblank, already past, so it always arrives "late" by the work between the two waits. A probe over the race route on the laptop: ~300 of every 600 waits arrived 2-4 ms (or more) late, and every sleep woke < 0.25 ms after its due time. The frameskip took any wait more than 1 ms late as "the host cannot keep up". On a fast CPU the second wait came < 1 ms late and even cleared a first wait's real lag, so it never showed there.
+**Fix.** `gt::VblankPacer` (host/vblank_pacer.{hpp,cpp}, CTest `vblank_pacer`): only the first wait of each vblank measures the lag (keyed on the target vblank, not on the thread: any repeated wait for the same vblank is skipped), and late means more than 4 ms (a quarter vblank). Measured on the desktop with two cores, race route: first waits arrive 1-2 ms late only a few times per 5 s with the game 60 % idle, which the next frame catches up without skipping, plus isolated 10-50 ms stalls. Result there: frameskip 0.10/s on average (max 1.2), guest time 1.00x. On the laptop in power-saver (A/B, two rounds each, race route, binaries run from /tmp): frameskip 3.3-3.6/s (max 18.8) before, 0.12-0.15/s (max 2.4) after; GE wait 14-15 % before, 8.3 % after. The perf log has a new `vblank lag` line: first waits, how many were late by more than 1 / 4 / 8 ms, and the maximum.
+
+Found: 2026-10-19 · host/vblank_pacer.cpp, host/gt_kernel.cpp (laptop probe over SSH, binary run from /tmp)
