@@ -1,0 +1,193 @@
+GT patch 0051: the fixed work every GE draw repeats before it joins a batch (docs/superpowers/specs/
+2026-10-19-ge-backend-per-draw-cost-design.md). The UV range of a draw is four floats, not a zero-built ~600-byte
+Batch; vertices and indices are appended with one resize; the merge test compares the descriptor around the four
+per-draw fields instead of copying it; the framebuffer-feedback flag reuses the target lookup made at the top; the
+fast path writes each vertex once and takes the strip indices of up to 8 vertices from a table. Output identical
+(dual run over 16.8 M draws: vertices, indices, batches and counters equal).
+
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -838,23 +838,60 @@
+ // scale, where 1x stays the PSP's exactly. A side of the range that reaches the texture's edge (or beyond: a
+ // repeating texture) stays open, so tiled textures still wrap. Only for a draw filtered linearly both ways: moving a
+ // nearest sample can pick another texel.
+-void extend_uv_box(Batch &batch, float u, float v, float q) noexcept {
++void extend_uv_box(bool &valid, float (&box)[4], float u, float v, float q) noexcept {
+     if (!std::isfinite(u) || !std::isfinite(v) || std::fabs(q - 1.0f) > 1.0e-6f) {
+-        batch.uv_box_valid = false;
+-        batch.uv_box[0] = -1.0e30f;  // stays invalid after a merge
++        valid = false;
++        box[0] = -1.0e30f;  // stays invalid after a merge
+         return;
+     }
+-    if (batch.uv_box[0] <= -1.0e30f) return;
+-    if (!batch.uv_box_valid) {
+-        batch.uv_box_valid = true;
+-        batch.uv_box[0] = batch.uv_box[2] = u;
+-        batch.uv_box[1] = batch.uv_box[3] = v;
++    if (box[0] <= -1.0e30f) return;
++    if (!valid) {
++        valid = true;
++        box[0] = box[2] = u;
++        box[1] = box[3] = v;
+         return;
+     }
+-    batch.uv_box[0] = std::min(batch.uv_box[0], u);
+-    batch.uv_box[1] = std::min(batch.uv_box[1], v);
+-    batch.uv_box[2] = std::max(batch.uv_box[2], u);
+-    batch.uv_box[3] = std::max(batch.uv_box[3], v);
++    box[0] = std::min(box[0], u);
++    box[1] = std::min(box[1], v);
++    box[2] = std::max(box[2], u);
++    box[3] = std::max(box[3], v);
++}
++
++void extend_uv_box(Batch &batch, float u, float v, float q) noexcept {
++    extend_uv_box(batch.uv_box_valid, batch.uv_box, u, v, q);
++}
++
++// GT patch 0051: one draw's texture-coordinate range, before it joins or opens a batch (a whole Batch per draw cost
++// ~a quarter of this call).
++struct UvBox {
++    bool valid{};
++    float box[4]{};
++};
++
++// GT patch 0051: whether two descriptors are equal but for the fields a batch merge lets differ (the vertex count and
++// the texture level selection, which the vertices carry), without copying 352 bytes first. Padding is zero in every
++// descriptor (patch 0046), so the byte compare is the one the copy-and-memcmp made.
++bool same_draw_but_per_draw_fields(const GeGpuDrawDescriptor &a, const GeGpuDrawDescriptor &b) noexcept {
++    struct Skip {
++        std::size_t offset;
++        std::size_t size;
++    };
++    static constexpr Skip kSkip[] = {
++        {offsetof(GeGpuDrawDescriptor, vertex_count), sizeof(GeGpuDrawDescriptor::vertex_count)},
++        {offsetof(GeGpuDrawDescriptor, texture_level_mode), sizeof(GeGpuDrawDescriptor::texture_level_mode)},
++        {offsetof(GeGpuDrawDescriptor, texture_level_offset16), sizeof(GeGpuDrawDescriptor::texture_level_offset16)},
++        {offsetof(GeGpuDrawDescriptor, texture_selected_level), sizeof(GeGpuDrawDescriptor::texture_selected_level)},
++    };
++    static_assert(kSkip[0].offset < kSkip[1].offset && kSkip[1].offset < kSkip[2].offset &&
++                  kSkip[2].offset < kSkip[3].offset);
++    const auto *pa = reinterpret_cast<const unsigned char *>(&a);
++    const auto *pb = reinterpret_cast<const unsigned char *>(&b);
++    std::size_t at = 0u;
++    for (const Skip &skip : kSkip) {
++        if (std::memcmp(pa + at, pb + at, skip.offset - at) != 0) return false;
++        at = skip.offset + skip.size;
++    }
++    return std::memcmp(pa + at, pb + at, sizeof(GeGpuDrawDescriptor) - at) == 0;
+ }
+ 
+ void apply_uv_clamp(const VulkanState &s, const Batch &batch, DrawUniforms &uniforms) noexcept {
+@@ -3744,34 +3781,35 @@
+         vertex.lod = lod;
+         return vertex;
+     };
++    // GT patch 0051: an index past the draw's vertices drops the draw before anything is appended (it used to append
++    // the vertices and take them back); then one resize per buffer instead of a push_back per element.
+     if (indexed) {
+-        for (const GeGpuVertex &source : vertices) s.vertices.push_back(upload(source));
+         for (std::uint32_t index : triangle_indices) {
+             if (index >= vertices.size()) {
+-                s.vertices.resize(first_vertex);
+                 ++s.report.game_vertex_overflows;
+                 return;
+             }
+-            s.indices.push_back(index);
+         }
+-    } else {
+-        for (const GeGpuVertex &source : vertices) s.vertices.push_back(upload(source));
+     }
++    s.vertices.resize(first_vertex + vertices.size());
++    UploadVertex *appended = s.vertices.data() + first_vertex;
++    for (std::size_t i = 0u; i < vertices.size(); ++i) appended[i] = upload(vertices[i]);
++    if (indexed) s.indices.insert(s.indices.end(), triangle_indices.begin(), triangle_indices.end());
+     const std::uint32_t logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
+-    Batch box{};  // GT patch 0044: the texture coordinates the shader computes, inUv * scale + offset
++    UvBox box{};  // GT patch 0044: the texture coordinates the shader computes, inUv * scale + offset
+     if (draw.texture_enabled && !sampled_target) {
+         for (const GeGpuVertex &source : vertices)
+-            extend_uv_box(box, source.u * transform.uv_scale_u + transform.uv_offset_u,
++            extend_uv_box(box.valid, box.box, source.u * transform.uv_scale_u + transform.uv_offset_u,
+                           source.v * transform.uv_scale_v + transform.uv_offset_v, source.q);
+     }
+     const auto merge_box = [&box](Batch &into) {
+-        if (!into.uv_box_valid || !box.uv_box_valid) {
++        if (!into.uv_box_valid || !box.valid) {
+             into.uv_box_valid = false;
+             into.uv_box[0] = -1.0e30f;
+             return;
+         }
+-        extend_uv_box(into, box.uv_box[0], box.uv_box[1], 1.0f);
+-        extend_uv_box(into, box.uv_box[2], box.uv_box[3], 1.0f);
++        extend_uv_box(into, box.box[0], box.box[1], 1.0f);
++        extend_uv_box(into, box.box[2], box.box[3], 1.0f);
+     };
+     // GT patch 0036: GT sends ~10,000 small draws a frame, runs of them with the same state (an object's parts).
+     // A triangle list with the same descriptor and transform as the batch before joins it: one draw of both lists
+@@ -3784,14 +3822,7 @@
+         const bool feedback = sampled_target;
+         constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
+         // GT patch 0039: nor the level selection, which the vertices carry; the texture keys are equal then too.
+-        const auto same_draw = [&]() {
+-            GeGpuDrawDescriptor previous = last.draw;
+-            previous.vertex_count = draw.vertex_count;
+-            previous.texture_level_mode = draw.texture_level_mode;
+-            previous.texture_level_offset16 = draw.texture_level_offset16;
+-            previous.texture_selected_level = draw.texture_selected_level;
+-            return std::memcmp(&previous, &draw, sizeof draw) == 0;
+-        };
++        const auto same_draw = [&]() { return same_draw_but_per_draw_fields(last.draw, draw); };
+         if (!feedback && last.hardware_transform && !last.framebuffer_feedback && last.transform.primitive == 3u &&
+             last.indexed == indexed && std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
+             same_draw()) {
+@@ -3828,10 +3859,10 @@
+     batch.logical_draw_count = logical;
+     batch.hardware_transform = true;
+     batch.transform = transform;
+-    batch.uv_box_valid = box.uv_box_valid;
+-    std::copy(std::begin(box.uv_box), std::end(box.uv_box), std::begin(batch.uv_box));
++    batch.uv_box_valid = box.valid;
++    std::copy(std::begin(box.box), std::end(box.box), std::begin(batch.uv_box));
+     batch.feedback_address = draw.texture_address & 0x001FFFF0u;
+-    batch.framebuffer_feedback = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;  // GT patch 0029
++    batch.framebuffer_feedback = sampled_target;  // GT patch 0029; 0051: the lookup made above (nothing registers in between)
+     s.batches.push_back(batch);
+     s.report.game_draw_calls += logical;
+     s.report.game_triangles += transform.primitive == 4u
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4272,8 +4272,9 @@
+         const Color color = layout.color_type < 4u
+             ? cache.material : read_vertex_color_raw(vertex_bytes + layout.color_offset, layout.color_type);
+         const Vec3 position = read_vector3_raw(vertex_bytes + layout.position_offset, layout.position_type);
++        // GT patch 0051: written once. The fields left out keep their defaults: this vector only ever holds fast-path
++        // vertices, and resize() default-constructs every element it adds.
+         GeGpuVertex &out = vertices[i];
+-        out = {};
+         out.x = position.x;
+         out.y = position.y;
+         out.z = position.z;
+@@ -4284,6 +4285,21 @@
+         out.fog_factor = 1.0f;
+         out.rgba = pack_gpu_color(color);
+     }
++    // GT patch 0051: GT's strips have at most 8 vertices; their triangle indices come from a table.
++    static constexpr auto kStrip8 = [] {
++        std::array<std::uint32_t, 18> table{};
++        std::size_t at = 0u;
++        for (std::uint32_t i = 0u; i + 2u < 8u; ++i) {
++            table[at++] = (i & 1u) == 0u ? i : i + 1u;
++            table[at++] = (i & 1u) == 0u ? i + 1u : i;
++            table[at++] = i + 2u;
++        }
++        return table;
++    }();
++    if (count <= 8u) {
++        indices.assign(kStrip8.begin(), kStrip8.begin() + (count >= 3u ? 3u * (count - 2u) : 0u));
++        return;
++    }
+     indices.clear();
+     for (std::uint32_t i = 0u; i + 2u < count; ++i) {
+         if ((i & 1u) == 0u) {

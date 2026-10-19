@@ -1815,3 +1815,11 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_97.cpp (func_08B610C0)
 **Fix.** None: the function stays written and unregistered (commented `HOT97` line). A function whose callee builds elements from an uninitialised temporary has no deterministic result to compare; before reading such a function look for a `jal` whose last argument is `sp + N` in a callee that never stored it.
 
 Found: 2026-10-16 · src/game/unsorted/hot_batch_97.cpp (func_08B04D98)
+
+## The laptop's slow GE was its power profile: power-saver caps the 5850U at 1.9 GHz
+
+**Symptom.** On the laptop (Ryzen 7 PRO 5850U) the race skipped 7-9 frames/s, the GE thread ran at 78-83 % of a core (~690 ns per draw) and the game waited for it 29 % of the time. The GPU spent only ~2.1 ms per frame.
+**Cause.** The `low-power` / `power-saver` platform profile caps the CPU at 1.9 GHz (`lscpu`: max 1901 MHz). In `performance` (max 4.5 GHz) the same build runs ~290 ns per draw, waits 5 % and skips 0.3 frames/s. The GPU was never the limit.
+**Fix / workaround.** None in code: lcs-recomp patch 0051 cut the per-draw cost a further 3-5 % (spec 2026-10-19). When a laptop report says the GE is slow, check `cat /sys/firmware/acpi/platform_profile` and `lscpu | grep MHz` first. A race measured in power-saver and one in performance are different machines.
+
+Found: 2026-10-19 · laptop measurements over SSH (docs/superpowers/specs/2026-10-19-ge-backend-per-draw-cost-design.md)
