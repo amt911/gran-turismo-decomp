@@ -1391,6 +1391,8 @@ where none did. The rest (0.016-0.043, alternating by window) has other causes, 
 to check a renderer change in the race (everything but the level choice). The real fix is the automatic level in
 the software rasterizer (per-pixel derivatives in every raster path), which also is what `NativeGE=false` shows.
 
+**Update 2026-10-19.** The race now samples level 0 by default in `tools/gpu_gate.sh` (923/923 frames pass on a 600 s run). The dealer and garage keep the real levels, which they pass since patch 0043. `GPU_GATE_LOD0=1` forces level 0 on every route and `GPU_GATE_LOD0=0` on none.
+
 Found: 2026-10-15 · tools/gpu_gate.sh
 
 ## A callee that sets no v0 hands the caller's v0 on: a decompiled function must keep the previous call's results in the registers
@@ -1925,3 +1927,11 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_102.cpp
 **Fix / workaround.** `sabotage s2 --only 0xADDR` with the one function installed reached it and pinned its s0 bump. Check `calls` before reading a missing detection as a hole in the sabotage.
 
 Found: 2026-10-19 · src/game/unsorted/hot_batch_102.cpp (func_08891C54)
+
+## Streaming GT's fast draws past the backend handshake saved only 1-3 %: the GE thread's cost is spread, not concentrated
+
+**Symptom.** After #236 and PGO, the laptop in power-saver spends ~500 ns per GE draw. The backend handshake per fast draw looked like the next target: a mutex, a 352-byte descriptor compare, a texture-map lookup and the LOD. It is the same answer for every draw of a run.
+**Cause.** Removing it (patch 0052, streamed draws: verified identical on 31.4 M draws, 85 % of fast draws streamed) moved the laptop's ns per draw from 507-508 to 493-504. A profile of the streamed build shows the remaining cost spread over many small pieces: `render_ge_primitive_pass` 5.4 %, the command loop 4.9 %, `hw_job_prepare` (non-strip draws) 4.8 %, the stream itself 6.6 %, the prescan 2.6 %.
+**Fix / lesson.** Not merged (spec `2026-10-19-ge-streamed-fast-draws-design.md`, result section); the code is on branch `perf/ge-streamed-fast-draws`. Before another per-draw micro-optimisation of the GE, profile the target machine: the next gains need structure, such as more than one core decoding lists or the renderer leaving the PSP command lists behind.
+
+Found: 2026-10-19 · laptop A/B and profile over SSH (binaries from /tmp)
