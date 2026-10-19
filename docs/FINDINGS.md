@@ -1870,6 +1870,22 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_100.cpp (func_08B7B2E4)
 
 Found: 2026-10-19 · batch 100
 
+## After 100 batches the hottest unwritten reached functions are 2-instruction tail jumps and getters, and a size cut-off hid them
+
+**Symptom.** Batches 99-100 took reached functions of 20 or more instructions and kept running into pools that only ran empty paths. Batch 101's probe (`b101p`, 13,968 unregistered recompiled functions of at most 300 instructions) ranked by calls shows the real leftovers: `func_08B4B864` (134,690 probed calls, `j func_08B4B7B4` with a delay-slot move), `func_08B77BF4` (97,882), `func_08B4BAA8` (86,154), `func_08C31304` / `func_08C3131C` (the same with a sign extension of `a1`), plus getters and setters. All of them compared in the first fast gate.
+**Cause.** The earlier pools were cut by size (20+ instructions) and by "stores to memory", which drops forwarders and pure getters. A function with no stores of its own is fine for the gate: the rule is a memory-changing case only for functions that write memory.
+**Fix / workaround.** Rank the probe by hits and a static filter instead of by size: a `jal` or `j` target at or past the end of `.text` (0x4767DC in ELF terms) is an import stub, and walking the callees three to five levels marks the wrappers that reach one. In batch 101 the walk marked three of the five functions that compared 0 (`func_08AC3308`, `func_08AD08A4`, `func_08AD0974`); the other two (`func_08ABC9D0`, `func_08ABCC1C`) end in `jr t9` through a vtable slot, which a static walk cannot see, so those still need the gate. Allocator wrappers (`func_0892BF7C` calls `func_08B6461C`) are marked too but compared fine: the lock imports are replay-safe. Where the tail stub's callee returns a pair, register it as `DoubleWord` (`tools.contract_audit` lists the callers that read `v1`: `func_08B6E268`, `func_08B77BF4`, `func_08BBC08C`).
+
+Found: 2026-10-19 · batch 101
+
+## `tools.family_members --check` calls two sibling wrappers BAD when one loads its constant with `addiu` and the other with `addu $zero, $zero`
+
+**Symptom.** `func_0885E794` and `func_0885E7B8` differ only in a1 = 1 versus a1 = 0. Written as `void func_0885E7B8(...) { forward_flag_to_child(rt, ctx, 0u); }` the check printed `BAD func_0885E7B8: its words do not decode to the same sequence of values as the other rows of the wrapper` (the 0 comes from a register move, the 1 from an immediate).
+**Cause.** A wrapper row is any function whose body is one call with literal arguments; the check decodes the argument values from the member's own immediates, and a move from `$zero` has none.
+**Fix / workaround.** Set the register in the function (`ctx.gpr[5] = 0u;`) and let the shared helper read it, so the body is no longer a one-call row. Not a bug in the decompiled code: the gate compared both.
+
+Found: 2026-10-19 · src/game/unsorted/hot_batch_101.cpp (func_0885E794 / func_0885E7B8)
+
 ## `--decomp on` does not always reach the race on the race route: the outcome is not deterministic, so it cannot be bisected yet
 
 **Symptom.** With every decompiled function installed (`gt_native --decomp on`, race pad route), the run stayed in a menu (guest thread ~90 % asleep) for 200 s, where `--decomp off` reaches the race at ~45 s. The full list reproduced it three times in a row.
