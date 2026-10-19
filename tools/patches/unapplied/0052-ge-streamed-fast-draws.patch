@@ -1,0 +1,399 @@
+GT patch 0052 (NOT applied on main: measured 1-3 % on the laptop, see FINDINGS 2026-10-19): streamed fast draws.
+
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -399,6 +399,50 @@
+     std::span<const GeGpuVertex> vertices,
+     std::span<const std::uint32_t> triangle_indices) noexcept;
+ 
++// GT patch 0052: streamed fast draws (docs/superpowers/specs/2026-10-19-ge-streamed-fast-draws-design.md). After a
++// fast quad strip went through ge_gpu_backend_accumulate_hardware_triangles and ended in the last batch,
++// ge_gpu_backend_stream_begin describes that batch; the next strips of the same run (same revision, texture level and
++// write clock: the renderer's key) are appended with ge_gpu_backend_stream_append, which does what accumulate does
++// for a draw that joins the batch: one lock, no descriptor build, compare or texture lookup. The texture level
++// (0xC8) may differ from draw to draw, as accumulate's merge allows: each append brings its level fields and the LOD
++// is computed from them as accumulate does.
++struct GeGpuStream {
++    bool valid{};
++    std::uint64_t epoch{};              // the backend's frame epoch: batches are cleared at a new frame
++    std::uint64_t target_generation{};  // render targets created, cleared or drawn into since: the lookup may differ
++    std::size_t batch{};                // the batch the run joins: it must still be the last one
++    GeGpuDrawDescriptor draw{};         // the run's descriptor (its level fields are each draw's own)
++    bool uv_box{};                      // the draw samples a texture (not a render target): extend the batch's UV box
++    float uv_scale_u{}, uv_offset_u{}, uv_scale_v{}, uv_offset_v{};
++    std::uint32_t logical{1u};
++};
++struct GeGpuStreamVertex {  // a fast strip's vertex as the upload keeps it (w, q and fog are 1)
++    float x{}, y{}, z{};
++    std::uint32_t rgba{};
++    float u{}, v{};
++};
++bool ge_gpu_backend_stream_begin(const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                                 GeGpuStream &stream) noexcept;
++// Appends a strip of `vertices` (its triangle indices from the strip pattern) to the stream's batch. False when the
++// stream is stale (the caller then takes the ordinary path, which re-begins it).
++struct GeGpuStreamLevel {  // a draw's texture level fields (0xC8), as fast_strip_inputs fills them
++    std::uint32_t mode{};
++    std::int32_t offset16{};
++    std::uint32_t selected{};
++};
++bool ge_gpu_backend_stream_append(GeGpuStream &stream, std::span<const GeGpuStreamVertex> vertices,
++                                  std::span<const std::uint32_t> strip_indices, const GeGpuStreamLevel &level) noexcept;
++// GT_GE_STREAM_VERIFY=1: the same append, then rolled back and redone through accumulate with the ordinary inputs; the
++// two results are compared byte for byte (the ordinary one is kept). Returns false when the stream is stale.
++bool ge_gpu_backend_stream_append_verified(GeGpuStream &stream, std::span<const GeGpuStreamVertex> vertices,
++                                           std::span<const std::uint32_t> strip_indices, const GeGpuStreamLevel &level,
++                                           const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                                           std::span<const GeGpuVertex> ordinary_vertices) noexcept;
++// Streamed draws, verified draws and verify mismatches since the last call (each call resets its counter).
++std::uint64_t ge_gpu_backend_streamed_draws() noexcept;
++std::uint64_t ge_gpu_backend_stream_verified() noexcept;
++std::uint64_t ge_gpu_backend_stream_mismatches() noexcept;
++
+ [[nodiscard]] bool ge_gpu_backend_accumulate_hardware_packed_0115(
+     const GeGpuDrawDescriptor &draw,
+     const GeGpuHardwareTransform &transform,
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -230,6 +230,9 @@
+     std::uint32_t display_logical_height{kReferenceHeight};
+     std::uint32_t last_registered_framebuffer_target{0xFFFFFFFFu};
+     std::uint64_t frame_epoch{1u};
++    // GT patch 0052: bumped whenever texture_target() could answer differently for an address (a target created or
++    // cleared, or drawn into, which refreshes it): a streamed run of draws stops on a change.
++    std::uint64_t target_generation{};
+     bool pass_open{};
+     Target *current_target{};
+     // Previous submit still owns the command buffer, geometry, and readback.
+@@ -776,6 +779,7 @@
+     }
+     target.created = true;
+     s.targets.emplace(address, std::move(target));
++    ++s.target_generation;  // GT patch 0052
+     ++s.report.framebuffer_targets_observed;
+     ++s.report.native_framebuffer_targets;
+     s.report.depth_image_created = true;
+@@ -2690,6 +2694,7 @@
+     s.readback_latched = false;
+     for (auto &entry : s.targets) destroy_target(s, entry.second);
+     s.targets.clear();
++    ++s.target_generation;  // GT patch 0052
+     destroy_shared_depth(s);  // GT patch 0022
+     for (auto &entry : s.textures) destroy_image(s, entry.second.gpu);
+     s.textures.clear();
+@@ -3449,7 +3454,10 @@
+         std::string error;
+         if (!ensure_target(s, target, error) && !error.empty())
+             runtime_log_error("vulkan framebuffer target", error);
+-        if (Target *drawn = find_target(s, target)) drawn->last_draw_epoch = s.frame_epoch;  // GT patch 0033
++        if (Target *drawn = find_target(s, target); drawn != nullptr && drawn->last_draw_epoch != s.frame_epoch) {
++            drawn->last_draw_epoch = s.frame_epoch;  // GT patch 0033
++            ++s.target_generation;                   // GT patch 0052: texture_target() may answer differently now
++        }
+         const std::uint32_t logical_width = target == s.display_framebuffer
+             ? s.display_logical_width
+             : std::max<std::uint32_t>(1u, draw.framebuffer_stride != 0u
+@@ -3875,6 +3883,181 @@
+     else if (draw.texture_enabled) s.report.game_textured_draws_without_texture += logical;
+ }
+ 
++// GT patch 0052: streamed fast draws (docs/superpowers/specs/2026-10-19-ge-streamed-fast-draws-design.md).
++namespace {
++std::atomic<std::uint64_t> g_streamed_draws{0u};
++std::atomic<std::uint64_t> g_stream_verified{0u};
++std::atomic<std::uint64_t> g_stream_mismatches{0u};
++
++// Whether the stream still describes the last batch, as accumulate would find it for a draw of the run.
++bool stream_current(const VulkanState &s, const GeGpuStream &stream) noexcept {
++    return stream.valid && s.enabled && blend_stats() == nullptr && stream.epoch == s.frame_epoch &&
++           stream.target_generation == s.target_generation && !s.batches.empty() &&
++           stream.batch == s.batches.size() - 1u &&
++           s.batches.back().first_index + s.batches.back().index_count == s.indices.size();
++}
++
++// What accumulate does for a draw of the run that joins the last batch (its merge branch), from upload-ready vertices.
++// The caller holds the lock and checked stream_current.
++void stream_append_locked(VulkanState &s, GeGpuStream &stream, std::span<const GeGpuStreamVertex> vertices,
++                          std::span<const std::uint32_t> strip_indices, const GeGpuStreamLevel &level) {
++    const std::size_t emitted = strip_indices.size();
++    if (vertices.empty() || emitted == 0u || emitted % 3u != 0u) return;  // as accumulate: nothing to draw
++    const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
++    if (used + vertices.size() * sizeof(UploadVertex) + emitted * sizeof(std::uint32_t) > kGeometryUploadCapacity) {
++        ++s.report.game_vertex_overflows;
++        return;
++    }
++    for (std::uint32_t index : strip_indices)
++        if (index >= vertices.size()) {
++            ++s.report.game_vertex_overflows;
++            return;
++        }
++    stream.draw.texture_level_mode = level.mode;
++    stream.draw.texture_level_offset16 = level.offset16;
++    stream.draw.texture_selected_level = level.selected;
++    const float lod = vertex_lod(s, stream.draw);  // GT patch 0039, 0043: as accumulate, from this draw's level
++    const std::uint32_t first_vertex = static_cast<std::uint32_t>(s.vertices.size());
++    s.vertices.resize(first_vertex + vertices.size());
++    UploadVertex *appended = s.vertices.data() + first_vertex;
++    UvBox box{};
++    for (std::size_t i = 0u; i < vertices.size(); ++i) {
++        const GeGpuStreamVertex &source = vertices[i];
++        appended[i] = {source.x, source.y, source.z, 1.0f, source.rgba, source.u, source.v, 1.0f, 1.0f};
++        appended[i].lod = lod;
++        if (stream.uv_box)
++            extend_uv_box(box.valid, box.box, source.u * stream.uv_scale_u + stream.uv_offset_u,
++                          source.v * stream.uv_scale_v + stream.uv_offset_v, 1.0f);
++    }
++    Batch &last = s.batches.back();
++    const std::uint32_t shift = first_vertex - last.first_vertex;
++    const std::size_t first_index = s.indices.size();
++    s.indices.resize(first_index + emitted);
++    for (std::size_t i = 0u; i < emitted; ++i) s.indices[first_index + i] = strip_indices[i] + shift;
++    last.vertex_count += static_cast<std::uint32_t>(vertices.size());
++    last.index_count += static_cast<std::uint32_t>(emitted);
++    last.logical_draw_count += stream.logical;
++    if (!last.uv_box_valid || !box.valid) {  // accumulate's merge_box
++        last.uv_box_valid = false;
++        last.uv_box[0] = -1.0e30f;
++    } else {
++        extend_uv_box(last, box.box[0], box.box[1], 1.0f);
++        extend_uv_box(last, box.box[2], box.box[3], 1.0f);
++    }
++    s.report.game_draw_calls += stream.logical;
++    s.report.game_triangles += emitted / 3u;
++    s.report.game_vertices += emitted;
++}
++} // namespace
++
++bool ge_gpu_backend_stream_begin(const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                                 GeGpuStream &stream) noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    stream.valid = false;
++    if (!s.enabled || s.batches.empty() || transform.primitive != 3u) return false;
++    const Batch &last = s.batches.back();
++    // Only a run that keeps joining: an indexed hardware triangle batch that samples no render target, with this
++    // draw's descriptor and transform (accumulate's merge test, which the next draws of the run would pass).
++    constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
++    const bool sampled_target = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
++    if (sampled_target || !last.hardware_transform || last.framebuffer_feedback || last.transform.primitive != 3u ||
++        !last.indexed || std::memcmp(&last.transform, &transform, kTransformCompared) != 0 ||
++        !same_draw_but_per_draw_fields(last.draw, draw))
++        return false;
++    stream.epoch = s.frame_epoch;
++    stream.target_generation = s.target_generation;
++    stream.batch = s.batches.size() - 1u;
++    std::memcpy(static_cast<void *>(&stream.draw), &draw, sizeof draw);  // zero padding kept (patch 0046)
++    stream.uv_box = draw.texture_enabled;  // and no sampled target (above)
++    stream.uv_scale_u = transform.uv_scale_u;
++    stream.uv_offset_u = transform.uv_offset_u;
++    stream.uv_scale_v = transform.uv_scale_v;
++    stream.uv_offset_v = transform.uv_offset_v;
++    stream.logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
++    stream.valid = true;
++    return true;
++}
++
++bool ge_gpu_backend_stream_append(GeGpuStream &stream, std::span<const GeGpuStreamVertex> vertices,
++                                  std::span<const std::uint32_t> strip_indices, const GeGpuStreamLevel &level) noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    if (!stream_current(s, stream)) {
++        stream.valid = false;
++        return false;
++    }
++    stream_append_locked(s, stream, vertices, strip_indices, level);
++    g_streamed_draws.fetch_add(1u, std::memory_order_relaxed);
++    return true;
++}
++
++bool ge_gpu_backend_stream_append_verified(GeGpuStream &stream, std::span<const GeGpuStreamVertex> vertices,
++                                           std::span<const std::uint32_t> strip_indices, const GeGpuStreamLevel &level,
++                                           const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                                           std::span<const GeGpuVertex> ordinary_vertices) noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    if (!stream_current(s, stream)) {
++        stream.valid = false;
++        return false;
++    }
++    const std::size_t v0 = s.vertices.size(), i0 = s.indices.size(), b0 = s.batches.size();
++    const Batch saved_last = s.batches.back();
++    const auto saved_report = s.report;
++    struct Result {
++        std::vector<UploadVertex> vertices;
++        std::vector<std::uint32_t> indices;
++        std::vector<Batch> batches;
++        std::uint64_t draws, triangles, game_vertices, overflows;
++    };
++    const auto capture = [&]() {
++        return Result{{s.vertices.begin() + static_cast<std::ptrdiff_t>(v0), s.vertices.end()},
++                      {s.indices.begin() + static_cast<std::ptrdiff_t>(i0), s.indices.end()},
++                      {s.batches.begin() + static_cast<std::ptrdiff_t>(b0 - 1u), s.batches.end()},
++                      s.report.game_draw_calls, s.report.game_triangles, s.report.game_vertices,
++                      s.report.game_vertex_overflows};
++    };
++    stream_append_locked(s, stream, vertices, strip_indices, level);
++    const Result streamed = capture();
++    s.vertices.resize(v0);
++    s.indices.resize(i0);
++    s.batches.resize(b0);
++    s.batches.back() = saved_last;
++    s.report = saved_report;
++    ge_gpu_backend_accumulate_hardware_triangles(draw, transform, ordinary_vertices, strip_indices);  // kept
++    const Result ordinary = capture();
++    const auto same_vertex = [](const UploadVertex &a, const UploadVertex &b) {
++        return std::memcmp(&a, &b, sizeof a) == 0;  // UploadVertex has no padding (static_assert above)
++    };
++    const auto same_batch = [](const Batch &x, const Batch &y) {
++        return std::memcmp(&x.draw, &y.draw, sizeof x.draw) == 0 &&
++               std::memcmp(&x.transform, &y.transform, sizeof x.transform) == 0 && x.first_vertex == y.first_vertex &&
++               x.vertex_count == y.vertex_count && x.first_index == y.first_index && x.index_count == y.index_count &&
++               x.indexed == y.indexed && x.logical_draw_count == y.logical_draw_count &&
++               x.hardware_transform == y.hardware_transform && x.framebuffer_feedback == y.framebuffer_feedback &&
++               x.feedback_address == y.feedback_address && x.uv_box_valid == y.uv_box_valid &&
++               std::memcmp(x.uv_box, y.uv_box, sizeof x.uv_box) == 0;
++    };
++    bool equal = streamed.vertices.size() == ordinary.vertices.size() && streamed.indices == ordinary.indices &&
++                 streamed.batches.size() == ordinary.batches.size() && streamed.draws == ordinary.draws &&
++                 streamed.triangles == ordinary.triangles && streamed.game_vertices == ordinary.game_vertices &&
++                 streamed.overflows == ordinary.overflows;
++    for (std::size_t i = 0u; equal && i < streamed.vertices.size(); ++i)
++        equal = same_vertex(streamed.vertices[i], ordinary.vertices[i]);
++    for (std::size_t i = 0u; equal && i < streamed.batches.size(); ++i)
++        equal = same_batch(streamed.batches[i], ordinary.batches[i]);
++    g_stream_verified.fetch_add(1u, std::memory_order_relaxed);
++    if (!equal) g_stream_mismatches.fetch_add(1u, std::memory_order_relaxed);
++    return true;
++}
++
++std::uint64_t ge_gpu_backend_streamed_draws() noexcept { return g_streamed_draws.exchange(0u, std::memory_order_relaxed); }
++std::uint64_t ge_gpu_backend_stream_verified() noexcept { return g_stream_verified.exchange(0u, std::memory_order_relaxed); }
++std::uint64_t ge_gpu_backend_stream_mismatches() noexcept {
++    return g_stream_mismatches.exchange(0u, std::memory_order_relaxed);
++}
++
+ bool ge_gpu_backend_accumulate_hardware_packed_0115(
+     const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
+     std::span<const std::byte> packed_vertices, std::uint32_t vertex_count,
+@@ -4025,6 +4208,7 @@
+     vkDeviceWaitIdle(s.device);
+     for (auto &entry : s.targets) destroy_target(s, entry.second);
+     s.targets.clear();
++    ++s.target_generation;  // GT patch 0052
+     destroy_shared_depth(s);
+     s.shared_depth_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+     set_internal_resolution(s, dims);
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4248,6 +4248,19 @@
+ std::atomic<std::uint64_t> g_fastpath_verified{0u};
+ std::atomic<std::uint64_t> g_fastpath_mismatches{0u};
+ 
++// GT patch 0051/0052: GT's strips have at most 8 vertices; their triangle indices (as hw_job_prepare emits them) come
++// from a table.
++constexpr std::array<std::uint32_t, 18> kStrip8 = [] {
++    std::array<std::uint32_t, 18> table{};
++    std::size_t at = 0u;
++    for (std::uint32_t i = 0u; i + 2u < 8u; ++i) {
++        table[at++] = (i & 1u) == 0u ? i : i + 1u;
++        table[at++] = (i & 1u) == 0u ? i + 1u : i;
++        table[at++] = i + 2u;
++    }
++    return table;
++}();
++
+ // The inputs of the backend call for a fast draw: the cached descriptor and transform with this draw's per-draw fields,
+ // the vertices decoded from `raw` and the strip's triangle indices (as hw_job_prepare emits them).
+ void fast_strip_inputs(const FastStripCache &cache, const std::array<std::uint32_t, 256> &commands,
+@@ -4285,17 +4298,6 @@
+         out.fog_factor = 1.0f;
+         out.rgba = pack_gpu_color(color);
+     }
+-    // GT patch 0051: GT's strips have at most 8 vertices; their triangle indices come from a table.
+-    static constexpr auto kStrip8 = [] {
+-        std::array<std::uint32_t, 18> table{};
+-        std::size_t at = 0u;
+-        for (std::uint32_t i = 0u; i + 2u < 8u; ++i) {
+-            table[at++] = (i & 1u) == 0u ? i : i + 1u;
+-            table[at++] = (i & 1u) == 0u ? i + 1u : i;
+-            table[at++] = i + 2u;
+-        }
+-        return table;
+-    }();
+     if (count <= 8u) {
+         indices.assign(kStrip8.begin(), kStrip8.begin() + (count >= 3u ? 3u * (count - 2u) : 0u));
+         return;
+@@ -4313,6 +4315,26 @@
+     }
+ }
+ 
++// GT patch 0052: a streamed fast draw's vertices straight in the upload's form, with the same readers and the same
++// arithmetic as fast_strip_inputs (w, q and fog stay 1, as there).
++void stream_strip_vertices(const FastStripCache &cache, const VertexLayout &layout, const std::uint8_t *raw,
++                           std::uint32_t count, std::array<GeGpuStreamVertex, 8> &out) {
++    for (std::uint32_t i = 0u; i < count; ++i) {
++        const std::uint8_t *vertex_bytes = raw + static_cast<std::size_t>(i) * layout.stride;
++        float u = 0.0f, v = 0.0f;
++        read_texcoord_raw(vertex_bytes + layout.tc_offset, layout.tc_type, u, v);
++        const Color color = layout.color_type < 4u
++            ? cache.material : read_vertex_color_raw(vertex_bytes + layout.color_offset, layout.color_type);
++        const Vec3 position = read_vector3_raw(vertex_bytes + layout.position_offset, layout.position_type);
++        out[i] = {position.x, position.y, position.z, pack_gpu_color(color), u, v};
++    }
++}
++
++bool stream_verify_enabled() noexcept {
++    static const bool enabled = std::getenv("GT_GE_STREAM_VERIFY") != nullptr;
++    return enabled;
++}
++
+ bool same_upload_vertex(const GeGpuVertex &a, const GeGpuVertex &b) noexcept {  // the fields UploadVertex keeps
+     return std::memcmp(&a.x, &b.x, sizeof(float)) == 0 && std::memcmp(&a.y, &b.y, sizeof(float)) == 0 &&
+            std::memcmp(&a.z, &b.z, sizeof(float)) == 0 && std::memcmp(&a.w, &b.w, sizeof(float)) == 0 &&
+@@ -4507,10 +4529,46 @@
+         if (raw != nullptr && count >= 3u) {
+             static thread_local std::vector<GeGpuVertex> fast_vertices;
+             static thread_local std::vector<std::uint32_t> fast_indices;
++            // GT patch 0052: a strip of the same run as the previous fast draw (same cache entry, texture level and
++            // dual pass) joins the backend's batch through the stream: no descriptor, compare or lookup.
++            struct StreamKey {  // the texture level (0xC8) may change within a run: each append brings its own
++                std::uint64_t revision{}, write_clock{};
++                std::uint32_t layout_type{};
++                DualPass dual_pass{DualPass::None};
++                bool operator==(const StreamKey &) const = default;
++            };
++            static thread_local GeGpuStream stream;
++            static thread_local StreamKey stream_key;
++            const StreamKey key{fast.revision, fast.write_clock, layout.type, g_dual_pass};
++            if (stream.valid && key == stream_key && count <= 8u) {
++                std::array<GeGpuStreamVertex, 8> streamed{};
++                stream_strip_vertices(fast, layout, raw, count, streamed);
++                const std::span<const GeGpuStreamVertex> vertices(streamed.data(), count);
++                const std::span<const std::uint32_t> indices(kStrip8.data(), 3u * (count - 2u));
++                const std::uint32_t texture_level = data24(commands[0xC8u]);  // as fast_strip_inputs
++                const GeGpuStreamLevel level{texture_level & 3u, signed_texture_lod_offset16(texture_level),
++                                             selected_texture_level(commands)};
++                bool appended = false;
++                if (stream_verify_enabled()) {
++                    GeGpuDrawDescriptor draw;
++                    GeGpuHardwareTransform hw;
++                    fast_strip_inputs(fast, commands, layout, raw, count, draw, hw, fast_vertices, fast_indices);
++                    appended = ge_gpu_backend_stream_append_verified(stream, vertices, indices, level, draw, hw,
++                                                                     fast_vertices);
++                } else {
++                    appended = ge_gpu_backend_stream_append(stream, vertices, indices, level);
++                }
++                if (appended) {
++                    g_fastpath_draws.fetch_add(1u, std::memory_order_relaxed);
++                    stats.next_vertex_address = vertex_address + count * layout.stride;
++                    return true;
++                }
++            }
+             GeGpuDrawDescriptor draw;
+             GeGpuHardwareTransform hw;
+             fast_strip_inputs(fast, commands, layout, raw, count, draw, hw, fast_vertices, fast_indices);
+             ge_gpu_backend_accumulate_hardware_triangles(draw, hw, fast_vertices, fast_indices);
++            if (ge_gpu_backend_stream_begin(draw, hw, stream)) stream_key = key;
+             g_fastpath_draws.fetch_add(1u, std::memory_order_relaxed);
+             stats.next_vertex_address = vertex_address + count * layout.stride;
+             return true;

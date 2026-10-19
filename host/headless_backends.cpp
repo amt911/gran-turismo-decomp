@@ -48,6 +48,20 @@ bool ge_gpu_backend_accumulate_hardware_packed_0115(const GeGpuDrawDescriptor &,
                                                     std::span<const std::uint32_t>) noexcept { return false; }
 void ge_gpu_backend_accumulate_hardware_triangles(const GeGpuDrawDescriptor &, const GeGpuHardwareTransform &,
                                                   std::span<const GeGpuVertex>, std::span<const std::uint32_t>) noexcept {}
+bool ge_gpu_backend_stream_begin(const GeGpuDrawDescriptor &, const GeGpuHardwareTransform &, GeGpuStream &stream) noexcept {
+    stream.valid = false;
+    return false;
+}
+bool ge_gpu_backend_stream_append(GeGpuStream &, std::span<const GeGpuStreamVertex>, std::span<const std::uint32_t>,
+                                  const GeGpuStreamLevel &) noexcept {
+    return false;
+}
+bool ge_gpu_backend_stream_append_verified(GeGpuStream &, std::span<const GeGpuStreamVertex>, std::span<const std::uint32_t>,
+                                           const GeGpuStreamLevel &, const GeGpuDrawDescriptor &, const GeGpuHardwareTransform &,
+                                           std::span<const GeGpuVertex>) noexcept { return false; }
+std::uint64_t ge_gpu_backend_streamed_draws() noexcept { return 0u; }
+std::uint64_t ge_gpu_backend_stream_verified() noexcept { return 0u; }
+std::uint64_t ge_gpu_backend_stream_mismatches() noexcept { return 0u; }
 bool ge_gpu_backend_adopt_shared_texture(const GeGpuDrawDescriptor &) noexcept { return false; }
 std::uint32_t ge_gpu_backend_display_framebuffer() noexcept { return 0u; }
 void ge_gpu_backend_display_logical_size(std::uint32_t &width, std::uint32_t &height) noexcept { width = 480u; height = 272u; }

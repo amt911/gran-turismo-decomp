@@ -1912,10 +1912,16 @@ void perf_log_tick() {
         const auto fast = ge_renderer_fastpath_draws();
         const auto verified = ge_renderer_fastpath_verified();
         const auto mismatches = ge_renderer_fastpath_mismatches();
+        // GT patch 0052: of the fast draws, those that joined their batch through the stream, and the stream verify.
+        const auto streamed = ge_gpu_backend_streamed_draws();
+        const auto stream_verified = ge_gpu_backend_stream_verified();
+        const auto stream_mismatches = ge_gpu_backend_stream_mismatches();
         if (fast != 0u || verified != 0u)
-            std::fprintf(stderr, "[perf]   fast path: %.0f draws/s, verify: %llu draws, %llu mismatches\n",
-                         static_cast<double>(fast) / seconds, static_cast<unsigned long long>(verified),
-                         static_cast<unsigned long long>(mismatches));
+            std::fprintf(stderr, "[perf]   fast path: %.0f draws/s (streamed %.0f/s), verify: %llu draws, %llu mismatches; "
+                         "stream verify: %llu draws, %llu mismatches\n",
+                         static_cast<double>(fast) / seconds, static_cast<double>(streamed) / seconds,
+                         static_cast<unsigned long long>(verified), static_cast<unsigned long long>(mismatches),
+                         static_cast<unsigned long long>(stream_verified), static_cast<unsigned long long>(stream_mismatches));
     }
     if (perf_vblank_lag.waits != 0u)  // how late the guest thread reached each vblank (first waits only)
         std::fprintf(stderr, "[perf]   vblank lag: %llu first waits, late > 1 ms %llu, > 4 ms %llu, > 8 ms %llu, max %.1f ms\n",
