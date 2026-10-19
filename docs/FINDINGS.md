@@ -1829,3 +1829,11 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_98.cpp (func_0894A15C, func_088
 Probing every unregistered function of 20-120 instructions (7,866, `tools.decomp_gate probe b98s --symbols FILE`, 4 minutes) found 43 that the five routes call, among them hot float and table-search functions (`func_088C4BB0` 16,086 calls, `func_088C50D4` 23,102, `func_08977904` 46,257, `func_089C54B8` 60,047). The ones left out are VFPU (`func_08B53D2C` 7.2 million calls, `func_08B54D28`, `func_08B55218`, `func_08B565F8`, `func_089A900C`), reach `sce*` imports (`func_08ACB3B4`, `func_08B31AB4`, the `func_08B8443C` / `func_08B84564` family) or work on 64-bit values (`func_08B6728C`, `func_08B66E88`). Earlier probes covered only 121-230 and 231-300 instructions; probe the lower band again when the larger pools run dry.
 
 Found: 2026-10-19 · batch 98
+
+## The laptop's slow GE was its power profile: power-saver caps the 5850U at 1.9 GHz
+
+**Symptom.** On the laptop (Ryzen 7 PRO 5850U) the race skipped 7-9 frames/s, the GE thread ran at 78-83 % of a core (~690 ns per draw) and the game waited for it 29 % of the time. The GPU spent only ~2.1 ms per frame.
+**Cause.** The `low-power` / `power-saver` platform profile caps the CPU at 1.9 GHz (`lscpu`: max 1901 MHz). In `performance` (max 4.5 GHz) the same build runs ~290 ns per draw, waits 5 % and skips 0.3 frames/s. The GPU was never the limit.
+**Fix / workaround.** None in code: lcs-recomp patch 0051 cut the per-draw cost a further 3-5 % (spec 2026-10-19). When a laptop report says the GE is slow, check `cat /sys/firmware/acpi/platform_profile` and `lscpu | grep MHz` first. A race measured in power-saver and one in performance are different machines.
+
+Found: 2026-10-19 · laptop measurements over SSH (docs/superpowers/specs/2026-10-19-ge-backend-per-draw-cost-design.md)
