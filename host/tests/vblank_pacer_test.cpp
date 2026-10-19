@@ -70,6 +70,28 @@ int main() {
         const auto after = stalled.on_wait(t0 + us(20u * kPeriod + 1000), 9u * kPeriod);
         check(after.sleep_until == t0 + us(20u * kPeriod + kPeriod), "re-anchored after the stall");
     }
+    {  // the bug as the laptop showed it: an on-time first wait, then the second wait of the same vblank 6 ms after it
+        gt::VblankPacer pacer(kPeriod);
+        (void)pacer.on_wait(t0, kPeriod);
+        (void)pacer.on_wait(t0 + us(5000), 2u * kPeriod);
+        const auto second = pacer.on_wait(t0 + us(kPeriod + 6000), 2u * kPeriod);
+        check(!second.sleep_until && second.skipped_vblanks == 0u && !pacer.host_late(),
+              "a second wait 6 ms after the vblank is not 'host late'");
+    }
+    {  // the threshold: 4 ms is not late, just over is
+        gt::VblankPacer at(kPeriod), over(kPeriod);
+        (void)at.on_wait(t0, kPeriod);
+        (void)at.on_wait(t0 + us(kPeriod + 4000), 2u * kPeriod);
+        (void)over.on_wait(t0, kPeriod);
+        (void)over.on_wait(t0 + us(kPeriod + 4001), 2u * kPeriod);
+        check(!at.host_late() && over.host_late(), "late means more than 4 ms");
+    }
+    {  // the wait right after the anchoring one is a second wait of the same vblank
+        gt::VblankPacer pacer(kPeriod);
+        (void)pacer.on_wait(t0, kPeriod);
+        const auto second = pacer.on_wait(t0 + us(9000), kPeriod);
+        check(!second.sleep_until && !second.lag && !pacer.host_late(), "second wait after the anchor");
+    }
     if (failures == 0) std::puts("vblank_pacer: all tests passed");
     return failures == 0 ? 0 : 1;
 }
