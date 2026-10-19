@@ -1901,3 +1901,11 @@ Found: 2026-10-19 · scratch bisection scripts over host/gt_native (`--decomp on
 **Fix.** `gt::VblankPacer` (host/vblank_pacer.{hpp,cpp}, CTest `vblank_pacer`): only the first wait of each vblank measures the lag (keyed on the target vblank, not on the thread: any repeated wait for the same vblank is skipped), and late means more than 4 ms (a quarter vblank). Measured on the desktop with two cores, race route: first waits arrive 1-2 ms late only a few times per 5 s with the game 60 % idle, which the next frame catches up without skipping, plus isolated 10-50 ms stalls. Result there: frameskip 0.10/s on average (max 1.2), guest time 1.00x. On the laptop in power-saver (A/B, two rounds each, race route, binaries run from /tmp): frameskip 3.3-3.6/s (max 18.8) before, 0.12-0.15/s (max 2.4) after; GE wait 14-15 % before, 8.3 % after. The perf log has a new `vblank lag` line: first waits, how many were late by more than 1 / 4 / 8 ms, and the maximum.
 
 Found: 2026-10-19 · host/vblank_pacer.cpp, host/gt_kernel.cpp (laptop probe over SSH, binary run from /tmp)
+
+## Profile-guided optimisation cuts the game thread by a third on the laptop
+
+**Symptom.** In power-saver (1.9 GHz) the laptop's game thread ran at ~59 % of a core in the race and the GE at ~71 %. The generated code is compiled at `-O1` (memory: ~372 MB per unit at higher levels) and is full of branches.
+**Cause.** Without a profile clang has to guess which code is hot, and `-O1` does little inlining or block layout. A profile from one run of the game tells it.
+**Fix.** `tools/pgo.sh`: an instrumented build (`-DGT_PGO_GENERATE=ON`), a 220 s run of the race route, `llvm-profdata merge`, then `build/` built with `-DGT_PGO_PROFILE=...`; about 14 minutes. Laptop in power-saver, race route, A/B with two rounds each, binaries run from /tmp: game thread 59 % → 39 % of a core, GE 71 % → 63 %, 508 → 470 ns per draw, frameskip 0.13 → 0.06/s. The "GE wait" rose from 7 to 13 % because the game now reaches its draw sync sooner. The desktop agrees (GE ns per draw −10 to −18 %, noisy under load). Opt-in: the default build is unchanged. The profile comes from the user's own run of the game and stays out of git.
+
+Found: 2026-10-19 · CMakeLists.txt (GT_PGO_GENERATE / GT_PGO_PROFILE), tools/pgo.sh

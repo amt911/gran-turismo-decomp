@@ -183,6 +183,20 @@ build/gt_play
 - Partidas: se guardan en `build/savedata/` y se cargan al arrancar (`GT_SAVEDATA_DIR` para otra carpeta).
 - Pendiente: el audio de los vídeos.
 
+## 5c. Más rápido con PGO (opcional, ≈ 14 min, clang)
+
+`tools/pgo.sh` compila una versión instrumentada, juega sola 220 s de la ruta de carrera (sin ventana, partida
+nueva) para medir qué código se usa, y vuelve a compilar `build/` optimizado con ese perfil:
+
+```bash
+tools/pgo.sh            # o: tools/pgo.sh build 220   (directorio y segundos de la partida de perfil)
+```
+
+En el portátil en power-saver el hilo del juego pasó del 59 % al 39 % de un núcleo y la GE de 508 a 470 ns por
+dibujo, con el mismo resultado. El perfil (`recomp/analysis/pgo/gt_play.profdata`) sale de jugar tu copia del juego y
+no se sube; tras cambios grandes vuelve a ejecutar el script (un perfil viejo sigue ayudando, solo deja sin optimizar
+lo que cambió). Para quitarlo: `cmake -S . -B build -DGT_PGO_PROFILE=` y compilar.
+
 ## 6. Comparar con el juego original en PPSSPP
 
 La referencia se graba una vez (30 s, ~190 MB de log; va a disco, no a `/tmp`, que aquí está en RAM):
