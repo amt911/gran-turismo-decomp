@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="sans-serif">
 <rect width="1200" height="760" fill="#1d2129"/>
 <text x="6" y="16" fill="#e6e8ec" font-size="13" font-weight="bold">Gran Turismo (PSP) — progreso de la decompilación</text>
-<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: 6570 / 23208 (28.31 %) · bytes: 784148 / 4175084 (18.78 %) · cada rectángulo es una función, por tamaño en bytes · verde = a mano, turquesa = plantilla, gris = pendiente</text>
+<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: 6569 / 23208 (28.30 %) · bytes: 784056 / 4175084 (18.78 %) · cada rectángulo es una función, por tamaño en bytes · verde = a mano, turquesa = plantilla, gris = pendiente</text>
 <g transform="translate(0,40)">
 <rect x="0.0" y="0.0" width="324.6" height="720.0" fill="#262b35" stroke="#12151b" stroke-width="1"/>
 <rect class="f" x="1.0" y="14.0" width="37.8" height="34.0" fill="#4a5260"/>
@@ -15350,7 +15350,7 @@
 <rect class="f" x="639.1" y="645.0" width="4.3" height="4.1" fill="#4a5260"/>
 <rect class="f" x="639.1" y="649.1" width="4.3" height="4.1" fill="#4a5260"/>
 <rect class="f" x="639.1" y="653.2" width="4.3" height="4.1" fill="#4a5260"/>
-<rect class="f" x="639.1" y="657.3" width="4.3" height="4.1" fill="#3fa65a"/>
+<rect class="f" x="639.1" y="657.3" width="4.3" height="4.1" fill="#4a5260"/>
 <rect class="f" x="639.1" y="661.4" width="4.3" height="4.1" fill="#4a5260"/>
 <rect class="f" x="639.1" y="665.5" width="4.3" height="4.1" fill="#4a5260"/>
 <rect class="f" x="639.1" y="669.6" width="4.3" height="4.1" fill="#4a5260"/>

@@ -1096,7 +1096,7 @@ HOT100(0x08B5F2B8u, func_08B5F2B8, Word);
 HOT100(0x088AA074u, func_088AA074, Word);
 HOT100(0x088FA224u, func_088FA224, Word);
 // HOT100(0x08AF2D20u, func_08AF2D20, Word);  // HOT100: compared cases never changed memory and never ran the body (empty range / count zero / null destination paths only; a dense run of the race route changed nothing either)
-HOT100(0x08A9DD14u, func_08A9DD14, Word);
+// HOT100(0x08A9DD14u, func_08A9DD14, Word);  // HOT100: NOT registered — installing it stops ~330 start-up functions from running with a green gate (FINDINGS "A decompiled function can switch off code the gate never sees"; batch 83 unregistered it, review of #237 found this re-registration by the drop of compared functions 5,201 → 4,915)
 // HOT100(0x08BE6D44u, func_08BE6D44, Word);  // HOT100: compared cases never changed memory and never ran the body (empty range / count zero / null destination paths only; a dense run of the race route changed nothing either)
 // HOT100(0x08BE6674u, func_08BE6674, Word);  // HOT100: compared cases never changed memory and never ran the body (empty range / count zero / null destination paths only; a dense run of the race route changed nothing either)
 // HOT100(0x08BE834Cu, func_08BE834C, Word);  // HOT100: compared cases never changed memory and never ran the body (empty range / count zero / null destination paths only; a dense run of the race route changed nothing either)
