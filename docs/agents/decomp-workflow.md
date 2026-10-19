@@ -140,6 +140,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   other, `func_089AAC8C` writes `a1` before its first use on the path that matters). A callee that is only a forwarder (a few instructions ending in `j target`) is followed to its target (batch 96: `func_08AD6A00` jumps to a three-argument partial sort, the call passed two and every case mismatched on the first gate). Exit 1 while there is one; put the verdicts in the PR.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
+  **"Pending" means no `void func_XXXXXXXX(` definition and no registration line (`NAME(0xADDR, …`, commented ones included) in `src/`** — not "the address does not appear in `src/`": that also hides every function a decompiled caller merely calls (FINDINGS, batch 99: 463 reached functions found that way). `tools.decomp_gate probe` over `tools.family_members --write-probe-symbols` finds the reached ones.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape
   (immediates and jump targets masked, branches kept). A cluster with a decompiled member is the cheapest
   batch: turn that member into a template (its constants in a table keyed by address, as `src/core/`

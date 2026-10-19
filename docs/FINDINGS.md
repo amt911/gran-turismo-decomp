@@ -1830,6 +1830,22 @@ Probing every unregistered function of 20-120 instructions (7,866, `tools.decomp
 
 Found: 2026-10-19 · batch 98
 
+## "The address does not appear in src/" is the wrong filter for the pending pool: it hides every function that is only called by decompiled code (batch 99 found 463 reached functions of 20+ instructions that way)
+
+**Symptom.** Batch 98's probe listed 43 reached unregistered functions of 20-120 instructions. Batch 99's probe (`b99p`: `tools.family_members --write-probe-symbols FILE --max-insns 420`, then `tools.decomp_gate probe b99p --symbols FILE`, 14,157 recompiled functions, about 6 minutes for five routes) found 668 reached, 463 of them of 20 or more instructions, many of them hot: `func_08B58874` (9.7 million calls over the five fast routes), `func_08B5596C` (8.1 million), `func_08B52578` (1.7 million), `func_089A932C` (0.9 million), `func_08B6D564`, `func_08C20B4C`, `func_089DA5C0`, `func_08B49D98`. None of them was registered, but several had been skipped by earlier batches only because their address already appeared in `src/` (as a `call_set` target or in a comment).
+**Cause.** "grep the address in `src/` first" also matches the functions a decompiled caller merely CALLS; those still run recompiled. The test that means "already decompiled" is a `void func_XXXXXXXX(` definition or a registration line (`NAME(0xADDR, …`, commented ones included, they were read and left on purpose).
+**Fix.** Filter with those two patterns (see `decomp-workflow.md` § Picking candidates). What is left after batch 99 (reached, 20 or more instructions, not written): about 430 functions; the hottest ones are VFPU code (`func_08B53D2C` 8.4 million calls, `func_08B54D28`, `func_08B55218`, `func_08B565F8`, `func_089A900C`), copy-on-write string code (`func_08B8634C` 1.4 million, `func_08B8A4C0`, `func_08AACAF8`, `func_08A32F9C`), soft-float / 64-bit code (`func_08B6EF68`, `func_08B66E88`, `func_08B6728C`), lock-and-import code (`func_08AEFFE0`, `func_08AEC210`, `func_08AF0508`, `func_08B14A18`, `func_08B2BFDC`, `func_08B2BF20`) and a 0x6C0-byte-frame decoder (`func_08B20DB0`).
+
+Found: 2026-10-19 · batch 99
+
+## A virtual call whose callee leaves `v0` alone hands the vtable (or the function address) on as the caller's return value
+
+**Symptom.** Batch 99's second gate: `func_0886AAA4` mismatched `v0: original 0x08CBFA00, decompiled 0x09DB0450`.
+**Cause.** The function ends with a loop of `lw v0, 0(s0); lw v1, 0x14(v0); jalr v1`: at the call `v0` holds the vtable and `v1` the slot's function. The slot's callee is a setter that returns without writing `v0`, so the original returns the vtable address. `call_guest` starts the callee from the context, so a `call_set` on the slot's function left whatever `v0` the earlier call had produced.
+**Fix.** `call_virtual(object, offset, args)` sets `v1 = vtable`, `v0 = function` (the `lw v1, 0(obj); lw v0, off(v1); jalr v0` shape; other register shapes are set by hand: `jalr t2` leaves `v0 = vtable`) before the call. Rule: when an indirect call can be the last thing that writes `v0` (the function's return value, or a branch condition that tests it), give `v0`/`v1` the values the compiler's address computation left there.
+
+Found: 2026-10-19 · src/game/unsorted/hot_batch_99.cpp (func_0886AAA4; applied to every virtual call of the batch)
+
 ## The laptop's slow GE was its power profile: power-saver caps the 5850U at 1.9 GHz
 
 **Symptom.** On the laptop (Ryzen 7 PRO 5850U) the race skipped 7-9 frames/s, the GE thread ran at 78-83 % of a core (~690 ns per draw) and the game waited for it 29 % of the time. The GPU spent only ~2.1 ms per frame.
