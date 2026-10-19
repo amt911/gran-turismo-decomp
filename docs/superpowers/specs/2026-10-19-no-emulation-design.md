@@ -1,7 +1,12 @@
 # No emulation: from the recompiled baseline to a native port
 
-Status: **draft for the user's approval** (asked for on 2026-10-15, "quitar toda la capa de emulación y dejarlo
-nativo"; AGENTS.md § End state; ROADMAP Fase 5). No code before approval.
+Status: **approved by the user on 2026-10-19** ("lo apruebo todo"), with the recommended decisions:
+- order: 1 → deterministic routes → 2 → 3 by subsystem → 4, with the renderer part of stage 4 allowed to start early;
+- a deterministic cooperative scheduler first;
+- Sony SDK code replaced by host equivalents, not decompiled.
+
+Asked for on 2026-10-15 ("quitar toda la capa de emulación y dejarlo nativo"); AGENTS.md § End state; ROADMAP Fase 5.
+Each stage gets its own implementation plan before code.
 
 ## Where we are (2026-10-19)
 

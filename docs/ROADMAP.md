@@ -1056,8 +1056,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 
 ## Fase 5 — Más adelante
 
-- [ ] **Sin emulación de ningún tipo** (decidido por el usuario el 2026-10-15; AGENTS.md § End state). Spec propio
-      antes de código (`docs/superpowers/specs/*-no-emulation-design.md`, pendiente). Por orden, con el gate verde en cada paso:
+- [ ] **Sin emulación de ningún tipo** (decidido por el usuario el 2026-10-15; AGENTS.md § End state). Spec aprobado el
+      2026-10-19: `docs/superpowers/specs/2026-10-19-no-emulation-design.md` (orden 1 → rutas deterministas → 2 → 3 → 4,
+      planificador cooperativo primero, código del SDK de Sony sustituido por equivalentes del sistema). Por orden, con el gate verde en cada paso:
   - [ ] Sin parte recompilada: 100 % fuente decompilada.
   - [ ] Sin memoria emulada: las direcciones de la PSP pasan a tipos de C++ (structs, punteros, clases), por subsistema.
   - [ ] Sin interfaces de la PSP: el renderizado del juego llama a la API gráfica del sistema en vez de construir listas de
