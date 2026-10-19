@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -168,12 +169,17 @@ int main(int argc, char **argv) {
             {0xE7C27D1Bu, 0x01u},  // sceRtcGetCurrentClockLocalTime(time): a fixed start date plus the virtual time, written as a 16-byte date to guest RAM
         };
         std::vector<gt::ImportStub> import_stubs;
+        std::ofstream trace_names;
+        if (!options.trace.empty()) trace_names.open(options.trace.string() + ".names", std::ios::trunc);
         for (const auto &import : elf.scan_imports(runtime.memory(), *module)) {
             g_stub_by_import[{import.library, import.nid}] = import.stub_address;
             gt::ImportStub stub;
             stub.address = import.stub_address;
             stub.name = import.library + "::" +
                         runtime.nids().resolve(import.library, import.nid).value_or(psprecomp::hex32(import.nid));
+            if (!options.trace.empty()) {  // <trace>.names: what each stub address of the trace is
+                trace_names << psprecomp::hex32(import.stub_address) << " " << stub.name << "\n";
+            }
             stub.replay_safe = kReplaySafeNids.contains(import.nid);
             if (const auto recordable = kRecordableNids.find(import.nid); recordable != kRecordableNids.end()) {
                 stub.recordable = true;
