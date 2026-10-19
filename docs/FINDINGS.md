@@ -1391,6 +1391,8 @@ where none did. The rest (0.016-0.043, alternating by window) has other causes, 
 to check a renderer change in the race (everything but the level choice). The real fix is the automatic level in
 the software rasterizer (per-pixel derivatives in every raster path), which also is what `NativeGE=false` shows.
 
+**Update 2026-10-19.** The race now samples level 0 by default in `tools/gpu_gate.sh` (923/923 frames pass on a 600 s run). The dealer and garage keep the real levels, which they pass since patch 0043. `GPU_GATE_LOD0=1` forces level 0 on every route and `GPU_GATE_LOD0=0` on none.
+
 Found: 2026-10-15 · tools/gpu_gate.sh
 
 ## A callee that sets no v0 hands the caller's v0 on: a decompiled function must keep the previous call's results in the registers
