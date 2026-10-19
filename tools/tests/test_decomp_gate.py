@@ -298,9 +298,9 @@ def test_a_coverage_build_left_configured_is_noticed():
     assert not gate.coverage_left_configured("CMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
 
 
-def test_probe_shell_runs_the_five_fast_routes_uncapped_with_the_decomp_off_and_the_symbols_probed():
+def test_probe_shell_runs_every_fast_route_uncapped_with_the_decomp_off_and_the_symbols_probed():
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
-    assert command.count("--decomp off") == 5 and command.endswith(" wait")
+    assert command.count("--decomp off") == len(gate.ROUTES["fast"]) and command.endswith(" wait")
     assert "GT_PROBE_SYMBOLS=/s/syms.txt" in command and "LCS_UNCAPPED=1" in command
     assert "--max-seconds 230" in command and "--max-seconds 200" in command
     assert "recomp/analysis/probe_t1_options.log" in command and "--decomp diff" not in command
@@ -308,7 +308,7 @@ def test_probe_shell_runs_the_five_fast_routes_uncapped_with_the_decomp_off_and_
 
 def test_probe_shell_records_each_routes_exit_code_next_to_its_log():
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
-    assert command.count("echo $? >") == 5 and "recomp/analysis/probe_t1_options.exit" in command
+    assert command.count("echo $? >") == len(gate.ROUTES["fast"]) and "recomp/analysis/probe_t1_options.exit" in command
 
 
 def test_a_probe_route_that_times_out_or_exits_non_zero_is_a_failure():
@@ -350,3 +350,17 @@ def test_raised_floor_only_goes_up(tmp_path: Path):
     assert gate.raise_floor(floor, 5230) == 5230 and gate.read_floor(floor) == 5230
     fresh = tmp_path / "new.txt"
     assert gate.raise_floor(fresh, 100) == 100 and gate.read_floor(fresh) == 100
+
+
+def test_every_route_has_a_pad_file_and_a_budget_under_five_minutes():
+    for kind in ("fast", "full"):
+        names = [route for route, _ in gate.ROUTES[kind]]
+        assert len(names) == len(set(names))
+        for route, seconds in gate.ROUTES[kind]:
+            assert Path(f"config/pad_routes/{route}.pad").exists(), route
+            if route != "race":
+                assert seconds <= 310, (route, seconds)  # the race route is the one long run (600 s)
+
+
+def test_fast_and_full_run_the_same_routes():
+    assert [r for r, _ in gate.ROUTES["fast"]] == [r for r, _ in gate.ROUTES["full"]]

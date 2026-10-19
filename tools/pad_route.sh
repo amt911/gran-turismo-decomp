@@ -15,6 +15,7 @@ mkdir -p "$outdir"
 GT_PAD="$(grep -v '^#' "$file")"
 export GT_PAD GT_PAD_LOG=1
 export GT_FRAME_DUMP="${GT_FRAME_DUMP-$outdir/frames}"
+[ -n "$GT_FRAME_DUMP" ] || unset GT_FRAME_DUMP  # GT_FRAME_DUMP= (empty) runs without frame dumps
 set +e
 systemd-run --user --scope --quiet --slice=gt-heavy.slice -- \
   timeout "$((seconds + 60))" build/gt_native --max-seconds "$seconds" "$@" > "$outdir/run.log" 2>&1

@@ -1,0 +1,19 @@
+# Route F — Drift Trial: Single Player, Mode Selection -> Drift Trial, its My Records popup, the default car and the first course (Apricot Hill),
+# Start, then drive 20 s with the accelerator held and the steering pulsed, and pause (Continue) (250 s). Page offsets: race.pad; 1d058440 is
+# the Drift Trial popup.
+3300:START,
+WAIT:seek=0x1fa48900,1700:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:RIGHT,500:CROSS,
+WAIT:seek=0x1d058440,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,900:CROSS:2600,
+1300:LEFT:90,1700:RIGHT:90,2100:LEFT:90,2500:RIGHT:90,2900:LEFT:90,3300:RIGHT:90,
+3800:START,4500:CROSS

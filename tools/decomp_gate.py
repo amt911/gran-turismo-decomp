@@ -30,8 +30,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 ROUTES = {
-    "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230)),
-    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 150), ("options", 240)),
+    "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230),
+             ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150)),
+    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 150), ("options", 240),
+             ("drift", 200), ("challenge", 180), ("dirt", 260), ("manual", 190)),
 }
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
@@ -276,7 +278,7 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
 
 
 def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path) -> str:
-    """One shell line running the five fast routes in parallel with every function recompiled (`--decomp off`) and
+    """One shell line running the fast routes in parallel with every function recompiled (`--decomp off`) and
     the functions named in `symbols` probed (GT_PROBE_SYMBOLS: `name = 0xADDR;` lines), one log per route. The
     logs say which functions the routes call: `python -m tools.family_members --probe` reads them."""
     parts = []
@@ -653,7 +655,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
-    probe = sub.add_parser("probe", help="run the five routes with the decomp off and --symbols probed (call counts)")
+    probe = sub.add_parser("probe", help="run the fast routes with the decomp off and --symbols probed (call counts)")
     probe.add_argument("tag")
     probe.add_argument("--symbols", type=Path, required=True)
     rep = sub.add_parser("report")
