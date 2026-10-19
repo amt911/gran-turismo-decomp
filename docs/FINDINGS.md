@@ -1869,3 +1869,11 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_100.cpp (func_08B7B2E4)
 **Fix / workaround.** Read the coverage output (`tools.decomp_gate coverage`) before registering: "regions never run" over the whole body means the compared cases prove nothing. More routes (a race with several cars, the replay and photo modes) are what these need, not more code.
 
 Found: 2026-10-19 · batch 100
+
+## `--decomp on` does not always reach the race on the race route: the outcome is not deterministic, so it cannot be bisected yet
+
+**Symptom.** With every decompiled function installed (`gt_native --decomp on`, race pad route), the run stayed in a menu (guest thread ~90 % asleep) for 200 s, where `--decomp off` reaches the race at ~45 s. The full list reproduced it three times in a row.
+**Cause (not found).** Bisecting with `GT_DECOMP_ONLY` (criterion: some 5 s window under 40 % vblank sleep within 120 s) gave no single culprit. Each half of the list ran fine alone, the halves together got stuck, and a minimal-set search wandered. Re-running two sets with known outcomes then flipped one: the half that got stuck reached the race twice in a row. Whether the route reaches the race with many functions installed depends on timing. `call_guest` counts every guest step as a dispatch, which moves the preemption points and changes the PSP threads' order (see the `--decomp on` freeze entry). The pad route presses buttons at fixed vblanks, so a menu that opens a few frames later misses a press.
+**Fix / next step.** None yet. A bisection needs a criterion that does not depend on timing: compare the menu/state the pad presses land in, or make the route wait for a state instead of a vblank count. The differential gate (`--decomp diff`) is not affected.
+
+Found: 2026-10-19 · scratch bisection scripts over host/gt_native (`--decomp on`, `GT_DECOMP_ONLY`)
