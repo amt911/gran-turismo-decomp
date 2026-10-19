@@ -1,0 +1,3 @@
+# The full gate's compared total (tools.decomp_gate full fails below it minus a tolerance).
+# Raised with `tools.decomp_gate full TAG --raise-floor` after a passing full gate; never lowered.
+compared 5208
