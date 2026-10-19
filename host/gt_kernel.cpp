@@ -21,6 +21,7 @@
 #include "audio_dump.hpp"
 #include "frame_dump.hpp"
 #include "pad_script.hpp"
+#include "vblank_pacer.hpp"
 #include "lcs_profile.hpp"
 #include "display_window.hpp"
 #include "lcs_ge_exec.hpp"
@@ -1867,6 +1868,12 @@ std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the 
 std::array<std::atomic<std::uint64_t>, 3> perf_ge_wait_site_us{};
 std::atomic<std::uint64_t> perf_ge_list_us{0u};  // GE thread executing lists (decode, accumulate), presents excluded
 PerfLog perf_log;
+// The lag of the vblank waits that measure it (gt::VblankPacer: the first wait of each vblank), for the perf log.
+struct VblankLagLog {
+    std::uint64_t waits{}, over_1ms{}, over_4ms{}, over_8ms{};
+    double max_ms{};
+};
+VblankLagLog perf_vblank_lag;
 bool perf_log_enabled() {
     static const bool enabled = std::getenv("GT_PERF_LOG") != nullptr;
     return enabled;
@@ -1910,6 +1917,13 @@ void perf_log_tick() {
                          static_cast<double>(fast) / seconds, static_cast<unsigned long long>(verified),
                          static_cast<unsigned long long>(mismatches));
     }
+    if (perf_vblank_lag.waits != 0u)  // how late the guest thread reached each vblank (first waits only)
+        std::fprintf(stderr, "[perf]   vblank lag: %llu first waits, late > 1 ms %llu, > 4 ms %llu, > 8 ms %llu, max %.1f ms\n",
+                     static_cast<unsigned long long>(perf_vblank_lag.waits),
+                     static_cast<unsigned long long>(perf_vblank_lag.over_1ms),
+                     static_cast<unsigned long long>(perf_vblank_lag.over_4ms),
+                     static_cast<unsigned long long>(perf_vblank_lag.over_8ms), perf_vblank_lag.max_ms);
+    perf_vblank_lag = VblankLagLog{};
     static const bool revision_verify = std::getenv("GT_GE_REVISION_VERIFY") != nullptr;
     if (revision_verify)  // GT_GE_REVISION_VERIFY=1: the draw-state caches checked against a rebuild on every hit
         std::fprintf(stderr, "[perf]   revision verify: %llu mismatches\n",
@@ -1953,41 +1967,29 @@ void perf_log_tick() {
     perf_log.virtual_start_us = virtual_time_us;
 }
 
-// Whether the last vblank wait found the host more than 1 ms late (read by the frameskip).
+// Whether the last vblank that measured the lag found the host more than 4 ms late (gt::VblankPacer; read by the frameskip).
 bool g_host_late = false;
 
-// Keeps guest time in step with the wall clock: the vblank the caller is about to wait for is due at
-// anchor + (its guest time - anchor's guest time). Several threads wait on the same vblank (GT has two),
-// so pacing each call by one period instead ran the game at half speed (docs/FINDINGS.md). Returns the
-// vblanks to skip when the host has fallen behind, re-anchoring after a long stall.
+// Keeps guest time in step with the wall clock (gt::VblankPacer). Several threads wait on the same vblank (GT has two),
+// so pacing each call by one period instead ran the game at half speed (docs/FINDINGS.md). Returns the vblanks to skip
+// when the host has fallen behind, re-anchoring after a long stall.
 std::uint32_t throttle_vblank_to_real_time() {
     static const bool uncapped = std::getenv("LCS_UNCAPPED") != nullptr;
     if (uncapped) return 0u;
-    constexpr std::uint32_t kMaxSkippedVblanks = 6u;
-    constexpr std::uint64_t kTolerableLagVblanks = 4u;
-    static std::chrono::steady_clock::time_point anchor_wall{};
-    static std::uint64_t anchor_guest_us = 0u;
-    const auto now = std::chrono::steady_clock::now();
+    static gt::VblankPacer pacer(kVblankPeriodUs);
     const std::uint64_t next_vblank_us = (virtual_time_us / kVblankPeriodUs + 1u) * kVblankPeriodUs;
-    if (anchor_wall == std::chrono::steady_clock::time_point{} || next_vblank_us < anchor_guest_us) {
-        anchor_wall = now;
-        anchor_guest_us = next_vblank_us;
-        return 0u;
+    const gt::VblankPacer::Wait wait = pacer.on_wait(std::chrono::steady_clock::now(), next_vblank_us);
+    g_host_late = pacer.host_late();
+    if (wait.lag && perf_log_enabled()) {
+        const double ms = std::chrono::duration<double, std::milli>(*wait.lag).count();
+        ++perf_vblank_lag.waits;
+        perf_vblank_lag.over_1ms += ms > 1.0;
+        perf_vblank_lag.over_4ms += ms > 4.0;
+        perf_vblank_lag.over_8ms += ms > 8.0;
+        perf_vblank_lag.max_ms = std::max(perf_vblank_lag.max_ms, ms);
     }
-    const auto due = anchor_wall + std::chrono::microseconds(next_vblank_us - anchor_guest_us);
-    g_host_late = now - due > std::chrono::milliseconds(1);
-    if (now < due) {
-        precise_sleep_until(due);
-        return 0u;
-    }
-    const auto behind = static_cast<std::uint64_t>((now - due) / std::chrono::microseconds(kVblankPeriodUs));
-    // A short lag is caught up by running without sleeping (and, in gt_play, by the frameskip):
-    // skipping vblanks jumps guest time, which GT's frame-locked menus and sound show as slowness.
-    if (behind < kTolerableLagVblanks) return 0u;
-    if (behind <= kMaxSkippedVblanks) return static_cast<std::uint32_t>(behind);
-    anchor_wall = now;
-    anchor_guest_us = next_vblank_us + kMaxSkippedVblanks * kVblankPeriodUs;
-    return kMaxSkippedVblanks;
+    if (wait.sleep_until) precise_sleep_until(*wait.sleep_until);
+    return wait.skipped_vblanks;
 }
 
 struct GeWorker {
