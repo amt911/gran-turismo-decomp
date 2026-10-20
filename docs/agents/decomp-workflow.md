@@ -145,7 +145,7 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   other, `func_089AAC8C` writes `a1` before its first use on the path that matters). A callee that is only a forwarder (a few instructions ending in `j target`) is followed to its target (batch 96: `func_08AD6A00` jumps to a three-argument partial sort, the call passed two and every case mismatched on the first gate). Exit 1 while there is one; put the verdicts in the PR.
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
-  **"Pending" means no `void func_XXXXXXXX(` definition and no registration line (`NAME(0xADDR, …`, commented ones included) in `src/`** — not "the address does not appear in `src/`": that also hides every function a decompiled caller merely calls (FINDINGS, batch 99: 463 reached functions found that way). `tools.decomp_gate probe` over `tools.family_members --write-probe-symbols` finds the reached ones.
+  **"Pending" means no `void func_XXXXXXXX(` definition and no registration line (`NAME(0xADDR, …`, commented ones included) in `src/`** — not "the address does not appear in `src/`": that also hides every function a decompiled caller merely calls (FINDINGS, batch 99: 463 reached functions found that way). `tools.decomp_gate probe` over `tools.family_members --write-probe-symbols` finds the reached ones. `.venv/bin/python -m tools.pool recomp/analysis/probe_TAG_*.log [--stubs]` then cuts the reached ones to the readable pool (done = defined or registered in `src/`, commented lines included; stores, VFPU and float counts; import stubs and `jalr` within five calls) — the static walk marks too much, so judge by the stub address (replay-safe lock/interrupt stubs compare, FINDINGS batch 102) and let the first fast gate decide.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape
   (immediates and jump targets masked, branches kept). A cluster with a decompiled member is the cheapest
   batch: turn that member into a template (its constants in a table keyed by address, as `src/core/`
@@ -189,16 +189,18 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
   its own state in C++ and gets only `v0` back.
 - The harness still compares such functions. Every import goes through a gate in diff mode
   (`host/diff_harness.cpp`, the spec `docs/superpowers/specs/2026-10-13-import-record-replay-design.md`):
-  - **Replay-safe imports** (`kReplaySafeNids` in `host/main.cpp`: LwMutex, interrupts, data cache,
-    system time, thread priorities, memory blocks) run in both runs. Their state is guest RAM or host
+  - **Replay-safe imports** (`replay_safe_nids()` in `host/import_lists.hpp`, unit-tested by
+    `host/tests/import_lists_test.cpp`: LwMutex, interrupts, data cache, system time, thread priorities,
+    memory blocks, `sceKernelPrintf`, `sceWlanGetEtherAddr`) run in both runs. Their state is guest RAM or host
     kernel state the harness snapshots, restores and compares (`host/kernel_replay_state.hpp`).
-  - **Recordable imports** (`kRecordableNids`, with how many argument registers each reads:
-    thread create/start/wakeup/sleep/status/id, UMD, power, file open/seek, …) run once, in the
+  - **Recordable imports** (`recordable_nids()`, with the argument registers each reads: thread
+    create/delete/start/wakeup/sleep/status/id, semaphore and event-flag create/signal/wait/poll,
+    partition memory, sub-interrupts, `sceSasCore`, UMD, power, file open/close/seek, …) run once, in the
     original's run, and are recorded (registers, guest RAM, kernel state). The decompiled run must make
     the same calls with the same arguments, in order; it gets the recorded effect instead of a second
     execution. A different, missing or extra call is a mismatch: `import replay: …`.
   - Anything that would switch threads is refused inside a case (`host/kernel_isolation.hpp`, with a
-    reason: LwMutex contention, `sleep would block`, `wakeup would preempt`, `start would preempt`). The
+    reason: LwMutex contention, `sleep would block`, `wakeup would preempt`, `start would preempt`, `semaphore wait would block`, `semaphore signal would wake or preempt`, `event flag wait would block`, `event flag set would wake or preempt`). The
     call then runs live, from just before the refused import.
   - The report names the reason of the first "not comparable" case and sums the cases per blocking
     import. Extend a list when an import keeps showing up there, after reading its HLE: it must never

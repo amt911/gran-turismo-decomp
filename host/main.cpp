@@ -6,6 +6,7 @@
 
 #include "diff_harness.hpp"
 #include "frontend.hpp"
+#include "import_lists.hpp"
 #include "lcs_profile.hpp"
 #include "probes.hpp"
 #include "psprecomp/common.hpp"
@@ -129,45 +130,9 @@ int main(int argc, char **argv) {
         if (!module) throw psprecomp::Error("PSP module info not found after relocation");
         runtime.cpu().set_gpr(28, module->gp);
 
-        // NIDs whose HLE only touches guest RAM and the snapshotted kernel state: they run in both runs of a
-        // harness case (see gt::ImportStub). Both lists: the HLE must write guest RAM through GuestMemory, never
-        // with a system call into it — a case write-protects RAM to see which pages change (host/dirty_pages.hpp),
-        // and a system call would fail on a protected page instead of faulting.
-        static const std::unordered_set<std::uint32_t> kReplaySafeNids{
-            0xBEA46419u, 0x1FC64E09u, 0x15B6446Bu, 0xDC692EE3u,  // Lock/LockCB/Unlock/TryLock LwMutex
-            0x092968F4u, 0x5F10D406u,                            // CpuSuspendIntr / CpuResumeIntr
-            0x79D1C3FAu, 0xB435DEC5u, 0x3EE30821u, 0x34B9FA9Eu, 0xBFA98062u,  // Dcache maintenance
-            0x369ED59Du, 0x82BC5777u,  // GetSystemTimeLow / Wide: read the virtual clock only
-            0x94AA61EEu,               // GetThreadCurrentPriority: read only
-            0x71BC9871u,               // ChangeThreadPriority: priorities snapshotted, no switch in a case
-            0x19CFF145u, 0x60107536u,  // Create / Delete LwMutex: work area in RAM, uid counter snapshotted
-            0xB011B11Fu, 0x6B30100Fu,  // Lock / Unlock Mutex: owner and count snapshotted
-            0xFE707FDFu, 0x50F61D8Au, 0xDB83A952u,  // Alloc/Free/GetAddr MemoryBlock: allocator snapshotted
-            0xA5DA2406u, 0x34B78343u,  // sceUtilityGetSystemParamInt / String: constants written to guest RAM
-        };
-        // NIDs the harness records in the original's run and replays in the decompiled run (gt::ImportStub,
-        // docs/superpowers/specs/2026-10-13-import-record-replay-design.md): their HLE never switches PSP
-        // threads. Value: the argument registers the import reads (bit i = a0-a3, t0-t3; EABI puts a
-        // 64-bit argument in an even pair, leaving a padding register unread).
-        static const std::unordered_map<std::uint32_t, std::uint8_t> kRecordableNids{
-            {0x8EF08FCEu, 0x01u},  // sceUmdWaitDriveStat(stat): returns at once
-            {0x446D8DE6u, 0x3Fu},  // sceKernelCreateThread(name, entry, prio, stack, attr, opt): no switch until Start
-            {0x293B45B8u, 0x00u},  // sceKernelGetThreadId
-            {0xEA748E31u, 0x03u},  // sceKernelChangeCurrentThreadAttr(clear, set)
-            {0xFDB5BFE9u, 0x00u},  // scePowerGetCpuClockFrequencyInt: 333
-            {0x090CCB3Fu, 0x01u},  // sceKernelPowerTick(type)
-            {0xE175EF66u, 0x00u},  // sceSasGetOutputmode
-            {0x099EF33Cu, 0x07u},  // sceFontFindOptimumFont(lib, style, error)
-            {0xA1336091u, 0x01u},  // sceNpDrmSetLicenseeKey(key)
-            {0x17C1684Eu, 0x03u},  // sceKernelReferThreadStatus(uid, info): writes the info struct
-            {0xD59EAD2Fu, 0x01u},  // sceKernelWakeupThread(uid): refused in a case when it would preempt
-            {0x9ACE131Eu, 0x00u},  // sceKernelSleepThread: only when a pending wakeup returns it at once,
-            {0x82826F70u, 0x00u},  // sceKernelSleepThreadCB  otherwise refused in a case (gt_kernel.cpp)
-            {0x109F50BCu, 0x07u},  // sceIoOpen(path, flags, mode): synchronous host open
-            {0x27EB27B8u, 0x1Du},  // sceIoLseek(fd, -, offset lo, offset hi, whence): a1 is padding
-            {0xF475845Du, 0x07u},  // sceKernelStartThread(uid, size, args): refused in a case when it would preempt
-            {0xE7C27D1Bu, 0x01u},  // sceRtcGetCurrentClockLocalTime(time): a fixed start date plus the virtual time, written as a 16-byte date to guest RAM
-        };
+        // Which imports run in both runs of a case, which are recorded: host/import_lists.hpp.
+        const auto &kReplaySafeNids = gt::replay_safe_nids();
+        const auto &kRecordableNids = gt::recordable_nids();
         std::vector<gt::ImportStub> import_stubs;
         std::ofstream trace_names;
         if (!options.trace.empty()) trace_names.open(options.trace.string() + ".names", std::ios::trunc);

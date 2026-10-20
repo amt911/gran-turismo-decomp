@@ -1855,6 +1855,9 @@ struct PerfLog {
     std::chrono::steady_clock::time_point start{};
     std::uint64_t vblanks{}, skipped{}, dropped{}, virtual_start_us{};
     double pump_ms{}, sleep_ms{}, pump_max_ms{};
+    // New images the game finished (sceDisplaySetFrameBuf flips) and how many vblanks each stayed on screen: the frame
+    // rate a player sees. "presented" counts window presents, which repeat the last image when the game is late.
+    std::uint64_t images{}, held[4]{};  // held[0]: 1 vblank (60 fps), [1]: 2 (30 fps), [2]: 3, [3]: 4 or more
 };
 // Presents run on the GE worker thread.
 std::atomic<std::uint64_t> perf_presented{0u};
@@ -1895,7 +1898,8 @@ void perf_log_tick() {
     std::fprintf(stderr,
                  "[perf] %.1f s: vblanks %.1f/s skipped %.1f/s presented %.1f/s dropped %.1f/s | "
                  "GE frames %.1f/s (frameskip %.1f/s), present %.2f ms avg, pump %.2f ms avg (max %.1f), vblank sleep %.1f%%, "
-                 "GE wait %.1f%% (queue %.1f, drawsync %.1f, listsync %.1f) | audio %.0f Hz | guest time %.2fx\n",
+                 "GE wait %.1f%% (queue %.1f, drawsync %.1f, listsync %.1f) | audio %.0f Hz | guest time %.2fx | "
+                 "images %.1f/s (held 1 vblank %llu, 2 %llu, 3 %llu, 4+ %llu)\n",
                  seconds, perf_log.vblanks / seconds, perf_log.skipped / seconds, presented / seconds,
                  perf_log.dropped / seconds, static_cast<double>(perf_ge_frames.exchange(0u)) / seconds,
                  static_cast<double>(perf_frames_skipped.exchange(0u)) / seconds,
@@ -1907,7 +1911,10 @@ void perf_log_tick() {
                  100.0 * static_cast<double>(perf_ge_wait_site_us[1].exchange(0u)) / (seconds * 1e6),
                  100.0 * static_cast<double>(perf_ge_wait_site_us[2].exchange(0u)) / (seconds * 1e6),
                  perf_audio_frames / seconds,
-                 static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6));
+                 static_cast<double>(virtual_time_us - perf_log.virtual_start_us) / (seconds * 1e6),
+                 static_cast<double>(perf_log.images) / seconds, static_cast<unsigned long long>(perf_log.held[0]),
+                 static_cast<unsigned long long>(perf_log.held[1]), static_cast<unsigned long long>(perf_log.held[2]),
+                 static_cast<unsigned long long>(perf_log.held[3]));
     {   // GT patch 0049: the quad-strip fast path (GT_GE_FASTPATH_VERIFY=1 compares it with the general path)
         const auto fast = ge_renderer_fastpath_draws();
         const auto verified = ge_renderer_fastpath_verified();
@@ -3538,6 +3545,22 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             SemaphoreRecord &semaphore = it->second;
+            // In a diff-harness case a signal must not switch threads (then it is recordable): refuse it when it
+            // would satisfy a waiter, or when a ready thread outranks the caller (host/kernel_isolation.hpp).
+            if (gt::kernel_isolated()) {
+                const std::int64_t available = static_cast<std::int64_t>(semaphore.count) + amount;
+                const bool wakes_waiter = std::any_of(semaphore.waiters.begin(), semaphore.waiters.end(),
+                    [&](const SemaphoreWaiter &waiter) { return available >= waiter.requested; });
+                const auto ready = best_ready_thread();
+                const auto current = thread_table.threads.find(thread_table.current_uid);
+                const bool outranked = ready != thread_table.continuations.end() && current != thread_table.threads.end() &&
+                    current->second.state == ThreadState::Running &&
+                    thread_priority(ready->uid) < thread_priority(thread_table.current_uid);
+                if (wakes_waiter || outranked) {
+                    gt::break_kernel_isolation("semaphore signal would wake or preempt");
+                    return;
+                }
+            }
             semaphore.count += amount;
             auto waiter = semaphore.waiters.begin();
             while (waiter != semaphore.waiters.end()) {
@@ -3565,6 +3588,12 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         if (it->second.count >= amount) {
             it->second.count -= amount;
             set_success(ctx);
+            return;
+        }
+        // In a diff-harness case only a wait the count satisfies at once is allowed (no thread switch,
+        // recordable); a wait that would block is refused (host/kernel_isolation.hpp).
+        if (gt::kernel_isolated()) {
+            gt::break_kernel_isolation("semaphore wait would block");
             return;
         }
         const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
@@ -3627,6 +3656,24 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             EventFlagRecord &flag = it->second;
+            // In a diff-harness case a set must not switch threads (then it is recordable): refuse it when the new
+            // pattern would satisfy a waiter, or when a ready thread outranks the caller (host/kernel_isolation.hpp).
+            if (gt::kernel_isolated()) {
+                const std::uint32_t before = flag.current_pattern;
+                flag.current_pattern |= ctx.gpr[5];
+                const bool wakes_waiter = std::any_of(flag.waiters.begin(), flag.waiters.end(),
+                    [&](const EventFlagWaiter &waiter) { return event_flag_matches(flag, waiter.requested, waiter.mode); });
+                flag.current_pattern = before;
+                const auto ready = best_ready_thread();
+                const auto current = thread_table.threads.find(thread_table.current_uid);
+                const bool outranked = ready != thread_table.continuations.end() && current != thread_table.threads.end() &&
+                    current->second.state == ThreadState::Running &&
+                    thread_priority(ready->uid) < thread_priority(thread_table.current_uid);
+                if (wakes_waiter || outranked) {
+                    gt::break_kernel_isolation("event flag set would wake or preempt");
+                    return;
+                }
+            }
             flag.current_pattern |= ctx.gpr[5];
             auto waiter = flag.waiters.begin();
             while (waiter != flag.waiters.end()) {
@@ -3674,6 +3721,11 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 rt.memory().store32(ctx.gpr[7], it->second.current_pattern);
             consume_event_flag(it->second, requested, mode);
             set_success(ctx);
+            return;
+        }
+        // In a diff-harness case only a wait the pattern satisfies at once is allowed (no thread switch, recordable).
+        if (gt::kernel_isolated()) {
+            gt::break_kernel_isolation("event flag wait would block");
             return;
         }
         const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
@@ -4304,6 +4356,18 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         static std::uint64_t presented_period = ~std::uint64_t{0};
         const std::uint64_t period = virtual_time_us / kVblankPeriodUs;
         const bool new_period = period != presented_period;
+        if (perf && new_period) {  // a new image since the last vblank: how long the previous one stayed
+            static std::uint64_t last_flips = 0u, last_change = 0u;
+            if (const std::uint64_t flips = g_display_flips.load(std::memory_order_acquire); flips != last_flips) {
+                if (last_change != 0u) {
+                    const std::uint64_t held = period - last_change;
+                    ++perf_log.held[held >= 4u ? 3u : (held == 0u ? 0u : held - 1u)];
+                }
+                ++perf_log.images;
+                last_flips = flips;
+                last_change = period;
+            }
+        }
         presented_period = period;
         // Wait for the vblank in real time first, then present: the window gets frames at the vblank
         // instant, not whenever the game thread got here (which varies with the frame's CPU work).
