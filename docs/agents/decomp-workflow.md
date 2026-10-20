@@ -61,15 +61,17 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 - **Batch size: ~80 functions** (60–100). Fewer wastes gate time; many more makes a red gate slow to
   bisect. One branch `decomp/hot-leaves-N`, one PR per batch.
 - **Two gates.** The routes always run in parallel, in one memory scope (each `gt_native --decomp
-  diff` is ~290 MB): race, dealer, garage, buy, options, each
+  diff` is ~290 MB): race, dealer, garage, buy, options, drift, challenge, dirt, manual, circuit, challenge2, each
   `GT_PAD=$(grep -v '^#' config/pad_routes/<route>.pad) build/gt_native --max-seconds <s> --decomp diff`.
   - **Fast gate (while iterating on a batch):** `GT_DECOMP_ONLY=<the batch's addresses, comma-separated>
     LCS_UNCAPPED=1`, routes at race 200 s, dealer 100 s, garage 103 s, buy 110 s, options 230 s — ~5 min with the build. With
     only the batch installed the game isn't slowed by the other ~2,000 functions' cases, and a 200 s
     uncapped race compares the same batch functions with the same case count as the full 600 s run
     (measured 2026-10-12).
-  - **Full gate (once, before the PR):** every function, real time, race 600 s, dealer 300 s, garage
-    310 s, buy 150 s, options 240 s — ~11 min. It is the regression check for everything already landed. Since
+  - **Full gate (once, before the PR):** every function, real time, the 11 routes of `ROUTES["full"]`
+    (`tools/decomp_gate.py`). Each one ends `GT_PAD_EXIT_AFTER` vblanks after its pad script is done (600; the race
+    23,400, its 600 s of racing), with the wall clock only as a cap, and **fails if its script did not finish**: 11
+    routes in parallel run slower than real time, and a wall-clock end cut 5 of them short (2026-10-20). ~20 min. It is the regression check for everything already landed. Since
     2026-10-14 a case copies and compares only the RAM pages its runs write (`host/dirty_pages.hpp`), so the
     game keeps real time with every function installed and the menu routes reach their menus again
     (before, they never left the title screen — FINDINGS).

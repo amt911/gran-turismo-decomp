@@ -1,3 +1,8 @@
 # Route D — buy a car: Car Dealerships, DMC, the DeLorean S2 '04 (42,440 Cr of the starting 100,000), answer
 # yes to "Do you want to buy this car?" and to adding it to Favourites; ends back in the dealer list (150 s).
-3300:START,6600:RIGHT,6700:RIGHT,6800:CROSS,7600:CROSS,8400:RIGHT,8500:RIGHT,8600:CROSS,9400:CROSS,10200:CROSS,11000:LEFT,11100:CROSS
+# Waits for the game (WAIT:seek=<GT.VOL offset of the page being loaded>, as race.pad; FACTS § Page loads as screen signals); the times after a
+# WAIT count from the load. Offsets: 1fa48900 main menu, 1cdb3240 Car Dealerships, 1cd65580 a car's page.
+3300:START,
+WAIT:seek=0x1fa48900,1700:RIGHT,1800:RIGHT,1900:CROSS,
+WAIT:seek=0x1cdb3240,666:CROSS,1466:RIGHT,1566:RIGHT,1666:CROSS,
+WAIT:seek=0x1cd65580,796:CROSS,1596:CROSS,2396:LEFT,2496:CROSS

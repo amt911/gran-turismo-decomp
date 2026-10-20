@@ -6081,7 +6081,8 @@ void func_08A16E88(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail
 void func_089C4558(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08B599E0u, {}); }
 void func_089F0B04(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { tail_call(ctx, 0x08B0B36Cu, {ctx.gpr[4] + 0xCu}); }
 
-// func_08A6C158(this) -> func_08B71EC8(the 64-bit func_08B77BF4(the word at +0x14)).
+// func_08A6C158(this) -> func_08B71EC8(the 64-bit func_08B77BF4(the word at +0x14)). The float comes back in $f0 (func_08B71EC8 narrows a double), so this
+// is Float: registered DoubleWord and without f0, `--decomp on` drew every parsed float as 0 (black screens, FINDINGS 2026-10-19).
 void func_08A6C158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[4] + 0x14u);
     GuestFrame frame(ctx, 0x10u);
@@ -6089,6 +6090,7 @@ void func_08A6C158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const GuestResult result = call_guest(rt, ctx, 0x08B71EC8u, {wide.v0, wide.v1}, {});
     ctx.gpr[2] = result.v0;
     ctx.gpr[3] = result.v1;
+    ctx.fpr[0] = result.f0;
 }
 
 // func_08A76724(this): clears +0x8, +0x0, +0x4, then func_08A76330(this).
@@ -6291,7 +6293,7 @@ GT_DECOMP(0x08A16E88u, gt::game::func_08A16E88, gt::ReturnKind::Word);
 // func_089C4558 was not compared in the isolated runs (never called on the pad routes, or it blocks), so the gate can't check it.
 // GT_DECOMP(0x089C4558u, gt::game::func_089C4558, gt::ReturnKind::Word);
 GT_DECOMP(0x089F0B04u, gt::game::func_089F0B04, gt::ReturnKind::Word);
-GT_DECOMP(0x08A6C158u, gt::game::func_08A6C158, gt::ReturnKind::DoubleWord);
+GT_DECOMP(0x08A6C158u, gt::game::func_08A6C158, gt::ReturnKind::Float);
 GT_DECOMP(0x08A76724u, gt::game::func_08A76724, gt::ReturnKind::Word);
 GT_DECOMP(0x089FE990u, gt::game::func_089FE990, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF9744u, gt::game::func_08AF9744, gt::ReturnKind::Word);
@@ -8967,12 +8969,15 @@ void func_08ADC988(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08A9BD30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { member_76_pair(rt, ctx, 0x40u); }
 void func_08A9BC30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { member_76_pair(rt, ctx, 0x34u); }
 
-// func_08A6C134(this) -> func_08A9F9CC(the object at +0x14, &local), with the local word cleared.
+// func_08A6C134(this) -> func_08A9F9CC(the object at +0x14, &local), with the local word cleared. func_08A9F9CC parses a 64-bit integer (v0 low,
+// v1 high), so this is DoubleWord: with only v0 taken, callers reading v1 got garbage and `--decomp on` died in the race load (FINDINGS 2026-10-19).
 void func_08A6C134(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[4] + 0x14u);
     GuestFrame frame(ctx, 0x20u);
     rt.memory().store32(frame.at(0x0u), 0u);
-    ctx.gpr[2] = call_guest(rt, ctx, 0x08A9F9CCu, {object, frame.at(0x0u)});
+    const GuestResult parsed = call_guest(rt, ctx, 0x08A9F9CCu, {object, frame.at(0x0u)}, {});
+    ctx.gpr[2] = parsed.v0;
+    ctx.gpr[3] = parsed.v1;
 }
 
 // func_08A40BF8(this) -> the number of words between +0x14 and +0x18 (a vector's size).
@@ -9153,7 +9158,7 @@ GT_DECOMP(0x08ACCC60u, gt::game::func_08ACCC60, gt::ReturnKind::Word);
 GT_DECOMP(0x08A9BD30u, gt::game::func_08A9BD30, gt::ReturnKind::Word);
 GT_DECOMP(0x08A9BC30u, gt::game::func_08A9BC30, gt::ReturnKind::Word);
 GT_DECOMP(0x08A7AD8Cu, gt::game::func_08A7AD8C, gt::ReturnKind::Word);
-GT_DECOMP(0x08A6C134u, gt::game::func_08A6C134, gt::ReturnKind::Word);
+GT_DECOMP(0x08A6C134u, gt::game::func_08A6C134, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x08A40BF8u, gt::game::func_08A40BF8, gt::ReturnKind::Word);
 GT_DECOMP(0x089788A8u, gt::game::func_089788A8, gt::ReturnKind::Word);
 GT_DECOMP(0x08961058u, gt::game::func_08961058, gt::ReturnKind::Void);

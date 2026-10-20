@@ -776,6 +776,9 @@ void func_08C49140(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, frame.at(0xCu), second_word);
     put(rt, frame.at(8u), first_word);
     ctx.gpr[3] = second_word;
+    // v0 is the `slti` result (1 for a short range) when func_08C49038 is called: a callee that sets no v0 on its path hands it on, and the Driving
+    // Challenges route (a one-value range) compared v0 original 1, decompiled 2 until it was set here.
+    ctx.gpr[2] = small ? 1u : 0u;
     if (small) {
         ctx.gpr[5] = last;
         ctx.gpr[6] = frame.at(8u);
@@ -787,6 +790,7 @@ void func_08C49140(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[6] = frame.at(8u);
     (void)call_keep(rt, ctx, 0x08C49038u, {first, cursor, frame.at(8u)});
     const std::uint32_t reloaded = word(rt, frame.at(0xCu));
+    ctx.gpr[2] = reloaded;  // `lw $v0, 0xC($sp)` before the `beq`
     put(rt, frame.at(0u), first_word);
     put(rt, frame.at(4u), reloaded);
     if (cursor == last) return;

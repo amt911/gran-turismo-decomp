@@ -105,6 +105,7 @@ add_library(gt_host_objs OBJECT
     host/frame_dump.cpp
     host/image_ppm.cpp
     host/pad_script.cpp
+    host/pad_sequence.cpp
     ${GT_DECOMP_SOURCES}
     host/gt_kernel.cpp
     "${GT_LCS_HOST_DIR}/lcs_sas.cpp"
@@ -236,6 +237,12 @@ add_test(NAME internal_resolution COMMAND internal_resolution_tests)
 add_executable(pgf_tests host/tests/pgf_test.cpp host/pgf.cpp)
 target_include_directories(pgf_tests PRIVATE host)
 add_test(NAME pgf COMMAND pgf_tests)
+add_executable(pad_sequence_tests host/tests/pad_sequence_test.cpp host/pad_sequence.cpp)
+target_include_directories(pad_sequence_tests PRIVATE host)
+add_test(NAME pad_sequence COMMAND pad_sequence_tests)
+# Every route file parses and waits for the game (no route that sleeps on vblank counts alone).
+file(GLOB GT_PAD_ROUTES ${CMAKE_SOURCE_DIR}/config/pad_routes/*.pad)
+add_test(NAME pad_routes COMMAND pad_sequence_tests ${GT_PAD_ROUTES})
 add_executable(guest_call_tests host/tests/guest_call_test.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
 target_include_directories(guest_call_tests PRIVATE host)
 target_link_libraries(guest_call_tests PRIVATE psprecomp_core)
