@@ -1,2 +1,14 @@
 # Route C — View Records, the Garage (a car's 3D view), Gran Turismo Theatre and the replay track list (310 s).
-3300:START,6600:DOWN,6700:CROSS,7500:CROSS,8300:RIGHT,8400:CROSS,9200:CIRCLE,9600:CIRCLE,10000:CIRCLE,10400:RIGHT,10500:RIGHT,10600:CROSS,11400:DOWN,11500:CROSS,12300:CIRCLE,12700:CIRCLE,13100:RIGHT,13200:CROSS,14000:RIGHT,14400:RIGHT,14800:CIRCLE,15200:UP,15300:RIGHT,15400:CROSS,16200:CROSS,17000:CROSS
+# Waits for the game (WAIT:seek=<GT.VOL offset of the page being loaded>, as race.pad; FACTS § Page loads as screen signals); the times after a
+# WAIT count from the load. Offsets: 1fa48900 main menu, 1cf24800 the records / garage / theatre menus, 1cd6db80 a car list, 1d03c5c0 the garage's
+# car view, 1cd2ff80 a list page, 1ced7480 the replay track list.
+3300:START,
+WAIT:seek=0x1fa48900,1700:DOWN,1800:CROSS,
+WAIT:seek=0x1cf24800,667:CROSS,
+WAIT:seek=0x1cd6db80,684:RIGHT,784:CROSS,
+WAIT:seek=0x1d03c5c0,796:CIRCLE,1196:CIRCLE,
+WAIT:seek=0x1cf24800,300:CIRCLE,700:RIGHT,800:RIGHT,900:CROSS,1700:DOWN,1800:CROSS,
+WAIT:seek=0x1cf24800,658:CIRCLE,1058:CIRCLE,1458:RIGHT,1558:CROSS,
+WAIT:seek=0x1cd2ff80,666:RIGHT,1066:RIGHT,1466:CIRCLE,1866:UP,1966:RIGHT,2066:CROSS,2866:CROSS,
+WAIT:seek=0x1cd2ff80,666:CROSS,
+WAIT:seek=0x1ced7480

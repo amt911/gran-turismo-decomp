@@ -11,6 +11,7 @@ from tools import decomp_gate as gate
 REPORT = """\
 Loaded extracted/EBOOT.elf (243383 relocations)
 [decomp] mode=diff functions=3 cases/function=32
+[pad] script done at vblank 12345
 Runtime stopped: Wall-clock limit reached at 0x08C7AC18
 [decomp] gt::game::race_operator::window_max @0x0885BBBC: compared 1, equal 1, mismatched 0, not comparable 0 (calls 3, cases that changed memory 0)
 [decomp] gt::game::func_088D4C9C @0x088D4C9C: compared 4, equal 3, mismatched 1, not comparable 2 (calls 9, cases that changed memory 1)
@@ -156,6 +157,18 @@ def test_route_problem_flags_a_timeout_a_missing_report_and_a_crash():
     assert "no report" in gate.route_problem("Running from entry 0x0880410C\n", "0")
     assert "exit 1" in gate.route_problem(REPORT, "1")
     assert gate.route_problem(REPORT, "2") is None  # 2 = mismatches, reported by the per-function lines
+
+
+def test_a_route_whose_pad_script_did_not_finish_is_a_failure():
+    unfinished = REPORT.replace("[pad] script done at vblank 12345\n", "")
+    assert "did not finish" in gate.route_problem(unfinished, "0", require_done=True)  # cut short by --max-seconds
+    assert gate.route_problem(unfinished, "0") is None  # the fast gate is short on purpose
+    assert "timed out" in gate.route_problem(unfinished, "124", require_done=True)  # the more specific problem is first
+
+
+def test_route_commands_log_the_pad_so_an_unfinished_script_is_seen():
+    assert "GT_PAD_LOG=1" in gate.route_shell(Path("build/gt_native"), "fast", "t1", Path("recomp/analysis"))
+    assert "GT_PAD_LOG=1" in gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
 
 
 def test_an_exclusive_slot_takes_every_lock(tmp_path):
@@ -315,7 +328,19 @@ def test_a_probe_route_that_times_out_or_exits_non_zero_is_a_failure():
     assert "timed out" in gate.probe_problem("[probe] 0x08804028 hits=1\n", "124")
     assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "139") == "exit 139"
     assert "no exit code" in gate.probe_problem("", "?")
+    assert gate.probe_problem("[probe] 0x08804028 hits=1\n[pad] script done at vblank 9\n", "0") is None
+    assert "did not finish" in gate.probe_problem("[probe] 0x08804028 hits=1\n", "0", require_done=True)  # partial hit counts
     assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "0") is None
+
+
+def test_probe_shell_scales_the_route_lengths():
+    command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"), "full", 1.5)
+    assert "--max-seconds 900" in command and "--max-seconds 465" in command and "--max-seconds 600" not in command
+
+
+def test_probe_shell_can_use_the_full_gates_route_lengths():
+    command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"), "full")
+    assert "--max-seconds 600" in command and "--max-seconds 310" in command and "--max-seconds 230" not in command
 
 
 # The compared floor: a full gate whose compared total drops means an installed function stops other code from running

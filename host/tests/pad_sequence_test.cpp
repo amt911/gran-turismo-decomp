@@ -2,6 +2,9 @@
 #include "pad_sequence.hpp"
 
 #include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <map>
 #include <utility>
 #include <vector>
@@ -47,9 +50,37 @@ std::map<std::uint64_t, std::uint32_t> run(gt::PadSequencer &sequencer, World &w
     }
     return pressed;
 }
+
+// A route file (config/pad_routes/*.pad) as the gate hands it to GT_PAD: the `#` lines removed. It must parse and be deterministic: at least
+// one WAIT, and no segment (the presses between two waits) longer than kMaxSegment vblanks, which would be a fixed sleep standing in for a signal.
+constexpr std::uint64_t kMaxSegment = 6000u;
+void check_route(const char *path) {
+    std::ifstream in(path);
+    check(in.good(), path);
+    std::string line, text;
+    while (std::getline(in, line))
+        if (line.empty() || line[0] != '#') text += line + "\n";
+    const auto parsed = gt::parse_pad_script(text);
+    check(parsed.error.empty(), (std::string(path) + ": " + parsed.error).c_str());
+    std::size_t waits = 0;
+    std::uint64_t previous = 0;  // the previous press of this segment (offsets from its wait)
+    for (const auto &step : parsed.steps) {
+        if (step.kind == gt::PadStep::Kind::Wait) {
+            ++waits;
+            previous = 0;
+            continue;
+        }
+        if (waits > 0)
+            check(step.vblank - previous <= kMaxSegment, (std::string(path) + ": idle gap between presses").c_str());
+        previous = step.vblank;
+    }
+    check(waits > 0, (std::string(path) + ": no WAIT, the route runs on vblank counts").c_str());
+}
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
+    for (int i = 1; i < argc; ++i) check_route(argv[i]);
+    if (argc > 1) return failures == 0 ? 0 : 1;
     {  // the existing syntax parses as before: defaults and an explicit hold
         const auto parsed = gt::parse_pad_script("3300:START,6600:CROSS:600");
         check(parsed.error.empty() && parsed.steps.size() == 2u, "legacy two items");

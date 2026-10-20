@@ -1,0 +1,10 @@
+# Route J — Driving Challenges A-6 "Braking and steering simultaneously": the block map, Block A, the list (RIGHT x5 to A-6), Start, then the
+# course is driven (accelerator held, steering pulsed, a brake pulse) until the result screen, and Retry (200 s). A different car and course
+# from route G's A-1, and a cornering test (steering, grip and the lap-time rules). Page offsets: challenge.pad.
+3300:START,
+WAIT:seek=0x1fa48900,1700:RIGHT,1800:RIGHT,1900:RIGHT,2000:CROSS,
+WAIT:seek=0x1ce62e80,500:CROSS,
+WAIT:seek=0x1ce7d400,500:CROSS,
+WAIT:seek=0x1cdf8540,500:RIGHT,700:RIGHT,900:RIGHT,1100:RIGHT,1300:RIGHT,1700:CROSS,
+WAIT:seek=0x1cc98cc0,500:CROSS,
+WAIT:seek=0x1d19db00,900:CROSS:1500,1000:LEFT:60,1300:RIGHT:60,1600:LEFT:60,1900:SQUARE:200,2500:CROSS:1500,2700:RIGHT:60,3000:LEFT:60,3300:RIGHT:60
