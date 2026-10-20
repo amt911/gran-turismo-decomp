@@ -83,7 +83,7 @@ refine *how* the work is done; they never override the rules in this file. When 
   at the end**, after one full build + full differential pass + boot check.
 
 - **"modo pocos tokens"** (low-token mode) — the user's token quota is short (it resets Wednesdays 19:00): same
-  quality and gates, fewer tokens, slower is fine. One implementation agent at a time (Sonnet), one review per PR,
+  quality and gates, fewer tokens, slower is fine. No subagents (the work and a separate self-review pass done inline, with the same skills),
   terse messages, no exploratory work beyond the priority the user set, batched tool calls, long output to files
   (read the tail), progress artifacts only per finished batch. Ends on **"normal mode"**.
 
