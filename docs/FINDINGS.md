@@ -1970,6 +1970,22 @@ Found: 2026-10-20 · research run over `gt_native` race route (run logs kept out
 
 Found: 2026-10-20 · host/import_lists.hpp, host/gt_kernel.cpp, host/tests/import_lists_test.cpp, src/game/unsorted/hot_batch_103.cpp
 
+## Keeping GT's static strips on the GPU did not make the GE thread faster: its cost is not vertex work
+
+**Symptom.** The blob census showed 97 % of race PRIMs replaying static models, which suggested that decoding and
+appending ~74k vertices a frame was the GE thread's big cost. A vertex arena removed that work: each strip is decoded
+once and drawn from GPU memory afterwards (patch 0053, ~99.9 % hits, 0 mismatches under `GT_GE_ARENA_VERIFY`, both
+sabotages caught). The laptop in power-saver still spent 660 ns per draw, and the arena build was 3-5 % slower in
+later windows.
+**Cause.** Validating a hit costs a hash lookup over ~30k strips and a compare with a signature on the heap. Those are
+random cache misses (12 % of profile samples), and they cost more than decoding bytes that are already in cache.
+**Fix / lesson.** Not merged: spec `2026-10-20-ge-static-strip-arena-design.md` (result section), branch
+`perf/ge-static-arena`. This is the second per-draw GE optimisation that measured flat (after the streamed draws of
+2026-10-19). Do not start a third without a profile of the target machine that shows the cost it removes. On the GE
+thread, a cache that is checked per draw must cost less than a sequential decode. The laptop already holds 60 new
+images/s on the race route in power-saver.
+
+Found: 2026-10-20 · laptop A/B over SSH (binaries from /tmp) and gperftools profile on the desktop
 ## The laptop in power-saver holds 60 new images a second on every route, windowed too; decode threads make it worse
 
 **Symptom.** The user finds the game "malillo" on the laptop (Ryzen 7 PRO 5850U in power-saver, CPU capped at
