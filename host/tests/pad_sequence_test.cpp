@@ -81,6 +81,17 @@ void check_route(const char *path) {
 int main(int argc, char **argv) {
     for (int i = 1; i < argc; ++i) check_route(argv[i]);
     if (argc > 1) return failures == 0 ? 0 : 1;
+    {  // a press is held until the game has read the pad twice: a loaded machine skips game frames, and a 6-vblank
+       // press fell between two reads (the options and challenge2 routes stalled in the full gate, 2026-10-20)
+        gt::PressLatch latch;
+        check(latch.update(kCross, 10u) == kCross, "a scripted press is seen at once");
+        check(latch.update(0u, 10u) == kCross, "released by the script with no read since: still held");
+        check(latch.update(0u, 11u) == kCross, "one read: still held");
+        check(latch.update(0u, 12u) == 0u, "two reads: released");
+        check(latch.update(kStart, 20u) == kStart, "the next press");
+        check(latch.update(kStart, 23u) == kStart && latch.update(0u, 23u) == 0u,
+              "read while the script held it: released with the script");
+    }
     {  // the existing syntax parses as before: defaults and an explicit hold
         const auto parsed = gt::parse_pad_script("3300:START,6600:CROSS:600");
         check(parsed.error.empty() && parsed.steps.size() == 2u, "legacy two items");

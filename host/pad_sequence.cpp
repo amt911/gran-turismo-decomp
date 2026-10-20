@@ -160,4 +160,15 @@ PadSequencer::State PadSequencer::tick(std::uint64_t now, const PadChecker &chec
     return state_;
 }
 
+std::uint32_t PressLatch::update(std::uint32_t scripted, std::uint64_t reads) {
+    for (unsigned bit = 0u; bit < 32u; ++bit) {
+        const std::uint32_t mask = 1u << bit;
+        if ((scripted & mask) != 0u && (previous_ & mask) == 0u) since_[bit] = reads;  // a new press
+        if ((held_ & mask) != 0u && (scripted & mask) == 0u && reads - since_[bit] >= min_reads_) held_ &= ~mask;
+    }
+    held_ |= scripted;
+    previous_ = scripted;
+    return held_;
+}
+
 } // namespace gt
