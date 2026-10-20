@@ -2049,3 +2049,19 @@ parallel routes run slower than real time, so a `--max-seconds` end lands earlie
 - The newly reached paths found one bug: `func_08888988`'s v0 on an empty pair (drift).
 
 Found: 2026-10-20 · full gate of feat/pad-routes-2
+
+## Batch 104: a stopped agent's commit can carry sabotage lines; parked functions come back when their blocker is gone
+
+**Symptom.** Batch 104's agent was stopped mid-run, and its work was saved as a WIP commit. That commit held 4
+`ctx.gpr[16] += 1u; … 0x08000F00u …` lines: a sabotage round's edits, captured before the tool restored the file.
+**Cause.** `tools.decomp_gate sabotage` edits the sources in place while it runs, so a commit taken mid-run keeps them.
+**Fix / lesson.**
+- Before committing someone else's interrupted work, `git grep 0x08000F00u -- src` must return nothing.
+- The 18 re-registered functions were parked as "compared 0", or because every case reached a `sceSasCore` import the
+  harness could not record. Batch 103 lifted those blockers. All 18 now compare with 0 mismatches and each has its
+  sabotage pinned.
+- Ten of the 33 functions compared without a case that changed memory. They write through one store followed by an
+  import call, and the value they store is already there.
+- `func_0887B2EC` is the weakest: 2 cases.
+
+Found: 2026-10-20 · decomp/hot-batch-104 (taken over from the stopped agent)
