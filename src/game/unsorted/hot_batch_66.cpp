@@ -362,9 +362,9 @@ HOT66(0x08BB0E20u, func_08BB0E20, Word);
 HOT66(0x08BB1814u, func_08BB1814, Word);
 HOT66(0x08BB1840u, func_08BB1840, Word);
 // Written but not registered: the worker is an import stub (sceSasCore) the harness cannot run inside a case (14 not comparable per route, compared 0).
-// HOT66(0x08B83DE8u, func_08B83DE8, Word);
-// HOT66(0x08B83E24u, func_08B83E24, Word);
-// HOT66(0x08B83FF4u, func_08B83FF4, Word);
+HOT66(0x08B83DE8u, func_08B83DE8, Word);
+HOT66(0x08B83E24u, func_08B83E24, Word);
+HOT66(0x08B83FF4u, func_08B83FF4, Word);
 HOT66(0x08AA9510u, func_08AA9510, Word);
 HOT66(0x08AA93F0u, func_08AA93F0, Word);
 HOT66(0x08AA9100u, func_08AA9100, Word);

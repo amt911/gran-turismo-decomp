@@ -497,8 +497,8 @@ HOT59(0x08B851D0u, virtual_of_second, Word);
 HOT59(0x08B87514u, virtual_of_second, Word);
 // Written but not registered: compared 0 in every fast run (no route calls func_08AD95A0, func_08B28CD4, func_08B34DC0 or
 // func_08B1B99C from outside their generated unit), so nothing could verify them.
-// HOT59(0x08AD95A0u, func_08AD95A0, Word);
+HOT59(0x08AD95A0u, func_08AD95A0, Word);
 // HOT59(0x08B28CD4u, func_08B28CD4, Word);
-// HOT59(0x08B34DC0u, func_08B34DC0, Word);
+HOT59(0x08B34DC0u, func_08B34DC0, Word);
 // HOT59(0x08B1B99Cu, func_08B1B99C, Word);
 #undef HOT59

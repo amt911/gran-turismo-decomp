@@ -27,6 +27,9 @@ inline const std::unordered_set<std::uint32_t> &replay_safe_nids() {
         0xA5DA2406u, 0x34B78343u,  // sceUtilityGetSystemParamInt / String: constants written to guest RAM
         0x13A5ABEFu,               // sceKernelPrintf: the GT HLE returns 0 and prints nothing (gt_kernel.cpp)
         0x0C622081u,               // sceWlanGetEtherAddr(mac): a fixed MAC written to guest RAM through GuestMemory
+        // Batch 104: HLEs that answer a constant and read no argument (gt_kernel.cpp / font_hle.cpp), so nothing but v0 changes.
+        0x7E69EDA4u,               // sceHprmIsHeadphoneExist: set_success (0)
+        0x02D7F94Bu,               // sceFont call that answers 0 (font_hle.cpp)
     };
     return nids;
 }
@@ -99,6 +102,9 @@ inline const std::unordered_map<std::uint32_t, std::uint8_t> &recordable_nids() 
         {0xF983B186u, 0x07u},  // __sceSasSetEffect(core, dry, wet)
         {0xA3589D81u, 0x03u},  // __sceSasCoreWithMix(core, out): renders one grain into guest RAM
         {0x50A14DFCu, 0x0Fu},  // __sceSasCore(core, inout, l, r)
+        // Batch 104 (host/gt_kernel.cpp: none waits or switches threads; the state they change is in host tables the replay
+        // state does not hold, so they run once in the original's run and every argument their HLE reads is compared).
+        {0x289D82FEu, 0x0Fu},  // sceDisplaySetFrameBuf(address, stride, format, sync): reads a0-a3, sets display_state, counts a flip; no wait
     };
     return nids;
 }

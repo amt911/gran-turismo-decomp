@@ -564,7 +564,7 @@ HOT65(0x08C2016Cu, func_08C2016C, Word);
 HOT65(0x0895FE28u, func_0895FE28, Word);
 HOT65(0x08B516F4u, func_08B516F4, Word);
 // Written but not registered: no route reaches it (compared 0 in all five routes of the fast gate).
-// HOT65(0x08BDADACu, func_08BDADAC, Word);
+HOT65(0x08BDADACu, func_08BDADAC, Word);
 HOT65(0x0894CEB8u, func_0894CEB8, Word);
 HOT65(0x0886F1B4u, func_0886F1B4, Word);
 HOT65(0x08C4100Cu, func_08C4100C, Word);
