@@ -108,7 +108,7 @@ def test_route_commands_are_capped_and_parallel():
     assert "--max-seconds 200" in command and "--decomp diff" in command
     full = gate.route_shell(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
     assert "--max-seconds 600" in full and "--max-seconds 310" in full
-    assert "options.pad" in command and "--max-seconds 230" in command and "--max-seconds 240" in full
+    assert "options.pad" in command and "--max-seconds 230" in command and "--max-seconds 420" in full
 
 
 def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
@@ -377,14 +377,14 @@ def test_raised_floor_only_goes_up(tmp_path: Path):
     assert gate.raise_floor(fresh, 100) == 100 and gate.read_floor(fresh) == 100
 
 
-def test_every_route_has_a_pad_file_and_a_budget_under_five_minutes():
+def test_every_route_has_a_pad_file_and_a_budget_within_the_race():
     for kind in ("fast", "full"):
         names = [route for route, _ in gate.ROUTES[kind]]
         assert len(names) == len(set(names))
         for route, seconds in gate.ROUTES[kind]:
             assert Path(f"config/pad_routes/{route}.pad").exists(), route
             if route != "race":
-                assert seconds <= 310, (route, seconds)  # the race route is the one long run (600 s)
+                assert seconds <= 600, (route, seconds)  # routes run in parallel: none outlasts the race (600 s)
 
 
 def test_fast_and_full_run_the_same_routes():

@@ -303,6 +303,8 @@ void func_08888988(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                 }
             }
             block = word(rt, pair + 4u);
+        } else {
+            ctx.gpr[2] = 0u;  // 08888A0C/10: v0 is the pair's object word just tested (the drift route takes this path)
         }
         if (block != 0u) release_counted(rt, ctx, block);
     }

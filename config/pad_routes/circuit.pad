@@ -1,6 +1,7 @@
 # Route K — a race on a street circuit (Cote d'Azur, the second row-one track after Apricot Hill and Autumn Ring Mini): the race route's choices with
 # Track Selection moved two to the right; the car is driven 30 s (accelerator held, steering pulsed) into the barriers, the pause menu opens and its
-# third icon leaves the race (confirmed), which is a path no other route takes; the hub loads again (260 s). Page offsets: race.pad.
+# third icon leaves the race (confirmed), which is a path no other route takes: the race's replay starts, and the last CROSS switches its
+# camera (310 s). Page offsets: race.pad.
 3300:START,
 WAIT:seek=0x1fa48900,1700:CROSS,
 WAIT:seek=0x1cf2a980,300:CROSS,
@@ -14,6 +15,5 @@ WAIT:seek=0x1cd7d200,300:RIGHT,500:RIGHT,700:CROSS,
 WAIT:seek=0x1d043c80,300:CROSS,
 WAIT:seek=0x1cf2a980,300:CROSS,
 WAIT:seek=0x1cc98cc0,400:CROSS,
-WAIT:seek=0x1d19db00,1200:CROSS:3600,1500:LEFT:90,1900:RIGHT:90,2300:LEFT:90,2700:RIGHT:90,3100:LEFT:90,
-4600:START,5300:RIGHT,5500:RIGHT,5700:CROSS,6400:CROSS,
-WAIT:seek=0x1cf2a980
+WAIT:seek=0x1d19db00,1200:CROSS:1800,1500:LEFT:90,1900:RIGHT:90,2300:LEFT:90,2700:RIGHT:90,
+2900:START,3600:RIGHT,3800:RIGHT,4000:CROSS,4700:CROSS,

@@ -31,9 +31,14 @@ from pathlib import Path
 
 ROUTES = {
     "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230),
-             ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150)),
-    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 150), ("options", 240),
-             ("drift", 200), ("challenge", 180), ("dirt", 260), ("manual", 190)),
+             ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150),
+             ("circuit", 200), ("challenge2", 200)),
+    # Each full route runs until its pad script is done (checked) with ~10 % to spare; they run in parallel, so the
+    # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 379,
+    # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271.
+    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 420),
+             ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
+             ("circuit", 335), ("challenge2", 300)),
 }
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
