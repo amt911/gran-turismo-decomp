@@ -11,8 +11,7 @@ file=$route
 mkdir -p "$outdir"
 GT_PAD="$(grep -v '^#' "$file")"
 export GT_PAD GT_PAD_LOG=1 LCS_UNCAPPED="${LCS_UNCAPPED-1}"
-export GT_FRAME_DUMP="${GT_FRAME_DUMP-}"
-unset GT_FRAME_DUMP
+unset GT_FRAME_DUMP  # no frame dumps under gdb
 set +e
 systemd-run --user --scope --quiet --slice=gt-heavy.slice -- \
   timeout "$((seconds + 120))" gdb -batch -ex "catch throw" -ex run -ex "bt 40" --args \

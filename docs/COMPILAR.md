@@ -109,6 +109,19 @@ UP DOWN LEFT RIGHT L R`. Por ejemplo, para saltar el vídeo de introducción:
 GT_PAD="3300:START" GT_FRAME_DUMP=recomp/frames build/gt_native --max-seconds 90
 ```
 
+Una ruta también puede **esperar al juego en vez de a un tiempo**: `WAIT:seek=0x1cf2a980` detiene el guion hasta que
+el juego hace `seek` a ese offset de `GT.VOL` (así carga cada página de menú: ese offset es la entrada de la
+página, FACTS § «Page loads as screen signals»), y los tiempos que siguen se cuentan desde ese momento hasta el
+siguiente `WAIT`: `WAIT:seek=0x1cf2a980,300:CROSS` pulsa X 300 vblanks después de que cargue la página. Si la espera no
+se cumple en 12000 vblanks (`WAIT:...:<timeout>` lo cambia) la ejecución termina con código **97** y un mensaje
+`[pad] WAIT ... timed out` (nunca un fallo silencioso). `WAIT:word@0x08XXXXXX=<valor>` espera a una palabra de RAM.
+Dentro de un tramo los tiempos son desplazamientos desde el último `WAIT` (no se suman: `300:RIGHT,400:RIGHT`
+pulsa a los 300 y a los 400). Los ficheros de `config/pad_routes/` pueden ocupar varias líneas y llevar líneas `#`.
+`GT_PAD_LOG=1` imprime cada espera cumplida; `GT_IO_LOG=1` lista los `seek` con su vblank.
+Para escribir una ruta: `tools/pad_route.sh <ruta> <segundos> <dir>` la ejecuta con volcado de imágenes y
+`python -m tools.frame_sheet seeks|sheet|waits` resume los `seek` por pantalla y hace una hoja de contacto de los
+fotogramas (las imágenes son salida del juego: déjalas bajo `recomp/analysis/`).
+
 Los textos necesitan fuentes de la PSP (PGF). `tools/setup.sh` baja las del repositorio de PPSSPP
 (etiqueta v1.20.4, comprobadas con `config/ppsspp_fonts.sha256`) a `tools/src/ppsspp-fonts/` (ignorado
 por git); no hace falta tener PPSSPP instalado. Otras: `GT_FONT_DIR=/ruta/a/flash0/font`.
@@ -239,14 +252,17 @@ muestra la primera diferencia (registro o byte de RAM, con los argumentos de la 
 toca. Para que lleguen casos de más partes del juego, deja que llegue al menú:
 `GT_PAD="3300:START" build/gt_native --max-seconds 150 --decomp diff --decomp-cases 32`.
 
-**Las cinco rutas con las que se verifica todo** están en `config/pad_routes/`: `race.pad` (hasta la
-carrera, 600 s), `dealer.pad` (concesionarios y ficha de un coche, 300 s), `garage.pad` (récords,
-garaje, Theatre y la lista de circuitos, 310 s) y `buy.pad` (compra un coche y lo añade a Favoritos,
-150 s) y `options.pad` (cambia las unidades a CH, ft-lb y km/h, las guarda y abre el concesionario, 240 s). Cada función registrada debe salir sin discrepancias en todas
+**Las nueve rutas con las que se verifica todo** están en `config/pad_routes/`: `race.pad` (hasta la
+carrera, 600 s; espera a las páginas con `WAIT:seek`), `dealer.pad` (concesionarios y ficha de un coche, 300 s), `garage.pad` (récords,
+garaje, Theatre y la lista de circuitos, 310 s), `buy.pad` (compra un coche y lo añade a Favoritos,
+150 s), `options.pad` (cambia las unidades a CH, ft-lb y km/h, las guarda y abre el concesionario, 240 s),
+`drift.pad` (Drift Trial, 200 s), `challenge.pad` (Driving Challenges A-1 hasta la pantalla de resultado, 180 s),
+`dirt.pad` (carrera en un circuito de tierra con el menú de pausa y un reinicio, 260 s) y `manual.pad` (Ad Hoc Mode y
+el manual de usuario, 190 s). Cada función registrada debe salir sin discrepancias en todas
 (`.venv/bin/python -m tools.decomp_gate full TAG` las lanza):
 
 ```bash
-for r in race:600 dealer:300 garage:310 buy:150 options:240; do
+for r in race:600 dealer:300 garage:310 buy:150 options:240 drift:200 challenge:180 dirt:260 manual:190; do
   GT_PAD=$(grep -v '^#' config/pad_routes/${r%:*}.pad) build/gt_native --max-seconds ${r#*:} --decomp diff \
     | grep -c "mismatched [1-9]"   # 0 en cada ruta
 done
