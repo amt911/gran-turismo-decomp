@@ -82,6 +82,11 @@ refine *how* the work is done; they never override the rules in this file. When 
   touched plus the tool tests they touched; commits pile up locally and the branch is pushed **once,
   at the end**, after one full build + full differential pass + boot check.
 
+- **"modo pocos tokens"** (low-token mode) — the user's token quota is short (it resets Wednesdays 19:00): same
+  quality and gates, fewer tokens, slower is fine. One implementation agent at a time (Sonnet), one review per PR,
+  terse messages, no exploratory work beyond the priority the user set, batched tool calls, long output to files
+  (read the tail), progress artifacts only per finished batch. Ends on **"normal mode"**.
+
 Confirm the switch briefly when it happens.
 
 ---

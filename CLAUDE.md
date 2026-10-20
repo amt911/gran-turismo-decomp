@@ -28,3 +28,4 @@ import above. Add below only what applies to Claude Code alone. -->
 - **REA's Ghidra JVM is a child of the MCP server, not of your shell** — a `systemd-run` scope around a
   Bash command does not cap it. Keep one binary open at a time and `close_binary` when done.
 - **`/graphify` is a Claude Code slash command** — scope it as `AGENTS.md` § graphify says.
+- **"modo pocos tokens"** — low-token mode, defined in `AGENTS.md` § Mode switch (same quality, fewer tokens).
