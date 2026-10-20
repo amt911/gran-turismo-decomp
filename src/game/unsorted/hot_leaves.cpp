@@ -16635,7 +16635,7 @@ void func_08AF1DF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08AF4F90(this, i): under the lock at 0x08D470C4, channel i (enabled by byte +0x424 + i) gets
 // func_08B52D58 on its 212-byte block at +0x1D4 when both +0x427 and +0x426 are set, else at +0x2C;
 // +0x426 = +0x427. A disabled channel gets func_08B58B10(0).
-void func_08AF4F90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
+void func_08AF4F90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t i = ctx.gpr[5];
     {
@@ -30469,7 +30469,7 @@ void func_08B2B760(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08AEFC14(_, x, y): the two sizes (clamped to 0..128, in 32nds) kept at 0x08D41F70 / +0x4 and passed
 // to func_08B844D0.
-void func_08AEFC14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
+void func_08AEFC14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const auto clamp = [](std::uint32_t v) { const auto s = static_cast<std::int32_t>(v); return s < 0 ? 0u : (s < 128 ? v : 128u); };
     const std::uint32_t x = clamp(ctx.gpr[5]) << 5, y = clamp(ctx.gpr[6]) << 5;
     rt.memory().store32(0x08D41AD0u + 1184u, x);
@@ -32365,7 +32365,7 @@ void func_089DCCD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08AEFC74(_, channel, level): channel 0 or 1 stores level (clamped to 0..127) in the pair at
 // 0x08D41F78 / 0x08D41F7C and hands both to func_08B845E8; other channels are ignored.
-void func_08AEFC74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
+void func_08AEFC74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     constexpr std::uint32_t kPair = 0x08D41AD0u + 1192u;
     const std::uint32_t channel = ctx.gpr[5];
     const auto level = static_cast<std::int32_t>(ctx.gpr[6]);
@@ -33572,7 +33572,7 @@ void func_089214F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08927440(this, v): when v differs from +0x1FB0, byte +0x1FC5 = 1 and the virtual +0x1C of each of the 13
 // objects +0x1F70.. runs; then +0x1FB0 = +0x20C8 = v.
-void func_08927440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
+void func_08927440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], value = ctx.gpr[5];
     if (word(rt, self + 8112u) != value) {
         rt.memory().store8(self + 8133u, 1u);
