@@ -1986,3 +1986,23 @@ thread, a cache that is checked per draw must cost less than a sequential decode
 images/s on the race route in power-saver.
 
 Found: 2026-10-20 · laptop A/B over SSH (binaries from /tmp) and gperftools profile on the desktop
+## The laptop in power-saver holds 60 new images a second on every route, windowed too; decode threads make it worse
+
+**Symptom.** The user finds the game "malillo" on the laptop (Ryzen 7 PRO 5850U in power-saver, CPU capped at
+1.9 GHz). Every earlier measurement ran offscreen, so the window, the compositor or the present path could have been
+the cause.
+**Cause.** It is none of them, at least on the five pad routes. The main build was run over SSH from /tmp with the
+user's ini (fullscreen 1920x1080, VSync, mailbox swapchain, internal scale following the window, GPU budget 10 ms),
+shown on the laptop's KDE Wayland session. Results:
+- **Race:** 59.9 new images/s in every 5 s window (every image held 1 vblank), 0 late vblank waits, GPU 5.8 ms a frame,
+  510-630 ns per GE draw.
+- **Dealer, garage, buy, options:** 59.9/s in every window but the first one. The load at start holds one image for 4+
+  vblanks. Late waits were 0 in most windows and 1-4 in a few, and the GPU needed 2.8-3.9 ms a frame.
+- **`PSPRECOMP_GE_DECODE_THREADS=2`** (offscreen race) is much worse. Queued draws turn the quad-strip fast path off,
+  so a draw costs 2,200-2,500 ns instead of 510-630, late waits climb to 254 in 5 s (max 83 ms), and 52-59 images/s
+  are shown. Keep the default of 0.
+**Fix / lesson.** No pad route reproduces a slowdown on the laptop. What the user notices must be outside these
+routes (replays, other races, longer sessions, loading) or something they see but `[perf]` does not measure. A
+`GT_PERF_LOG=1` log from their own play, or the moment they name, is the next input.
+
+Found: 2026-10-20 · laptop over SSH, windowed on its display, binaries and data from /tmp (all removed afterwards)
