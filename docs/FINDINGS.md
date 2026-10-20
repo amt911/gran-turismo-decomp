@@ -1995,3 +1995,40 @@ Found: 2026-10-20 · research run over `gt_native` race route (run logs kept out
 **Fix.** The two NID lists moved from `main()` into `host/import_lists.hpp` and are checked by `host/tests/import_lists_test.cpp` (CTest `import_lists`; seen failing with `DelayThread` added). Result: 13 parked functions re-registered with their original code (`func_08B35418`, `func_08AEB850`, `func_08B7771C`, `func_08AEB908`, `func_08AEB930`, `func_08B84270`, `func_08B83C84`, `func_08AD96A0`, `func_08B33A24`, `func_08B59A24`, `func_08A235F8`, `func_08AEB4CC`, `func_08AF0B78`), each compared in the fast gate with 0 mismatches and its sabotage pinned. `func_08B34B2C` (a recursive-lock entry written in this batch) stays out: in 101 of 101 cases the caller owns the lock and the thread sleeps. Two further lessons: the sabotage tool inserts its bump after a `void func_X(` line, so a `[[maybe_unused]]` prefix hid `func_08A235F8` from it (0 of 1 pinned until the attribute went), and a function whose only cases are the first calls of a one-off initialiser is pinned only when installed alone.
 
 Found: 2026-10-20 · host/import_lists.hpp, host/gt_kernel.cpp, host/tests/import_lists_test.cpp, src/game/unsorted/hot_batch_103.cpp
+
+## Keeping GT's static strips on the GPU did not make the GE thread faster: its cost is not vertex work
+
+**Symptom.** The blob census showed 97 % of race PRIMs replaying static models, which suggested that decoding and
+appending ~74k vertices a frame was the GE thread's big cost. A vertex arena removed that work: each strip is decoded
+once and drawn from GPU memory afterwards (patch 0053, ~99.9 % hits, 0 mismatches under `GT_GE_ARENA_VERIFY`, both
+sabotages caught). The laptop in power-saver still spent 660 ns per draw, and the arena build was 3-5 % slower in
+later windows.
+**Cause.** Validating a hit costs a hash lookup over ~30k strips and a compare with a signature on the heap. Those are
+random cache misses (12 % of profile samples), and they cost more than decoding bytes that are already in cache.
+**Fix / lesson.** Not merged: spec `2026-10-20-ge-static-strip-arena-design.md` (result section), branch
+`perf/ge-static-arena`. This is the second per-draw GE optimisation that measured flat (after the streamed draws of
+2026-10-19). Do not start a third without a profile of the target machine that shows the cost it removes. On the GE
+thread, a cache that is checked per draw must cost less than a sequential decode. The laptop already holds 60 new
+images/s on the race route in power-saver.
+
+Found: 2026-10-20 · laptop A/B over SSH (binaries from /tmp) and gperftools profile on the desktop
+## The laptop in power-saver holds 60 new images a second on every route, windowed too; decode threads make it worse
+
+**Symptom.** The user finds the game "malillo" on the laptop (Ryzen 7 PRO 5850U in power-saver, CPU capped at
+1.9 GHz). Every earlier measurement ran offscreen, so the window, the compositor or the present path could have been
+the cause.
+**Cause.** It is none of them, at least on the five pad routes. The main build was run over SSH from /tmp with the
+user's ini (fullscreen 1920x1080, VSync, mailbox swapchain, internal scale following the window, GPU budget 10 ms),
+shown on the laptop's KDE Wayland session. Results:
+- **Race:** 59.9 new images/s in every 5 s window (every image held 1 vblank), 0 late vblank waits, GPU 5.8 ms a frame,
+  510-630 ns per GE draw.
+- **Dealer, garage, buy, options:** 59.9/s in every window but the first one. The load at start holds one image for 4+
+  vblanks. Late waits were 0 in most windows and 1-4 in a few, and the GPU needed 2.8-3.9 ms a frame.
+- **`PSPRECOMP_GE_DECODE_THREADS=2`** (offscreen race) is much worse. Queued draws turn the quad-strip fast path off,
+  so a draw costs 2,200-2,500 ns instead of 510-630, late waits climb to 254 in 5 s (max 83 ms), and 52-59 images/s
+  are shown. Keep the default of 0.
+**Fix / lesson.** No pad route reproduces a slowdown on the laptop. What the user notices must be outside these
+routes (replays, other races, longer sessions, loading) or something they see but `[perf]` does not measure. A
+`GT_PERF_LOG=1` log from their own play, or the moment they name, is the next input.
+
+Found: 2026-10-20 · laptop over SSH, windowed on its display, binaries and data from /tmp (all removed afterwards)
