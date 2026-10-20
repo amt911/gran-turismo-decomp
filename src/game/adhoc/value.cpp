@@ -17,7 +17,7 @@ constexpr std::uint32_t kStringFromCString = 0x08B85EB8u;  // std::string(out, c
 constexpr std::uint32_t kNewStringObject = 0x08A6D2D4u;    // (holder *out, const std::string *): an Adhoc string           // length, capacity, reference count, then the characters
 
 // result = scratch (the holder assignment skips self-assignment), then scratch is destroyed.
-void hand_back(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+void hand_back(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result,
                std::uint32_t scratch) {
     if (result != scratch) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(scratch)});
     (void)call_guest(rt, ctx, kHolderDestroy, {scratch});
@@ -29,7 +29,7 @@ std::uint32_t virtual_function(psprecomp::Runtime &rt, std::uint32_t object, std
     return rt.memory().load32(rt.memory().load32(object) + slot * 4u);
 }
 
-void to_string(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object, std::uint32_t out) {
+void to_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object, std::uint32_t out) {
     (void)call_guest(rt, ctx, virtual_function(rt, object, kToStringSlot), {out, object});
 }
 
@@ -56,33 +56,33 @@ void return_c_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
     string_release(rt, ctx, rt.memory().load32(string));
 }
 
-std::int32_t to_int(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object) {
+std::int32_t to_int(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object) {
     return static_cast<std::int32_t>(call_guest(rt, ctx, virtual_function(rt, object, kToIntSlot), {object}));
 }
 
-float to_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object) {
+float to_float(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object) {
     return call_guest(rt, ctx, virtual_function(rt, object, kToFloatSlot), {object}, {}).f0;
 }
 
-void return_integer(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+void return_integer(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result,
                     std::uint32_t scratch, std::uint32_t value) {
     (void)call_guest(rt, ctx, kNewIntegerObject, {scratch, value});
     hand_back(rt, ctx, result, scratch);
 }
 
-void return_float(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+void return_float(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result,
                   std::uint32_t scratch, float value) {
     (void)call_guest(rt, ctx, kNewFloatObject, {scratch}, {value});
     hand_back(rt, ctx, result, scratch);
 }
 
-void return_bool(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+void return_bool(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result,
                  std::uint32_t scratch, std::uint32_t value) {
     (void)call_guest(rt, ctx, kNewBoolObject, {scratch, value});
     hand_back(rt, ctx, result, scratch);
 }
 
-void return_long(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result,
+void return_long(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result,
                  std::uint32_t scratch, std::uint32_t low, std::uint32_t high) {
     (void)call_guest(rt, ctx, kNewLongObject, {scratch, ctx.gpr[5], low, high});
     hand_back(rt, ctx, result, scratch);

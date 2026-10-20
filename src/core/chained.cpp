@@ -27,12 +27,12 @@ std::unordered_map<std::uint32_t, std::pair<std::int32_t, std::int32_t>> &chaine
 }
 
 // this->ptr (the member at `outer`).
-std::uint32_t pointer(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+std::uint32_t pointer(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return rt.memory().load32(ctx.gpr[4] + static_cast<std::uint32_t>(chained_table().at(ctx.pc).first));
 }
 
 // The pointee's address of the inner member: this->ptr + inner.
-std::uint32_t inner_address(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+std::uint32_t inner_address(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return pointer(rt, ctx) + static_cast<std::uint32_t>(chained_table().at(ctx.pc).second);
 }
 

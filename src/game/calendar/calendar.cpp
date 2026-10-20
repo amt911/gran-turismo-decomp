@@ -29,7 +29,7 @@ constexpr std::uint32_t kHolderCopy = 0x08A76AACu;      // (holder *out, const h
 constexpr std::uint32_t kNil = 0x08CF6ED8u;             // the global nil holder
 constexpr std::uint32_t kDateToDays = 0x08B1B2F4u;      // (year, month, day) -> day number
 
-void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
+void destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
 }
 
@@ -52,7 +52,7 @@ void return_nil(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::ui
 }
 
 // The static natives are called (result, argc, argv).
-std::int32_t argument_int(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t argv, std::uint32_t i) {
+std::int32_t argument_int(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t argv, std::uint32_t i) {
     return gt::adhoc::to_int(rt, ctx, rt.memory().load32(argv + 4u * i));
 }
 

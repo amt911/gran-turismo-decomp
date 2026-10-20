@@ -10,7 +10,7 @@ namespace gt::adhoc {
 inline constexpr std::uint32_t kHolderDestroyFunction = 0x08A5B9ECu;
 inline constexpr std::uint32_t kHolderResetFunction = 0x08A5BAD8u;
 
-inline void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
+inline void destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroyFunction, {holder});
 }
 
@@ -37,7 +37,7 @@ inline std::uint32_t self_core(psprecomp::Runtime &rt, psprecomp::AllegrexContex
 }
 
 // Argument `index` as an integer (its toInt()).
-inline std::uint32_t int_argument(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t argv, std::uint32_t index) {
+inline std::uint32_t int_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t argv, std::uint32_t index) {
     return static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(argv + 4u * index)));
 }
 

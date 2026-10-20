@@ -274,7 +274,9 @@ Expectations to confirm per function, not established facts about this binary:
 - **C++**: vtables live in `.rodata`; `.ctors` (334 entries) lists one static initializer per
   translation unit that has globals with constructors — evidence for **TU boundaries**.
 - **VFPU** (0.18 % of instructions, concentrated in `0x300000–0x3fffff`): decompiled as portable math
-  (plain C or the host's SIMD behind a helper in `include/`), never as inline VFPU.
+  (plain C or the host's SIMD behind a helper in `include/`), never as inline VFPU. **The harness compares the VFPU
+  register file** (no convention saves it; GT's graphics library passes matrices through it): a function must leave
+  the registers the original leaves, through `include/gt/vfpu.hpp` (`load_column`, …), until stage 2 retypes them.
 - **Statically linked SDK code** (libc, libstdc++, SGX) is identified first; much of it can be replaced
   by the host's own libc/libstdc++ instead of being decompiled — progress for it is reported
   separately.

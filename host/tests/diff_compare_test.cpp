@@ -61,6 +61,15 @@ int main() {
         const auto d = gt::first_difference(a, b);
         check(mentions(d, "08000010"), "first differing RAM byte is reported by guest address");
     }
+    {  // the VFPU's registers are global state: GT's graphics library loads matrices in one call for the next ones
+        auto a = base_state(), b = base_state();
+        b.vfpu_bits[37] = 0x3F800000u;
+        check(mentions(gt::first_difference(a, b, gt::ReturnKind::Void), "vfpu[37]"), "a VFPU register difference is reported");
+        auto c = base_state();
+        c.vfpu_ctrl[3] = 1u;
+        check(mentions(gt::first_difference(a, c, gt::ReturnKind::Void), "vfpu control 3"),
+              "a VFPU control register difference is reported");
+    }
     {
         auto a = base_state(), b = base_state();
         b.f0_bits = 0x3F800000u;

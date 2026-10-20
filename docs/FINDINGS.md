@@ -2065,3 +2065,23 @@ Found: 2026-10-20 · full gate of feat/pad-routes-2
 - `func_0887B2EC` is the weakest: 2 cases.
 
 Found: 2026-10-20 · decomp/hot-batch-104 (taken over from the stopped agent)
+
+## Decompiled callers dropped the VFPU state their callees left, and the harness never compared the VFPU
+
+**Symptom.** Comparing the VFPU registers in the harness (`EndState::vfpu_bits`/`vfpu_ctrl`) turned the full gate from
+0 mismatches into 258. The mismatching functions included ones with no VFPU instruction of their own: `func_08888988`
+only makes virtual calls.
+**Cause.**
+- `call_guest` ran a callee on a copy of the caller's context and handed back only v0, f0 and v1. Whatever the callee
+  left in the VFPU was lost. GT's graphics library leaves vectors and matrices there for later calls, and no calling
+  convention saves the VFPU.
+- Separately, two hand-written leaves (`func_0896418C` and `func_089641C4`, `lv.q`/`sv.q` copies) did not leave the
+  vector in C000.
+**Fix / workaround.**
+- `call_guest` copies the callee's VFPU state back to the caller (`host/tests/guest_call_test.cpp`; red, then green).
+- The two leaves load C000 through `gt::vfpu::load_column` (`include/gt/vfpu.hpp`).
+- The full gate is back to 0 mismatches. The 258 mismatches the comparison found before the fix show that it detects
+  VFPU differences end to end.
+- Decompiled code that touches the VFPU must leave the same register file while it runs next to recompiled code.
+
+Found: 2026-10-20 · feat/harness-vfpu (before batch 105, which targets the VFPU-heavy graphics library)

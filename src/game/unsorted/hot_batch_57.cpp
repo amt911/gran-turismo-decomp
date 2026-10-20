@@ -62,10 +62,10 @@ void func_08B4A6D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // d = a + b / a - b over `count` floats (d = a0, a = a1, b = a2).
-void add_components(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t count) {
+void add_components(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t count) {
     for (std::uint32_t i = 0; i < count; ++i) put_float(rt, ctx.gpr[4] + 4u * i, float_at(rt, ctx.gpr[5] + 4u * i) + float_at(rt, ctx.gpr[6] + 4u * i));
 }
-void sub_components(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t count) {
+void sub_components(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t count) {
     for (std::uint32_t i = 0; i < count; ++i) put_float(rt, ctx.gpr[4] + 4u * i, float_at(rt, ctx.gpr[5] + 4u * i) - float_at(rt, ctx.gpr[6] + 4u * i));
 }
 void func_08B4A890(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { add_components(rt, ctx, 4u); }  // v4 add

@@ -28,7 +28,7 @@ namespace {
 using guest::View;
 
 // The CarParameterData of the handle in a0.
-View<CarParameterData> data(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<CarParameterData> data(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return *View<CarParameterHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 

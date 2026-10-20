@@ -44,12 +44,12 @@ constexpr std::uint32_t kHolderReset = 0x08A5BAD8u;
 std::uint32_t word(psprecomp::Runtime &rt, std::uint32_t address) { return rt.memory().load32(address); }
 
 // The data of the operator handle in a0.
-View<RaceOperatorData> data_of(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<RaceOperatorData> data_of(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return *View<RaceOperatorHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 
 // The slot with the index in a1 (392 bytes each).
-View<RaceOperatorSlot> slot_of(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<RaceOperatorSlot> slot_of(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return View<RaceOperatorSlot>(rt.memory(), data_of(rt, ctx).unk_00() + ctx.gpr[5] * 392u);
 }
 

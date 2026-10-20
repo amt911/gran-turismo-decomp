@@ -76,7 +76,7 @@ float psp_mul(float a, float b) {
     return a * b;
 }
 
-View<UnitSystem> units_of(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<UnitSystem> units_of(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return View<UnitSystem>(rt.memory(), ctx.gpr[4]);
 }
 
@@ -272,7 +272,7 @@ namespace {
 
 View<UnitSystem> global_units(psprecomp::Runtime &rt) { return View<UnitSystem>(rt.memory(), kUnitSystemAddress); }
 
-std::uint32_t first_argument(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+std::uint32_t first_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(ctx.gpr[6])));  // argv[0]; NULL is not checked
 }
 
@@ -282,7 +282,7 @@ void return_unit(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::u
     return_integer(rt, ctx, result, frame.at(0u), value);
 }
 
-bool has_argument(const psprecomp::AllegrexContext &ctx) { return static_cast<std::int32_t>(ctx.gpr[5]) > 0; }
+bool has_argument(psprecomp::AllegrexContext &ctx) { return static_cast<std::int32_t>(ctx.gpr[5]) > 0; }
 
 } // namespace
 

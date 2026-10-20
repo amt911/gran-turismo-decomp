@@ -16,7 +16,7 @@ constexpr unsigned kArgumentRegisters[] = {4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u};
 
 } // namespace
 
-GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
+GuestResult call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &caller, std::uint32_t address,
                        std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> float_arguments) {
     psprecomp::AllegrexContext ctx = caller;
     unsigned next = 0u;
@@ -55,10 +55,15 @@ GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext 
             generation = psprecomp::runtime_thread_switch_generation();
         }
     }
+    // The callee's VFPU state reaches the caller: no calling convention saves the VFPU, and GT's graphics library
+    // leaves matrices there for later calls (a decompiled caller lost them before, unseen until the harness
+    // compared the VFPU).
+    caller.vfpu = ctx.vfpu;
+    caller.vfpu_ctrl = ctx.vfpu_ctrl;
     return GuestResult{ctx.gpr[2], ctx.fpr[0], ctx.gpr[3]};
 }
 
-std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
+std::uint32_t call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &caller, std::uint32_t address,
                          std::initializer_list<std::uint32_t> arguments) {
     return call_guest(rt, caller, address, arguments, {}).v0;
 }

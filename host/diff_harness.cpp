@@ -1,3 +1,4 @@
+#include <bit>
 #include "diff_harness.hpp"
 
 #include "fiber.hpp"
@@ -314,6 +315,8 @@ EndState end_state(const psprecomp::AllegrexContext &ctx, std::vector<std::uint8
     EndState state;
     for (unsigned r = 0; r < 32u; ++r) state.gpr[r] = ctx.gpr[r];
     state.f0_bits = ctx.fpr_bits(0);
+    for (std::size_t i = 0; i < state.vfpu_bits.size(); ++i) state.vfpu_bits[i] = std::bit_cast<std::uint32_t>(ctx.vfpu[i]);
+    state.vfpu_ctrl = ctx.vfpu_ctrl;
     state.ram = std::move(ram);
     state.ram_base = kRamBase;
     state.ignore_begin = entry_sp - kDeadStackWindow;

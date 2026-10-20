@@ -20,10 +20,10 @@ constexpr std::uint32_t kToSymbolSlot = 23u;            // symbol toSymbol(this)
 constexpr std::uint32_t kSymbolDestroy = 0x08A69D68u;
 constexpr std::uint32_t kSymbolBytes = 0x10u;
 
-void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
+void destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
 }
-void to_symbol(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object, std::uint32_t out) {
+void to_symbol(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object, std::uint32_t out) {
     (void)call_guest(rt, ctx, virtual_function(rt, object, kToSymbolSlot), {out, object});
 }
 
