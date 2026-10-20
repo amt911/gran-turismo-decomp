@@ -2540,8 +2540,8 @@ HOT97(0x089ABBB0u, func_089ABBB0, Word);
 HOT97(0x089BEF60u, func_089BEF60, Word);
 HOT97(0x089FB990u, func_089FB990, Word);
 HOT97(0x08AE0244u, func_08AE0244, Word);
-// HOT97(0x08AEB4CCu, func_08AEB4CC, Word);  // HOT97: 11 compared (88 not comparable: sceKernelWaitSema), none changed memory
-// HOT97(0x08AF0B78u, func_08AF0B78, Word);  // HOT97: waits on a semaphore (sceKernelWaitSema) or an event flag in every case: 89 not comparable, compared 0
+HOT97(0x08AEB4CCu, func_08AEB4CC, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
+HOT97(0x08AF0B78u, func_08AF0B78, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 HOT97(0x08AF1524u, func_08AF1524, Word);
 // HOT97(0x08B04D98u, func_08B04D98, Word);  // HOT97: the tail callee fills new vector elements from uninitialised stack memory (a3 = its own sp + 0x20): 11 of 11 compared cases mismatch on the stack garbage the decompiled version does not reproduce
 // HOT97(0x08B3177Cu, func_08B3177C, Word);  // HOT97: 3000 dense race cases (10,470 calls) and 94 fast-gate cases, 0 mismatches, none changed memory

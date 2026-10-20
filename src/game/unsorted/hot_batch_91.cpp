@@ -2434,8 +2434,8 @@ void func_0880602C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08A235F8(out, a1, count, args): sp[0x10..0x20] = 0 (five words); t = func_08ABC2B8(D_08CAAAC0) (0 returns 0); func_08ABC608(t, sp + 0x10) (0 returns 0). count > 0: o = args[0] (null: func_08A5BB7C(D_08CAAA48) first) with its virtual slot 0xC called with (sp + 0xC, o); r = func_08B20A54(D_08CF64CC, sp[0xC], -1); a non-negative r is stored at sp[0x10] and
 // func_08ABBE30(t, sp + 0x10) runs; the string data sp[0xC] is released (func_08B60804(data - 4, -1), func_08B8542C(data - 0xC, sp + 1) when that is not positive; nothing for the shared empty cell D_08D74FD0 + 0xC); the function ends. count <= 0: n = func_08B20968(D_08CF64CC), func_08B85EB8(sp + 4, n, sp + 2), func_08A6D2D4(sp + 8, sp + 4),
 // the holder sp + 8 is copied to `out` with func_08A5BAD8(out, sp[8]) unless it is `out`, func_08A5B9EC(sp + 8), and the data sp[4] is released (flag sp). v0 is the last call's.
-// Not compared by any case (see its HOT91 line): none of its branches was exercised, every path is read from the asm only.
-[[maybe_unused]] void func_08A235F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+// Registered in batch 103: sceSasSetEffectType (0x08C7B040) became recordable, and the cases that reach it (6 in the fast gate, count <= 0) compare equal; the count > 0 arm (the script-object call, the string release after func_08B20A54) never ran in a compared case and is read from the asm only.
+void func_08A235F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t out = ctx.gpr[4], count = ctx.gpr[6], args = ctx.gpr[7];
     GuestFrame frame(ctx, 0x50u);
     SavedRegs saved(ctx);
@@ -3330,7 +3330,7 @@ HOT91(0x08B8AD88u, func_08B8AD88, Word);
 HOT91(0x08BFBB38u, func_08BFBB38, Word);
 HOT91(0x08C287ACu, func_08C287AC, Word);
 HOT91(0x0880602Cu, func_0880602C, Word);
-// Not registered (all 6 cases stop on the import stub sceSasCore::0x33D4AB37 (not comparable), compared 0): HOT91(0x08A235F8u, func_08A235F8, Word);
+HOT91(0x08A235F8u, func_08A235F8, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 // Not registered (all 10 cases stop on 'kernel isolation (sleep would block)', compared 0): HOT91(0x08A243FCu, func_08A243FC, Word);
 HOT91(0x08A6F704u, func_08A6F704, Word);
 // Not registered (all 12 cases stop on the import stub sceIoRead (not comparable), compared 0): HOT91(0x089CA118u, func_089CA118, Word);

@@ -642,22 +642,22 @@ HOT76(0x08B70F28u, func_08B70F28, DoubleWord);
 HOT76(0x08AF432Cu, func_08AF432C, Word);
 HOT76(0x08872484u, func_08872484, Word);
 HOT76(0x08B57780u, func_08B57780, Word);
-// HOT76(0x08AEB930u, func_08AEB930, Word);  // not comparable: the imports func_08C7AA08 (104 cases)
-// HOT76(0x08AEB908u, func_08AEB908, Word);  // not comparable: import stub 0x08C7AA20 is sceKernelWaitSema (104 cases)
+HOT76(0x08AEB930u, func_08AEB930, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
+HOT76(0x08AEB908u, func_08AEB908, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 HOT76(0x08B4BA68u, func_08B4BA68, Word);
 HOT76(0x08B52E00u, func_08B52E00, Word);
 HOT76(0x08B49F3Cu, func_08B49F3C, Float);
-// HOT76(0x08B84270u, func_08B84270, Word);  // not comparable: import stub 0x08C7B068 (sceSasCore::0x68A46B95) (99 cases)
-// HOT76(0x08B83C84u, func_08B83C84, Word);  // not comparable: import stub 0x08C7B058 (sceSasCore::0x50A14DFC) (98 cases)
+HOT76(0x08B84270u, func_08B84270, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
+HOT76(0x08B83C84u, func_08B83C84, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 // HOT76(0x08B590D0u, func_08B590D0, Word);  // not comparable: import stub 0x08C7AC48 (sceGe_user::0xB287BD61) (99 cases)
 // HOT76(0x08B58E84u, func_08B58E84, Word);  // not comparable: import stub 0x08C7AC48 (sceGe_user::0xB287BD61) (99 cases)
 // HOT76(0x08B58E28u, func_08B58E28, Word);  // not comparable: import stub 0x08C7AC08 (sceDisplay::0x289D82FE) (99 cases)
 // HOT76(0x08B52D58u, func_08B52D58, Word);  // not comparable: its tail target reaches the import stub 0x08C7AC08 (sceDisplay::0x289D82FE) (99 cases)
-// HOT76(0x08AD96A0u, func_08AD96A0, Word);  // not comparable: its callee reaches imports that block (func_08AD95EC)
+HOT76(0x08AD96A0u, func_08AD96A0, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 HOT76(0x08A7BFD0u, func_08A7BFD0, Word);
 // HOT76(0x08B0C650u, func_08B0C650, Word);  // not comparable: kernel isolation (LwMutex contention) in func_08B0C43C (69 cases)
 HOT76(0x08B89124u, func_08B89124, Word);
-// HOT76(0x08B33A24u, func_08B33A24, Word);  // not comparable: import stub 0x08C7A840 is sceIoClose (49 cases)
+HOT76(0x08B33A24u, func_08B33A24, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 HOT76(0x08B55AF8u, func_08B55AF8, Word);
 HOT76(0x089CBFE4u, func_089CBFE4, Word);
 HOT76(0x089444F8u, func_089444F8, Word);
