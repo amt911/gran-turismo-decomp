@@ -2128,8 +2128,8 @@ HOT102(0x089101F0u, func_089101F0, Word);
 HOT102(0x08A92588u, func_08A92588, Word);
 HOT102(0x08B31AB4u, func_08B31AB4, Word);
 HOT102(0x0880BBF4u, func_0880BBF4, Word);
-// HOT102(0x08B35418u, func_08B35418, Word);  // HOT102: compared 0 in every run: all 5 cases not comparable (the import func_08C7A948 is not recordable)
-// HOT102(0x08AEB850u, func_08AEB850, Word);  // HOT102: compared 0 in every run: all 10 cases not comparable (the import func_08C7A998 is not recordable)
+HOT102(0x08B35418u, func_08B35418, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
+HOT102(0x08AEB850u, func_08AEB850, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
 // HOT102(0x08B2DBF0u, func_08B2DBF0, Word);  // HOT102: compared 0 in every run: all 5 cases not comparable (the import func_08C7AF70 is not recordable)
 // HOT102(0x0897BB68u, func_0897BB68, Word);  // HOT102: compared 0 in every run: all 20 cases not comparable (its callees reach sce* imports that block or switch threads)
 HOT102(0x0896264Cu, func_0896264C, Word);
@@ -2140,4 +2140,4 @@ HOT102(0x08BC6550u, func_08BC6550, Word);
 HOT102(0x08C0A8A0u, func_08C0A8A0, Word);
 // HOT102(0x0885E940u, func_0885E940, Word);  // HOT102: compared 0 in every run: its one case is not comparable (the start-up chain reaches an sce* import that blocks)
 HOT102(0x08820C0Cu, func_08820C0C, Word);
-// HOT102(0x08B7771Cu, func_08B7771C, Word);  // HOT102: compared 0 in every run: all 5 cases not comparable (the allocator reaches a partition-memory import that is not recordable)
+HOT102(0x08B7771Cu, func_08B7771C, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")

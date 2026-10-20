@@ -120,3 +120,17 @@ the end counts not-comparable cases per import, so the next NID to make recordab
   isolation; they need a scheduler-aware harness.
 - Deferring a preemption to the end of the case (would change thread interleaving in diff mode).
 - Recording pointed-to input buffers of imports.
+
+## Addendum — batch 103 (2026-10-20)
+
+The two NID lists moved out of `host/main.cpp` into `host/import_lists.hpp` (`replay_safe_nids()`,
+`recordable_nids()`), checked by `host/tests/import_lists_test.cpp` (the lists are disjoint; the imports that
+block or always switch threads are on neither; the semaphore and event-flag operations are recordable only
+because the kernel refuses the blocking ones). Added after reading each HLE (FINDINGS § "Batch 103"): semaphore
+and event-flag create / signal / wait / clear / poll, thread delete (mutex create was tried and reverted), partition-memory allocation,
+`sceKernelMaxFreeMemSize`, sub-interrupt register / enable / release, `sceIoClose` and the whole `sceSasCore`
+unit; `sceKernelPrintf` and `sceWlanGetEtherAddr` are replay-safe (a constant answer). Following the sleep and
+wakeup rule above, `gt_kernel.cpp` refuses inside a case a semaphore wait whose count is too low, a semaphore
+signal that would satisfy a waiter or let a ready thread outrank the caller, an event-flag wait whose pattern is
+not set and an event-flag set that would satisfy a waiter or let a ready thread outrank the caller; outside a case
+nothing changed.

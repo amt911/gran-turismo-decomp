@@ -3545,6 +3545,22 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             SemaphoreRecord &semaphore = it->second;
+            // In a diff-harness case a signal must not switch threads (then it is recordable): refuse it when it
+            // would satisfy a waiter, or when a ready thread outranks the caller (host/kernel_isolation.hpp).
+            if (gt::kernel_isolated()) {
+                const std::int64_t available = static_cast<std::int64_t>(semaphore.count) + amount;
+                const bool wakes_waiter = std::any_of(semaphore.waiters.begin(), semaphore.waiters.end(),
+                    [&](const SemaphoreWaiter &waiter) { return available >= waiter.requested; });
+                const auto ready = best_ready_thread();
+                const auto current = thread_table.threads.find(thread_table.current_uid);
+                const bool outranked = ready != thread_table.continuations.end() && current != thread_table.threads.end() &&
+                    current->second.state == ThreadState::Running &&
+                    thread_priority(ready->uid) < thread_priority(thread_table.current_uid);
+                if (wakes_waiter || outranked) {
+                    gt::break_kernel_isolation("semaphore signal would wake or preempt");
+                    return;
+                }
+            }
             semaphore.count += amount;
             auto waiter = semaphore.waiters.begin();
             while (waiter != semaphore.waiters.end()) {
@@ -3572,6 +3588,12 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         if (it->second.count >= amount) {
             it->second.count -= amount;
             set_success(ctx);
+            return;
+        }
+        // In a diff-harness case only a wait the count satisfies at once is allowed (no thread switch,
+        // recordable); a wait that would block is refused (host/kernel_isolation.hpp).
+        if (gt::kernel_isolated()) {
+            gt::break_kernel_isolation("semaphore wait would block");
             return;
         }
         const psprecomp::AllegrexContext suspended = make_wait_context(ctx);
@@ -3634,6 +3656,24 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 return;
             }
             EventFlagRecord &flag = it->second;
+            // In a diff-harness case a set must not switch threads (then it is recordable): refuse it when the new
+            // pattern would satisfy a waiter, or when a ready thread outranks the caller (host/kernel_isolation.hpp).
+            if (gt::kernel_isolated()) {
+                const std::uint32_t before = flag.current_pattern;
+                flag.current_pattern |= ctx.gpr[5];
+                const bool wakes_waiter = std::any_of(flag.waiters.begin(), flag.waiters.end(),
+                    [&](const EventFlagWaiter &waiter) { return event_flag_matches(flag, waiter.requested, waiter.mode); });
+                flag.current_pattern = before;
+                const auto ready = best_ready_thread();
+                const auto current = thread_table.threads.find(thread_table.current_uid);
+                const bool outranked = ready != thread_table.continuations.end() && current != thread_table.threads.end() &&
+                    current->second.state == ThreadState::Running &&
+                    thread_priority(ready->uid) < thread_priority(thread_table.current_uid);
+                if (wakes_waiter || outranked) {
+                    gt::break_kernel_isolation("event flag set would wake or preempt");
+                    return;
+                }
+            }
             flag.current_pattern |= ctx.gpr[5];
             auto waiter = flag.waiters.begin();
             while (waiter != flag.waiters.end()) {
@@ -3681,6 +3721,11 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 rt.memory().store32(ctx.gpr[7], it->second.current_pattern);
             consume_event_flag(it->second, requested, mode);
             set_success(ctx);
+            return;
+        }
+        // In a diff-harness case only a wait the pattern satisfies at once is allowed (no thread switch, recordable).
+        if (gt::kernel_isolated()) {
+            gt::break_kernel_isolation("event flag wait would block");
             return;
         }
         const psprecomp::AllegrexContext suspended = make_wait_context(ctx);

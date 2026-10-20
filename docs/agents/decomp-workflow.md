@@ -189,16 +189,18 @@ decompiled — guest function as a nested call and returns its `v0`. Rules:
   its own state in C++ and gets only `v0` back.
 - The harness still compares such functions. Every import goes through a gate in diff mode
   (`host/diff_harness.cpp`, the spec `docs/superpowers/specs/2026-10-13-import-record-replay-design.md`):
-  - **Replay-safe imports** (`kReplaySafeNids` in `host/main.cpp`: LwMutex, interrupts, data cache,
-    system time, thread priorities, memory blocks) run in both runs. Their state is guest RAM or host
+  - **Replay-safe imports** (`replay_safe_nids()` in `host/import_lists.hpp`, unit-tested by
+    `host/tests/import_lists_test.cpp`: LwMutex, interrupts, data cache, system time, thread priorities,
+    memory blocks, `sceKernelPrintf`, `sceWlanGetEtherAddr`) run in both runs. Their state is guest RAM or host
     kernel state the harness snapshots, restores and compares (`host/kernel_replay_state.hpp`).
-  - **Recordable imports** (`kRecordableNids`, with how many argument registers each reads:
-    thread create/start/wakeup/sleep/status/id, UMD, power, file open/seek, …) run once, in the
+  - **Recordable imports** (`recordable_nids()`, with the argument registers each reads: thread
+    create/delete/start/wakeup/sleep/status/id, semaphore and event-flag create/signal/wait/poll,
+    partition memory, sub-interrupts, `sceSasCore`, UMD, power, file open/close/seek, …) run once, in the
     original's run, and are recorded (registers, guest RAM, kernel state). The decompiled run must make
     the same calls with the same arguments, in order; it gets the recorded effect instead of a second
     execution. A different, missing or extra call is a mismatch: `import replay: …`.
   - Anything that would switch threads is refused inside a case (`host/kernel_isolation.hpp`, with a
-    reason: LwMutex contention, `sleep would block`, `wakeup would preempt`, `start would preempt`). The
+    reason: LwMutex contention, `sleep would block`, `wakeup would preempt`, `start would preempt`, `semaphore wait would block`, `semaphore signal would wake or preempt`, `event flag wait would block`, `event flag set would wake or preempt`). The
     call then runs live, from just before the refused import.
   - The report names the reason of the first "not comparable" case and sums the cases per blocking
     import. Extend a list when an import keeps showing up there, after reading its HLE: it must never
