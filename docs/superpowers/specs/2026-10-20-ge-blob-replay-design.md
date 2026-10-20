@@ -80,3 +80,23 @@ as the ordinary decode.
 
 Lit blobs, blobs with matrix or transfer commands, a native model format (stage 4's later part), and multithreaded
 decoding.
+
+## Revised estimate (2026-10-20, before implementation)
+
+Reading the fast path and the backend for the implementation changed the estimate.
+- **What a correct replay keeps.** It must still walk each blob's commands, since the register state has to be the
+  live one, and it must still append every vertex and index to the frame's upload buffers.
+- **Why that matters.** The 2026-10-19 streamed draws (patch 0052, not merged) already removed the per-draw backend
+  handshake, and the laptop gained 1-3 %: appending the vertices costs about as much as the handshake did.
+- **What is left to save.** The replay as designed above would remove the per-strip decode, the fast-path checks and
+  the per-call overhead. That is an estimated 10-20 % of the GE list time, not 30-45 %, below the goal.
+- **What would reach 2-3x.** No per-vertex CPU work for static blobs. Each blob's vertices go up to a GPU vertex
+  buffer once, and each frame records only small draws that reference them.
+  - The per-draw texture level, today baked into every uploaded vertex because merged draws mix levels, would move to
+    per-draw data.
+  - Batches would reference ranges of static buffers.
+  - This is a deeper backend change (several days). It needs its own design pass, and the measurements behind it should
+    be the user's own slow scenes.
+
+**Status:** on hold. On the race route in power-saver the laptop now holds 60 new images per second, with two stutters
+in 10 minutes (FINDINGS 2026-10-20). What the user still finds slow has not been located yet.
