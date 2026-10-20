@@ -64,6 +64,14 @@ bool ge_gpu_backend_stage_vertices(const GeGpuDrawDescriptor &, std::span<const 
 bool ge_gpu_backend_texture_available(const GeGpuDrawDescriptor &) noexcept { return false; }
 void ge_gpu_backend_note_guest_write(std::uint32_t, std::uint32_t) noexcept {}
 std::uint64_t ge_gpu_backend_write_clock() noexcept { return 0u; }
+bool ge_gpu_backend_static_arena_enabled() noexcept { return false; }  // GT patch 0052
+bool ge_gpu_backend_static_strip_draw(const GeGpuDrawDescriptor &, const GeGpuHardwareTransform &,
+                                      const GeGpuStaticStripKey &, std::span<const std::byte>,
+                                      std::span<const GeGpuVertex>) noexcept { return false; }
+void ge_gpu_backend_static_strip_record(const GeGpuDrawDescriptor &, const GeGpuHardwareTransform &,
+                                        const GeGpuStaticStripKey &, std::span<const std::byte>,
+                                        std::span<const GeGpuVertex>, std::span<const std::uint32_t>) noexcept {}
+GeGpuArenaStats ge_gpu_backend_take_arena_stats() noexcept { return {}; }
 void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &) noexcept {}
 bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &) noexcept { return false; }
 bool ge_gpu_backend_texture_signature_needed(const GeGpuDrawDescriptor &) noexcept { return false; }

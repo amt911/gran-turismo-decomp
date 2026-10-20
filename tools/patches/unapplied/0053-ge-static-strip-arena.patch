@@ -1,0 +1,581 @@
+GT patch 0053 (NOT applied: no gain, see FINDINGS 2026-10-20): static quad strips live in a vertex arena on the GPU (docs/superpowers/specs/
+2026-10-20-ge-static-strip-arena-design.md). A fast-path strip is keyed by vertex address, count and type; when the
+bytes it is decoded from (and the material colour, for types without vertex colour) and its texture level selection
+equal the recorded ones, its draw reuses the arena vertices recorded the first time: no decode, no vertex append, no
+vertex copy per frame. The geometry buffer starts with the arena (600,000 vertices, copied to the GPU only where new);
+a full arena is emptied at the end of a frame. GT_GE_ARENA_VERIFY=1 decodes every hit too and compares it with the
+arena copy; GT_GE_ARENA_SABOTAGE=1|2 (a moved vertex, a skipped byte compare) must be reported; GT_GE_NO_ARENA=1 turns
+it off.
+
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -399,6 +399,47 @@
+     std::span<const GeGpuVertex> vertices,
+     std::span<const std::uint32_t> triangle_indices) noexcept;
+ 
++// GT patch 0052: static quad strips live in a vertex arena on the GPU
++// (docs/superpowers/specs/2026-10-20-ge-static-strip-arena-design.md). A strip is keyed by its vertex address, vertex
++// count and vertex type; `signature` is what its vertices are decoded from (the raw guest bytes, plus the material
++// colour when the type has no vertex colour). A hit draws the recorded vertices with this draw's state and returns
++// true; with `verify_vertices` (GT_GE_ARENA_VERIFY=1) it also compares them with the recorded ones. On false the caller
++// decodes the strip and records it, which also draws it.
++struct GeGpuStaticStripKey {
++    std::uint32_t address{};
++    std::uint32_t count{};
++    std::uint32_t layout_type{};
++};
++
++[[nodiscard]] bool ge_gpu_backend_static_strip_draw(
++    const GeGpuDrawDescriptor &draw,
++    const GeGpuHardwareTransform &transform,
++    const GeGpuStaticStripKey &key,
++    std::span<const std::byte> signature,
++    std::span<const GeGpuVertex> verify_vertices) noexcept;
++
++void ge_gpu_backend_static_strip_record(
++    const GeGpuDrawDescriptor &draw,
++    const GeGpuHardwareTransform &transform,
++    const GeGpuStaticStripKey &key,
++    std::span<const std::byte> signature,
++    std::span<const GeGpuVertex> vertices,
++    std::span<const std::uint32_t> triangle_indices) noexcept;
++
++[[nodiscard]] bool ge_gpu_backend_static_arena_enabled() noexcept;
++
++// What the arena did since the last call (each call resets the counters but `vertices`).
++struct GeGpuArenaStats {
++    std::uint64_t hits{};
++    std::uint64_t records{};
++    std::uint64_t lod_misses{};
++    std::uint64_t resets{};
++    std::uint64_t verified{};
++    std::uint64_t mismatches{};
++    std::uint64_t vertices{};
++};
++GeGpuArenaStats ge_gpu_backend_take_arena_stats() noexcept;
++
+ [[nodiscard]] bool ge_gpu_backend_accumulate_hardware_packed_0115(
+     const GeGpuDrawDescriptor &draw,
+     const GeGpuHardwareTransform &transform,
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -56,6 +56,13 @@
+ };
+ static_assert(sizeof(UploadVertex) == 40u);
+ 
++// GT patch 0052: the geometry buffer starts with the static-strip arena (vertices kept across frames, copied once);
++// the frame's vertices and indices follow it. A frame batch's vertex offset includes the arena's size.
++constexpr std::uint32_t kArenaVertices = 600000u;
++constexpr std::size_t kArenaBytes = static_cast<std::size_t>(kArenaVertices) * sizeof(UploadVertex);
++constexpr std::size_t kFrameGeometryCapacity = kGeometryUploadCapacity - kArenaBytes;
++static_assert(kArenaBytes % 4u == 0u && kArenaBytes < kGeometryUploadCapacity / 2u);
++
+ struct DrawUniforms {
+     float row0[4]{};
+     float row1[4]{};
+@@ -104,6 +111,22 @@
+     // every one is an affine (q = 1) coordinate.
+     bool uv_box_valid{};
+     float uv_box[4]{};
++    bool arena{};  // GT patch 0052: first_vertex indexes the static-strip arena, not the frame's vertices
++};
++
++// GT patch 0052: one recorded static strip: its arena vertices, the strip-to-list indices, what it was decoded from and
++// the level selection its vertices carry; the texture-coordinate range is kept for the last UV transform it was drawn
++// with.
++struct ArenaStrip {
++    std::uint32_t first{};
++    std::uint32_t count{};
++    float lod{};
++    std::vector<std::byte> signature;
++    std::vector<std::uint32_t> indices;
++    bool box_known{};
++    float box_transform[4]{};
++    bool box_valid{};
++    float box[4]{};
+ };
+ 
+ struct GpuImage {
+@@ -207,6 +230,13 @@
+     std::vector<UploadVertex> vertices;
+     std::vector<std::uint32_t> indices;
+     std::vector<Batch> batches;
++    // GT patch 0052: the static-strip arena. arena_uploaded vertices are already in the geometry buffer; a full arena
++    // is emptied at the end of the frame (its batches reference it until then).
++    std::vector<UploadVertex> arena;
++    std::size_t arena_uploaded{};
++    bool arena_reset_pending{};
++    std::unordered_map<std::uint64_t, ArenaStrip> arena_strips;
++    GeGpuArenaStats arena_stats{};
+     std::vector<std::byte> frame_rgba;
+     std::uint32_t uniform_align{kUniformAlign};
+     std::uint32_t target_width{kReferenceWidth};
+@@ -868,6 +898,17 @@
+     float box[4]{};
+ };
+ 
++// A draw's range joins its batch's: an invalid range on either side leaves the batch's invalid.
++void merge_uv_box(Batch &into, const UvBox &box) noexcept {
++    if (!into.uv_box_valid || !box.valid) {
++        into.uv_box_valid = false;
++        into.uv_box[0] = -1.0e30f;
++        return;
++    }
++    extend_uv_box(into, box.box[0], box.box[1], 1.0f);
++    extend_uv_box(into, box.box[2], box.box[3], 1.0f);
++}
++
+ // GT patch 0051: whether two descriptors are equal but for the fields a batch merge lets differ (the vertex count and
+ // the texture level selection, which the vertices carry), without copying 352 bytes first. Padding is zero in every
+ // descriptor (patch 0046), so the byte compare is the one the copy-and-memcmp made.
+@@ -1135,8 +1176,9 @@
+         const std::size_t index = batch.indexed
+             ? static_cast<std::size_t>(batch.first_vertex) + s.indices[batch.first_index + i]
+             : static_cast<std::size_t>(batch.first_vertex) + i;
+-        if (index >= s.vertices.size()) return false;
+-        const UploadVertex &v = s.vertices[index];
++        const std::vector<UploadVertex> &source = batch.arena ? s.arena : s.vertices;  // GT patch 0052
++        if (index >= source.size()) return false;
++        const UploadVertex &v = source[index];
+         if (v.w != 1.0f) return false;
+         if (i == 0u) {
+             rgba = v.rgba;
+@@ -1164,7 +1206,7 @@
+             const std::size_t index = batch.indexed
+                 ? static_cast<std::size_t>(batch.first_vertex) + s.indices[batch.first_index + i]
+                 : static_cast<std::size_t>(batch.first_vertex) + i;
+-            const UploadVertex &v = s.vertices[index];
++            const UploadVertex &v = (batch.arena ? s.arena : s.vertices)[index];
+             const unsigned corner = (v.x == xs[1] ? 1u : 0u) | (v.y == ys[1] ? 2u : 0u);
+             if ((used_by[t] >> corner) & 1u) return false;  // a repeated corner: a degenerate triangle
+             used_by[t] |= 1u << corner;
+@@ -3195,6 +3237,7 @@
+     s.report.transfer_buffer_created = true;
+     s.report.transfer_memory_mapped = true;
+     s.report.upload_capacity_bytes = geometry_size;
++    s.arena_uploaded = 0u;  // GT patch 0052: a new geometry buffer holds none of the arena
+     s.report.offscreen_width = crop_width(s);   // GT patch 0022: the shown crop
+     s.report.offscreen_height = crop_height(s);
+     s.report.memory_type_index = 0u;
+@@ -3322,6 +3365,9 @@
+     s.indices.clear();
+     s.batches.clear();
+     s.frame_rgba.clear();
++    s.arena.clear();  // GT patch 0052
++    s.arena_strips.clear();
++    s.arena_uploaded = 0u;
+ }
+ 
+ bool ge_gpu_backend_active() noexcept { return state().enabled; }
+@@ -3720,7 +3766,7 @@
+                               static_cast<int>(x1), static_cast<int>(y1), draw.through}];
+     }
+     const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
+-    if (used + triangle_vertices.size() * sizeof(UploadVertex) > kGeometryUploadCapacity) {
++    if (used + triangle_vertices.size() * sizeof(UploadVertex) > kFrameGeometryCapacity) {
+         ++s.report.game_vertex_overflows;
+         return;
+     }
+@@ -3768,7 +3814,7 @@
+     const std::size_t append = indexed ? vertices.size() : emitted;
+     const std::size_t extra_indices = indexed ? triangle_indices.size() : 0u;
+     const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
+-    if (used + append * sizeof(UploadVertex) + extra_indices * sizeof(std::uint32_t) > kGeometryUploadCapacity) {
++    if (used + append * sizeof(UploadVertex) + extra_indices * sizeof(std::uint32_t) > kFrameGeometryCapacity) {
+         ++s.report.game_vertex_overflows;
+         return;
+     }
+@@ -3802,15 +3848,7 @@
+             extend_uv_box(box.valid, box.box, source.u * transform.uv_scale_u + transform.uv_offset_u,
+                           source.v * transform.uv_scale_v + transform.uv_offset_v, source.q);
+     }
+-    const auto merge_box = [&box](Batch &into) {
+-        if (!into.uv_box_valid || !box.valid) {
+-            into.uv_box_valid = false;
+-            into.uv_box[0] = -1.0e30f;
+-            return;
+-        }
+-        extend_uv_box(into, box.box[0], box.box[1], 1.0f);
+-        extend_uv_box(into, box.box[2], box.box[3], 1.0f);
+-    };
++    const auto merge_box = [&box](Batch &into) { merge_uv_box(into, box); };
+     // GT patch 0036: GT sends ~10,000 small draws a frame, runs of them with the same state (an object's parts).
+     // A triangle list with the same descriptor and transform as the batch before joins it: one draw of both lists
+     // in order covers the same pixels in the same order, and every per-draw cost (batch, state, uniforms,
+@@ -3823,7 +3861,8 @@
+         constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
+         // GT patch 0039: nor the level selection, which the vertices carry; the texture keys are equal then too.
+         const auto same_draw = [&]() { return same_draw_but_per_draw_fields(last.draw, draw); };
+-        if (!feedback && last.hardware_transform && !last.framebuffer_feedback && last.transform.primitive == 3u &&
++        if (!feedback && !last.arena && last.hardware_transform && !last.framebuffer_feedback &&
++            last.transform.primitive == 3u &&
+             last.indexed == indexed && std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
+             same_draw()) {
+             if (indexed && last.first_index + last.index_count == first_index) {
+@@ -3875,6 +3914,199 @@
+     else if (draw.texture_enabled) s.report.game_textured_draws_without_texture += logical;
+ }
+ 
++// GT patch 0052: the static-strip arena (docs/superpowers/specs/2026-10-20-ge-static-strip-arena-design.md).
++namespace {
++
++// GT_GE_ARENA_SABOTAGE=1 moves the first vertex of every recorded strip, =2 skips the signature compare: the verify
++// mode must report both (a check that never failed proves nothing).
++int arena_sabotage() noexcept {
++    static const int mode = [] { const char *v = std::getenv("GT_GE_ARENA_SABOTAGE"); return v ? std::atoi(v) : 0; }();
++    return mode;
++}
++
++std::uint64_t arena_key(const GeGpuStaticStripKey &key) noexcept {
++    return (static_cast<std::uint64_t>(key.address) << 32u) | (static_cast<std::uint64_t>(key.layout_type & 0xFFFFFFu) << 8u) |
++           (key.count & 0xFFu);
++}
++
++// The draw of a recorded strip, with the batch rule of ge_gpu_backend_accumulate_hardware_triangles: it joins the batch
++// before when that one is an arena batch with the same descriptor (but the per-draw fields) and transform and none of
++// the two samples a render target; its indices are then shifted to the batch's first vertex, which must not lie
++// after the strip's (the draw's vertex offset is the batch's).
++void draw_arena_strip(VulkanState &s, const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                      ArenaStrip &strip) noexcept {
++    const std::size_t used = s.vertices.size() * sizeof(UploadVertex) + s.indices.size() * sizeof(std::uint32_t);
++    if (used + strip.indices.size() * sizeof(std::uint32_t) > kFrameGeometryCapacity) {
++        ++s.report.game_vertex_overflows;
++        return;
++    }
++    const std::uint32_t first_index = static_cast<std::uint32_t>(s.indices.size());
++    const bool sampled_target = draw.texture_enabled && texture_target(s, draw.texture_address) != nullptr;
++    UvBox box{};
++    if (draw.texture_enabled && !sampled_target) {
++        const float key[4] = {transform.uv_scale_u, transform.uv_offset_u, transform.uv_scale_v, transform.uv_offset_v};
++        if (!strip.box_known || std::memcmp(strip.box_transform, key, sizeof key) != 0) {
++            strip.box_valid = false;
++            float range[4]{};
++            for (std::uint32_t i = 0u; i < strip.count; ++i) {
++                const UploadVertex &v = s.arena[strip.first + i];
++                extend_uv_box(strip.box_valid, range, v.u * transform.uv_scale_u + transform.uv_offset_u,
++                              v.v * transform.uv_scale_v + transform.uv_offset_v, v.q);
++            }
++            std::copy(std::begin(range), std::end(range), std::begin(strip.box));
++            std::memcpy(strip.box_transform, key, sizeof key);
++            strip.box_known = true;
++        }
++        box.valid = strip.box_valid;
++        std::copy(std::begin(strip.box), std::end(strip.box), std::begin(box.box));
++    }
++    const std::uint32_t logical = std::max<std::uint32_t>(1u, transform.logical_prim_batches);
++    const std::size_t emitted = strip.indices.size();
++    if (transform.primitive == 3u && !s.batches.empty()) {
++        Batch &last = s.batches.back();
++        constexpr std::size_t kTransformCompared = offsetof(GeGpuHardwareTransform, logical_prim_batches);
++        if (!sampled_target && last.arena && last.hardware_transform && !last.framebuffer_feedback &&
++            last.transform.primitive == 3u && last.indexed && last.first_index + last.index_count == first_index &&
++            strip.first >= last.first_vertex && std::memcmp(&last.transform, &transform, kTransformCompared) == 0 &&
++            same_draw_but_per_draw_fields(last.draw, draw)) {
++            const std::uint32_t shift = strip.first - last.first_vertex;
++            s.indices.resize(first_index + emitted);
++            for (std::size_t i = 0u; i < emitted; ++i) s.indices[first_index + i] = strip.indices[i] + shift;
++            last.vertex_count = std::max(last.vertex_count, shift + strip.count);
++            last.index_count += static_cast<std::uint32_t>(emitted);
++            last.logical_draw_count += logical;
++            merge_uv_box(last, box);
++            s.report.game_draw_calls += logical;
++            s.report.game_triangles += emitted / 3u;
++            s.report.game_vertices += emitted;
++            return;
++        }
++    }
++    s.indices.insert(s.indices.end(), strip.indices.begin(), strip.indices.end());
++    Batch batch{};
++    batch.draw = draw;
++    batch.first_vertex = strip.first;
++    batch.vertex_count = strip.count;
++    batch.first_index = first_index;
++    batch.index_count = static_cast<std::uint32_t>(emitted);
++    batch.indexed = true;
++    batch.logical_draw_count = logical;
++    batch.hardware_transform = true;
++    batch.transform = transform;
++    batch.uv_box_valid = box.valid;
++    std::copy(std::begin(box.box), std::end(box.box), std::begin(batch.uv_box));
++    batch.feedback_address = draw.texture_address & 0x001FFFF0u;
++    batch.framebuffer_feedback = sampled_target;
++    batch.arena = true;
++    s.batches.push_back(batch);
++    s.report.game_draw_calls += logical;
++    s.report.game_triangles += transform.primitive == 4u
++        ? (emitted > 2u ? emitted - 2u : 0u) : emitted / 3u;
++    s.report.game_vertices += emitted;
++    s.report.hw_transform_draw_calls += logical;
++    s.report.hw_transform_vertices += strip.count;
++    const bool sampled = draw.texture_enabled && ge_gpu_backend_texture_available(draw);
++    if (draw.texture_enabled && sampled) s.report.textured_game_draw_calls += logical;
++    else if (draw.texture_enabled) s.report.game_textured_draws_without_texture += logical;
++}
++
++// The end of a frame's recording: no batch references the arena any more, so a full one can be emptied (its GPU copy
++// is rewritten from the start at the next frame's upload, after that frame's fence wait).
++void end_arena_frame(VulkanState &s) noexcept {
++    if (!s.arena_reset_pending) return;
++    s.arena.clear();
++    s.arena_strips.clear();
++    s.arena_uploaded = 0u;
++    s.arena_reset_pending = false;
++    ++s.arena_stats.resets;
++}
++
++}  // namespace
++
++bool ge_gpu_backend_static_arena_enabled() noexcept {
++    static const bool enabled = std::getenv("GT_GE_NO_ARENA") == nullptr;
++    return enabled;
++}
++
++bool ge_gpu_backend_static_strip_draw(const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                                      const GeGpuStaticStripKey &key, std::span<const std::byte> signature,
++                                      std::span<const GeGpuVertex> verify_vertices) noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    if (!s.enabled) return false;
++    const auto found = s.arena_strips.find(arena_key(key));
++    if (found == s.arena_strips.end()) return false;
++    ArenaStrip &strip = found->second;
++    if (arena_sabotage() != 2 && (strip.signature.size() != signature.size() ||
++                                  std::memcmp(strip.signature.data(), signature.data(), signature.size()) != 0))
++        return false;
++    const float lod = vertex_lod(s, draw);
++    if (std::memcmp(&lod, &strip.lod, sizeof lod) != 0) {
++        ++s.arena_stats.lod_misses;
++        return false;
++    }
++    if (!verify_vertices.empty()) {
++        ++s.arena_stats.verified;
++        bool same = verify_vertices.size() == strip.count;
++        for (std::uint32_t i = 0u; same && i < strip.count; ++i) {
++            UploadVertex fresh = make_upload_vertex(verify_vertices[i]);
++            fresh.lod = lod;
++            same = std::memcmp(&fresh, &s.arena[strip.first + i], sizeof fresh) == 0;
++        }
++        if (!same && s.arena_stats.mismatches++ < 8u)
++            std::fprintf(stderr, "[arena-verify] strip %08X x%u (type %06X) differs from its arena copy\n",
++                         key.address, key.count, key.layout_type);
++    }
++    draw_arena_strip(s, draw, transform, strip);
++    ++s.arena_stats.hits;
++    return true;
++}
++
++void ge_gpu_backend_static_strip_record(const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
++                                        const GeGpuStaticStripKey &key, std::span<const std::byte> signature,
++                                        std::span<const GeGpuVertex> vertices,
++                                        std::span<const std::uint32_t> triangle_indices) noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    if (!s.enabled) return;
++    bool recordable = !vertices.empty() && vertices.size() <= 0xFFu && key.count == vertices.size() &&
++                      transform.primitive == 3u && triangle_indices.size() >= 3u && triangle_indices.size() % 3u == 0u;
++    for (std::uint32_t index : triangle_indices) recordable = recordable && index < vertices.size();
++    if (recordable && (s.arena_reset_pending || s.arena.size() + vertices.size() > kArenaVertices)) {
++        s.arena_reset_pending = true;  // full: emptied when this frame ends, the strips drawn the ordinary way till then
++        recordable = false;
++    }
++    if (!recordable) {
++        ge_gpu_backend_accumulate_hardware_triangles(draw, transform, vertices, triangle_indices);
++        return;
++    }
++    ArenaStrip strip;
++    strip.first = static_cast<std::uint32_t>(s.arena.size());
++    strip.count = static_cast<std::uint32_t>(vertices.size());
++    strip.lod = vertex_lod(s, draw);
++    strip.signature.assign(signature.begin(), signature.end());
++    strip.indices.assign(triangle_indices.begin(), triangle_indices.end());
++    s.arena.resize(strip.first + strip.count);
++    for (std::uint32_t i = 0u; i < strip.count; ++i) {
++        UploadVertex vertex = make_upload_vertex(vertices[i]);
++        vertex.lod = strip.lod;
++        s.arena[strip.first + i] = vertex;
++    }
++    if (arena_sabotage() == 1) s.arena[strip.first].x += 1.0f;
++    ++s.arena_stats.records;
++    ArenaStrip &kept = s.arena_strips[arena_key(key)] = std::move(strip);  // a changed strip gets new arena vertices
++    draw_arena_strip(s, draw, transform, kept);
++}
++
++GeGpuArenaStats ge_gpu_backend_take_arena_stats() noexcept {
++    VulkanState &s = state();
++    std::lock_guard<std::recursive_mutex> guard(s.mutex);
++    GeGpuArenaStats stats = s.arena_stats;
++    stats.vertices = s.arena.size();
++    s.arena_stats = GeGpuArenaStats{};
++    return stats;
++}
++
+ bool ge_gpu_backend_accumulate_hardware_packed_0115(
+     const GeGpuDrawDescriptor &draw, const GeGpuHardwareTransform &transform,
+     std::span<const std::byte> packed_vertices, std::uint32_t vertex_count,
+@@ -4052,6 +4284,7 @@
+         s.vertices.clear();
+         s.indices.clear();
+         s.batches.clear();
++        end_arena_frame(s);
+         ++s.frame_epoch;
+         return shown();
+     }
+@@ -4061,6 +4294,7 @@
+         s.vertices.clear();
+         s.indices.clear();
+         s.batches.clear();
++        end_arena_frame(s);
+         ++s.frame_epoch;
+         return false;
+     }
+@@ -4068,6 +4302,7 @@
+         s.vertices.clear();
+         s.indices.clear();
+         s.batches.clear();
++        end_arena_frame(s);
+         ++s.frame_epoch;
+         return shown();
+     }
+@@ -4077,20 +4312,27 @@
+     std::string error;
+     const std::size_t vertex_bytes = s.vertices.size() * sizeof(UploadVertex);
+     const std::size_t index_bytes = s.indices.size() * sizeof(std::uint32_t);
+-    if (vertex_bytes + index_bytes > kGeometryUploadCapacity) {
++    if (vertex_bytes + index_bytes > kFrameGeometryCapacity) {
+         log_frame_failure(s, "geometry upload overflow", VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         ++s.report.game_vertex_overflows;
+         s.vertices.clear();
+         s.indices.clear();
+         s.batches.clear();
++        end_arena_frame(s);
+         ++s.frame_epoch;
+         return shown();
+     }
+     if (s.geometry_mapped != nullptr) {
++        auto *geometry = static_cast<std::byte *>(s.geometry_mapped);
++        if (s.arena_uploaded < s.arena.size()) {  // GT patch 0052: only the strips recorded since the last frame
++            std::memcpy(geometry + s.arena_uploaded * sizeof(UploadVertex), s.arena.data() + s.arena_uploaded,
++                        (s.arena.size() - s.arena_uploaded) * sizeof(UploadVertex));
++            s.arena_uploaded = s.arena.size();
++        }
+         if (!s.vertices.empty())
+-            std::memcpy(s.geometry_mapped, s.vertices.data(), vertex_bytes);
++            std::memcpy(geometry + kArenaBytes, s.vertices.data(), vertex_bytes);
+         if (!s.indices.empty())
+-            std::memcpy(static_cast<std::byte *>(s.geometry_mapped) + vertex_bytes, s.indices.data(), index_bytes);
++            std::memcpy(geometry + kArenaBytes + vertex_bytes, s.indices.data(), index_bytes);
+     }
+     VkCommandBufferBeginInfo begin{};
+     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+@@ -4115,6 +4357,7 @@
+         s.vertices.clear();
+         s.indices.clear();
+         s.batches.clear();
++        end_arena_frame(s);
+         return shown();
+     }
+     VkMemoryBarrier host{};
+@@ -4174,7 +4417,7 @@
+             geometry_bound = true;
+         }
+         if (batch.indexed && !indices_bound) {
+-            vkCmdBindIndexBuffer(s.command, s.geometry, vertex_bytes, VK_INDEX_TYPE_UINT32);
++            vkCmdBindIndexBuffer(s.command, s.geometry, kArenaBytes + vertex_bytes, VK_INDEX_TYPE_UINT32);
+             indices_bound = true;
+         }
+         const auto scale = [&](std::int32_t value, std::uint32_t logical, std::uint32_t target_size) {
+@@ -4283,10 +4526,11 @@
+                                    (batch.draw.depth_write_enabled ? 16u : 0u) | (batch.draw.alpha_test_enabled ? 32u : 0u) |
+                                    (batch.draw.clear_mode ? 64u : 0u));
+         }
++        const std::uint32_t vertex_offset = batch.first_vertex + (batch.arena ? 0u : kArenaVertices);  // GT patch 0052
+         if (batch.indexed)
+-            vkCmdDrawIndexed(s.command, batch.index_count, 1u, batch.first_index, static_cast<std::int32_t>(batch.first_vertex), 0u);
++            vkCmdDrawIndexed(s.command, batch.index_count, 1u, batch.first_index, static_cast<std::int32_t>(vertex_offset), 0u);
+         else
+-            vkCmdDraw(s.command, batch.vertex_count, 1u, batch.first_vertex, 0u);
++            vkCmdDraw(s.command, batch.vertex_count, 1u, vertex_offset, 0u);
+         if (count_draw) vkCmdEndQuery(s.command, s.draw_statistics, static_cast<std::uint32_t>(s.draw_kinds.size() - 1u));
+         ++executed;
+         if (batch.draw.depth_test_enabled) s.report.depth_tested_game_draw_calls += batch.logical_draw_count;
+@@ -4471,6 +4715,7 @@
+     s.vertices.clear();
+     s.indices.clear();
+     s.batches.clear();
++    end_arena_frame(s);
+     s.current_target = nullptr;
+     ++s.frame_epoch;
+     return presented_now || show;
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4250,10 +4250,9 @@
+ 
+ // The inputs of the backend call for a fast draw: the cached descriptor and transform with this draw's per-draw fields,
+ // the vertices decoded from `raw` and the strip's triangle indices (as hw_job_prepare emits them).
+-void fast_strip_inputs(const FastStripCache &cache, const std::array<std::uint32_t, 256> &commands,
+-                       const VertexLayout &layout, const std::uint8_t *raw, std::uint32_t count,
+-                       GeGpuDrawDescriptor &draw, GeGpuHardwareTransform &hw,
+-                       std::vector<GeGpuVertex> &vertices, std::vector<std::uint32_t> &indices) {
++// GT patch 0052: the descriptor and transform part alone (a static-strip arena hit needs no vertices).
++void fast_strip_state(const FastStripCache &cache, const std::array<std::uint32_t, 256> &commands, std::uint32_t count,
++                      GeGpuDrawDescriptor &draw, GeGpuHardwareTransform &hw) {
+     std::memcpy(static_cast<void *>(&draw), &cache.draw, sizeof draw);
+     const std::uint32_t texture_level = data24(commands[0xC8u]);
+     draw.texture_level_mode = texture_level & 3u;
+@@ -4264,6 +4263,13 @@
+     hw.unique_vertices_decoded = count;
+     hw.index_reuses = 0u;
+     hw.primitive = 3u;  // the strip goes as a triangle list, as hw_job_commit sends it
++}
++
++void fast_strip_inputs(const FastStripCache &cache, const std::array<std::uint32_t, 256> &commands,
++                       const VertexLayout &layout, const std::uint8_t *raw, std::uint32_t count,
++                       GeGpuDrawDescriptor &draw, GeGpuHardwareTransform &hw,
++                       std::vector<GeGpuVertex> &vertices, std::vector<std::uint32_t> &indices) {
++    fast_strip_state(cache, commands, count, draw, hw);
+     vertices.resize(count);
+     for (std::uint32_t i = 0u; i < count; ++i) {
+         const std::uint8_t *vertex_bytes = raw + static_cast<std::size_t>(i) * layout.stride;
+@@ -4313,6 +4319,12 @@
+     }
+ }
+ 
++// GT patch 0052: GT_GE_ARENA_VERIFY=1 decodes every static-strip arena hit too and compares it with the arena's copy.
++bool arena_verify_enabled() noexcept {
++    static const bool enabled = std::getenv("GT_GE_ARENA_VERIFY") != nullptr;
++    return enabled;
++}
++
+ bool same_upload_vertex(const GeGpuVertex &a, const GeGpuVertex &b) noexcept {  // the fields UploadVertex keeps
+     return std::memcmp(&a.x, &b.x, sizeof(float)) == 0 && std::memcmp(&a.y, &b.y, sizeof(float)) == 0 &&
+            std::memcmp(&a.z, &b.z, sizeof(float)) == 0 && std::memcmp(&a.w, &b.w, sizeof(float)) == 0 &&
+@@ -4509,6 +4521,29 @@
+             static thread_local std::vector<std::uint32_t> fast_indices;
+             GeGpuDrawDescriptor draw;
+             GeGpuHardwareTransform hw;
++            if (count <= 0xFFu && ge_gpu_backend_static_arena_enabled()) {
++                // GT patch 0052: the strip's vertices come from what it is decoded from, the raw bytes and (for a
++                // type without vertex colour) the material colour; an arena copy decoded from the same is reused.
++                static thread_local std::vector<std::byte> signature;
++                const std::size_t raw_bytes = static_cast<std::size_t>(count) * layout.stride;
++                const bool material = layout.color_type < 4u;
++                signature.resize(raw_bytes + (material ? sizeof(Color) : 0u));
++                std::memcpy(signature.data(), raw, raw_bytes);
++                if (material) std::memcpy(signature.data() + raw_bytes, &fast.material, sizeof(Color));
++                const GeGpuStaticStripKey key{vertex_address, count, layout.type};
++                const bool verify = arena_verify_enabled();
++                if (verify) fast_strip_inputs(fast, commands, layout, raw, count, draw, hw, fast_vertices, fast_indices);
++                else fast_strip_state(fast, commands, count, draw, hw);
++                if (!ge_gpu_backend_static_strip_draw(draw, hw, key, signature,
++                                                      verify ? std::span<const GeGpuVertex>(fast_vertices)
++                                                             : std::span<const GeGpuVertex>())) {
++                    if (!verify) fast_strip_inputs(fast, commands, layout, raw, count, draw, hw, fast_vertices, fast_indices);
++                    ge_gpu_backend_static_strip_record(draw, hw, key, signature, fast_vertices, fast_indices);
++                }
++                g_fastpath_draws.fetch_add(1u, std::memory_order_relaxed);
++                stats.next_vertex_address = vertex_address + count * layout.stride;
++                return true;
++            }
+             fast_strip_inputs(fast, commands, layout, raw, count, draw, hw, fast_vertices, fast_indices);
+             ge_gpu_backend_accumulate_hardware_triangles(draw, hw, fast_vertices, fast_indices);
+             g_fastpath_draws.fetch_add(1u, std::memory_order_relaxed);

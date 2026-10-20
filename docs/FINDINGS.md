@@ -1969,3 +1969,20 @@ Found: 2026-10-20 · research run over `gt_native` race route (run logs kept out
 **Fix.** The two NID lists moved from `main()` into `host/import_lists.hpp` and are checked by `host/tests/import_lists_test.cpp` (CTest `import_lists`; seen failing with `DelayThread` added). Result: 13 parked functions re-registered with their original code (`func_08B35418`, `func_08AEB850`, `func_08B7771C`, `func_08AEB908`, `func_08AEB930`, `func_08B84270`, `func_08B83C84`, `func_08AD96A0`, `func_08B33A24`, `func_08B59A24`, `func_08A235F8`, `func_08AEB4CC`, `func_08AF0B78`), each compared in the fast gate with 0 mismatches and its sabotage pinned. `func_08B34B2C` (a recursive-lock entry written in this batch) stays out: in 101 of 101 cases the caller owns the lock and the thread sleeps. Two further lessons: the sabotage tool inserts its bump after a `void func_X(` line, so a `[[maybe_unused]]` prefix hid `func_08A235F8` from it (0 of 1 pinned until the attribute went), and a function whose only cases are the first calls of a one-off initialiser is pinned only when installed alone.
 
 Found: 2026-10-20 · host/import_lists.hpp, host/gt_kernel.cpp, host/tests/import_lists_test.cpp, src/game/unsorted/hot_batch_103.cpp
+
+## Keeping GT's static strips on the GPU did not make the GE thread faster: its cost is not vertex work
+
+**Symptom.** The blob census showed 97 % of race PRIMs replaying static models, which suggested that decoding and
+appending ~74k vertices a frame was the GE thread's big cost. A vertex arena removed that work: each strip is decoded
+once and drawn from GPU memory afterwards (patch 0053, ~99.9 % hits, 0 mismatches under `GT_GE_ARENA_VERIFY`, both
+sabotages caught). The laptop in power-saver still spent 660 ns per draw, and the arena build was 3-5 % slower in
+later windows.
+**Cause.** Validating a hit costs a hash lookup over ~30k strips and a compare with a signature on the heap. Those are
+random cache misses (12 % of profile samples), and they cost more than decoding bytes that are already in cache.
+**Fix / lesson.** Not merged: spec `2026-10-20-ge-static-strip-arena-design.md` (result section), branch
+`perf/ge-static-arena`. This is the second per-draw GE optimisation that measured flat (after the streamed draws of
+2026-10-19). Do not start a third without a profile of the target machine that shows the cost it removes. On the GE
+thread, a cache that is checked per draw must cost less than a sequential decode. The laptop already holds 60 new
+images/s on the race route in power-saver.
+
+Found: 2026-10-20 · laptop A/B over SSH (binaries from /tmp) and gperftools profile on the desktop

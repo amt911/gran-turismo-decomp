@@ -1923,6 +1923,16 @@ void perf_log_tick() {
             std::fprintf(stderr, "[perf]   fast path: %.0f draws/s, verify: %llu draws, %llu mismatches\n",
                          static_cast<double>(fast) / seconds, static_cast<unsigned long long>(verified),
                          static_cast<unsigned long long>(mismatches));
+        // GT patch 0052: static strips drawn from the GPU arena (GT_GE_ARENA_VERIFY=1 compares each hit)
+        const GeGpuArenaStats arena = ge_gpu_backend_take_arena_stats();
+        if (arena.hits != 0u || arena.records != 0u)
+            std::fprintf(stderr, "[perf]   arena: %.0f hits/s, %.0f records/s, %llu level misses, %llu resets, "
+                                 "%llu vertices, verify: %llu draws, %llu mismatches\n",
+                         static_cast<double>(arena.hits) / seconds, static_cast<double>(arena.records) / seconds,
+                         static_cast<unsigned long long>(arena.lod_misses),
+                         static_cast<unsigned long long>(arena.resets), static_cast<unsigned long long>(arena.vertices),
+                         static_cast<unsigned long long>(arena.verified),
+                         static_cast<unsigned long long>(arena.mismatches));
     }
     if (perf_vblank_lag.waits != 0u)  // how late the guest thread reached each vblank (first waits only)
         std::fprintf(stderr, "[perf]   vblank lag: %llu first waits, late > 1 ms %llu, > 4 ms %llu, > 8 ms %llu, max %.1f ms\n",
