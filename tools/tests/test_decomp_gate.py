@@ -106,9 +106,18 @@ def test_route_commands_are_capped_and_parallel():
     command = gate.route_shell(Path("build/gt_native"), "fast", "t1", Path("recomp/analysis"))
     assert all(route in command for route in ("race", "dealer", "garage", "buy", "options")) and "wait" in command
     assert "--max-seconds 200" in command and "--decomp diff" in command
+    assert "options.pad" in command and "--max-seconds 230" in command and "GT_PAD_EXIT_AFTER" not in command
+
+
+def test_full_routes_end_after_their_script_not_on_the_wall_clock():
+    """A loaded machine runs the 11 parallel routes slower than real time: a wall-clock end cut their scripts short.
+    A full route ends a tail of vblanks after its script is done (the race keeps its 600 s of racing as a tail); the
+    wall clock, twice the route's length, is only a safety cap below the timeout."""
     full = gate.route_shell(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
-    assert "--max-seconds 600" in full and "--max-seconds 310" in full
-    assert "options.pad" in command and "--max-seconds 230" in command and "--max-seconds 420" in full
+    race = next(part for part in full.split(") &") if "race.pad" in part)
+    buy = next(part for part in full.split(") &") if "buy.pad" in part)
+    assert "GT_PAD_EXIT_AFTER=23400" in race and "--max-seconds 1200" in race and "timeout 1320" in race
+    assert "GT_PAD_EXIT_AFTER=600" in buy and "--max-seconds 440" in buy and "timeout 560" in buy
 
 
 def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():

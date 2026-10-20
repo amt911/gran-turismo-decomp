@@ -40,6 +40,11 @@ ROUTES = {
              ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
              ("circuit", 335), ("challenge2", 300)),
 }
+# A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the
+# 11 parallel routes run slower than real time on a loaded machine and a wall-clock end cut their scripts short. The
+# race's script ends at the start of the race; its tail is the rest of its 600 s of racing.
+DEFAULT_TAIL = 600
+FULL_TAIL = {"race": 23400}
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
 SLICE = "gt-heavy.slice"
@@ -278,6 +283,12 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     parts = []
     for route, seconds in ROUTES[kind]:
         log = logs / f"gt_diff_{tag}_{route}"
+        if kind == "full":  # ends a tail after the script is done; the wall clock is only a cap (FULL_TAIL)
+            tail = FULL_TAIL.get(route, DEFAULT_TAIL)
+            parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
+                         f"timeout {2 * seconds + 120} {binary} --max-seconds {2 * seconds} --decomp diff > {log}.log 2>&1; "
+                         f"echo $? > {log}.exit ) &")
+            continue
         parts.append(f'( GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout 1000 {binary} '
                      f"--max-seconds {seconds} --decomp diff > {log}.log 2>&1; echo $? > {log}.exit ) &")
     return " ".join(parts) + " wait"

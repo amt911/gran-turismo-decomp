@@ -176,7 +176,8 @@ int main(int argc, char **argv) {
             // stop (a decompiled call to a non-function, a deadlock...) cut the run short, and a
             // diff run that stopped early has not compared what it should have.
             const std::string &reason = runtime.stop_reason();
-            g_abnormal_stop = !reason.starts_with("Wall-clock limit reached") && reason != "All PSP threads completed";
+            g_abnormal_stop = !reason.starts_with("Wall-clock limit reached") && reason != "All PSP threads completed" &&
+                              reason != "Pad script done";  // GT_PAD_EXIT_AFTER
         }
         gt::frontend_shutdown();
         psprecomp::set_runtime_import_observer(nullptr);

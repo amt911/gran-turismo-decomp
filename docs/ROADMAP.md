@@ -251,6 +251,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       `containers.cpp`): `first(this); return this` (9), `return next(first(...))` (1), destructores
       vtable + cuerpo/miembro + base o delete (4), `free_list_push` (43). `tree_clear` (44 candidatas)
       no se ejecuta en la carrera. Sabotajes detectados en todas. **1.231 funciones, 0 discrepancias**.
+- [x] **Once recorridos que esperan al juego** (2026-10-20): `WAIT:seek`/`WAIT:word` en vez de tiempos fijos; nuevas rutas
+      drift, challenge, challenge2, dirt, manual y circuit (carrera urbana, pausa y repetición). El gate completo acaba
+      cada ruta tras su guion: **5.377 funciones comparadas, 0 discrepancias**.
 - [x] **Tres recorridos** (`config/pad_routes/`): la carrera, el concesionario (lista, vista 3D y
       ficha de un coche) y récords/garaje/Theatre. Las candidatas de todas las plantillas se pasaron
       por los tres. +69 instancias que solo alcanzan los menús; ninguna registrada empeoró.

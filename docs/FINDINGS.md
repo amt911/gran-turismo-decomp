@@ -2032,3 +2032,20 @@ routes (replays, other races, longer sessions, loading) or something they see bu
 `GT_PERF_LOG=1` log from their own play, or the moment they name, is the next input.
 
 Found: 2026-10-20 · laptop over SSH, windowed on its display, binaries and data from /tmp (all removed afterwards)
+
+## A route that waits for the game can wait forever under `--decomp diff`, and a wall-clock end cuts routes short
+
+**Symptom.** With `--decomp diff` the race route timed out at Mode Selection, waiting for the Race Options seek (exit
+97), although the frames showed Race Options on screen. In the full gate, 5 of 11 routes stopped before their last
+press.
+**Cause.** First cause: the `WAIT:seek` signal was noted only outside harness cases (`!kernel_isolated()`). That seek ran
+inside a compared case, and sceIoLseek is recordable, so the original's call is the live one. Second cause: 11
+parallel routes run slower than real time, so a `--max-seconds` end lands earlier in the game than it does alone.
+**Fix / workaround.**
+- Seeks are noted inside cases too. The decompiled run replays the call without reaching the HLE, so a seek is never
+  noted twice from one case.
+- Full routes end `GT_PAD_EXIT_AFTER` vblanks after their script is done ("Runtime stopped: Pad script done"), with
+  the wall clock only as a cap.
+- The newly reached paths found one bug: `func_08888988`'s v0 on an empty pair (drift).
+
+Found: 2026-10-20 · full gate of feat/pad-routes-2

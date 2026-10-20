@@ -36,6 +36,7 @@ std::atomic<std::uint32_t> g_buttons{0u};
 struct Script {
     PadSequencer sequencer;
     bool logged_done{false};
+    std::uint64_t done_at{0u};  // the vblank the script was first seen done (GT_PAD_EXIT_AFTER)
     std::string last_message;
 };
 
@@ -48,7 +49,7 @@ Script &script() {
             std::fflush(stderr);
             std::_Exit(97);
         }
-        return Script{PadSequencer(std::move(parsed.steps)), false, {}};
+        return Script{PadSequencer(std::move(parsed.steps)), false, 0u, {}};
     }();
     return instance;
 }
@@ -153,6 +154,13 @@ void pad_script_tick(psprecomp::Runtime &runtime) {
     if (log && state == PadSequencer::State::Done && !s.logged_done) {
         s.logged_done = true;
         std::fprintf(stderr, "[pad] script done at vblank %llu\n", static_cast<unsigned long long>(now));
+    }
+    // GT_PAD_EXIT_AFTER=<vblanks>: the run ends that long after the script is done ("Runtime stopped: Pad script
+    // done", an expected end like the wall-clock limit), so a route covers the same game whatever the machine's load.
+    static const char *exit_after = std::getenv("GT_PAD_EXIT_AFTER");
+    if (exit_after != nullptr && state == PadSequencer::State::Done) {
+        if (s.done_at == 0u) s.done_at = now;
+        if (now >= s.done_at + std::strtoull(exit_after, nullptr, 10) && !runtime.stopped()) runtime.stop("Pad script done");
     }
 }
 
