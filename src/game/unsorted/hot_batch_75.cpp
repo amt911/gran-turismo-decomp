@@ -365,11 +365,11 @@ HOT75(0x08A1CA40u, func_08A1CA40, Word);
 // HOT75(0x08B2EFF0u, func_08B2EFF0, Word);
 // HOT75(0x089F0AF4u, func_089F0AF4, Word);
 // HOT75(0x088A5E54u, func_088A5E54, Word);
-// HOT75(0x08A4D2F8u, func_08A4D2F8, Word);
+HOT75(0x08A4D2F8u, func_08A4D2F8, Word);
 // HOT75(0x08ACAFCCu, func_08ACAFCC, Word);
 // HOT75(0x08ACAFDCu, func_08ACAFDC, Word);
 // HOT75(0x0881AF28u, func_0881AF28, Word);
-// HOT75(0x08A4D2D4u, func_08A4D2D4, Word);
+// HOT75(0x08A4D2D4u, func_08A4D2D4, Word);  // batch 104: still not comparable (it chains five sceFont imports: Open, GetFontInfo, Close, GetCharInfo, then 0xCA1E6945; only the constant 0x02D7F94B one was unlocked)
 // HOT75(0x08AC3308u, func_08AC3308, Word);
 // HOT75(0x089B45ECu, func_089B45EC, Word);
 // HOT75(0x08A5176Cu, func_08A5176C, Word);

@@ -16635,7 +16635,7 @@ void func_08AF1DF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08AF4F90(this, i): under the lock at 0x08D470C4, channel i (enabled by byte +0x424 + i) gets
 // func_08B52D58 on its 212-byte block at +0x1D4 when both +0x427 and +0x426 are set, else at +0x2C;
 // +0x426 = +0x427. A disabled channel gets func_08B58B10(0).
-void func_08AF4F90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+void func_08AF4F90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t i = ctx.gpr[5];
     {
@@ -17380,7 +17380,7 @@ GT_DECOMP(0x088E86D0u, gt::game::func_088E86D0, gt::ReturnKind::Word);
 GT_DECOMP(0x08AF1DF0u, gt::game::func_08AF1DF0, gt::ReturnKind::Void);
 // func_08AF4F90 reaches kernel imports the isolated run can't replay (not comparable in all 58 cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08AF4F90u, gt::game::func_08AF4F90, gt::ReturnKind::Void);
+GT_DECOMP(0x08AF4F90u, gt::game::func_08AF4F90, gt::ReturnKind::Void);
 GT_DECOMP(0x08A1AB58u, gt::game::func_08A1AB58, gt::ReturnKind::Void);
 GT_DECOMP(0x08B1FEB8u, gt::game::func_08B1FEB8, gt::ReturnKind::Void);
 GT_DECOMP(0x08A7DD6Cu, gt::game::func_08A7DD6C, gt::ReturnKind::Void);
@@ -30469,7 +30469,7 @@ void func_08B2B760(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08AEFC14(_, x, y): the two sizes (clamped to 0..128, in 32nds) kept at 0x08D41F70 / +0x4 and passed
 // to func_08B844D0.
-void func_08AEFC14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+void func_08AEFC14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
     const auto clamp = [](std::uint32_t v) { const auto s = static_cast<std::int32_t>(v); return s < 0 ? 0u : (s < 128 ? v : 128u); };
     const std::uint32_t x = clamp(ctx.gpr[5]) << 5, y = clamp(ctx.gpr[6]) << 5;
     rt.memory().store32(0x08D41AD0u + 1184u, x);
@@ -31439,7 +31439,7 @@ GT_DECOMP(0x0884DF90u, gt::game::func_0884DF90, gt::ReturnKind::Void);
 GT_DECOMP(0x08B2B760u, gt::game::func_08B2B760, gt::ReturnKind::Word);
 // func_08AEFC14 reaches kernel imports the isolated run can't replay (not comparable in all 12 cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08AEFC14u, gt::game::func_08AEFC14, gt::ReturnKind::Void);
+GT_DECOMP(0x08AEFC14u, gt::game::func_08AEFC14, gt::ReturnKind::Void);
 GT_DECOMP(0x08ACCF00u, gt::game::func_08ACCF00, gt::ReturnKind::Void);
 GT_DECOMP(0x08AC7874u, gt::game::func_08AC7874, gt::ReturnKind::Void);
 GT_DECOMP(0x08AC0090u, gt::game::func_08AC0090, gt::ReturnKind::Void);
@@ -32365,7 +32365,7 @@ void func_089DCCD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08AEFC74(_, channel, level): channel 0 or 1 stores level (clamped to 0..127) in the pair at
 // 0x08D41F78 / 0x08D41F7C and hands both to func_08B845E8; other channels are ignored.
-void func_08AEFC74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+void func_08AEFC74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
     constexpr std::uint32_t kPair = 0x08D41AD0u + 1192u;
     const std::uint32_t channel = ctx.gpr[5];
     const auto level = static_cast<std::int32_t>(ctx.gpr[6]);
@@ -32459,7 +32459,7 @@ GT_DECOMP(0x088B4080u, gt::game::func_088B4080, gt::ReturnKind::Void);
 GT_DECOMP(0x089DCCD0u, gt::game::func_089DCCD0, gt::ReturnKind::Void);
 // func_08AEFC74 reaches kernel imports the isolated run can't replay (not comparable in all 8 cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08AEFC74u, gt::game::func_08AEFC74, gt::ReturnKind::Void);
+GT_DECOMP(0x08AEFC74u, gt::game::func_08AEFC74, gt::ReturnKind::Void);
 GT_DECOMP(0x08A32350u, gt::game::func_08A32350, gt::ReturnKind::Word);
 GT_DECOMP(0x089C8294u, gt::game::func_089C8294, gt::ReturnKind::Void);
 // --- batch 55 ---
@@ -33572,7 +33572,7 @@ void func_089214F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08927440(this, v): when v differs from +0x1FB0, byte +0x1FC5 = 1 and the virtual +0x1C of each of the 13
 // objects +0x1F70.. runs; then +0x1FB0 = +0x20C8 = v.
-void func_08927440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+void func_08927440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
     const std::uint32_t self = ctx.gpr[4], value = ctx.gpr[5];
     if (word(rt, self + 8112u) != value) {
         rt.memory().store8(self + 8133u, 1u);
@@ -34312,7 +34312,7 @@ GT_DECOMP(0x089910CCu, gt::game::func_089910CC, gt::ReturnKind::Void);
 GT_DECOMP(0x089BE928u, gt::game::func_089BE928, gt::ReturnKind::Void);
 GT_DECOMP(0x089214F0u, gt::game::func_089214F0, gt::ReturnKind::Void);
 // func_08927440 is never called on the pad routes (compared 0, calls 0), so the gate can\'t check it.
-// GT_DECOMP(0x08927440u, gt::game::func_08927440, gt::ReturnKind::Void);
+GT_DECOMP(0x08927440u, gt::game::func_08927440, gt::ReturnKind::Void);
 GT_DECOMP(0x08927350u, gt::game::func_08927350, gt::ReturnKind::Word);
 GT_DECOMP(0x089260D8u, gt::game::func_089260D8, gt::ReturnKind::Void);
 GT_DECOMP(0x08917870u, gt::game::func_08917870, gt::ReturnKind::Void);
@@ -35506,7 +35506,7 @@ GT_DECOMP(0x08AB87E0u, gt::game::func_08AB87E0, gt::ReturnKind::Void);
 GT_DECOMP(0x08AD0280u, gt::game::func_08AD0280, gt::ReturnKind::Void);
 // func_08ACEFD4 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08ACEFD4u, gt::game::func_08ACEFD4, gt::ReturnKind::Void);
+// GT_DECOMP(0x08ACEFD4u, gt::game::func_08ACEFD4, gt::ReturnKind::Void);  // batch 104: still not comparable (its cases reach sceGeListEnQueue)
 // func_08ACAFDC reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08ACAFDCu, gt::game::func_08ACAFDC, gt::ReturnKind::Void);
@@ -39199,7 +39199,7 @@ GT_DECOMP(0x088DB8DCu, gt::game::func_088DB8DC, gt::ReturnKind::Void);
 // GT_DECOMP(0x08B2F060u, gt::game::func_08B2F060, gt::ReturnKind::Void);
 // func_08B33218 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08B33218u, gt::game::func_08B33218, gt::ReturnKind::Void);
+// GT_DECOMP(0x08B33218u, gt::game::func_08B33218, gt::ReturnKind::Void);  // batch 104: still not comparable (its cases reach sceKernelStartThread: kernel isolation, start would preempt)
 GT_DECOMP(0x08AA9960u, gt::game::func_08AA9960, gt::ReturnKind::Void);
 GT_DECOMP(0x0888AC24u, gt::game::func_0888AC24, gt::ReturnKind::Void);
 
@@ -40107,11 +40107,11 @@ GT_DECOMP(0x08B2B4D8u, gt::game::func_08B2B4D8, gt::ReturnKind::Word);
 GT_DECOMP(0x08B2B5E0u, gt::game::func_08B2B5E0, gt::ReturnKind::Word);
 // func_08B1B92C reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08B1B92Cu, gt::game::func_08B1B92C, gt::ReturnKind::Word);
+// GT_DECOMP(0x08B1B92Cu, gt::game::func_08B1B92C, gt::ReturnKind::Word);  // batch 104: compared 5 times in one run but 0 in the next ones (kernel isolation, start would preempt in 30 of 35 cases): not stable enough to pin
 GT_DECOMP(0x08B2E6DCu, gt::game::func_08B2E6DC, gt::ReturnKind::Word);
 // func_08B33688 reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
-// GT_DECOMP(0x08B33688u, gt::game::func_08B33688, gt::ReturnKind::Void);
+// GT_DECOMP(0x08B33688u, gt::game::func_08B33688, gt::ReturnKind::Void);  // batch 104: still not comparable (LwMutex contention in all 5 cases)
 // func_08B2DD2C reaches calls the isolated run can't replay (not comparable in all its cases),
 // so the gate can't check it.
 // GT_DECOMP(0x08B2DD2Cu, gt::game::func_08B2DD2C, gt::ReturnKind::Void);

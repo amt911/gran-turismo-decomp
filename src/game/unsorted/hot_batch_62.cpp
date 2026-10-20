@@ -538,5 +538,5 @@ HOT62(0x08BD2F8Cu, func_08BD2F8C, Word);
 // Written but not registered: every case reaches a sceSasCore import (0x08C7B050 / 0x08C7B068 / 0x08C7B0A8), which the harness cannot record
 // ("not comparable" in all routes, compared 0), so the gate cannot verify them.
 // HOT62(0x08B84270u, func_08B84270, Word);
-// HOT62(0x08B83FA4u, func_08B83FA4, Word);
-// HOT62(0x08B83F40u, func_08B83F40, Word);
+HOT62(0x08B83FA4u, func_08B83FA4, Word);
+HOT62(0x08B83F40u, func_08B83F40, Word);

@@ -35,13 +35,20 @@ int main() {
     if (const auto it = recordable.find(0x99944089u); it != recordable.end())
         check(it->second == 0x1Fu, "__sceSasSetVoice compares all five arguments (mask 0x1F)");
 
+    // Batch 104: the display call is compared on every argument its HLE reads (a missing bit would leave an
+    // argument unchecked while the effect lives in host state). sceDisplaySetFrameBuf(address, stride, format, sync) reads a0-a3
+    // (gt_kernel.cpp).
+    check(recordable.contains(0x289D82FEu) && recordable.at(0x289D82FEu) == 0x0Fu, "sceDisplaySetFrameBuf compares a0-a3 (mask 0x0F)");
+    for (const auto nid : {0x7E69EDA4u, 0x02D7F94Bu}) check(safe.contains(nid), "a constant answer that reads nothing is replay-safe");
+    // The waits stay out: the display waits and the GE sync block on the host.
+    check(!safe.contains(0x289D82FEu), "SetFrameBuf changes host state: recorded, never run twice");
+
     // Imports that block, wait on a device or switch threads on every call: never allowed inside a case.
-    const std::array<std::uint32_t, 14> never{
+    const std::array<std::uint32_t, 13> never{
         0xCEADEB47u,  // sceKernelDelayThread
         0x68DA9E36u,  // sceKernelDelayThreadCB
         0x278C0DF5u,  // sceKernelWaitThreadEnd
         0x36CDFADEu, 0x984C27E7u, 0x46F186C3u,  // sceDisplayWaitVblankStart*
-        0x289D82FEu,  // sceDisplaySetFrameBuf
         0xB287BD61u,  // sceGeDrawSync
         0xEBD177D6u,  // scePowerSetClockFrequency: delays the caller 150 ms
         0x2A2B3DE0u,  // sceUtilityLoadModule: delays the caller
