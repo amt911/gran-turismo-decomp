@@ -1,0 +1,172 @@
+"""Bisect which decompiled functions make `--decomp on` leave `--decomp off`'s import trace.
+
+Both traces are the import-call order of the same route (`gt_native --trace`); a run is *good* when its first
+`--lines` trace lines equal the `off` baseline's, so the criterion does not depend on timing (the pad route, the
+frame the menu opens at, ...). Usage:
+
+  .venv/bin/python -m tools.trace_bisect --pad 3300:START --lines 20000 --seconds 8 [--functions ADDR,ADDR,...]
+  (--pad @config/pad_routes/race.pad reads a route file)
+
+`--black-after V` bisects another symptom instead: the set "diverges" when the first frame dump at or after vblank
+V is completely black (the `on` build drew nothing where `off` shows a menu). `--crash` bisects a run that dies
+(`terminate called`, a guest memory fault...): the set "diverges" when the run's log says so.
+
+With no --functions, every function the harness registers is the starting set (read from a `--decomp diff` run).
+The bisection keeps halving the set that still diverges (`ddmin`-style: a half that diverges alone replaces the
+set; when neither half does, the divergence needs members of both and the set is reported as is).
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+from collections.abc import Callable, Sequence
+from pathlib import Path
+
+
+def first_divergence(a: Sequence[str], b: Sequence[str]) -> int | None:
+    """Index of the first line where the traces differ (a shorter trace differs where it ends), None when equal."""
+    for index, (left, right) in enumerate(zip(a, b)):
+        if left != right:
+            return index
+    return None if len(a) == len(b) else min(len(a), len(b))
+
+
+def ddmin(items: Sequence[int], diverges: Callable[[Sequence[int]], bool]) -> list[int]:
+    """Smallest set (as far as halving finds) of `items` that still makes `diverges` true.
+
+    Precondition: diverges(items). Tries each half; when a half diverges alone it replaces the set. When neither
+    half does, tries removing each quarter; when nothing can be removed the set is returned."""
+    current = list(items)
+    granularity = 2
+    while len(current) >= 2:
+        chunk = max(1, len(current) // granularity)
+        subsets = [current[i:i + chunk] for i in range(0, len(current), chunk)]
+        reduced = False
+        for subset in subsets:
+            if diverges(subset):
+                current, granularity, reduced = subset, 2, True
+                break
+        if not reduced and granularity > 2:
+            for index in range(len(subsets)):
+                complement = [x for j, s in enumerate(subsets) if j != index for x in s]
+                if complement and diverges(complement):
+                    current, granularity, reduced = complement, max(granularity - 1, 2), True
+                    break
+        if not reduced:
+            if granularity >= len(current):
+                break
+            granularity = min(len(current), granularity * 2)
+    return current
+
+
+def ppm_mean(data: bytes) -> float:
+    """Mean brightness (0..1) of a binary PPM (P6) image; 0.0 means completely black."""
+    match = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", data)
+    if match is None:
+        raise ValueError("not a P6 image")
+    pixels = data[match.end():]
+    return sum(pixels) / (len(pixels) * 255) if pixels else 0.0
+
+
+def first_frame_after(log: str, vblank: int) -> int | None:
+    """Number of the first frame dump logged at or after `vblank`, None when there is none."""
+    for m in re.finditer(r"^\[frame-dump\] frame (\d+) vblank (\d+)", log, re.MULTILINE):
+        if int(m.group(2)) >= vblank:
+            return int(m.group(1))
+    return None
+
+
+def crashed(log: str) -> bool:
+    """Whether a run's stderr shows the process dying on an uncaught error (not a normal stop)."""
+    return "terminate called" in log or "gt_native error:" in log
+
+
+def registered_functions(log: str) -> list[int]:  # pragma: no cover - trivially a regex over a log
+    return [int(m.group(1), 16) for m in re.finditer(r"^\[decomp\] \S+ @0x([0-9A-Fa-f]{8}):", log, re.MULTILINE)]
+
+
+def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Sequence[int] | None,
+         mode: str, frames: Path | None = None) -> list[str]:  # pragma: no cover - runs the game
+    env = dict(os.environ, GT_PAD=pad, LCS_UNCAPPED="1")
+    if frames is not None:
+        env.update(GT_FRAME_DUMP=str(frames), GT_FRAME_EVERY="30")
+    if only is not None:
+        env["GT_DECOMP_ONLY"] = ",".join(f"0x{a:08X}" for a in only)
+    command = ["systemd-run", "--user", "--scope", "--quiet", "--slice=gt-heavy.slice", "--", str(binary),
+               "--max-seconds", str(seconds), "--decomp", mode, "--trace", str(trace), "--trace-limit", str(lines)]
+    log = trace.with_suffix(".log")
+    with log.open("w") as err:
+        subprocess.run(command, env=env, stdout=subprocess.DEVNULL, stderr=err, check=False)
+    return trace.read_text().splitlines()[:lines]
+
+
+def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
+    parser = argparse.ArgumentParser(prog="tools.trace_bisect", description=__doc__.splitlines()[0])
+    parser.add_argument("--binary", type=Path, default=Path("build/gt_native"))
+    parser.add_argument("--pad", default="3300:START")
+    parser.add_argument("--seconds", type=int, default=8)
+    parser.add_argument("--lines", type=int, default=20000)
+    parser.add_argument("--functions", default="", help="comma-separated hex addresses; default: every registered one")
+    parser.add_argument("--crash", action="store_true", help="bisect 'the run dies' instead")
+    parser.add_argument("--black-after", type=int, default=0, help="bisect 'black frame at/after this vblank' instead")
+    parser.add_argument("--workdir", type=Path, default=Path("recomp/analysis/bisect"))
+    args = parser.parse_args(argv)
+    if args.pad.startswith("@"):  # @file: a route file (comment lines ignored)
+        args.pad = "".join(line for line in Path(args.pad[1:]).read_text().splitlines() if not line.startswith("#"))
+    args.workdir.mkdir(parents=True, exist_ok=True)
+    baseline: list[str] = []
+    if not args.black_after and not args.crash:
+        baseline = _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "off.trace", None, "off")
+        print(f"baseline: {len(baseline)} lines")
+    if args.functions:
+        functions = [int(t, 16) for t in args.functions.split(",")]
+    else:
+        listing = args.workdir / "list.log"
+        env = dict(os.environ, GT_PAD=args.pad, LCS_UNCAPPED="1")
+        with listing.open("w") as out:
+            subprocess.run([str(args.binary), "--max-seconds", "2", "--decomp", "diff"], env=env, stdout=out,
+                           stderr=subprocess.STDOUT, check=False)
+        functions = registered_functions(listing.read_text())
+    runs = 0
+
+    def is_black(subset: Sequence[int]) -> bool:
+        frames = args.workdir / "frames"
+        for old in frames.glob("*.ppm"):
+            old.unlink()
+        _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "on.trace", subset, "on", frames)
+        number = first_frame_after((args.workdir / "on.log").read_text(errors="replace"), args.black_after)
+        if number is None:
+            return True  # no frame at all counts as black
+        return ppm_mean((frames / f"frame_{number:06d}.ppm").read_bytes()) == 0.0
+
+    def diverges(subset: Sequence[int]) -> bool:
+        nonlocal runs
+        runs += 1
+        if args.crash:
+            _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "on.trace", subset, "on")
+            died = crashed((args.workdir / "on.log").read_text(errors="replace"))
+            print(f"run {runs}: {len(subset)} functions -> " + ("CRASH" if died else "ok"), flush=True)
+            return died
+        if args.black_after:
+            black = is_black(subset)
+            print(f"run {runs}: {len(subset)} functions -> " + ("BLACK" if black else "drawn"), flush=True)
+            return black
+        trace = _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "on.trace", subset, "on")
+        at = first_divergence(baseline, trace)
+        print(f"run {runs}: {len(subset)} functions -> " + ("same" if at is None else f"differs at import {at}"), flush=True)
+        return at is not None
+
+    if not diverges(functions):
+        print("the full set does not diverge within the window: nothing to bisect")
+        return 0
+    found = ddmin(functions, diverges)
+    print("minimal diverging set: " + ",".join(f"0x{a:08X}" for a in found))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

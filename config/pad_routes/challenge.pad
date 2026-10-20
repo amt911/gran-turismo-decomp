@@ -1,0 +1,10 @@
+# Route G — Driving Challenges: the block map, Block A, the list of challenges, A-1 "Stop 100 metres ahead!" (Audi A2, Test Course), Start,
+# accelerate 7 s, brake 7 s (fails the challenge), the result screen and Retry (200 s). Page offsets: 1ce62e80 the block map, 1ce7d400 a block,
+# 1cdf8540 the challenge list, 1cc98cc0 the challenge's start page, 1d19db00 the course's own pages.
+3300:START,
+WAIT:seek=0x1fa48900,1700:RIGHT,1800:RIGHT,1900:RIGHT,2000:CROSS,
+WAIT:seek=0x1ce62e80,500:CROSS,
+WAIT:seek=0x1ce7d400,500:CROSS,
+WAIT:seek=0x1cdf8540,500:CROSS,
+WAIT:seek=0x1cc98cc0,500:CROSS,
+WAIT:seek=0x1d19db00,900:CROSS:700,2000:SQUARE:900,3500:CROSS:500

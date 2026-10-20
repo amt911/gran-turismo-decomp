@@ -1,0 +1,20 @@
+# Route H — a race on a dirt circuit: the race route's choices, but Track Selection moves to Cathedral Rocks Trail I (Dirt and Snow Circuits).
+# The car is driven with the accelerator held and the steering pulsed; the pause menu opens (Continue), opens again and its third icon restarts
+# the race, and the car is driven again (220 s). Page offsets: race.pad.
+3300:START,
+WAIT:seek=0x1fa48900,1700:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:RIGHT,400:RIGHT,500:DOWN,600:DOWN,700:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1200:CROSS:2400,1500:LEFT:90,1900:RIGHT:90,2300:LEFT:90,
+3600:START,4300:CROSS,
+5200:CROSS:600,5900:START,6600:RIGHT,6700:RIGHT,7200:CROSS,
+WAIT:seek=0x1d19db00,1200:CROSS:1800,1500:LEFT:90,1900:RIGHT:90

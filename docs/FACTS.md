@@ -292,3 +292,25 @@ the line says otherwise.
   route can run them and no gate can verify a decompiled version (`[decomp] … no recompiled function at …,
   not installed` when one is registered). They stay out of the shape clusters. Evidence: the
   `runtime.register_function(0x…)` lines of `recomp/generated/` against `recomp/analysis/functions.tsv`.
+
+## Page loads as screen signals (verified 2026-10-19)
+
+- The game opens `disc0:/PSP_GAME/USRDIR/GT.VOL` once per handle (hundreds of `sceIoOpen`s by the main menu) and reads its entries at fixed
+  absolute byte offsets (`sceIoLseek`, whence 0). Every page of the Adhoc UI is one entry loaded when the page is entered, so the **seek to
+  its offset is a deterministic "this page is loading" event**: the same offsets, in the same order, in two `--decomp off` runs and in
+  `--decomp on` (the race route's 12 waits are satisfied one after the other in both). A press 300 vblank waits after a page's seek landed on every
+  page of the nine routes (from a press to the next page's seek takes 110-190, ~1250 for the race's own pages); the first load (the main menu,
+  `0x1FA48900`) comes ~800 before the menu shows (the Welcome screen runs first, and in `--decomp on` the load comes ~350 earlier than in `off`
+  while the screen does not), hence its 1700 margin. *(measured: `GT_IO_LOG=1` seeks with their vblank
+  against `GT_FRAME_DUMP` frames, `off` and `on`, 2026-10-19)*
+- Page offsets seen: `0x1CF2A980` the Single Player hub (every visit reloads it), `0x1CDB9140` Mode Selection, `0x1D04FC40` Race Options,
+  `0x1D058440` the Drift Trial popup, `0x1CD6DB80` Car Selection, `0x1D0332C0` Car Settings, `0x1CD7D200` Track Selection, `0x1D043C80` Track Options,
+  `0x1CC98CC0` the Starting Grid / a challenge's Start page, `0x1D19DB00` the race's own pages, `0x1CE62E80` / `0x1CE7D400` / `0x1CDF8540` the
+  Driving Challenges map, a block and its list, `0x1CD2FF80` Ad Hoc Mode (and its Share & Trade level), `0x1CEF9300` its "WLAN switch is OFF" notice,
+  `0x1D0FE780` the User Manual. Names for five of them have string evidence: guest RAM dumps at each screen hold `projects/gt5m/arcade/GB/TopRoot.gpb` (the
+  hub), `DrivingModeRoot.gpb`, `RaceDetailPopup.gpb` and `CourseRoot.gpb` in the string pool near `0x08D62CE0` exactly when the matching seek had just
+  happened. The others are named by the screen on the frame dump, not by a string. *(measured: `GT_RAM_DUMP`, `GT_IO_LOG`, frame dumps)*
+- Not usable as a signal: GT.VOL offsets below `0x1000000` (the volume's table, read on every lookup), `0x08CF4070` (a monotonic id counter of an event
+  queue, `src/game/unsorted/hot_leaves.cpp` func_0897783C), heap pointers (`0x0944CFB0` held a pointer to the page's background image path,
+  right for each screen, but a heap address is whatever the allocator gave), and returns to a page that stays resident (the main menu after Ad Hoc Mode loads nothing).
+  *(measured: RAM dumps at 20 vblanks of two runs, stable-and-deterministic words only)*

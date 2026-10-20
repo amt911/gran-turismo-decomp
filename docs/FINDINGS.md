@@ -1790,7 +1790,7 @@ Found: 2026-10-16 · src/game/unsorted/hot_batch_96.cpp (func_089230A4, func_089
 **Symptom.** With every decompiled function installed (`gt_native --decomp on`, race pad route), the run stopped printing `[perf]` lines after ~20 s and never reached its `--max-seconds`; the main thread sat at 100 % inside `func_08A63F1C`'s loop (batch 83), which calls the script interpreter step `func_08A63C5C` until the stack shrinks. Bisecting with `GT_DECOMP_ONLY` (13 runs) isolated `func_08A63F1C` alone; its C++ matches the asm, and the gate passed it (only 10 of its 624 calls are comparable: it is reentrant, and 2 block on an LwMutex).
 **Cause.** Two faults in `gt::call_guest`, the loop that runs guest code for decompiled callers. (1) A callee that blocked (LwMutex contention in `func_08ACB1BC`) resumes at its return address `0x08A1CFD4`, mid-function: the dispatcher finds that pc through the generated unit that holds it, `call_guest` only through `function_at` (function starts), so it stopped the runtime with "no function at 0x08A1CFD4". It also ran no scheduler boundary, so virtual time never advanced and a guest loop polling another PSP thread (`jal func_08ACB1BC; bnez v0` → 50 M steps, "or no return") never saw it progress. (2) After the stop every `call_guest` returned 0 at once; a decompiled loop that waits for its callee's progress spun forever, and the stop reason (printed only when the dispatcher returns) never appeared — an error disguised as a hang.
 **Fix.** lcs-recomp patch 0050 exposes `Runtime::dispatch_function_at` (unit first, as the dispatcher) and `Runtime::dispatch_boundary` (the per-dispatch scheduler boundary); `call_guest` uses both. A `call_guest` on an already stopped runtime throws `gt::GuestStopped`, which the decomp trampoline and `fiber_main` absorb, so the dispatcher ends the run with the real reason. Tests: `guest_call_tests` (a pc inside a generated unit, the boundary per dispatch, the throw) and `fiber_tests` (the fiber absorbs it), each seen failing first. The race route with all functions then runs its 60 s and stops on the wall clock.
-**Open.** With `--decomp on` the import trace leaves `--decomp off`'s at import 4,406 (two `off` runs are identical over 200,000 imports) and the route no longer reaches the race in 60 s. Not shown to be a decompilation fault: `call_guest` counts its steps as dispatches while the recompiled code chains calls inside a unit without counting them, so preemption lands elsewhere and the thread order changes. The differential gate (`--decomp diff`) is unaffected; `--decomp on` fidelity is its own question.
+**Open (resolved 2026-10-19: see the two entries at the end of this file).** With `--decomp on` the import trace leaves `--decomp off`'s at import 4,406 (two `off` runs are identical over 200,000 imports) and the route no longer reaches the race in 60 s. Not shown to be a decompilation fault: `call_guest` counts its steps as dispatches while the recompiled code chains calls inside a unit without counting them, so preemption lands elsewhere and the thread order changes. The differential gate (`--decomp diff`) is unaffected; `--decomp on` fidelity is its own question.
 
 Found: 2026-10-16 · host/guest_call.cpp, host/fiber.cpp, host/diff_harness.cpp, tools/patches/lcs-recomp/0050-dispatch-entry-points-for-host-loops.patch
 
@@ -1892,7 +1892,7 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_101.cpp (func_0885E794 / func_0
 
 **Symptom.** With every decompiled function installed (`gt_native --decomp on`, race pad route), the run stayed in a menu (guest thread ~90 % asleep) for 200 s, where `--decomp off` reaches the race at ~45 s. The full list reproduced it three times in a row.
 **Cause (not found).** Bisecting with `GT_DECOMP_ONLY` (criterion: some 5 s window under 40 % vblank sleep within 120 s) gave no single culprit. Each half of the list ran fine alone, the halves together got stuck, and a minimal-set search wandered. Re-running two sets with known outcomes then flipped one: the half that got stuck reached the race twice in a row. Whether the route reaches the race with many functions installed depends on timing. `call_guest` counts every guest step as a dispatch, which moves the preemption points and changes the PSP threads' order (see the `--decomp on` freeze entry). The pad route presses buttons at fixed vblanks, so a menu that opens a few frames later misses a press.
-**Fix / next step.** None yet. A bisection needs a criterion that does not depend on timing: compare the menu/state the pad presses land in, or make the route wait for a state instead of a vblank count. The differential gate (`--decomp diff`) is not affected.
+**Fix / next step.** Done 2026-10-19: the routes wait for the game (`WAIT:seek`, host/pad_sequence.hpp), and the real causes were three decompiled functions that dropped `$f0` / `$v1` (see "`--decomp on` showed black screens and then died ..."); the trace divergence is the scheduler's dispatch clock, not a fault. The differential gate (`--decomp diff`) was never affected.
 
 Found: 2026-10-19 · scratch bisection scripts over host/gt_native (`--decomp on`, `GT_DECOMP_ONLY`)
 
@@ -1935,6 +1935,32 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_102.cpp (func_08891C54)
 **Fix / lesson.** Not merged (spec `2026-10-19-ge-streamed-fast-draws-design.md`, result section); the code is on branch `perf/ge-streamed-fast-draws`. Before another per-draw micro-optimisation of the GE, profile the target machine: the next gains need structure, such as more than one core decoding lists or the renderer leaving the PSP command lists behind.
 
 Found: 2026-10-19 · laptop A/B and profile over SSH (binaries from /tmp)
+
+## `--decomp on` showed black screens and then died: three decompiled functions dropped the register their callers read ($f0, $v1)
+
+**Symptom.** `gt_native --decomp on` on the race route (the "does not always reach the race" and "froze" entries above): every frame black from the title movie on (mean brightness exactly 0.0 in all dumped frames, while the page loads kept coming), and once the screens drew, `terminate called ... Guest memory access outside PSP RAM at 0x2C6C6E4C` (ASCII "Lnl,") when the race loaded. The differential gate was green throughout.
+**Cause.** Not timing. `tools.trace_bisect --black-after 3300` (ddmin over the 6,622 registered functions, 16 runs) isolated `func_08B71EC8`; `--crash` (21 runs) isolated `func_08A6C134`. `func_08B71EC8` is the double-to-float narrowing: the original ends every path with `mtc1 $a2, $f0`, so the float comes back in **$f0**, and the C++ set only `v0`. Its caller `func_08A6C158` (and the decompiled parser in `hot_batch_94`, `put_float(.., ctx.fpr[0])`) read `$f0`: every float parsed from a layout string was 0, so nothing was drawn. `func_08A6C134` calls `func_08A9F9CC`, a 64-bit integer parse (v0 low, v1 high), and returned only `v0` while registered `Word`. The gate compares what the `ReturnKind` says (`Word` = v0, `DoubleWord` = v0:v1, `Float` = f0): the three were registered with a kind that never looked at the register their callers read, so they passed their cases and the bug lived only where a decompiled caller met a decompiled callee.
+**Fix.** The three return what the original returns (`Float`, `Float`, `DoubleWord`). With the `Float` kind and no fix, the fast gate on `func_08B71EC8` fails (`f0: original 0x3F800000, decompiled 0x00000000`); with both, 0 mismatches. `--decomp on` then draws the same frames as `off` and reaches the race (`race.pad`, `script done at vblank 12365`, exit 0).
+**Why it isn't obvious.** A `Word` function whose callee returns a float or a 64-bit value passes the gate by construction. The first suspect for "a decompiled leaf makes on differ from off" is the callee's other result registers: read the callee's last instructions (`mtc1 .., $f0`, a write to `$v1`) before the C++. Other `Word`-kind functions that forward a float or 64-bit callee are not audited yet.
+
+Found: 2026-10-19 · src/game/unsorted/hot_batch_76.cpp, src/game/unsorted/hot_leaves.cpp (func_08B71EC8, func_08A6C158, func_08A6C134), tools/trace_bisect.py
+
+## `--decomp on` and `off` can never share an import trace: the scheduler's clock counts dispatches, and a decompiled function changes the count
+
+**Symptom.** With the three fixes above `on` and `off` follow the same route to the same race screens, but their import traces leave each other at import 4,344 (`cmp` of two `--trace` files, first 200,000 lines; two `off` runs are identical, two `on` runs are identical). It is the same point as the 4,406 of the freeze entry: it never depended on the pad route (the first press is at vblank 3300; the divergence is in the first seconds).
+**Cause.** `tools.trace_bisect` (trace criterion) finds `func_08B35ED0`, `strchrnul`, a pure leaf the gate verified, alone: with only that function installed the trace leaves `off`'s at the same place. The lcs-recomp runtime advances virtual time and preempts threads every `PSPRECOMP_TIME_TICK_DISPATCHES` (256) dispatches since the last import (`dispatches_since_import_`, `lcs_starvation_tick`), and a decompiled function replaces a stretch of guest dispatches by one host call, so the tick lands elsewhere, the thread order changes (the first difference is a `sceKernelChangeThreadPriority` that `off` makes twice in a row and `on` does not) and virtual time drifts. Consistent with that: with the tick every 100,000 dispatches and only `strchrnul` installed, the first difference moves from import 4,345 to 5,209. Setting the tick to 0 (no preemption) hangs the game in a busy-wait, so the equality could not be tested directly.
+**Fix / lesson.** None, and none wanted: import-trace identity between `on` and `off` is the wrong criterion for the decomp (it would fail with any function installed). `on` is correct when it reaches the same states: the `WAIT:seek` route finishes in both (the 12 page loads in the same order) and the race frames agree (position, lap, speeds within a few mph). Use that, plus `tools.trace_bisect --black-after / --crash`, when `on` misbehaves; do not bisect on trace equality.
+
+Found: 2026-10-19 · host/main.cpp (`--trace` writes `<trace>.names`), tools/trace_bisect.py
+
+## GT_PAD routes that wait for the game: times inside a segment are offsets from the last wait, not a sequence
+
+**Symptom.** A route written as `WAIT:seek=X,300:RIGHT,100:RIGHT,200:CROSS` pressed CROSS first. Written three times in a row while exploring (the old syntax is a list of absolute vblanks, and the habit stays).
+**Cause.** `WAIT` starts a new segment whose presses are offsets from the vblank where the wait was satisfied, exactly as the old syntax's vblanks are offsets from 0; the presses of a segment are scheduled together, not one after the other.
+**Fix / workaround.** Write increasing offsets inside a segment (`300:RIGHT,400:RIGHT,500:CROSS`) or put a `WAIT` between presses. A wait looks only once the segment's presses are released, and counts only events from the segment's start (events caused by the segment's own presses count).
+**Also:** the vblank rate is ~120 per second of wall time whether `LCS_UNCAPPED` is set or not, so a route's length in seconds is its last vblank / 120; a page is loaded 110-190 vblanks after the press that opened it, the race itself ~1250; some screens leave nothing to wait on (returning to the resident main menu loads no page; the Trade Cars notice is built in memory): those keep a time, after a wait.
+
+Found: 2026-10-19 · host/pad_sequence.cpp, config/pad_routes/*.pad
 
 ## 97 % of a race frame's GE draws are replays of static model blobs; GT's own list code writes only ~3 %
 
@@ -2006,3 +2032,20 @@ routes (replays, other races, longer sessions, loading) or something they see bu
 `GT_PERF_LOG=1` log from their own play, or the moment they name, is the next input.
 
 Found: 2026-10-20 · laptop over SSH, windowed on its display, binaries and data from /tmp (all removed afterwards)
+
+## A route that waits for the game can wait forever under `--decomp diff`, and a wall-clock end cuts routes short
+
+**Symptom.** With `--decomp diff` the race route timed out at Mode Selection, waiting for the Race Options seek (exit
+97), although the frames showed Race Options on screen. In the full gate, 5 of 11 routes stopped before their last
+press.
+**Cause.** First cause: the `WAIT:seek` signal was noted only outside harness cases (`!kernel_isolated()`). That seek ran
+inside a compared case, and sceIoLseek is recordable, so the original's call is the live one. Second cause: 11
+parallel routes run slower than real time, so a `--max-seconds` end lands earlier in the game than it does alone.
+**Fix / workaround.**
+- Seeks are noted inside cases too. The decompiled run replays the call without reaching the HLE, so a seek is never
+  noted twice from one case.
+- Full routes end `GT_PAD_EXIT_AFTER` vblanks after their script is done ("Runtime stopped: Pad script done"), with
+  the wall clock only as a cap.
+- The newly reached paths found one bug: `func_08888988`'s v0 on an empty pair (drift).
+
+Found: 2026-10-20 · full gate of feat/pad-routes-2

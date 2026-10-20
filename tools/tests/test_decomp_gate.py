@@ -11,6 +11,7 @@ from tools import decomp_gate as gate
 REPORT = """\
 Loaded extracted/EBOOT.elf (243383 relocations)
 [decomp] mode=diff functions=3 cases/function=32
+[pad] script done at vblank 12345
 Runtime stopped: Wall-clock limit reached at 0x08C7AC18
 [decomp] gt::game::race_operator::window_max @0x0885BBBC: compared 1, equal 1, mismatched 0, not comparable 0 (calls 3, cases that changed memory 0)
 [decomp] gt::game::func_088D4C9C @0x088D4C9C: compared 4, equal 3, mismatched 1, not comparable 2 (calls 9, cases that changed memory 1)
@@ -105,9 +106,18 @@ def test_route_commands_are_capped_and_parallel():
     command = gate.route_shell(Path("build/gt_native"), "fast", "t1", Path("recomp/analysis"))
     assert all(route in command for route in ("race", "dealer", "garage", "buy", "options")) and "wait" in command
     assert "--max-seconds 200" in command and "--decomp diff" in command
+    assert "options.pad" in command and "--max-seconds 230" in command and "GT_PAD_EXIT_AFTER" not in command
+
+
+def test_full_routes_end_after_their_script_not_on_the_wall_clock():
+    """A loaded machine runs the 11 parallel routes slower than real time: a wall-clock end cut their scripts short.
+    A full route ends a tail of vblanks after its script is done (the race keeps its 600 s of racing as a tail); the
+    wall clock, twice the route's length, is only a safety cap below the timeout."""
     full = gate.route_shell(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
-    assert "--max-seconds 600" in full and "--max-seconds 310" in full
-    assert "options.pad" in command and "--max-seconds 230" in command and "--max-seconds 240" in full
+    race = next(part for part in full.split(") &") if "race.pad" in part)
+    buy = next(part for part in full.split(") &") if "buy.pad" in part)
+    assert "GT_PAD_EXIT_AFTER=23400" in race and "--max-seconds 1200" in race and "timeout 1320" in race
+    assert "GT_PAD_EXIT_AFTER=600" in buy and "--max-seconds 440" in buy and "timeout 560" in buy
 
 
 def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
@@ -156,6 +166,18 @@ def test_route_problem_flags_a_timeout_a_missing_report_and_a_crash():
     assert "no report" in gate.route_problem("Running from entry 0x0880410C\n", "0")
     assert "exit 1" in gate.route_problem(REPORT, "1")
     assert gate.route_problem(REPORT, "2") is None  # 2 = mismatches, reported by the per-function lines
+
+
+def test_a_route_whose_pad_script_did_not_finish_is_a_failure():
+    unfinished = REPORT.replace("[pad] script done at vblank 12345\n", "")
+    assert "did not finish" in gate.route_problem(unfinished, "0", require_done=True)  # cut short by --max-seconds
+    assert gate.route_problem(unfinished, "0") is None  # the fast gate is short on purpose
+    assert "timed out" in gate.route_problem(unfinished, "124", require_done=True)  # the more specific problem is first
+
+
+def test_route_commands_log_the_pad_so_an_unfinished_script_is_seen():
+    assert "GT_PAD_LOG=1" in gate.route_shell(Path("build/gt_native"), "fast", "t1", Path("recomp/analysis"))
+    assert "GT_PAD_LOG=1" in gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
 
 
 def test_an_exclusive_slot_takes_every_lock(tmp_path):
@@ -298,9 +320,9 @@ def test_a_coverage_build_left_configured_is_noticed():
     assert not gate.coverage_left_configured("CMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
 
 
-def test_probe_shell_runs_the_five_fast_routes_uncapped_with_the_decomp_off_and_the_symbols_probed():
+def test_probe_shell_runs_every_fast_route_uncapped_with_the_decomp_off_and_the_symbols_probed():
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
-    assert command.count("--decomp off") == 5 and command.endswith(" wait")
+    assert command.count("--decomp off") == len(gate.ROUTES["fast"]) and command.endswith(" wait")
     assert "GT_PROBE_SYMBOLS=/s/syms.txt" in command and "LCS_UNCAPPED=1" in command
     assert "--max-seconds 230" in command and "--max-seconds 200" in command
     assert "recomp/analysis/probe_t1_options.log" in command and "--decomp diff" not in command
@@ -308,14 +330,26 @@ def test_probe_shell_runs_the_five_fast_routes_uncapped_with_the_decomp_off_and_
 
 def test_probe_shell_records_each_routes_exit_code_next_to_its_log():
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
-    assert command.count("echo $? >") == 5 and "recomp/analysis/probe_t1_options.exit" in command
+    assert command.count("echo $? >") == len(gate.ROUTES["fast"]) and "recomp/analysis/probe_t1_options.exit" in command
 
 
 def test_a_probe_route_that_times_out_or_exits_non_zero_is_a_failure():
     assert "timed out" in gate.probe_problem("[probe] 0x08804028 hits=1\n", "124")
     assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "139") == "exit 139"
     assert "no exit code" in gate.probe_problem("", "?")
+    assert gate.probe_problem("[probe] 0x08804028 hits=1\n[pad] script done at vblank 9\n", "0") is None
+    assert "did not finish" in gate.probe_problem("[probe] 0x08804028 hits=1\n", "0", require_done=True)  # partial hit counts
     assert gate.probe_problem("[probe] 0x08804028 hits=1\n", "0") is None
+
+
+def test_probe_shell_scales_the_route_lengths():
+    command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"), "full", 1.5)
+    assert "--max-seconds 900" in command and "--max-seconds 465" in command and "--max-seconds 600" not in command
+
+
+def test_probe_shell_can_use_the_full_gates_route_lengths():
+    command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"), "full")
+    assert "--max-seconds 600" in command and "--max-seconds 310" in command and "--max-seconds 230" not in command
 
 
 # The compared floor: a full gate whose compared total drops means an installed function stops other code from running
@@ -350,3 +384,17 @@ def test_raised_floor_only_goes_up(tmp_path: Path):
     assert gate.raise_floor(floor, 5230) == 5230 and gate.read_floor(floor) == 5230
     fresh = tmp_path / "new.txt"
     assert gate.raise_floor(fresh, 100) == 100 and gate.read_floor(fresh) == 100
+
+
+def test_every_route_has_a_pad_file_and_a_budget_within_the_race():
+    for kind in ("fast", "full"):
+        names = [route for route, _ in gate.ROUTES[kind]]
+        assert len(names) == len(set(names))
+        for route, seconds in gate.ROUTES[kind]:
+            assert Path(f"config/pad_routes/{route}.pad").exists(), route
+            if route != "race":
+                assert seconds <= 600, (route, seconds)  # routes run in parallel: none outlasts the race (600 s)
+
+
+def test_fast_and_full_run_the_same_routes():
+    assert [r for r, _ in gate.ROUTES["fast"]] == [r for r, _ in gate.ROUTES["full"]]

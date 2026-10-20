@@ -1,0 +1,11 @@
+# Route I — Ad Hoc Mode and the User Manual: Ad Hoc Mode (Multiplayer ends in the "WLAN switch is OFF" notice, Accept;
+# Share & Trade -> Trade Cars in "You don't have any tradeable cars", Close), back to the main menu, then the User Manual: contents, chapter 1 and the next pages (200 s).
+# Page offsets: 1cd2ff80 Ad Hoc Mode (and its Share & Trade level), 1cef9300 the notice, 1fa48900 the main menu, 1d0fe780 the manual.
+3300:START,
+WAIT:seek=0x1fa48900,1700:RIGHT,1800:CROSS,
+WAIT:seek=0x1cd2ff80,300:CROSS,
+WAIT:seek=0x1cef9300,300:CROSS,
+WAIT:seek=0x1cd2ff80,300:RIGHT,1000:CROSS,
+WAIT:seek=0x1cd2ff80,500:CROSS,1300:CROSS,2000:CIRCLE,2800:CIRCLE,3300:CROSS,4500:DOWN,4600:RIGHT,4700:RIGHT,4800:RIGHT,4900:CROSS,
+WAIT:seek=0x1d0fe780,500:CROSS,
+1500:RIGHT,1800:RIGHT,2100:RIGHT

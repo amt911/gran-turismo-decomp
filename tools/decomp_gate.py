@@ -30,9 +30,21 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 ROUTES = {
-    "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230)),
-    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 150), ("options", 240)),
+    "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230),
+             ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150),
+             ("circuit", 200), ("challenge2", 200)),
+    # Each full route runs until its pad script is done (checked) with ~10 % to spare; they run in parallel, so the
+    # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 379,
+    # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271.
+    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 420),
+             ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
+             ("circuit", 335), ("challenge2", 300)),
 }
+# A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the
+# 11 parallel routes run slower than real time on a loaded machine and a wall-clock end cut their scripts short. The
+# race's script ends at the start of the race; its tail is the rest of its 600 s of racing.
+DEFAULT_TAIL = 600
+FULL_TAIL = {"race": 23400}
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
 SLICE = "gt-heavy.slice"
@@ -49,6 +61,7 @@ _LINE = re.compile(
 )
 _MISMATCH_CASE = re.compile(r"^\[decomp\] mismatch case: 0x([0-9A-Fa-f]{8}) nested (\S+)$", re.MULTILINE)
 _FIRST_MISMATCH = re.compile(r"^\[decomp\]   first mismatch: (.*)$")
+PAD_DONE = "[pad] script done at vblank"  # GT_PAD_LOG=1: the route's pad script ran to its end (host/pad_script.cpp)
 _STOP = re.compile(r"^Runtime stopped: (.*)$", re.MULTILINE)
 # An active registration: GT_DECOMP(0x..u, ns::name, ...) or a subsystem's shorthand NAME(0x..u, name, ...).
 _REGISTRATION = re.compile(r"^[ \t]*[A-Z][A-Z0-9_]*\(\s*0x([0-9A-Fa-f]{8})u?\s*,\s*([A-Za-z_][\w:<>]*)", re.MULTILINE)
@@ -270,24 +283,34 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     parts = []
     for route, seconds in ROUTES[kind]:
         log = logs / f"gt_diff_{tag}_{route}"
-        parts.append(f'( GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout 1000 {binary} '
+        if kind == "full":  # ends a tail after the script is done; the wall clock is only a cap (FULL_TAIL)
+            tail = FULL_TAIL.get(route, DEFAULT_TAIL)
+            parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
+                         f"timeout {2 * seconds + 120} {binary} --max-seconds {2 * seconds} --decomp diff > {log}.log 2>&1; "
+                         f"echo $? > {log}.exit ) &")
+            continue
+        parts.append(f'( GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout 1000 {binary} '
                      f"--max-seconds {seconds} --decomp diff > {log}.log 2>&1; echo $? > {log}.exit ) &")
     return " ".join(parts) + " wait"
 
 
-def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path) -> str:
-    """One shell line running the five fast routes in parallel with every function recompiled (`--decomp off`) and
+def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path, kind: str = "fast", scale: float = 1.0) -> str:
+    """One shell line running the fast routes in parallel with every function recompiled (`--decomp off`) and
     the functions named in `symbols` probed (GT_PROBE_SYMBOLS: `name = 0xADDR;` lines), one log per route. The
     logs say which functions the routes call: `python -m tools.family_members --probe` reads them."""
     parts = []
-    for route, seconds in ROUTES["fast"]:
+    for route, seconds in ROUTES[kind]:
         log = logs / f"probe_{tag}_{route}.log"
-        parts.append(f'( GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
-                     f"timeout 1000 {binary} --max-seconds {seconds} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
+        parts.append(f'( GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
+                     f"timeout 1000 {binary} --max-seconds {round(seconds * scale)} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
     return " ".join(parts) + " wait"
 
 
-def probe_problem(text: str, exit_code: str) -> str | None:
+PAD_UNFINISHED = ("the pad script did not finish within --max-seconds (the route stopped before its last press: it covers less "
+                  "than it should; lengthen ROUTES or shorten the route)")
+
+
+def probe_problem(text: str, exit_code: str, require_done: bool = False) -> str | None:
     """Why a probe route's log can't be trusted (like `route_problem` for the gate), or None: a timeout, a crash or a
     run that left no exit code means the hit counts are partial, and a family built on them would miss members."""
     if exit_code == "124":
@@ -296,6 +319,8 @@ def probe_problem(text: str, exit_code: str) -> str | None:
         return "no exit code (the run did not finish)"
     if exit_code != "0":
         return f"exit {exit_code}"
+    if require_done and PAD_DONE not in text:
+        return PAD_UNFINISHED
     return None
 
 
@@ -388,7 +413,7 @@ class HeavySlot:
         self._files = []
 
 
-def route_problem(text: str, exit_code: str) -> str | None:
+def route_problem(text: str, exit_code: str, require_done: bool = False) -> str | None:
     """Why a route's run can't be trusted, or None. Exit 2 is gt_native's "mismatches found", which the
     per-function lines already report; a timeout, a crash or a missing report fails on its own."""
     if exit_code == "124":
@@ -397,6 +422,8 @@ def route_problem(text: str, exit_code: str) -> str | None:
         return "no report (the run ended before printing its results)"
     if exit_code not in ("0", "2"):
         return f"exit {exit_code}"
+    if require_done and PAD_DONE not in text:
+        return PAD_UNFINISHED
     return None
 
 
@@ -490,22 +517,23 @@ def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no c
     return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after)
 
 
-def _probe_run(tag: str, symbols: Path) -> int:  # pragma: no cover - runs the game
+def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) -> int:  # pragma: no cover - runs the game
     subprocess.run(slice_limits(), check=True)
     slot = HeavySlot()
     slot.acquire()
     for stale in Path("recomp/analysis").glob(f"probe_{tag}_*"):
         stale.unlink()  # an earlier run's logs and exit codes must not stand in for this one
     try:
-        subprocess.run(heavy(["sh", "-c", probe_shell(Path("build/gt_native"), tag, symbols.resolve(), Path("recomp/analysis"))]))
+        subprocess.run(heavy(["sh", "-c", probe_shell(Path("build/gt_native"), tag, symbols.resolve(), Path("recomp/analysis"), kind, scale)]))
     finally:
         slot.release()
     logs = sorted(Path("recomp/analysis").glob(f"probe_{tag}_*.log"))
     print(f"{len(logs)} probe logs: " + " ".join(str(p) for p in logs))
-    status = 0 if len(logs) == len(ROUTES["fast"]) else 2
+    status = 0 if len(logs) == len(ROUTES[kind]) else 2
     for log in logs:
         exit_file = log.with_suffix(".exit")
-        problem = probe_problem(log.read_text(errors="replace"), exit_file.read_text().strip() if exit_file.exists() else "?")
+        problem = probe_problem(log.read_text(errors="replace"), exit_file.read_text().strip() if exit_file.exists() else "?",
+                               require_done=kind == "full")
         if problem:
             print(f"  {log.name}: {problem}")
             status = 1
@@ -525,7 +553,7 @@ def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False
         print(f"{route}: exit {code}, {stop_reason(text)}; {s.functions} functions, {s.compared} compared, "
               f"{s.mismatched} mismatched, {not_installed(text)} not installed")
         reports.append(report)
-        problem = route_problem(text, code)
+        problem = route_problem(text, code, require_done=check_floor)
         if problem:
             print(f"  {route}: {problem}")
         if s.mismatched or not_installed(text) or problem:
@@ -653,9 +681,13 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
-    probe = sub.add_parser("probe", help="run the five routes with the decomp off and --symbols probed (call counts)")
+    probe = sub.add_parser("probe", help="run the fast routes with the decomp off and --symbols probed (call counts)")
     probe.add_argument("tag")
     probe.add_argument("--symbols", type=Path, required=True)
+    probe.add_argument("--full", action="store_true", help="the full gate's route lengths, and a route whose pad script "
+                                                           "did not finish is a failure (the logs say everything a route reaches)")
+    probe.add_argument("--scale", type=float, default=1.0, help="multiply every route's --max-seconds (a loaded machine "
+                                                                "runs fewer vblanks per second; a route that does not finish covers less)")
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -664,7 +696,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "full":
         return _run_gate("full", args.tag, None, raise_floor_after=args.raise_floor)
     if args.command == "probe":
-        return _probe_run(args.tag, args.symbols)
+        return _probe_run(args.tag, args.symbols, "full" if args.full else "fast", args.scale)
     if args.command == "coverage":
         return _coverage_run(args.tag, parse_only(args.only))
     if args.command == "sabotage":

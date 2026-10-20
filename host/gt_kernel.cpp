@@ -4068,8 +4068,12 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 (static_cast<std::uint64_t>(ctx.gpr[7]) << 32u);
             const auto offset = static_cast<std::int64_t>(raw_offset);
             const auto whence = static_cast<std::int32_t>(ctx.gpr[8]);
+            // WAIT:seek=<offset>. Noted inside a harness case too: sceIoLseek is recordable, so the original's call is the
+            // live one (the decompiled run replays it without calling here); with --decomp diff the race route's Race
+            // Options seek happens inside a case and was lost, and the route waited forever.
+            if (whence == 0) gt::pad_script_note_seek(static_cast<std::uint64_t>(offset));
             if (io_log_enabled() && whence == 0)
-                std::cerr << "[io] seek " << fd << " " << std::hex << offset << std::dec << "\n";
+                std::cerr << "[io] seek " << fd << " " << std::hex << offset << std::dec << " vblank " << gt::pad_script_vblanks() << "\n";
             if (const auto virtual_handle = file_table.virtual_disc_handles.find(fd);
                 virtual_handle != file_table.virtual_disc_handles.end() && whence >= 0 && whence <= 2) {
                 VirtualDiscHandle &handle = virtual_handle->second;
@@ -4408,7 +4412,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             perf_log.pump_ms += pump;
             perf_log.pump_max_ms = std::max(perf_log.pump_max_ms, pump);
         }
-        gt::pad_script_tick();
+        gt::pad_script_tick(rt);
         if (display_window_closed()) {
             ge_worker_wait_idle();
             rt.stop("Display window closed");
