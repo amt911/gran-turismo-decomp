@@ -29,6 +29,12 @@ int main() {
         check(mask <= 0x7Fu, "argument masks name at most a0-a3 and t0-t2 here");
     }
 
+    // A recordable import's mask must name every argument its HLE reads: an argument left out is not compared, and an
+    // effect on host-side state (the Sas voice table) is invisible to the RAM diff. __sceSasSetVoice reads core, voice,
+    // the VAG address, its size and the loop flag (lcs_sas.cpp), a0-a3 and t0 (review of #251).
+    if (const auto it = recordable.find(0x99944089u); it != recordable.end())
+        check(it->second == 0x1Fu, "__sceSasSetVoice compares all five arguments (mask 0x1F)");
+
     // Imports that block, wait on a device or switch threads on every call: never allowed inside a case.
     const std::array<std::uint32_t, 14> never{
         0xCEADEB47u,  // sceKernelDelayThread

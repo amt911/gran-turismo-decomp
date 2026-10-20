@@ -1651,7 +1651,7 @@ void func_08C1CFD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }  // namespace gt::game
 
 #define HOT82(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_82::name, gt::ReturnKind::kind)
-HOT82(0x08B59A24u, func_08B59A24, Word);  // re-registered in batch 103: the import that blocked it became recordable (FINDINGS "Batch 103")
+// HOT82(0x08B59A24u, func_08B59A24, Word);  // not registered: its blocker is the sceDisplay vblank wait, still never allowed in a case; only the cases that skip the wait compare, so the loop and call arms stay unverified (review of #251)
 // Not registered (its cases stop at the sceDisplay vblank import (not comparable)): HOT82(0x08ACF390u, func_08ACF390, Word);
 HOT82(0x088FC214u, func_088FC214, Word);
 // Not registered (no compared case changed memory (every case left at the inactive byte), so the gate cannot see its stores): HOT82(0x08B44B24u, func_08B44B24, Word);

@@ -79,7 +79,7 @@ inline const std::unordered_map<std::uint32_t, std::uint8_t> &recordable_nids() 
         // sceSasCore (tools/src/lcs-recomp/lcs/host/lcs_sas.cpp): the voice table and the mixer live on the host; the
         // mix functions write the output buffer through GuestMemory. Nothing waits.
         {0x42778A9Fu, 0x1Fu},  // __sceSasInit(core, grain, voices, mode, rate)
-        {0x99944089u, 0x03u},  // __sceSasSetVoice(core, voice)
+        {0x99944089u, 0x1Fu},  // __sceSasSetVoice(core, voice, vag address, size, loop): all read by the HLE
         {0x019B25EBu, 0x7Fu},  // __sceSasSetADSR(core, voice, flags, a, d, s, r)
         {0x9EC3676Au, 0x7Fu},  // __sceSasSetADSRmode(core, voice, flags, a, d, s, r)
         {0x5F9529F6u, 0x07u},  // __sceSasSetSL(core, voice, level)
