@@ -1935,3 +1935,28 @@ Found: 2026-10-19 · src/game/unsorted/hot_batch_102.cpp (func_08891C54)
 **Fix / lesson.** Not merged (spec `2026-10-19-ge-streamed-fast-draws-design.md`, result section); the code is on branch `perf/ge-streamed-fast-draws`. Before another per-draw micro-optimisation of the GE, profile the target machine: the next gains need structure, such as more than one core decoding lists or the renderer leaving the PSP command lists behind.
 
 Found: 2026-10-19 · laptop A/B and profile over SSH (binaries from /tmp)
+
+## 97 % of a race frame's GE draws are replays of static model blobs; GT's own list code writes only ~3 %
+
+**Symptom.** ~1 M GE draws per second in a race (about 12-15k per frame), while the functions that write GE command words in code run only ~10k times per second.
+**Cause.** A census over 20,265 enqueued lists (race route, `gt_native --decomp off`, a scratch `GT_GE_CENSUS` hook in the `sceGeListEnQueue` HLE, 2026-10-20):
+- **Lists are complete at enqueue.** GT enqueues one list per frame, alternating `0x08D00490` / `0x08D20490`, with stall 0 every time. GT does not import `sceGeListUpdateStallAddr`. Re-walking a list at the next enqueue and at DrawSync differed 0 times in 20,264.
+- **A race list:** on average 12,432 PRIMs, 73.9k vertices, 57.6k executed words and ~300 depth-0 CALLs. 99.5 % of the CALL targets are the same as in the previous frame.
+- **Where the PRIMs come from:** 97.2 % from CALLed sublists ("model blobs"), 2.8 % from code (in the race, ~62 per list: the HUD).
+  - Blob memory: heap `0x096-0x099` 69 %, upper VRAM `0x041b-0x041f` 25-26 % (a model cache that copies and relocates heap blobs: `0x08B54D28`), static `0x08F-0x091` 2-5 %.
+- **Blobs are static.** 2,480 of 2,547 targets kept one content hash for the whole run (84.1 M of 90.7 M PRIMs), and the vertex bytes behind 1.49 M draws were unchanged. What does change:
+  - the 21-word texture-binding blocks (texture registers only);
+  - the glyph sublists;
+  - VRAM cache slots, refilled at race start and in two later bursts.
+- **A blob** is a command list followed by its own vertices (absolute VADR): ATEST, BASE, VADR, BLEND, a CALL to a texture block, then repeated `0xC8` (texture level, once per PRIM), VTYPE `0x112`, PRIM, and RET. A model blob has 70 PRIMs on average; strips average 5.8 vertices.
+- **GT's graphics library context** is at `0x08D6CE00` (`+0x5C` list cursor, `+0x60` downward vertex pool). Its hot functions:
+  - `0x08B53D2C` / `0x08B53978`: immediate 2D quads (UI, text);
+  - `0x08B54694` / `0x08B544B0`: glyph transfers;
+  - `0x08B52578`: texture binding through prebuilt sublists;
+  - `0x08B59508`: lazy matrix flush, ~150 world matrices per race list;
+  - `0x08B550A8`: `callList` (BASE + CALL);
+  - `0x08B54D28`: the model-blob cache lookup and relocation.
+- **Corrections:** `GT_GE_LOG` agreed with the census on the list checked (14,680 PRIMs both ways); an earlier remark that lists are streamed was wrong. `GT_PROBE` does not count calls made inside one recompiled unit.
+**Consequence.** Decompiling the list-writing code reaches ~3 % of the draws. The draw cost is re-decoding the same static blobs every frame, so the lever is to decode a blob once and replay it (spec `2026-10-20-ge-blob-replay-design.md`).
+
+Found: 2026-10-20 · research run over `gt_native` race route (run logs kept out of git)
