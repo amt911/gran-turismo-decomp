@@ -339,4 +339,22 @@ inline bool condition(const psprecomp::AllegrexContext &ctx, std::uint32_t index
     return ((ctx.vfpu_ctrl[3] >> index) & 1u) != 0u;
 }
 
+// vdot destination scalar, source, target over `length` lanes.
+inline void dot(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t source, std::uint32_t target,
+                std::uint32_t length) {
+    ctx.execute_vfpu_vdot(destination, source, target, length);
+}
+
+// vuc2i / vc2i / vus2i / vs2i (operation 0 / 1 / 2 / 3): packed bytes or halfwords unpacked to integer lanes.
+inline void unpack_ints(psprecomp::AllegrexContext &ctx, std::uint32_t operation, std::uint32_t destination,
+                        std::uint32_t source, std::uint32_t source_length) {
+    ctx.execute_vfpu_vx2i(destination, source, source_length, operation);
+}
+
+// vmmov destination, source (side x side).
+inline void matrix_move(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t source,
+                        std::uint32_t side) {
+    ctx.execute_vfpu_vmmov(destination, source, side);
+}
+
 } // namespace gt::vfpu

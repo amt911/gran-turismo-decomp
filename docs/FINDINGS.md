@@ -2142,3 +2142,23 @@ fields are written. The fast gate that had crashed passed twice after the fix. T
 rare by nature.
 
 Found: 2026-10-21 · core dumps via `coredumpctl debug`, fix/row-pool-race
+
+## Batch 106: the 11 routes reached trivial accessors nobody had registered, and menu presses spaced 100 vblanks apart could be lost
+
+**Symptom.** A probe over all 16,024 pending functions on the 11 full routes turned up about 40 one- and two-instruction
+accessors, all reached for the first time by the new routes. Separately, `challenge2` and `options` still stalled in an
+occasional full gate. The thread table showed a live game that had loaded a different page.
+**Cause.**
+- The accessors were simply new coverage.
+- The stalls came from menus that take presses every 100 vblanks. Under the gate's load the game runs fewer frames per
+  vblank, so the cursor's animation swallowed a press and the next CROSS opened the wrong page.
+**Fix / workaround.**
+- Accessors are registered by shape, each matched instruction for instruction from `tools.disasm`, reusing
+  `src/core/leaves.cpp` and `accessors.cpp`. New shapes: `field_plus`, `deref_float`, `set_byte`.
+- 15 of them only the full routes reach. The sabotage runs on the fast gate, so they stay parked until a fast route
+  reaches them.
+- The main-menu presses of the challenge routes and the options-page presses are now 200 vblanks apart.
+- Before adding a template shape, grep `src/core` for its body: `float_getter`, `set_field` and `byte_getter` already
+  existed in `leaves.cpp`, and the duplicates failed to link.
+
+Found: 2026-10-21 · decomp/hot-batch-106

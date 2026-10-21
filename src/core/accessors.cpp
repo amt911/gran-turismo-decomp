@@ -4,6 +4,8 @@
 //   return_zero    `jr $ra; move $v0, $zero`              return 0;
 //   member_forward `j target; lw $a0, off($a0)`           return target(this->member, ...);
 //   deref_getter   `lw $v1, 0($a0); jr $ra; lw $v0, off($v1)`  return (*this)->field;
+//   field_plus     `lw $v0, off($a0); jr $ra; addiu $v0, $v0, k`  return this->field + k;
+//   deref_float    `lw $v0, off($a0); jr $ra; lwc1 $f0, k($v0)`   return this->ptr->float_field;
 // Listed: the ones the race path calls (the harness compared them equal); the others stay
 // recompiled until a run reaches them.
 
@@ -55,6 +57,17 @@ void deref_getter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = rt.memory().load32(inner + static_cast<std::uint32_t>(accessor(ctx).offset));
 }
 
+// field_plus(this) -> this->field + k (the target slot holds k).
+void field_plus(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const Accessor &a = accessor(ctx);
+    ctx.gpr[2] = rt.memory().load32(ctx.gpr[4] + static_cast<std::uint32_t>(a.offset)) + a.target;
+}
+// deref_float(this) -> this->ptr->float_field (v0 keeps the pointer; the target slot holds the float's offset).
+void deref_float(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const Accessor &a = accessor(ctx);
+    ctx.gpr[2] = rt.memory().load32(ctx.gpr[4] + static_cast<std::uint32_t>(a.offset));
+    ctx.set_fpr_bits(0u, rt.memory().load32(ctx.gpr[2] + a.target));
+}
 } // namespace gt::core
 
 #define GT_DECOMP_ACCESSOR_(kind, fn, returns, entry, offset, target)                                    \
@@ -65,6 +78,9 @@ void deref_getter(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 #define GT_DECOMP_FORWARD(entry, offset, target) \
     GT_DECOMP_ACCESSOR_(forward, member_forward, gt::ReturnKind::Word, entry, offset, target)
 #define GT_DECOMP_DEREF(entry, offset) GT_DECOMP_ACCESSOR_(deref, deref_getter, gt::ReturnKind::Word, entry, offset, 0u)
+#define GT_DECOMP_FIELD_PLUS(entry, offset, k) GT_DECOMP_ACCESSOR_(plus, field_plus, gt::ReturnKind::Word, entry, offset, k)
+#define GT_DECOMP_DEREF_FLOAT(entry, offset, k) \
+    GT_DECOMP_ACCESSOR_(dflt, deref_float, gt::ReturnKind::Float, entry, offset, k)
 
 GT_DECOMP_FIELD(0x08817A54u, 20);
 GT_DECOMP_FIELD(0x08817DC8u, 20);
@@ -203,3 +219,20 @@ GT_DECOMP_DEREF(0x08AF2840u, 4);
 GT_DECOMP_DEREF(0x08AF2924u, 52);
 GT_DECOMP_DEREF(0x08AF293Cu, 56);
 GT_DECOMP_DEREF(0x08AF2954u, 60);
+// Batch 106: reached by the 11-route gate, each shape matched instruction for instruction.
+// GT_DECOMP_FIELD_PLUS(0x0888EB9Cu, 0, static_cast<std::uint32_t>(8));  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_FIELD_PLUS(0x088915C8u, 0, static_cast<std::uint32_t>(8));  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_FORWARD(0x088915F0u, 0, 0x0889117Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_FORWARD(0x08891600u, 0, 0x0889118Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_FORWARD(0x08892138u, 0, 0x08892114u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+GT_DECOMP_FIELD_PLUS(0x088A429Cu, 484, static_cast<std::uint32_t>(1036));
+GT_DECOMP_DEREF_FLOAT(0x088A42A8u, 484, static_cast<std::uint32_t>(1048));
+GT_DECOMP_FIELD(0x088CEF60u, 188);
+GT_DECOMP_FIELD(0x088CEF68u, 168);
+GT_DECOMP_FIELD(0x088CEF70u, 172);
+GT_DECOMP_FIELD(0x088CEF78u, 160);
+GT_DECOMP_FIELD(0x088CEF80u, 224);
+GT_DECOMP_FIELD(0x088CF6D0u, 296);
+GT_DECOMP_FIELD(0x088CFA8Cu, 292);
+GT_DECOMP_FIELD(0x088CFA94u, 300);
+GT_DECOMP_FIELD_PLUS(0x08B09A04u, 0, static_cast<std::uint32_t>(288));

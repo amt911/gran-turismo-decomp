@@ -34,9 +34,9 @@ ROUTES = {
              ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150),
              ("circuit", 200), ("challenge2", 200)),
     # Each full route runs until its pad script is done (checked) with ~10 % to spare; they run in parallel, so the
-    # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 379,
+    # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 409,
     # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271.
-    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 420),
+    "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 470),
              ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
              ("circuit", 335), ("challenge2", 300)),
 }

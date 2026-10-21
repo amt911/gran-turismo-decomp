@@ -7,6 +7,7 @@
 //   float_getter         `lwc1 $f0, K($a0)`        return this->float_field;
 //   clear_field          `sw $zero, K($a0)`        this->field = 0;
 //   clear_byte           `sb $zero, K($a0)`        this->byte_field = 0;
+//   set_byte             `sb $a1, K($a0)`          this->byte_field = value;
 //   return_argument      `move $v0, $a0` / `$a1`   return the first / second argument;
 // Listed: the ones the routes call (the harness compared them equal); the others stay recompiled
 // until a run reaches them.
@@ -58,6 +59,10 @@ void clear_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store8(ctx.gpr[4] + leaf_constant(ctx), 0u);
 }
 
+// set_byte(this, value): this->byte_field = value's low byte.
+void set_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    rt.memory().store8(ctx.gpr[4] + leaf_constant(ctx), static_cast<std::uint8_t>(ctx.gpr[5]));
+}
 void return_first_argument(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[4]; }
 
 void return_second_argument(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[5]; }
@@ -74,6 +79,7 @@ void return_second_argument(psprecomp::Runtime &, psprecomp::AllegrexContext &ct
 #define GT_DECOMP_FLOAT_GETTER(entry, k) GT_DECOMP_LEAF_(float_getter, gt::ReturnKind::Float, entry, k)
 #define GT_DECOMP_CLEAR_FIELD(entry, k) GT_DECOMP_LEAF_(clear_field, gt::ReturnKind::Void, entry, k)
 #define GT_DECOMP_CLEAR_BYTE(entry, k) GT_DECOMP_LEAF_(clear_byte, gt::ReturnKind::Void, entry, k)
+#define GT_DECOMP_SET_BYTE(entry, k) GT_DECOMP_LEAF_(set_byte, gt::ReturnKind::Void, entry, k)
 #define GT_DECOMP_RETURN_FIRST_ARG(entry) GT_DECOMP(entry, gt::core::return_first_argument, gt::ReturnKind::Word)
 #define GT_DECOMP_RETURN_SECOND_ARG(entry) GT_DECOMP(entry, gt::core::return_second_argument, gt::ReturnKind::Word)
 
@@ -134,3 +140,18 @@ GT_DECOMP_RETURN_FIRST_ARG(0x089304C8u);
 GT_DECOMP_RETURN_FIRST_ARG(0x08AAB540u);
 
 GT_DECOMP_RETURN_SECOND_ARG(0x089304C0u);
+// Batch 106: reached by the 11-route gate, each shape matched instruction for instruction.
+GT_DECOMP_BYTE_GETTER(0x088CEF48u, 149);
+GT_DECOMP_SET_BYTE(0x088CEF50u, 149);
+GT_DECOMP_SET_BYTE(0x088CEF58u, 148);
+GT_DECOMP_CONST(0x088DA0B4u, 1);
+// GT_DECOMP_SET_FIELD(0x088DAD00u, 60);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_SET_BYTE(0x088DAD9Cu, 68);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_SET_FIELD(0x088DADACu, 64);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+GT_DECOMP_FLOAT_GETTER(0x08A87824u, 20);
+// GT_DECOMP_RETURN_FIRST_ARG(0x08BAE28Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08BBBE8Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C45D8Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C46D64u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC0u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC8u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
