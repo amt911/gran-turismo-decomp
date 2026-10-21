@@ -295,6 +295,116 @@ void func_08B58EE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08C7AAD8u, {});
 }
 
+// func_08B5730C(mode, kind, value): unless mode is 2 or kind is past 4, appends GE commands with value to the display
+// list, by kind (jump table at 0x08C956B4, read from the ELF: 0x08B57360, 0x08B57384, 0x08B573DC, 0x08B5733C,
+// 0x08B573B8): 0 -> 0x55 | value; 1 -> 0x56 | value, 0x58 | value >> 24; 2 -> 0x55 | value, 0x56 | value,
+// 0x58 | value >> 24; 3 -> 0x54 | value; 4 -> 0x57 | value (each with value's low 24 bits).
+void func_08B5730C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t kind = ctx.gpr[5], value = ctx.gpr[6];
+    ctx.gpr[2] = 2u;
+    ctx.gpr[8] = value;
+    if (ctx.gpr[4] == 2u) return;
+    ctx.gpr[2] = kind < 5u ? 1u : 0u;
+    ctx.gpr[3] = lui_of(0x08C956B4u);
+    if (kind >= 5u) return;
+    static constexpr std::uint32_t kTargets[5] = {0x08B57360u, 0x08B57384u, 0x08B573DCu, 0x08B5733Cu, 0x08B573B8u};
+    ctx.gpr[4] = kTargets[kind];
+    const std::uint32_t list = word(rt, kGuListPointer);
+    const std::uint32_t low = value & 0x00FFFFFFu;
+    const auto one = [&](std::uint32_t command) {  // kinds 0, 3, 4
+        ctx.gpr[3] = kGuState;
+        ctx.gpr[5] = list;
+        ctx.gpr[2] = command | low;
+        ctx.gpr[4] = list + 4u;
+        put(rt, list, ctx.gpr[2]);
+        put(rt, kGuListPointer, list + 4u);
+    };
+    switch (kind) {
+    case 0u: one(0x55000000u); break;
+    case 3u: one(0x54000000u); break;
+    case 4u: one(0x57000000u); break;
+    case 1u:
+        ctx.gpr[5] = kGuState;
+        ctx.gpr[4] = list;
+        ctx.gpr[2] = 0x56000000u | low;
+        ctx.gpr[3] = 0x58000000u | (value >> 24);
+        ctx.gpr[6] = list + 8u;
+        put(rt, list, ctx.gpr[2]);
+        put(rt, list + 4u, ctx.gpr[3]);
+        put(rt, kGuListPointer, list + 8u);
+        break;
+    default:  // 2
+        ctx.gpr[6] = kGuState;
+        ctx.gpr[5] = list;
+        ctx.gpr[2] = 0x55000000u | low;
+        ctx.gpr[3] = 0x56000000u | low;
+        ctx.gpr[4] = 0x58000000u | (value >> 24);
+        ctx.gpr[7] = list + 12u;
+        put(rt, list, ctx.gpr[2]);
+        put(rt, list + 4u, ctx.gpr[3]);
+        put(rt, list + 8u, ctx.gpr[4]);
+        put(rt, kGuListPointer, list + 12u);
+        break;
+    }
+}
+
+// func_08B4FE74(out, u, v): the rotation (a quaternion, through func_08B4BB00) that takes u to v. d = dot(u, v)
+// (func_08B4A9A0); when d + 1 > 1.9999 (0x3FFFFCB9) out is the identity (0, 0, 0, 1); when d + 1 > 0 the axis is
+// cross(u, v) (func_08B4A9D0) scaled by 1 / sqrt(func_08B4A720(axis)) (func_08B4A5E8) and the angle is
+// func_08B49F3C(dot(u, v) clamped to [-1, 1]); otherwise (opposite vectors, or NaN) the axis is func_08B4F678 of v and
+// (1, 0, 0), and the angle pi (0x40490FDB). Frame offsets as in the original (axis at +0xC, the cross product at +0x18).
+void func_08B4FE74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], u = ctx.gpr[5], v = ctx.gpr[6];
+    constexpr float kOne = 1.0f;
+    GuestFrame frame(ctx, 0x60u);
+    (void)call_set(rt, ctx, 0x08B4A9A0u, {u, v});
+    const float d = ctx.fpr[0] + kOne;
+    ctx.fpr[1] = d;
+    const bool same = std::bit_cast<float>(0x3FFFFCB9u) < d;
+    ctx.fpr[0] = 0.0f;  // the bc1f's delay slot, both paths
+    if (same) {
+        put_float(rt, out + 0xCu, kOne);
+        put(rt, out, 0u);
+        put(rt, out + 4u, 0u);
+        put(rt, out + 8u, 0u);
+        return;
+    }
+    const std::uint32_t axis = frame.at(0xCu);
+    ctx.gpr[6] = v;  // the bc1f's delay slot, both paths
+    if (0.0f < d) {
+        const std::uint32_t cross = frame.at(0x18u);
+        (void)call_set(rt, ctx, 0x08B4A9D0u, {cross, u, v});
+        ctx.fpr[0] = float_at(rt, cross);
+        ctx.fpr[1] = float_at(rt, cross + 4u);
+        put_float(rt, axis, ctx.fpr[0]);
+        ctx.fpr[0] = float_at(rt, cross + 8u);
+        put_float(rt, axis + 4u, ctx.fpr[1]);
+        put_float(rt, axis + 8u, ctx.fpr[0]);  // the jal's delay slot
+        (void)call_set(rt, ctx, 0x08B4A720u, {axis});
+        ctx.fpr[0] = std::sqrt(ctx.fpr[0]);
+        ctx.fpr[12] = kOne / ctx.fpr[0];  // the jal's delay slot
+        (void)call_set(rt, ctx, 0x08B4A5E8u, {axis});
+        (void)call_set(rt, ctx, 0x08B4A9A0u, {u, v});
+        ctx.fpr[1] = -1.0f;
+        float angle_input = ctx.fpr[0];
+        if (angle_input < -1.0f) angle_input = -1.0f;
+        else if (!(angle_input < kOne)) angle_input = kOne;  // bc1fl: the delay slot runs only when taken
+        ctx.fpr[0] = angle_input;
+        ctx.fpr[12] = angle_input;
+        (void)call_set(rt, ctx, 0x08B49F3Cu, {});
+        ctx.fpr[12] = ctx.fpr[0];
+    } else {
+        const std::uint32_t reference = frame.at(0u);
+        put_float(rt, reference + 8u, ctx.fpr[0]);
+        put_float(rt, reference + 4u, ctx.fpr[0]);
+        put_float(rt, reference, kOne);  // the jal's delay slot
+        (void)call_set(rt, ctx, 0x08B4F678u, {axis, v, reference});
+        ctx.fpr[0] = std::bit_cast<float>(0x40490FDBu);
+        ctx.fpr[12] = ctx.fpr[0];
+    }
+    (void)call_set(rt, ctx, 0x08B4BB00u, {out, axis});
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -313,4 +423,7 @@ HOT105(0x08B4F71Cu, func_08B4F71C, Float);
 HOT105(0x08B4C0F8u, func_08B4C0F8, Word);
 HOT105(0x08B54288u, func_08B54288, Word);
 HOT105(0x08B58EE4u, func_08B58EE4, Word);
+HOT105(0x08B5730Cu, func_08B5730C, Word);
+HOT105(0x08B4FE74u, func_08B4FE74, Word);
+// HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
