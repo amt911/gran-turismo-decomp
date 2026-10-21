@@ -70,7 +70,7 @@ constexpr std::uint32_t kWrapRaceParameter = 0x08848DB8u;    // (holder *out, ra
 std::uint32_t word(psprecomp::Runtime &rt, std::uint32_t address) { return rt.memory().load32(address); }
 
 // The data of the handle in a0.
-View<OrganizerData> data_of(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<OrganizerData> data_of(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return *View<OrganizerHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 

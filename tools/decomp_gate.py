@@ -301,6 +301,13 @@ def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path, kind: str = "
     parts = []
     for route, seconds in ROUTES[kind]:
         log = logs / f"probe_{tag}_{route}.log"
+        if kind == "full":  # like the full gate: a tail after the pad script, the wall clock only a cap
+            tail = FULL_TAIL.get(route, DEFAULT_TAIL)
+            cap = round(2 * seconds * scale)
+            parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 '
+                         f'GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout {cap + 120} {binary} '
+                         f"--max-seconds {cap} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
+            continue
         parts.append(f'( GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
                      f"timeout 1000 {binary} --max-seconds {round(seconds * scale)} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
     return " ".join(parts) + " wait"

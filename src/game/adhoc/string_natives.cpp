@@ -23,7 +23,7 @@ constexpr std::uint32_t kSubstrWhat = 0x08CB07A8u;       // "basic_string::subst
 constexpr std::uint32_t kAsciiStringHash = 0x08B1CE38u;  // (const char *) -> u64
 constexpr std::uint32_t kToLongSlot = 16u;               // s64 toLong(this)
 
-void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
+void destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
 }
 

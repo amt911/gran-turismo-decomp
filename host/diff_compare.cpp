@@ -47,6 +47,14 @@ std::optional<std::string> first_difference(const EndState &original, const EndS
     for (const auto &reg : kCalleeSaved) {
         if (auto d = register_difference(original, decompiled, reg)) return d;
     }
+    for (std::size_t i = 0; i < original.vfpu_bits.size(); ++i)
+        if (original.vfpu_bits[i] != decompiled.vfpu_bits[i])
+            return "vfpu[" + std::to_string(i) + "]: original " + hex32(original.vfpu_bits[i]) + ", decompiled " +
+                   hex32(decompiled.vfpu_bits[i]);
+    for (std::size_t i = 0; i < original.vfpu_ctrl.size(); ++i)
+        if (original.vfpu_ctrl[i] != decompiled.vfpu_ctrl[i])
+            return "vfpu control " + std::to_string(i) + ": original " + hex32(original.vfpu_ctrl[i]) +
+                   ", decompiled " + hex32(decompiled.vfpu_ctrl[i]);
     if (kind == ReturnKind::Float && original.f0_bits != decompiled.f0_bits)
         return "f0: original " + hex32(original.f0_bits) + ", decompiled " + hex32(decompiled.f0_bits);
     if (original.ram.size() != decompiled.ram.size())

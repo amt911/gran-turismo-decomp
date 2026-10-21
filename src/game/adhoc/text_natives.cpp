@@ -48,7 +48,7 @@ void fill_label(psprecomp::Runtime &rt, std::uint32_t buffer, std::uint32_t text
         rt.memory().store8(buffer + i, i < text_bytes ? rt.memory().load8(text + i) : 0u);
 }
 
-GuestResult to_ulong(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object) {
+GuestResult to_ulong(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object) {
     return call_guest(rt, ctx, virtual_function(rt, object, kToULongSlot), {object}, {});
 }
 

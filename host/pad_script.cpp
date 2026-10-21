@@ -32,6 +32,7 @@ namespace {
 // Vblank waits so far: ticked by the main thread, read by frame dumps on the GE worker thread too.
 std::atomic<std::uint64_t> g_vblanks{0u};
 std::atomic<std::uint32_t> g_buttons{0u};
+std::atomic<std::uint64_t> g_pad_reads{0u};
 
 struct Script {
     PadSequencer sequencer;
@@ -140,10 +141,13 @@ void pad_script_tick(psprecomp::Runtime &runtime) {
     const auto state = s.sequencer.tick(now, [&runtime](const PadStep &wait, std::uint64_t since, std::string &observed) {
         return check_wait(runtime, wait, since, observed);
     });
-    g_buttons.store(s.sequencer.buttons(), std::memory_order_relaxed);
+    static PressLatch latch;
+    g_buttons.store(latch.update(s.sequencer.buttons(), g_pad_reads.load(std::memory_order_relaxed)),
+                    std::memory_order_relaxed);
     static const bool log = std::getenv("GT_PAD_LOG") != nullptr;
     if (state == PadSequencer::State::TimedOut) {
         std::fprintf(stderr, "[pad] %s\n", s.sequencer.message().c_str());
+        kernel_thread_report();
         std::fflush(stderr);
         std::_Exit(97);
     }
@@ -168,6 +172,9 @@ void pad_script_note_seek(std::uint64_t offset) { seeks().emplace_back(g_vblanks
 
 std::uint64_t pad_script_vblanks() { return g_vblanks.load(std::memory_order_relaxed); }
 
-std::uint32_t scripted_buttons() { return g_buttons.load(std::memory_order_relaxed); }
+std::uint32_t scripted_buttons() {  // one pad read by the game (PressLatch counts them)
+    g_pad_reads.fetch_add(1u, std::memory_order_relaxed);
+    return g_buttons.load(std::memory_order_relaxed);
+}
 
 } // namespace gt

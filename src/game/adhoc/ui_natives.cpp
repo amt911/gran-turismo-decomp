@@ -77,7 +77,7 @@ constexpr std::uint32_t kImageFaceSetTexcoord = 0x089E0428u;   // (u in $f12, v 
 constexpr std::uint32_t kNewStringObject = 0x08A6D2D4u;        // (holder *out, const std::string *)
 constexpr std::uint32_t kListBoxItemCount = 0x089CDFF0u;       // (list box *) -> int
 
-void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
+void destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
 }
 
@@ -254,7 +254,7 @@ void self_call(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uin
 }
 
 // Argument `index` as an integer (its toInt()).
-std::int32_t int_argument(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t argv,
+std::int32_t int_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t argv,
                           std::uint32_t index) {
     return to_int(rt, ctx, rt.memory().load32(argv + 4u * index));
 }

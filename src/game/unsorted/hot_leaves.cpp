@@ -2,6 +2,7 @@
 // (GT_PROBE_SYMBOLS over every undone function). Their classes and subsystems aren't known yet, so
 // they keep their addresses as names; each comment says what the code does. Written from the asm.
 
+#include "gt/vfpu.hpp"
 #include "decomp_registry.hpp"
 #include "guest_call.hpp"
 
@@ -54,7 +55,7 @@ void func_089FA8A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // The current-entry accessors of one class: entries (0x40 bytes) at +0xB0, the current index at +0xB4.
-std::uint32_t current_entry(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+std::uint32_t current_entry(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return word(rt, ctx.gpr[4] + 0xB0u) + (word(rt, ctx.gpr[4] + 0xB4u) << 6);
 }
 // func_089A8B98(this) -> the current entry.
@@ -3488,13 +3489,17 @@ void func_0894268C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_089641C4(vec4 *to, const vec4 *from) -> to, after copying the four words unless to == from.
 void func_089641C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    if (ctx.gpr[4] != ctx.gpr[5]) copy_words(rt, ctx.gpr[4], ctx.gpr[5]);
+    if (ctx.gpr[4] != ctx.gpr[5]) {
+        gt::vfpu::load_column(rt, ctx, 0u, 0u, ctx.gpr[5]);  // lv.q C000: the vector stays in the VFPU
+        copy_words(rt, ctx.gpr[4], ctx.gpr[5]);
+    }
     ctx.gpr[2] = ctx.gpr[4];
 }
 
 // func_0896418C(vec4 *to, const vec4 *from): stores the default value, then *from, into *to.
 void func_0896418C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     copy_words(rt, ctx.gpr[4], kDefaultVec4);
+    gt::vfpu::load_column(rt, ctx, 0u, 0u, ctx.gpr[5]);  // lv.q C000 after the default is stored (from may be to)
     copy_words(rt, ctx.gpr[4], ctx.gpr[5]);
     ctx.gpr[2] = kDefaultVec4;
 }

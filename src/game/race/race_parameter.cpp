@@ -25,7 +25,7 @@ namespace {
 using guest::View;
 
 // The RaceParameter of the handle in a0.
-View<RaceParameter> data(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<RaceParameter> data(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return *View<RaceParameterHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 

@@ -16,7 +16,7 @@ namespace gt {
 // When the callee blocks (switches PSP threads), the caller's fiber is suspended and resumed once
 // its thread returns (host/fiber.hpp). Outside a fiber — the harness's isolated diff runs, tests —
 // a switch stops the runtime with an explanation instead.
-std::uint32_t call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
+std::uint32_t call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &caller, std::uint32_t address,
                          std::initializer_list<std::uint32_t> arguments);
 
 // Thrown by call_guest when the runtime is already stopped. Answering 0 would leave a decompiled loop that waits
@@ -32,7 +32,7 @@ struct GuestResult {
     float f0;
     std::uint32_t v1;  // high word of a 64-bit result
 };
-GuestResult call_guest(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &caller, std::uint32_t address,
+GuestResult call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &caller, std::uint32_t address,
                        std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> float_arguments);
 
 // Room on the guest stack for locals a guest callee needs the address of (a smart pointer it fills,

@@ -31,7 +31,7 @@ constexpr std::uint32_t kCarDriverParameterCore = 0x0884D3D8u;
 std::uint32_t word(psprecomp::Runtime &rt, std::uint32_t address) { return rt.memory().load32(address); }
 
 // The data of the handle in a0.
-View<CarDriverParameterData> data_of(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx) {
+View<CarDriverParameterData> data_of(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     return *View<CarDriverParameterHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 

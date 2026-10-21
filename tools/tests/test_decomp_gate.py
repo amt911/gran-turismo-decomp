@@ -344,12 +344,17 @@ def test_a_probe_route_that_times_out_or_exits_non_zero_is_a_failure():
 
 def test_probe_shell_scales_the_route_lengths():
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"), "full", 1.5)
-    assert "--max-seconds 900" in command and "--max-seconds 465" in command and "--max-seconds 600" not in command
+    # full routes end after their pad script; the scale stretches only their wall-clock cap (2 x length x scale)
+    assert "--max-seconds 1800" in command and "--max-seconds 930" in command and "--max-seconds 600" not in command
 
 
 def test_probe_shell_can_use_the_full_gates_route_lengths():
+    """Like the full gate, a full probe route ends a tail after its pad script (dirt stopped short on the wall clock)."""
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"), "full")
-    assert "--max-seconds 600" in command and "--max-seconds 310" in command and "--max-seconds 230" not in command
+    race = next(part for part in command.split(") &") if "race.pad" in part)
+    dirt = next(part for part in command.split(") &") if "dirt.pad" in part)
+    assert "GT_PAD_EXIT_AFTER=23400" in race and "--max-seconds 1200" in race and "timeout 1320" in race
+    assert "GT_PAD_EXIT_AFTER=600" in dirt and "--max-seconds 840" in dirt
 
 
 # The compared floor: a full gate whose compared total drops means an installed function stops other code from running

@@ -74,4 +74,20 @@ private:
     std::string message_;
 };
 
+// What the game sees of the scripted buttons: a press stays held, after the script releases it, until the game has
+// read the pad `min_reads` times since it began. A loaded machine skips game frames (several vblanks each), and a
+// short press could fall between two reads and be lost (routes then stalled on a WAIT in the full gate).
+class PressLatch {
+public:
+    explicit PressLatch(std::uint64_t min_reads = 2u) : min_reads_(min_reads) {}
+    // `scripted`: the sequencer's buttons now; `reads`: the game's pad reads so far. Returns the buttons to report.
+    std::uint32_t update(std::uint32_t scripted, std::uint64_t reads);
+
+private:
+    std::uint64_t min_reads_;
+    std::uint32_t previous_{};
+    std::uint32_t held_{};
+    std::uint64_t since_[32]{};
+};
+
 } // namespace gt

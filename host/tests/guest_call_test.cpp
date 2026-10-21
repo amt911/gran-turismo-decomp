@@ -19,6 +19,7 @@ constexpr std::uint32_t kAdd = 0x08900000u;
 constexpr std::uint32_t kDoubleThenAdd = 0x08900100u;
 constexpr std::uint32_t kSwitchThread = 0x08900200u;
 constexpr std::uint32_t kScale = 0x08900300u;
+constexpr std::uint32_t kLoadMatrix = 0x08900400u;
 
 void add(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {  // v0 = a0 + a1; return
     ctx.gpr[2] = ctx.gpr[4] + ctx.gpr[5];
@@ -33,6 +34,13 @@ void double_then_add(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {  /
 
 void scale(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {  // f0 = f12 * f13 + a0
     ctx.fpr[0] = ctx.fpr[12] * ctx.fpr[13] + static_cast<float>(ctx.gpr[4]);
+    ctx.pc = ctx.gpr[31];
+}
+
+void load_matrix(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {  // leaves VFPU state, as GT's graphics library does
+    ctx.vfpu[5] = 2.5f;
+    ctx.vfpu_ctrl[3] = 0x7u;
+    ctx.gpr[9] = 0xBEEFu;  // a temporary
     ctx.pc = ctx.gpr[31];
 }
 
@@ -61,6 +69,7 @@ int main() {
     rt.register_function(kDoubleThenAdd, &double_then_add, "test_double_then_add");
     rt.register_function(kSwitchThread, &switch_thread, "test_switch_thread");
     rt.register_function(kScale, &scale, "test_scale");
+    rt.register_function(kLoadMatrix, &load_matrix, "test_load_matrix");
     psprecomp::AllegrexContext caller{};
     caller.gpr[29] = 0x09F00000u;
     caller.gpr[8] = 0x1234u;
@@ -68,6 +77,10 @@ int main() {
 
     check(gt::call_guest(rt, caller, kAdd, {40u, 2u}) == 42u, "arguments in a0/a1, result from v0");
     check(caller.gpr[8] == 0x1234u && caller.gpr[31] == 0x08A00000u, "the caller's context is untouched");
+    (void)gt::call_guest(rt, caller, kLoadMatrix, {});
+    check(caller.vfpu[5] == 2.5f && caller.vfpu_ctrl[3] == 0x7u,
+          "the callee's VFPU state reaches the caller (no calling convention saves it; GT passes matrices through it)");
+    check(caller.gpr[9] == 0u, "the callee's general registers do not");
     check(gt::call_guest(rt, caller, kDoubleThenAdd, {20u, 2u}) == 42u, "runs through tail calls to the return");
     check(gt::call_guest(rt, caller, kScale, {1u}, {2.5f, 4.0f}).f0 == 11.0f, "float arguments in $f12.., result in $f0");
     check(!rt.stopped(), "normal calls don't stop the runtime");

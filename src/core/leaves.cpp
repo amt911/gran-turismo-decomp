@@ -24,7 +24,7 @@ std::unordered_map<std::uint32_t, std::int32_t> &leaf_table() {
     return table;
 }
 
-std::uint32_t leaf_constant(const psprecomp::AllegrexContext &ctx) {
+std::uint32_t leaf_constant(psprecomp::AllegrexContext &ctx) {
     return static_cast<std::uint32_t>(leaf_table().at(ctx.pc));
 }
 

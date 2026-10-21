@@ -60,12 +60,12 @@ constexpr std::uint32_t kCarTable = 0u;                        // CarCode32ToCar
 constexpr std::uint32_t kCourseTable = 34u;                    // CourseCode32ToCourseCode64 appends it
 constexpr std::uint32_t kGenericCarTable = 38u;                // car codes of this table resolve through another code
 
-void destroy(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
+void destroy(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t holder) {
     (void)call_guest(rt, ctx, kHolderDestroy, {holder});
 }
 
 // *result = the holder `scratch` holds (the holder assignment skips self-assignment), then scratch dies.
-void hand_back(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t scratch) {
+void hand_back(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t scratch) {
     if (result != scratch) (void)call_guest(rt, ctx, kHolderReset, {result, rt.memory().load32(scratch)});
     destroy(rt, ctx, scratch);
 }
@@ -76,7 +76,7 @@ void copy_words(psprecomp::Runtime &rt, std::uint32_t from, std::uint32_t to, st
 }
 
 // The static natives are called (result, argc, argv).
-std::uint32_t argv_of(const psprecomp::AllegrexContext &ctx) { return ctx.gpr[6]; }
+std::uint32_t argv_of(psprecomp::AllegrexContext &ctx) { return ctx.gpr[6]; }
 
 } // namespace
 
@@ -210,7 +210,7 @@ void size_native(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::u
     gt::adhoc::return_integer(rt, ctx, result, frame.at(0u), rt.memory().load32(frame.at(4u)));
 }
 // The 64-bit value of the argument object (its toULong()).
-GuestResult unsigned_long_of(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object) {
+GuestResult unsigned_long_of(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object) {
     return call_guest(rt, ctx, gt::adhoc::virtual_function(rt, object, gt::adhoc::kToULongSlot), {object}, {});
 }
 

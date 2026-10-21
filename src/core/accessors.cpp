@@ -24,7 +24,7 @@ std::unordered_map<std::uint32_t, Accessor> &accessor_table() {
     return table;
 }
 
-const Accessor &accessor(const psprecomp::AllegrexContext &ctx) { return accessor_table().at(ctx.pc); }
+const Accessor &accessor(psprecomp::AllegrexContext &ctx) { return accessor_table().at(ctx.pc); }
 
 } // namespace
 

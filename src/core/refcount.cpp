@@ -49,7 +49,7 @@ void retain(psprecomp::Runtime &rt, std::uint32_t object) {
 // Strong release; the last one disposes of the contents, then drops the object's weak reference
 // (the weak release at 0x08A5B930, called through the guest so its delete tail call works).
 // Returns v0 as the original leaves it: 1 when it isn't the last reference, else the weak release's result.
-std::uint32_t release(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &ctx, std::uint32_t object) {
+std::uint32_t release(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t object) {
     if (bump(rt, object, kStrong, ~0u) != 1u) return 1u;
     (void)call_guest(rt, ctx, virtual_function(rt, object, kDisposeSlot), {object});
     return call_guest(rt, ctx, kReleaseWeak, {object});

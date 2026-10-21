@@ -18,6 +18,10 @@ namespace gt {
 struct EndState {
     std::array<std::uint32_t, 32> gpr{};
     std::uint32_t f0_bits{};
+    // The VFPU's 128 lanes (bit patterns) and its control registers: no calling convention covers them, and GT's
+    // graphics library leaves matrices there for the next call, so a call's VFPU state is part of what it leaves.
+    std::array<std::uint32_t, 128> vfpu_bits{};
+    std::array<std::uint32_t, 16> vfpu_ctrl{};
     std::vector<std::uint8_t> ram;  // the whole snapshotted RAM after the call
     std::uint32_t ram_base{0x08000000u};
     // Guest range [ignore_begin, ignore_end) excluded from the RAM comparison: the dead stack below
@@ -31,7 +35,7 @@ struct EndState {
 enum class ReturnKind { Void, Word, DoubleWord, Float };
 
 // nullopt when equal. Compared: the return registers `kind` names, callee-saved registers (s0-s7,
-// sp, fp, ra) and every RAM byte outside the ignored range. Caller-saved temporaries never count.
+// sp, fp, ra), the VFPU registers and every RAM byte outside the ignored range. Caller-saved temporaries never count.
 [[nodiscard]] std::optional<std::string> first_difference(const EndState &original, const EndState &decompiled,
                                                           ReturnKind kind = ReturnKind::Word);
 
