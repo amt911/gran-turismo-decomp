@@ -2213,3 +2213,22 @@ register), take the HI from the `lui` on the path that reaches it; the relocatio
 tool itself is not fixed yet.
 
 Found: 2026-10-21 · src/game/unsorted/hot_batch_115.cpp (func_08AEE144), independent review of the draft
+
+## Uneven frame pacing comes from the game thread missing vblanks while it waits for the GE thread, not from presenting
+
+**Symptom.** On the laptop the user saw irregular pacing and drops below 60 fps, while every `GT_PERF_LOG` average said
+"presented 59.9/s": 5-second averages cannot show an uneven interval.
+**Measured** (`GT_FRAME_LOG`, desktop, real Wayland window, Vulkan mailbox, race route 60–220 s, `python -m
+tools.frame_pacing`): even on the fast desktop, 4.4 % of new-frame intervals exceed 17.5 ms (p99 33.3 ms, max 66 ms;
+125 intervals of 30–36 ms, plus short 5–12 ms intervals right after late ones). `present_frame` itself is short (p99
+1.5 ms). Of 152 intervals longer than 25 ms, 136 are long in guest time too: the game thread flipped a vblank late. The
+vblank waits show why: 84 arrived more than 2 ms late (max 43 ms), and the game thread spends 7–13 % of its time in
+`sceGeDrawSync` waiting for the GE worker.
+**Cause.** A frame whose CPU work plus its wait for the GE thread exceeds one vblank flips a vblank later (a 33 ms
+interval), and the catch-up after it gives short ones. On the laptop in power-saver the GE thread runs near saturation
+(~660 ns per draw, ~1.2 M draws/s in a race), so those waits and late vblanks are far more frequent there.
+**Fix / workaround.** Measure the laptop with `GT_FRAME_LOG` before choosing a fix; the levers are the GE thread's
+throughput and how long the game thread blocks in `sceGeDrawSync`. `VK_KHR_present_wait` (patch 0053) adds the
+screen-side times (`D` rows) where the driver offers it; it reported off on the desktop's NVIDIA/Wayland surface.
+
+Found: 2026-10-22 · branch perf/frame-pacing-measure (GT_FRAME_LOG, tools/frame_pacing.py)
