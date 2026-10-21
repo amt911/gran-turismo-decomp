@@ -81,8 +81,8 @@ never per function. Settings measured and decided by the user on 2026-10-12:
     load without an idle re-run. After a passing full gate on a PR, `full TAG --raise-floor` raises the floor
     (a ratchet: never lowered by hand without saying why in the commit).
 - **The tool:** `.venv/bin/python -m tools.decomp_gate fast TAG --only <addresses or @file>`, `full TAG`,
-  `sabotage TAG --file <source> --only ...` (bumps s0 and a RAM word in the listed functions, runs the fast gate,
-  restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).
+  `sabotage TAG --file <source> --only ... [--full]` (bumps s0 and a RAM word in the listed functions, runs the fast
+  gate - or with `--full` the full routes, for functions only they reach - restores the file, reports undetected ones) and `report TAG` (re-reads a run's logs, sums the routes).
   Before every gate it runs `tools.contract_audit`, which lists registrations whose callers read a return
   register the ReturnKind leaves uncompared (v0 of a "Void" function) and fails on a `GT_DECOMP_NESTED` one.
   It takes the shared heavy-job lock and the memory cgroup itself. Tooling the workflow needs lives in

@@ -220,11 +220,11 @@ GT_DECOMP_DEREF(0x08AF2924u, 52);
 GT_DECOMP_DEREF(0x08AF293Cu, 56);
 GT_DECOMP_DEREF(0x08AF2954u, 60);
 // Batch 106: reached by the 11-route gate, each shape matched instruction for instruction.
-// GT_DECOMP_FIELD_PLUS(0x0888EB9Cu, 0, static_cast<std::uint32_t>(8));  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
-// GT_DECOMP_FIELD_PLUS(0x088915C8u, 0, static_cast<std::uint32_t>(8));  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
-// GT_DECOMP_FORWARD(0x088915F0u, 0, 0x0889117Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
-// GT_DECOMP_FORWARD(0x08891600u, 0, 0x0889118Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
-// GT_DECOMP_FORWARD(0x08892138u, 0, 0x08892114u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+GT_DECOMP_FIELD_PLUS(0x0888EB9Cu, 0, static_cast<std::uint32_t>(8));
+GT_DECOMP_FIELD_PLUS(0x088915C8u, 0, static_cast<std::uint32_t>(8));
+GT_DECOMP_FORWARD(0x088915F0u, 0, 0x0889117Cu);
+GT_DECOMP_FORWARD(0x08891600u, 0, 0x0889118Cu);
+GT_DECOMP_FORWARD(0x08892138u, 0, 0x08892114u);
 GT_DECOMP_FIELD_PLUS(0x088A429Cu, 484, static_cast<std::uint32_t>(1036));
 GT_DECOMP_DEREF_FLOAT(0x088A42A8u, 484, static_cast<std::uint32_t>(1048));
 GT_DECOMP_FIELD(0x088CEF60u, 188);
