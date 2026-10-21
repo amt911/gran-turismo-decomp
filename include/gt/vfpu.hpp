@@ -319,4 +319,24 @@ inline void unit(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std
     ctx.write_vfpu_vector_with_destination_prefix(value, destination, length);
 }
 
+// vcmp.<cond> source, target: sets the condition bits (vfpu_ctrl[3]); vslt / vsge / ... (operation field) set lanes to
+// 1 or 0; vmin / vmax per lane.
+inline void compare(psprecomp::AllegrexContext &ctx, std::uint32_t source, std::uint32_t target, std::uint32_t length,
+                    std::uint32_t condition) {
+    ctx.execute_vfpu_vcmp(source, target, length, condition);
+}
+inline void compare3(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t source,
+                     std::uint32_t target, std::uint32_t length, std::uint32_t operation) {
+    ctx.execute_vfpu_compare3(destination, source, target, length, operation);
+}
+inline void min_max(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t source,
+                    std::uint32_t target, std::uint32_t length, bool maximum) {
+    ctx.execute_vfpu_vminmax(destination, source, target, length, maximum);
+}
+
+// The VFPU condition bit `index` (vfpu_ctrl[3]), as bvf / bvt test it.
+inline bool condition(const psprecomp::AllegrexContext &ctx, std::uint32_t index) {
+    return ((ctx.vfpu_ctrl[3] >> index) & 1u) != 0u;
+}
+
 } // namespace gt::vfpu

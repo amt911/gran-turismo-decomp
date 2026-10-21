@@ -644,7 +644,8 @@ void func_08B498AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // The shared start of func_08B4F2E4 / func_08B4F3B0 / func_08B4F47C (their first 38 instructions): the matrix at a0 in
 // VFPU M200, and the sine and cosine of f12 in C100 by the polynomial of func_08B498AC (coefficients at `coefficients`).
-void rotation_start(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t coefficients) {
+void rotation_start(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t coefficients,
+                    bool load_matrix = true) {
     namespace v = gt::vfpu;
     using B = v::Binary;
     const std::uint32_t m = ctx.gpr[4];
@@ -658,7 +659,8 @@ void rotation_start(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std
     v::binary(ctx, B::Sub, 0x04u, 0x24u, 0x00u, 1u);  // vsub.s S100, S101, S000
     v::binary(ctx, B::Mul, 0x40u, 0x40u, 0x44u, 1u);  // vmul.s S002, S002, S102
     ctx.gpr[2] = lui_of(coefficients);
-    for (std::uint32_t column = 0u; column < 4u; ++column) v::load_quad(rt, ctx, 8u + column, m + 0x10u * column);
+    if (load_matrix)
+        for (std::uint32_t column = 0u; column < 4u; ++column) v::load_quad(rt, ctx, 8u + column, m + 0x10u * column);
     v::load_quad(rt, ctx, 0x01u, coefficients);  // lv.q C010
     v::unary(ctx, 1u, 0x04u, 0x04u, 2u);         // vabs.p C100, C100
     v::scale(ctx, 0x44u, 0x04u, 0x40u, 2u);      // vscl.p C102, C100, S002
@@ -736,6 +738,84 @@ void func_08B4F47C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rotation_end(rt, ctx);
 }
 
+// func_08B4F174(m, f12 = angle): m = the rotation by the angle about the second axis, built directly (the start of
+// func_08B4F3B0 without its input matrix; coefficients at 0x08CB69F0), stored C030, C000, C010, C020.
+void func_08B4F174(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    const std::uint32_t m = ctx.gpr[4];
+    rotation_start(rt, ctx, 0x08CB69F0u, false);
+    v::binary(ctx, v::Binary::Add, 0x04u, 0x44u, 0x04u, 2u);  // vadd.p C100, C102, C100
+    v::prefix(ctx, 0u, 0x4A001u);                // vpfxs Y, 0, -X, 0
+    v::unary(ctx, 0u, 0x00u, 0x04u, 4u);         // vmov.q C000, C100
+    v::unit(ctx, 0x01u, 4u);                     // vidt.q C010
+    v::prefix(ctx, 0u, 0x0A010u);                // vpfxs X, 0, Y, 0
+    v::unary(ctx, 0u, 0x02u, 0x04u, 4u);         // vmov.q C020, C100
+    v::unit(ctx, 0x03u, 4u);                     // vidt.q C030
+    v::store_quad(rt, ctx, 3u, m + 0x30u);
+    v::store_quad(rt, ctx, 0u, m);
+    v::store_quad(rt, ctx, 1u, m + 0x10u);
+    v::store_quad(rt, ctx, 2u, m + 0x20u);
+}
+
+// One step of func_08B542AC's test: the transformed point in C200 (w in its last lane) is compared with -w and w
+// (vslt / vsge with prefixes), the per-axis outside flags gather in C110 / C100 (vmax), their minimum goes to C200 and
+// vcmp.t ez sets condition bit 4.
+void frustum_step(psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    v::prefix(ctx, 1u, 0xFFu);                   // vpfxt W, W, W, W
+    v::compare3(ctx, 0x07u, 0x08u, 0x08u, 4u, 7u);  // vslt.q C130, C200, C200
+    v::prefix(ctx, 1u, 0x700FFu);                // vpfxt -W, -W, -W, W
+    v::compare3(ctx, 0x06u, 0x08u, 0x08u, 4u, 6u);  // vsge.q C120, C200, C200
+    v::min_max(ctx, 0x05u, 0x05u, 0x07u, 3u, true); // vmax.t C110, C110, C130
+}
+
+// func_08B542AC(count, points): each of `count` points (3 floats each) is transformed by the matrix at 0x08D6E090
+// (vhtfm4 with E000) and compared with its w; the per-plane flags are folded with vmax / vmin and vcmp.t ez sets
+// condition bit 4. Returns 1 as soon as bit 4 is clear (bvf, tested before each point after the first), else 0 - by its
+// shape a view-volume test (inferred, not named).
+void func_08B542AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    std::uint32_t points = ctx.gpr[5];
+    ctx.gpr[2] = 0x08D6E090u;
+    for (std::uint32_t column = 0u; column < 4u; ++column) v::load_quad(rt, ctx, column, 0x08D6E090u + 0x10u * column);
+    v::load_scalar(rt, ctx, 0x09u, points);
+    v::load_scalar(rt, ctx, 0x29u, points + 4u);
+    v::load_scalar(rt, ctx, 0x49u, points + 8u);
+    v::compare(ctx, 0x05u, 0x05u, 1u, 4u);       // vcmp.s tr, S110, S110
+    v::vector_init(ctx, 0x05u, 4u, false);       // vzero.q C110
+    v::transform(ctx, 0x08u, 0x20u, 0x09u, 4u, 3u);  // vhtfm4.q C200, E000, C210
+    std::uint32_t left = ctx.gpr[4] - 2u;
+    v::vector_init(ctx, 0x04u, 4u, false);       // vzero.q C100 (the bltz's delay slot)
+    const auto finish = [&](std::uint32_t result) {
+        ctx.gpr[4] = left;
+        ctx.gpr[5] = points;
+        ctx.gpr[2] = result;
+    };
+    if (static_cast<std::int32_t>(left) >= 0) {
+        bool more = true;
+        while (more) {
+            if (!v::condition(ctx, 4u)) return finish(1u);
+            frustum_step(ctx);
+            v::load_scalar(rt, ctx, 0x09u, points + 0xCu);
+            v::min_max(ctx, 0x04u, 0x04u, 0x06u, 3u, true);   // vmax.t C100, C100, C120
+            v::load_scalar(rt, ctx, 0x29u, points + 0x10u);
+            v::load_scalar(rt, ctx, 0x49u, points + 0x14u);
+            v::min_max(ctx, 0x08u, 0x05u, 0x04u, 3u, false);  // vmin.t C200, C110, C100
+            points += 0xCu;
+            v::compare(ctx, 0x08u, 0x08u, 3u, 8u);            // vcmp.t ez, C200, C200
+            v::transform(ctx, 0x08u, 0x20u, 0x09u, 4u, 3u);   // vhtfm4.q C200, E000, C210
+            more = left != 0u;
+            left -= 1u;  // the bnez's delay slot
+        }
+        if (!v::condition(ctx, 4u)) return finish(1u);
+    }
+    frustum_step(ctx);
+    v::min_max(ctx, 0x04u, 0x04u, 0x06u, 3u, true);   // vmax.t C100, C100, C120
+    v::min_max(ctx, 0x08u, 0x05u, 0x04u, 3u, false);  // vmin.t C200, C110, C100
+    v::compare(ctx, 0x08u, 0x08u, 3u, 8u);            // vcmp.t ez, C200, C200
+    finish(v::condition(ctx, 4u) ? 0u : 1u);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -774,5 +854,7 @@ HOT105(0x08B498ACu, func_08B498AC, Word);
 HOT105(0x08B4F2E4u, func_08B4F2E4, Word);
 HOT105(0x08B4F3B0u, func_08B4F3B0, Word);
 HOT105(0x08B4F47Cu, func_08B4F47C, Word);
+HOT105(0x08B4F174u, func_08B4F174, Word);
+HOT105(0x08B542ACu, func_08B542AC, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
