@@ -1297,11 +1297,11 @@ void func_08B1D860(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 HOT109(0x088DA57Cu, func_088DA57C, Word);
 HOT109(0x088936D4u, func_088936D4, Word);
 HOT109(0x08891EF8u, func_08891EF8, Word);
-HOT109(0x08AC0B50u, func_08AC0B50, Word);
+// HOT109(0x08AC0B50u, func_08AC0B50, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x0888F374u, func_0888F374, Word);
-HOT109(0x08ADF910u, func_08ADF910, Word);
-HOT109(0x08B31960u, func_08B31960, Word);
-HOT109(0x08AD96D8u, func_08AD96D8, Word);
+// HOT109(0x08ADF910u, func_08ADF910, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08B31960u, func_08B31960, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08AD96D8u, func_08AD96D8, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08820BD4u, func_08820BD4, Word);
 HOT109(0x08843330u, func_08843330, Word);
 HOT109(0x088DE700u, func_088DE700, Word);
@@ -1311,40 +1311,40 @@ HOT109(0x08996354u, func_08996354, Word);
 HOT109(0x08A83248u, func_08A83248, Word);
 HOT109(0x08A887ACu, func_08A887AC, Word);
 HOT109(0x08AABA8Cu, func_08AABA8C, Word);
-HOT109(0x08AD5524u, func_08AD5524, Word);
+// HOT109(0x08AD5524u, func_08AD5524, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08A4C76Cu, func_08A4C76C, Word);
 HOT109(0x089AFF3Cu, func_089AFF3C, Word);
-HOT109(0x08A30E48u, func_08A30E48, Word);
+// HOT109(0x08A30E48u, func_08A30E48, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08A79A5Cu, func_08A79A5C, Word);
 HOT109(0x08AAB604u, func_08AAB604, Word);
-HOT109(0x08862BF8u, func_08862BF8, Word);
+// HOT109(0x08862BF8u, func_08862BF8, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x0885EC28u, func_0885EC28, Word);
-HOT109(0x08B0E560u, func_08B0E560, Word);
+// HOT109(0x08B0E560u, func_08B0E560, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x089969BCu, func_089969BC, Word);
-HOT109(0x08B8DA64u, func_08B8DA64, Word);
+// HOT109(0x08B8DA64u, func_08B8DA64, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08829B34u, func_08829B34, Word);
-HOT109(0x088909BCu, func_088909BC, Word);
+// HOT109(0x088909BCu, func_088909BC, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08AD2848u, func_08AD2848, Word);
 HOT109(0x08BEEAA8u, func_08BEEAA8, Word);
-HOT109(0x08BF8B64u, func_08BF8B64, Word);
+// HOT109(0x08BF8B64u, func_08BF8B64, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x088988B4u, func_088988B4, Word);
-HOT109(0x088F9C80u, func_088F9C80, Word);
-HOT109(0x0888B5CCu, func_0888B5CC, Word);
+// HOT109(0x088F9C80u, func_088F9C80, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x0888B5CCu, func_0888B5CC, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x088BB44Cu, func_088BB44C, Word);
 HOT109(0x088DB0ACu, func_088DB0AC, Word);
-HOT109(0x088E0BE4u, func_088E0BE4, Word);
-HOT109(0x08AC45F4u, func_08AC45F4, Word);
-HOT109(0x08ADC27Cu, func_08ADC27C, Word);
+// HOT109(0x088E0BE4u, func_088E0BE4, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08AC45F4u, func_08AC45F4, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08ADC27Cu, func_08ADC27C, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08841A60u, func_08841A60, Word);
 HOT109(0x088A7C78u, func_088A7C78, Word);
-HOT109(0x088DD870u, func_088DD870, Word);
+// HOT109(0x088DD870u, func_088DD870, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x0899261Cu, func_0899261C, Word);
-HOT109(0x08B34060u, func_08B34060, Word);
+// HOT109(0x08B34060u, func_08B34060, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08893B0Cu, func_08893B0C, Word);
-HOT109(0x08A2B5DCu, func_08A2B5DC, Word);
-HOT109(0x08AA22BCu, func_08AA22BC, Word);
-HOT109(0x08AA2494u, func_08AA2494, Word);
-HOT109(0x08B2DEE4u, func_08B2DEE4, DoubleWord);
+// HOT109(0x08A2B5DCu, func_08A2B5DC, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08AA22BCu, func_08AA22BC, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08AA2494u, func_08AA2494, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x08B2DEE4u, func_08B2DEE4, DoubleWord);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08829C4Cu, func_08829C4C, Word);
 HOT109(0x08894A88u, func_08894A88, Word);
 HOT109(0x088966A8u, func_088966A8, Word);
@@ -1358,11 +1358,11 @@ HOT109(0x08A6FBD0u, func_08A6FBD0, Word);
 HOT109(0x08895FBCu, func_08895FBC, Word);
 HOT109(0x08A600E4u, func_08A600E4, Word);
 HOT109(0x08894D88u, func_08894D88, Word);
-HOT109(0x08ADD674u, func_08ADD674, Word);
+// HOT109(0x08ADD674u, func_08ADD674, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08B02FD4u, func_08B02FD4, Word);
 HOT109(0x088FE528u, func_088FE528, Word);
-HOT109(0x088D3D10u, func_088D3D10, Word);
-HOT109(0x088D6114u, func_088D6114, Word);
+// HOT109(0x088D3D10u, func_088D3D10, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT109(0x088D6114u, func_088D6114, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT109(0x08A57E50u, func_08A57E50, Word);
 HOT109(0x08A885A8u, func_08A885A8, Word);
 HOT109(0x08C46854u, func_08C46854, Word);
@@ -1376,4 +1376,4 @@ HOT109(0x08A833DCu, func_08A833DC, Word);
 HOT109(0x08B0E284u, func_08B0E284, Word);
 HOT109(0x08BBBBF0u, func_08BBBBF0, Word);
 HOT109(0x08A0A398u, func_08A0A398, Word);
-HOT109(0x08B1D860u, func_08B1D860, Word);
+// HOT109(0x08B1D860u, func_08B1D860, Word);  // batch 109: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
