@@ -508,6 +508,135 @@ void func_08B57AB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
 }
 
+
+// func_08B53978(prim, uv_matrix, count, uvs, t0 = words, t1 = colors, f12 = alpha): the general form of
+// func_08B53898 / func_08B53D2C. With `words` each vertex starts with two of its words (8 bytes a vertex) and is 24 bytes,
+// type 0x19F; without, 16 bytes, type 0x19C. With `colors` (four floats a vertex) each vertex's colour is the colour
+// clamped to [0, 1] times (255, 255, 255, alpha x 255), packed to bytes (vsat0, vmul, vf2in 23, vi2uc) into the lane
+// before (u, v, z); without, the lane holds the float at the state block's +0x2C4 as func_08B53898. count 0 does nothing.
+void func_08B53978(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    const std::uint32_t prim = ctx.gpr[4], uv_matrix = ctx.gpr[5], count = ctx.gpr[6];
+    std::uint32_t uvs = ctx.gpr[7], words = ctx.gpr[8], colors = ctx.gpr[9];
+    if (count == 0u) return;
+    const bool wide = words != 0u;
+    const std::uint32_t stride = wide ? 24u : 16u;
+    const std::uint32_t vertices = word(rt, kGuState + 0x60u) - count * stride;
+    put(rt, kGuState + 0x60u, vertices);
+    if (colors != 0u) {
+        const std::uint32_t alpha = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+        v::unary(ctx, 0u, 0x01u, 0x00u, 4u);              // vmov.q C010, C000
+        v::unary(ctx, 0u, 0x02u, 0x00u, 4u);              // vmov.q C020, C000
+        if (wide) {
+            v::load_scalar(rt, ctx, 0x01u, uv_matrix);
+            v::move_to(ctx, alpha, 0x60u);                // mtv S003
+            v::load_scalar(rt, ctx, 0x21u, uv_matrix + 0xCu);
+            v::load_scalar(rt, ctx, 0x41u, uv_matrix + 0x18u);
+            v::unary(ctx, 0u, 0x04u, 0x00u, 4u);          // vmov.q C100, C000
+            v::load_scalar(rt, ctx, 0x02u, uv_matrix + 4u);
+            v::load_half(ctx, 0x04u, 0x5BF8u);            // vfim.s S100, 255
+            v::load_scalar(rt, ctx, 0x22u, uv_matrix + 0x10u);
+            v::load_half(ctx, 0x24u, 0x5BF8u);            // vfim.s S101, 255
+            v::load_scalar(rt, ctx, 0x42u, uv_matrix + 0x1Cu);
+            v::load_half(ctx, 0x44u, 0x5BF8u);            // vfim.s S102, 255
+            v::unary(ctx, 0u, 0x05u, 0x01u, 4u);          // vmov.q C110, C010
+            v::binary(ctx, v::Binary::Mul, 0x64u, 0x64u, 0x04u, 1u);  // vmul.s S103, S103, S100
+            v::vector_init(ctx, 0x40u, 1u, true);         // vone.s S002
+            v::vector_init(ctx, 0x63u, 1u, false);        // vzero.s S033 (the blez's delay slot)
+            for (std::uint32_t i = 0u; i < count && static_cast<std::int32_t>(count) > 0; ++i) {
+                const std::uint32_t at = vertices + 8u + 24u * i;
+                v::load_quad(rt, ctx, 0x01u, colors);     // lv.q C010
+                v::load_scalar(rt, ctx, 0x00u, uvs);
+                v::unary(ctx, 4u, 0x01u, 0x01u, 4u);      // vsat0.q C010, C010
+                v::load_scalar(rt, ctx, 0x20u, uvs + 4u);
+                put(rt, at - 8u, word(rt, words));
+                v::binary(ctx, v::Binary::Mul, 0x01u, 0x01u, 0x04u, 4u);  // vmul.q C010, C010, C100
+                put(rt, at - 4u, word(rt, words + 4u));
+                colors += 0x10u;
+                uvs += 8u;
+                v::float_to_int(ctx, 16u, 0x01u, 0x01u, 23u, 4u);  // vf2in.q C010, C010, 23
+                v::pack_ints(ctx, 0u, 0x03u, 0x01u, 4u);  // vi2uc.q S030, C010
+                words += 8u;
+                v::dot(ctx, 0x23u, 0x05u, 0x00u, 3u);     // vdot.t S031, C110, C000
+                v::dot(ctx, 0x43u, 0x02u, 0x00u, 3u);     // vdot.t S032, C020, C000
+                v::store_quad_left(rt, ctx, 0x03u, at + 0xCu);
+                v::store_quad_right(rt, ctx, 0x03u, at);
+            }
+        } else {
+            v::load_scalar(rt, ctx, 0x01u, uv_matrix);
+            v::move_to(ctx, alpha, 0x60u);                // mtv S003
+            v::load_scalar(rt, ctx, 0x21u, uv_matrix + 0xCu);
+            v::load_scalar(rt, ctx, 0x41u, uv_matrix + 0x18u);
+            v::unary(ctx, 0u, 0x04u, 0x00u, 4u);          // vmov.q C100, C000
+            v::vector_init(ctx, 0x45u, 1u, true);         // vone.s S112
+            v::load_half(ctx, 0x04u, 0x5BF8u);            // vfim.s S100, 255
+            v::load_scalar(rt, ctx, 0x02u, uv_matrix + 4u);
+            v::load_half(ctx, 0x24u, 0x5BF8u);            // vfim.s S101, 255
+            v::load_scalar(rt, ctx, 0x22u, uv_matrix + 0x10u);
+            v::load_half(ctx, 0x44u, 0x5BF8u);            // vfim.s S102, 255
+            v::load_scalar(rt, ctx, 0x42u, uv_matrix + 0x1Cu);
+            v::binary(ctx, v::Binary::Mul, 0x64u, 0x64u, 0x04u, 1u);  // vmul.s S103, S103, S100
+            v::unary(ctx, 0u, 0x06u, 0x01u, 4u);          // vmov.q C120, C010
+            v::vector_init(ctx, 0x63u, 1u, false);        // vzero.s S033 (the blez's delay slot)
+            for (std::uint32_t i = 0u; i < count && static_cast<std::int32_t>(count) > 0; ++i) {
+                const std::uint32_t at = vertices + 16u * i;
+                v::load_quad(rt, ctx, 0x00u, colors);     // lv.q C000
+                v::unary(ctx, 0u, 0x01u, 0x05u, 4u);      // vmov.q C010, C110
+                v::load_scalar(rt, ctx, 0x01u, uvs);
+                v::unary(ctx, 4u, 0x00u, 0x00u, 4u);      // vsat0.q C000, C000
+                v::load_scalar(rt, ctx, 0x21u, uvs + 4u);
+                v::binary(ctx, v::Binary::Mul, 0x00u, 0x00u, 0x04u, 4u);  // vmul.q C000, C000, C100
+                v::unary(ctx, 0u, 0x05u, 0x01u, 4u);      // vmov.q C110, C010
+                colors += 0x10u;
+                uvs += 8u;
+                v::float_to_int(ctx, 16u, 0x00u, 0x00u, 23u, 4u);  // vf2in.q C000, C000, 23
+                v::pack_ints(ctx, 0u, 0x03u, 0x00u, 4u);  // vi2uc.q S030, C000
+                v::dot(ctx, 0x23u, 0x06u, 0x05u, 3u);     // vdot.t S031, C120, C110
+                v::dot(ctx, 0x43u, 0x02u, 0x05u, 3u);     // vdot.t S032, C020, C110
+                v::store_quad_left(rt, ctx, 0x03u, at + 0xCu);
+                v::store_quad_right(rt, ctx, 0x03u, at);
+            }
+        }
+    } else {
+        v::unary(ctx, 0u, 0x01u, 0x00u, 4u);              // vmov.q C010, C000
+        if (wide) {
+            v::load_scalar(rt, ctx, 0x00u, uv_matrix);
+            v::load_scalar(rt, ctx, 0x20u, uv_matrix + 0xCu);
+            v::load_scalar(rt, ctx, 0x40u, uv_matrix + 0x18u);
+            v::load_scalar(rt, ctx, 0x02u, kGuState + 0x2C4u);
+        } else {
+            v::load_scalar(rt, ctx, 0x02u, kGuState + 0x2C4u);
+            v::load_scalar(rt, ctx, 0x00u, uv_matrix);
+            v::load_scalar(rt, ctx, 0x20u, uv_matrix + 0xCu);
+            v::load_scalar(rt, ctx, 0x40u, uv_matrix + 0x18u);
+        }
+        v::load_scalar(rt, ctx, 0x01u, uv_matrix + 4u);
+        v::vector_init(ctx, 0x62u, 1u, false);            // vzero.s S023
+        v::vector_init(ctx, 0x43u, 1u, true);             // vone.s S032
+        v::load_scalar(rt, ctx, 0x21u, uv_matrix + 0x10u);
+        v::load_scalar(rt, ctx, 0x41u, uv_matrix + 0x1Cu);
+        v::unary(ctx, 0u, 0x04u, 0x00u, 4u);              // vmov.q C100, C000 (the blez's delay slot)
+        for (std::uint32_t i = 0u; i < count && static_cast<std::int32_t>(count) > 0; ++i) {
+            const std::uint32_t at = wide ? vertices + 8u + 24u * i : vertices + 16u * i;
+            v::unary(ctx, 0u, 0x00u, 0x03u, 4u);          // vmov.q C000, C030
+            v::load_scalar(rt, ctx, 0x00u, uvs);
+            v::load_scalar(rt, ctx, 0x20u, uvs + 4u);
+            if (wide) {
+                put(rt, at - 8u, word(rt, words));
+                put(rt, at - 4u, word(rt, words + 4u));
+                words += 8u;
+            }
+            uvs += 8u;
+            v::unary(ctx, 0u, 0x03u, 0x00u, 4u);          // vmov.q C030, C000
+            v::dot(ctx, 0x22u, 0x04u, 0x03u, 3u);         // vdot.t S021, C100, C030
+            v::dot(ctx, 0x42u, 0x01u, 0x03u, 3u);         // vdot.t S022, C010, C030
+            v::store_quad_left(rt, ctx, 0x02u, at + 0xCu);
+            v::store_quad_right(rt, ctx, 0x02u, at);
+        }
+    }
+    emit_primitive(rt, ctx, prim, count, vertices, wide ? 0x19Fu : 0x19Cu);
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -521,3 +650,4 @@ HOT106(0x08B54D28u, func_08B54D28, Word);
 HOT106(0x08B55218u, func_08B55218, Word);
 HOT106(0x08B53D2Cu, func_08B53D2C, Word);
 HOT106(0x08B57AB8u, func_08B57AB8, Word);
+HOT106(0x08B53978u, func_08B53978, Word);
