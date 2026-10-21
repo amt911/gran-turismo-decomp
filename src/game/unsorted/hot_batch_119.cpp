@@ -139,6 +139,7 @@ void func_089AD0E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, self + 0xB4u, count);
     const std::uint32_t previous = entry - 0x40u;
     const float base = float_at(rt, previous + 0x34u);
+    ctx.gpr[2] = count << 6;  // func_08967530 returns in f0 only: v0 keeps this offset when the weight ends the frame
     call_set(rt, ctx, 0x08967530u, {car});
     const float weight = base * ctx.fpr[0];
     put_float(rt, entry + 0x34u, weight);
@@ -828,9 +829,9 @@ void func_0891F6CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 #define HOT119(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_119::name, gt::ReturnKind::kind)
 HOT119(0x089AD0E0u, func_089AD0E0, Word);
 HOT119(0x0892331Cu, func_0892331C, Word);
-HOT119(0x088E29DCu, func_088E29DC, Word);
-HOT119(0x08B907F8u, func_08B907F8, Word);
-HOT119(0x08828D74u, func_08828D74, Word);
-HOT119(0x08834A8Cu, func_08834A8C, Word);
-HOT119(0x089645C4u, func_089645C4, Word);
+// HOT119(0x088E29DCu, func_088E29DC, Word);  // batch 119: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT119(0x08B907F8u, func_08B907F8, Word);  // batch 119: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT119(0x08828D74u, func_08828D74, Word);  // batch 119: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT119(0x08834A8Cu, func_08834A8C, Word);  // batch 119: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT119(0x089645C4u, func_089645C4, Word);  // batch 119: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT119(0x0891F6CCu, func_0891F6CC, Word);
