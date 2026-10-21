@@ -462,6 +462,68 @@ void func_08B4ACE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     gt::vfpu::store_scalar(rt, ctx, 0x21u, out + 4u);
 }
 
+// func_08B4E994(out, a, b): out = a x b for 4x4 matrices: a in M200, b in M000, vmmul.q M100, E200, M000, the result
+// stored C130, C100, C110, C120 (all left in the VFPU).
+void func_08B4E994(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], a = ctx.gpr[5], b = ctx.gpr[6];
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 8u + column, a + 0x10u * column);
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, column, b + 0x10u * column);
+    gt::vfpu::matrix_multiply(ctx, 4u, 0x28u, 0u, 4u);
+    gt::vfpu::store_quad(rt, ctx, 7u, out + 0x30u);
+    gt::vfpu::store_quad(rt, ctx, 4u, out);
+    gt::vfpu::store_quad(rt, ctx, 5u, out + 0x10u);
+    gt::vfpu::store_quad(rt, ctx, 6u, out + 0x20u);
+}
+
+// func_08B54474(a, b): a in VFPU C000 (S000..S002), b in C010 (S010..S012), then func_08B55BC0(0x08D6D0E0).
+void func_08B54474(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t a = ctx.gpr[4], b = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    for (std::uint32_t row = 0u; row < 3u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, a + 4u * row);
+    for (std::uint32_t row = 0u; row < 3u; ++row) gt::vfpu::load_scalar(rt, ctx, 1u + row * 0x20u, b + 4u * row);
+    (void)call_set(rt, ctx, 0x08B55BC0u, {kGuCommandBlock});
+}
+
+// func_08B5A838(f12..f15 = r, g, b, a): the colour clamped to [0, 1], scaled by 255, rounded and packed into bytes
+// (vsat0, vfim 255, vscl, vf2in 23, vi2uc), stored as the word at 0x08D6D0C4.
+void func_08B5A838(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    ctx.gpr[3] = std::bit_cast<std::uint32_t>(ctx.fpr[13]);
+    ctx.gpr[4] = std::bit_cast<std::uint32_t>(ctx.fpr[14]);
+    ctx.gpr[5] = std::bit_cast<std::uint32_t>(ctx.fpr[15]);
+    gt::vfpu::move_to(ctx, ctx.gpr[2], 0x01u);
+    gt::vfpu::move_to(ctx, ctx.gpr[3], 0x21u);
+    gt::vfpu::move_to(ctx, ctx.gpr[4], 0x41u);
+    gt::vfpu::move_to(ctx, ctx.gpr[5], 0x61u);
+    ctx.gpr[2] = lui_of(0x08D6D0C4u);
+    gt::vfpu::unary(ctx, 4u, 0u, 1u, 4u);                  // vsat0.q C000, C010
+    gt::vfpu::load_half(ctx, 1u, 0x5BF8u);                 // vfim.s S010, 255
+    gt::vfpu::scale(ctx, 0u, 0u, 1u, 4u);                  // vscl.q C000, C000, S010
+    gt::vfpu::float_to_int(ctx, 16u, 0u, 0u, 23u, 4u);     // vf2in.q C000, C000, 23
+    gt::vfpu::pack_ints(ctx, 0u, 0u, 0u, 4u);              // vi2uc.q S000, C000
+    gt::vfpu::store_scalar(rt, ctx, 0u, 0x08D6D0C4u);
+}
+
+// func_08B580F0(f12 = angle, s_out, c_out): the angle times 0x3C360B61 (2 / pi) reduced by a multiple of 4 (vf2iz of a
+// quarter, times 4) and turned into sin and cos by vrot.p [S, C]; S000 to s_out, S001 to c_out.
+void func_08B580F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[3] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    ctx.gpr[2] = 0x3C360B61u;
+    gt::vfpu::move_to(ctx, ctx.gpr[3], 0x00u);
+    gt::vfpu::move_to(ctx, ctx.gpr[2], 0x20u);
+    gt::vfpu::binary(ctx, gt::vfpu::Binary::Mul, 0x40u, 0x00u, 0x20u, 1u);  // vmul.s S002, S000, S001
+    gt::vfpu::load_half(ctx, 0x00u, 0x3400u);                                // vfim.s S000, 0.25
+    gt::vfpu::binary(ctx, gt::vfpu::Binary::Mul, 0x20u, 0x40u, 0x00u, 1u);  // vmul.s S001, S002, S000
+    gt::vfpu::float_to_int(ctx, 17u, 0x20u, 0x20u, 0u, 1u);                  // vf2iz.s S001, S001, 0
+    gt::vfpu::int_to_float(ctx, 0x20u, 0x20u, 0u, 1u);                       // vi2f.s S001, S001, 0
+    gt::vfpu::load_half(ctx, 0x00u, 0x4400u);                                // vfim.s S000, 4
+    gt::vfpu::binary(ctx, gt::vfpu::Binary::Mul, 0x20u, 0x20u, 0x00u, 1u);  // vmul.s S001, S001, S000
+    gt::vfpu::binary(ctx, gt::vfpu::Binary::Sub, 0x40u, 0x40u, 0x20u, 1u);  // vsub.s S002, S002, S001
+    gt::vfpu::rotation(ctx, 0u, 0x40u, 2u, 1u);                              // vrot.p C000, S002, [S, C]
+    gt::vfpu::store_scalar(rt, ctx, 0x00u, ctx.gpr[4]);
+    gt::vfpu::store_scalar(rt, ctx, 0x20u, ctx.gpr[5]);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -487,5 +549,9 @@ HOT105(0x08B4E734u, func_08B4E734, Word);
 HOT105(0x08B57E40u, func_08B57E40, Word);
 HOT105(0x08B4A774u, func_08B4A774, Word);
 HOT105(0x08B4ACE0u, func_08B4ACE0, Word);
+HOT105(0x08B4E994u, func_08B4E994, Word);
+HOT105(0x08B54474u, func_08B54474, Word);
+HOT105(0x08B5A838u, func_08B5A838, Word);
+HOT105(0x08B580F0u, func_08B580F0, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
