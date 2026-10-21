@@ -191,6 +191,105 @@ void func_08B53898(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, kGuListPointer, ctx.gpr[2]);
 }
 
+// func_08B54D28(cache, blob) -> the address the blob's GE commands are to be called at. blob: +0 data, +4 relocation
+// table (8-byte entries), +8 size, +0xC relocation count (half), +0x10 its cache entry. cache: +4 enabled, +8 a stamp.
+// With the cache off or a stamp below 2 the blob is used in place (+0x10 cleared). A valid entry (its +0 is this blob)
+// gets the stamp and gives its copy (+4); a stale one is cleared. While the word at 0x08D6CDE8 is below 500, a new entry
+// comes from func_08B54984(cache, blob, size): the data is copied there 64 bytes at a time through VFPU C010 / C000
+// (lv.q / sv.q; the `cache 0x18` before each block has no host effect), then each relocation entry whose first byte is 0
+// rewrites two words of the copy (at the entry's word 0 >> 8) as BASE (0x10, high byte) and VADDR (0x01, low 24 bits) of
+// copy + the entry's word 1. Anything else returns the data in place.
+void func_08B54D28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    const std::uint32_t cache = ctx.gpr[4], blob = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    std::uint32_t data = word(rt, blob);
+    const std::uint32_t size = word(rt, blob + 8u);
+    const auto done = [&]() { ctx.gpr[2] = data; };
+    ctx.gpr[2] = word(rt, cache + 4u);
+    if (ctx.gpr[2] == 0u) {
+        put(rt, blob + 0x10u, 0u);
+        return done();
+    }
+    ctx.gpr[4] = word(rt, cache + 8u);
+    ctx.gpr[2] = ctx.gpr[4] < 2u ? 1u : 0u;
+    if (ctx.gpr[2] != 0u) {
+        put(rt, blob + 0x10u, 0u);
+        return done();
+    }
+    ctx.gpr[3] = word(rt, blob + 0x10u);  // the beql's delay slot (taken)
+    if (ctx.gpr[3] != 0u) {
+        ctx.gpr[2] = word(rt, ctx.gpr[3]);
+        if (ctx.gpr[2] == blob) {
+            data = word(rt, ctx.gpr[3] + 4u);
+            put(rt, ctx.gpr[3] + 0xCu, ctx.gpr[4]);
+            return done();
+        }
+        put(rt, blob + 0x10u, 0u);  // the bnel's delay slot (taken)
+    }
+    ctx.gpr[3] = lui_of(0x08D6CDE8u);
+    ctx.gpr[2] = word(rt, 0x08D6CDE8u) < 500u ? 1u : 0u;
+    if (ctx.gpr[2] == 0u) {
+        ctx.gpr[2] = data;
+        return;
+    }
+    const std::uint32_t entry = call_set(rt, ctx, 0x08B54984u, {cache, blob, size});
+    ctx.gpr[9] = entry;
+    if (entry == 0u) return done();
+    ctx.gpr[2] = word(rt, cache + 8u);
+    const std::uint32_t copy = word(rt, entry + 4u);
+    ctx.gpr[10] = copy;
+    put(rt, entry + 0xCu, ctx.gpr[2]);
+    std::uint32_t to = copy, from = data, left = size;
+    put(rt, blob + 0x10u, entry);  // the blez's delay slot
+    if (static_cast<std::int32_t>(left) > 0) {
+        do {
+            v::load_quad(rt, ctx, 0x01u, from);
+            left -= 0x40u;
+            v::store_quad(rt, ctx, 0x01u, to);
+            v::load_quad(rt, ctx, 0x00u, from + 0x10u);
+            v::store_quad(rt, ctx, 0x00u, to + 0x10u);
+            v::load_quad(rt, ctx, 0x01u, from + 0x20u);
+            v::store_quad(rt, ctx, 0x01u, to + 0x20u);
+            v::load_quad(rt, ctx, 0x00u, from + 0x30u);
+            from += 0x40u;
+            v::store_quad(rt, ctx, 0x00u, to + 0x30u);
+            to += 0x40u;  // the bgtz's delay slot
+        } while (static_cast<std::int32_t>(left) > 0);
+    }
+    ctx.gpr[2] = from;
+    ctx.gpr[6] = left;
+    std::uint32_t relocations = half_u(rt, blob + 0xCu);
+    const std::uint32_t table = word(rt, blob + 4u);
+    ctx.gpr[3] = table;
+    if (relocations != 0u) {
+        std::uint32_t at = table, index = 0u;
+        do {
+            ctx.gpr[2] = byte_u(rt, at);
+            index += 1u;
+            ctx.gpr[8] = 0x10000000u;
+            ctx.gpr[6] = 0x01000000u;
+            if (ctx.gpr[2] == 0u) {
+                const std::uint32_t target = word(rt, at + 4u) + copy;
+                const std::uint32_t place = (word(rt, at) >> 8) + copy;
+                ctx.gpr[6] = 0x01000000u | (target & 0x00FFFFFFu);
+                ctx.gpr[8] = 0x10000000u | ((target >> 24) & 0xFFu) << 16;
+                ctx.gpr[3] = place;
+                put(rt, place + 4u, ctx.gpr[6]);
+                put(rt, place, ctx.gpr[8]);
+                relocations = half_u(rt, blob + 0xCu);
+            }
+            ctx.gpr[2] = static_cast<std::int32_t>(index) < static_cast<std::int32_t>(relocations & 0xFFFFu) ? 1u : 0u;
+            at += 8u;  // the bnez's delay slot
+        } while (ctx.gpr[2] != 0u);
+        ctx.gpr[5] = at;
+        ctx.gpr[7] = index;
+    }
+    ctx.gpr[4] = relocations;
+    data = word(rt, entry + 4u);
+    done();
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -200,3 +299,4 @@ void func_08B53898(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // HOT106REGS
 HOT106(0x08B565F8u, func_08B565F8, Word);
 HOT106(0x08B53898u, func_08B53898, Word);
+HOT106(0x08B54D28u, func_08B54D28, Word);
