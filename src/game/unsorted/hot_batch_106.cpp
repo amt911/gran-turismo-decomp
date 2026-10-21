@@ -290,6 +290,61 @@ void func_08B54D28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     done();
 }
 
+// func_08B55218(f12..f19): saves VFPU M400 in a frame; C400 = (f12..f15 as C010) x (the vector at the state block's
+// +0x170, prefix X, Y, X, Y) + (+0x180, same prefix); func_08B59118(state, 0xBFD) runs with (f16..f19) turned into
+// 16.16 integers (vf2in 16, in the jal's delay slot); both results are packed to halfwords (vi2s), four of their words
+// go to a1 / a2 / a3 / t0 (mfv), M400 is restored and it tail-calls func_08B552EC.
+void func_08B55218(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    using B = v::Binary;
+    {
+        GuestFrame frame(ctx, 0x50u);
+        ctx.gpr[10] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+        ctx.gpr[11] = std::bit_cast<std::uint32_t>(ctx.fpr[13]);
+        ctx.gpr[12] = std::bit_cast<std::uint32_t>(ctx.fpr[14]);
+        ctx.gpr[13] = std::bit_cast<std::uint32_t>(ctx.fpr[15]);
+        v::move_to(ctx, ctx.gpr[10], 0x01u);
+        v::move_to(ctx, ctx.gpr[11], 0x21u);
+        v::move_to(ctx, ctx.gpr[12], 0x41u);
+        v::move_to(ctx, ctx.gpr[13], 0x61u);
+        ctx.gpr[6] = std::bit_cast<std::uint32_t>(ctx.fpr[16]);
+        v::store_quad(rt, ctx, 0x13u, frame.at(0x40u));   // sv.q C430
+        ctx.gpr[7] = std::bit_cast<std::uint32_t>(ctx.fpr[17]);
+        ctx.gpr[8] = std::bit_cast<std::uint32_t>(ctx.fpr[18]);
+        v::store_quad(rt, ctx, 0x12u, frame.at(0x30u));   // sv.q C420
+        ctx.gpr[9] = std::bit_cast<std::uint32_t>(ctx.fpr[19]);
+        v::store_quad(rt, ctx, 0x11u, frame.at(0x20u));   // sv.q C410
+        v::store_quad(rt, ctx, 0x10u, frame.at(0x10u));   // sv.q C400
+        v::load_quad(rt, ctx, 0x10u, kGuState + 0x170u);  // lv.q C400
+        v::load_quad(rt, ctx, 0x00u, kGuState + 0x180u);  // lv.q C000
+        v::prefix(ctx, 1u, 0x44u);                         // vpfxt X, Y, X, Y
+        v::binary(ctx, B::Mul, 0x10u, 0x01u, 0x10u, 4u);   // vmul.q C400, C010, C400
+        v::move_to(ctx, ctx.gpr[6], 0x01u);
+        v::move_to(ctx, ctx.gpr[7], 0x21u);
+        v::move_to(ctx, ctx.gpr[8], 0x41u);
+        v::move_to(ctx, ctx.gpr[9], 0x61u);
+        v::prefix(ctx, 1u, 0x44u);                         // vpfxt X, Y, X, Y
+        v::binary(ctx, B::Add, 0x10u, 0x10u, 0x00u, 4u);   // vadd.q C400, C400, C000
+        v::float_to_int(ctx, 16u, 0x11u, 0x01u, 16u, 4u);  // vf2in.q C410, C010, 16 (the jal's delay slot)
+        (void)call_set(rt, ctx, 0x08B59118u, {kGuState, 0xBFDu});
+        ctx.gpr[4] = kGuState;
+        v::pack_ints(ctx, 3u, 0x11u, 0x11u, 4u);           // vi2s.q C410, C410
+        v::float_to_int(ctx, 16u, 0x10u, 0x10u, 16u, 4u);  // vf2in.q C400, C400, 16
+        v::unary(ctx, 0u, 0x13u, 0x11u, 4u);               // vmov.q C430, C410
+        ctx.gpr[7] = ctx.vfpu_scalar_bits(0x11u);          // mfv a3, S410
+        ctx.gpr[8] = ctx.vfpu_scalar_bits(0x33u);          // mfv t0, S431
+        v::pack_ints(ctx, 3u, 0x10u, 0x10u, 4u);           // vi2s.q C400, C400
+        v::load_quad(rt, ctx, 0x13u, frame.at(0x40u));
+        v::load_quad(rt, ctx, 0x11u, frame.at(0x20u));
+        v::unary(ctx, 0u, 0x12u, 0x10u, 4u);               // vmov.q C420, C400
+        ctx.gpr[5] = ctx.vfpu_scalar_bits(0x10u);          // mfv a1, S400
+        v::load_quad(rt, ctx, 0x10u, frame.at(0x10u));
+        ctx.gpr[6] = ctx.vfpu_scalar_bits(0x32u);          // mfv a2, S421
+        v::load_quad(rt, ctx, 0x12u, frame.at(0x30u));
+    }
+    tail_call(ctx, 0x08B552ECu, {});
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -300,3 +355,4 @@ void func_08B54D28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 HOT106(0x08B565F8u, func_08B565F8, Word);
 HOT106(0x08B53898u, func_08B53898, Word);
 HOT106(0x08B54D28u, func_08B54D28, Word);
+HOT106(0x08B55218u, func_08B55218, Word);
