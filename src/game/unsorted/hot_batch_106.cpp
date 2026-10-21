@@ -813,6 +813,6 @@ HOT106(0x089A900Cu, func_089A900C, Word);
 HOT106(0x089C3DF0u, func_089C3DF0, Word);
 HOT106(0x0885EE1Cu, func_0885EE1C, Word);
 HOT106(0x0885F838u, func_0885F838, Word);
-HOT106(0x088915D4u, func_088915D4, Word);
+// HOT106(0x088915D4u, func_088915D4, Word);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
 HOT106(0x088D0918u, func_088D0918, Word);
 HOT106(0x08BABCB0u, func_08BABCB0, Word);

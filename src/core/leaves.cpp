@@ -145,13 +145,13 @@ GT_DECOMP_BYTE_GETTER(0x088CEF48u, 149);
 GT_DECOMP_SET_BYTE(0x088CEF50u, 149);
 GT_DECOMP_SET_BYTE(0x088CEF58u, 148);
 GT_DECOMP_CONST(0x088DA0B4u, 1);
-GT_DECOMP_SET_FIELD(0x088DAD00u, 60);
-GT_DECOMP_SET_BYTE(0x088DAD9Cu, 68);
-GT_DECOMP_SET_FIELD(0x088DADACu, 64);
+// GT_DECOMP_SET_FIELD(0x088DAD00u, 60);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_SET_BYTE(0x088DAD9Cu, 68);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_SET_FIELD(0x088DADACu, 64);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
 GT_DECOMP_FLOAT_GETTER(0x08A87824u, 20);
-GT_DECOMP_RETURN_FIRST_ARG(0x08BAE28Cu);
-GT_DECOMP_RETURN_FIRST_ARG(0x08BBBE8Cu);
-GT_DECOMP_RETURN_FIRST_ARG(0x08C45D8Cu);
-GT_DECOMP_RETURN_FIRST_ARG(0x08C46D64u);
-GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC0u);
-GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC8u);
+// GT_DECOMP_RETURN_FIRST_ARG(0x08BAE28Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08BBBE8Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C45D8Cu);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C46D64u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC0u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
+// GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC8u);  // batch 106: reached only by the full routes, so its sabotage cannot be pinned (the sabotage runs the fast gate)
