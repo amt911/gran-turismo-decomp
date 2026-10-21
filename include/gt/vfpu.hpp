@@ -339,4 +339,10 @@ inline bool condition(const psprecomp::AllegrexContext &ctx, std::uint32_t index
     return ((ctx.vfpu_ctrl[3] >> index) & 1u) != 0u;
 }
 
+// vdot destination scalar, source, target over `length` lanes.
+inline void dot(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t source, std::uint32_t target,
+                std::uint32_t length) {
+    ctx.execute_vfpu_vdot(destination, source, target, length);
+}
+
 } // namespace gt::vfpu
