@@ -2162,3 +2162,14 @@ occasional full gate. The thread table showed a live game that had loaded a diff
   existed in `leaves.cpp`, and the duplicates failed to link.
 
 Found: 2026-10-21 · decomp/hot-batch-106
+
+## `decomp_gate coverage` with a full gate's tag overwrites that gate's route logs
+
+**Symptom.** Right after a clean full gate (batch 109, 5618 compared), adding up its `[decomp]` lines per function gave
+80 of 83 functions "never compared", and 7 of the 11 route logs had no `[decomp]` lines at all.
+**Cause.** `coverage TAG` runs a fast gate that writes `recomp/analysis/gt_diff_TAG_<route>.log`: the same files the full
+gate wrote. Given the full gate's tag, it rewrote the logs route by route while they were being read.
+**Fix / workaround.** Give `coverage` its own tag (`b109cov`, never the full gate's). The full gate had to run again.
+Its per-function counts live only in those logs.
+
+Found: 2026-10-21 · decomp/hot-batch-109
