@@ -3020,7 +3020,7 @@ HOT118(0x0888CBACu, func_0888CBAC, Word);
 HOT118(0x088C3118u, func_088C3118, Float);
 HOT118(0x089DD648u, func_089DD648, Word);
 HOT118(0x088D00B0u, func_088D00B0, Word);
-HOT118(0x08867268u, func_08867268, Word);
+// HOT118(0x08867268u, func_08867268, Word);  // batch 118: mismatched in the full gate (the 0x9C branch at 0x088672BC is read backwards: a non-zero func_088CE914 jumps to 0x08867654); to rewrite
 HOT118(0x088C3D5Cu, func_088C3D5C, Word);
 HOT118(0x08A189C0u, func_08A189C0, Word);
 HOT118(0x08BD25E4u, func_08BD25E4, Word);

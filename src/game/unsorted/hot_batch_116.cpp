@@ -2420,7 +2420,7 @@ HOT116(0x08AB398Cu, func_08AB398C, Word);
 HOT116(0x08ADE5A4u, func_08ADE5A4, Word);
 HOT116(0x08B2CB18u, func_08B2CB18, Word);
 HOT116(0x08B6E920u, func_08B6E920, Float);
-HOT116(0x08BA996Cu, func_08BA996C, Word);
+// HOT116(0x08BA996Cu, func_08BA996C, Word);  // batch 116: mismatched in the full gate (v0 on the in-place insert path: original 0, decompiled a pointer); to fix
 HOT116(0x08BBFAACu, func_08BBFAAC, Word);
 HOT116(0x08BC17C8u, func_08BC17C8, Word);
 HOT116(0x08BDC338u, func_08BDC338, Word);
