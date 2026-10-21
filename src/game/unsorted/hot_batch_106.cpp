@@ -768,6 +768,29 @@ void func_089C3DF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     v::store_scalar(rt, ctx, 0x29u, m + 0x10u);
 }
 
+// func_0885EE1C / func_0885F838 / func_088915D4(this, ...): continue in the target with (*this) + k in place of this.
+void func_0885EE1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    tail_call(ctx, 0x08894098u, {word(rt, ctx.gpr[4]) + 0x3F88u});
+}
+void func_0885F838(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    tail_call(ctx, 0x08917E80u, {word(rt, ctx.gpr[4]) + 0x5CCu});
+}
+void func_088915D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    tail_call(ctx, 0x0888F548u, {word(rt, ctx.gpr[4]) + 8u});
+}
+
+// func_088D0918(this): the byte at +0x26 = 1 (v0 = 1).
+void func_088D0918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = 1u;
+    put8(rt, ctx.gpr[4] + 0x26u, 1u);
+}
+
+// func_08BABCB0(a0, a1, a2): continue in func_08894CC8 with a1 = (a2 - a1) sign-extended from 16 bits.
+void func_08BABCB0(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[5] = sext16(ctx.gpr[6] - ctx.gpr[5]);
+    tail_call(ctx, 0x08894CC8u, {});
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -788,3 +811,8 @@ HOT106(0x089C3DA8u, func_089C3DA8, Word);
 HOT106(0x089A9064u, func_089A9064, Word);
 HOT106(0x089A900Cu, func_089A900C, Word);
 HOT106(0x089C3DF0u, func_089C3DF0, Word);
+HOT106(0x0885EE1Cu, func_0885EE1C, Word);
+HOT106(0x0885F838u, func_0885F838, Word);
+HOT106(0x088915D4u, func_088915D4, Word);
+HOT106(0x088D0918u, func_088D0918, Word);
+HOT106(0x08BABCB0u, func_08BABCB0, Word);
