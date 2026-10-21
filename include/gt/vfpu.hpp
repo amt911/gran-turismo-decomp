@@ -345,4 +345,16 @@ inline void dot(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std:
     ctx.execute_vfpu_vdot(destination, source, target, length);
 }
 
+// vuc2i / vc2i / vus2i / vs2i (operation 0 / 1 / 2 / 3): packed bytes or halfwords unpacked to integer lanes.
+inline void unpack_ints(psprecomp::AllegrexContext &ctx, std::uint32_t operation, std::uint32_t destination,
+                        std::uint32_t source, std::uint32_t source_length) {
+    ctx.execute_vfpu_vx2i(destination, source, source_length, operation);
+}
+
+// vmmov destination, source (side x side).
+inline void matrix_move(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t source,
+                        std::uint32_t side) {
+    ctx.execute_vfpu_vmmov(destination, source, side);
+}
+
 } // namespace gt::vfpu

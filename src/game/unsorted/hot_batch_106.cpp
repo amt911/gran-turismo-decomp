@@ -637,6 +637,137 @@ void func_08B53978(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     emit_primitive(rt, ctx, prim, count, vertices, wide ? 0x19Fu : 0x19Cu);
 }
 
+// func_089641DC(out, packed): the four bytes of `packed` as floats in [0, 1) (vuc2i into C000, vi2f 31), stored to out.
+void func_089641DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    v::move_to(ctx, ctx.gpr[5], 0x01u);                  // mtv a1, S010
+    v::unpack_ints(ctx, 0u, 0x00u, 0x01u, 1u);           // vuc2ifs.s C000, S010
+    v::int_to_float(ctx, 0x00u, 0x00u, 31u, 4u);         // vi2f.q C000, C000, 31
+    v::store_quad(rt, ctx, 0x00u, ctx.gpr[4]);
+}
+
+// func_08964254(color, f12 = alpha) -> the colour's four floats clamped to [0, 1], times 255, the fourth also times
+// alpha, truncated and packed into bytes (vsat0, vscl, vmul, vf2iz 23, vi2uc).
+void func_08964254(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    GuestFrame frame(ctx, 0x10u);
+    put_float(rt, frame.at(0u), ctx.fpr[12]);
+    v::load_quad(rt, ctx, 0x00u, ctx.gpr[4]);
+    v::unary(ctx, 4u, 0x00u, 0x00u, 4u);                 // vsat0.q C000, C000
+    ctx.gpr[1] = 0x437F0000u;
+    v::move_to(ctx, 0x437F0000u, 0x01u);                 // mtv at, S010 (255)
+    v::load_scalar(rt, ctx, 0x21u, frame.at(0u));        // lv.s S011
+    v::scale(ctx, 0x00u, 0x00u, 0x01u, 4u);              // vscl.q C000, C000, S010
+    v::binary(ctx, v::Binary::Mul, 0x60u, 0x60u, 0x21u, 1u);  // vmul.s S003, S003, S011
+    v::float_to_int(ctx, 17u, 0x00u, 0x00u, 23u, 4u);    // vf2iz.q C000, C000, 23
+    v::pack_ints(ctx, 0u, 0x00u, 0x00u, 4u);             // vi2uc.q S000, C000
+    ctx.gpr[2] = ctx.vfpu_scalar_bits(0x00u);            // mfv v0, S000
+}
+
+// func_089C3DA8(m, f12 = x, f13 = y): (x, y, 1) through the 3x3 matrix whose rows start at m, m + 0xC, m + 0x18 (two
+// floats each; vtfm3.t C000, E100, C200), the result's first two lanes stored at m + 0x18 / m + 0x1C.
+void func_089C3DA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    const std::uint32_t m = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x10u);
+    put_float(rt, frame.at(0u), ctx.fpr[12]);
+    put_float(rt, frame.at(4u), ctx.fpr[13]);
+    v::load_scalar(rt, ctx, 0x04u, m);
+    v::load_scalar(rt, ctx, 0x24u, m + 4u);
+    v::load_scalar(rt, ctx, 0x05u, m + 0xCu);
+    v::load_scalar(rt, ctx, 0x25u, m + 0x10u);
+    v::load_scalar(rt, ctx, 0x06u, m + 0x18u);
+    v::load_scalar(rt, ctx, 0x26u, m + 0x1Cu);
+    v::load_scalar(rt, ctx, 0x08u, frame.at(0u));
+    v::load_scalar(rt, ctx, 0x28u, frame.at(4u));
+    ctx.gpr[1] = 0x3F800000u;
+    v::move_to(ctx, 0x3F800000u, 0x48u);                 // mtv at, S202 (1)
+    v::transform(ctx, 0x00u, 0x24u, 0x08u, 3u, 3u);      // vtfm3.t C000, E100, C200
+    v::store_scalar(rt, ctx, 0x00u, m + 0x18u);
+    v::store_scalar(rt, ctx, 0x20u, m + 0x1Cu);
+}
+
+// func_089A9064(out, q, f12 = s, f13 = t): bilinear blend of the four 4-vectors at q (+0, +0x10, +0x20, +0x30): two
+// lerps by s, then a lerp by t between them (vsub, vscl, vadd), stored to out.
+void func_089A9064(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    using B = v::Binary;
+    const std::uint32_t q = ctx.gpr[5];
+    ctx.gpr[8] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    v::move_to(ctx, ctx.gpr[8], 0x03u);                  // mtv t0, S030
+    v::load_quad(rt, ctx, 0x01u, q);
+    v::load_quad(rt, ctx, 0x02u, q + 0x10u);
+    v::binary(ctx, B::Sub, 0x00u, 0x02u, 0x01u, 4u);     // vsub.q C000, C020, C010
+    v::scale(ctx, 0x00u, 0x00u, 0x03u, 4u);              // vscl.q C000, C000, S030
+    v::binary(ctx, B::Add, 0x01u, 0x01u, 0x00u, 4u);     // vadd.q C010, C010, C000
+    v::load_quad(rt, ctx, 0x05u, q + 0x30u);
+    v::load_quad(rt, ctx, 0x02u, q + 0x20u);
+    v::binary(ctx, B::Sub, 0x00u, 0x02u, 0x05u, 4u);     // vsub.q C000, C020, C110
+    v::scale(ctx, 0x00u, 0x00u, 0x03u, 4u);
+    v::binary(ctx, B::Add, 0x05u, 0x05u, 0x00u, 4u);     // vadd.q C110, C110, C000
+    ctx.gpr[8] = std::bit_cast<std::uint32_t>(ctx.fpr[13]);
+    v::move_to(ctx, ctx.gpr[8], 0x03u);
+    v::binary(ctx, B::Sub, 0x00u, 0x05u, 0x01u, 4u);     // vsub.q C000, C110, C010
+    v::scale(ctx, 0x00u, 0x00u, 0x03u, 4u);
+    v::binary(ctx, B::Add, 0x01u, 0x01u, 0x00u, 4u);     // vadd.q C010, C010, C000
+    v::store_quad(rt, ctx, 0x01u, ctx.gpr[4]);
+}
+
+// func_089A900C(out, q, f12 = s, f13 = t): the same blend for four 2-vectors at q (+0, +8, +0x10, +0x18), stored as
+// two floats.
+void func_089A900C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    using B = v::Binary;
+    const std::uint32_t q = ctx.gpr[5];
+    ctx.gpr[8] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    v::move_to(ctx, ctx.gpr[8], 0x03u);
+    v::load_scalar(rt, ctx, 0x01u, q);
+    v::load_scalar(rt, ctx, 0x21u, q + 4u);
+    v::load_scalar(rt, ctx, 0x02u, q + 8u);
+    v::load_scalar(rt, ctx, 0x22u, q + 0xCu);
+    v::load_scalar(rt, ctx, 0x41u, q + 0x18u);
+    v::load_scalar(rt, ctx, 0x61u, q + 0x1Cu);
+    v::load_scalar(rt, ctx, 0x42u, q + 0x10u);
+    v::load_scalar(rt, ctx, 0x62u, q + 0x14u);
+    v::binary(ctx, B::Sub, 0x00u, 0x02u, 0x01u, 4u);     // vsub.q C000, C020, C010
+    v::scale(ctx, 0x00u, 0x00u, 0x03u, 4u);              // vscl.q C000, C000, S030
+    v::binary(ctx, B::Add, 0x01u, 0x01u, 0x00u, 4u);     // vadd.q C010, C010, C000
+    ctx.gpr[8] = std::bit_cast<std::uint32_t>(ctx.fpr[13]);
+    v::move_to(ctx, ctx.gpr[8], 0x03u);
+    v::binary(ctx, B::Sub, 0x00u, 0x41u, 0x01u, 2u);     // vsub.p C000, C012, C010
+    v::scale(ctx, 0x00u, 0x00u, 0x03u, 2u);              // vscl.p C000, C000, S030
+    v::binary(ctx, B::Add, 0x01u, 0x01u, 0x00u, 2u);     // vadd.p C010, C010, C000
+    v::store_scalar(rt, ctx, 0x01u, ctx.gpr[4]);
+    v::store_scalar(rt, ctx, 0x21u, ctx.gpr[4] + 4u);
+}
+
+// func_089C3DF0(m, f12 = degrees): rotates the 2x2 matrix at m (rows of two floats at +0 and +0xC) by the angle
+// (f12 x 0x3C8EFA35 = pi / 180, then x 2 / pi for vrot): E200 = E100 x the rotation (vmmul.p), stored back.
+void func_089C3DF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    const std::uint32_t m = ctx.gpr[4];
+    ctx.gpr[1] = 0x3C8EFA35u;
+    ctx.fpr[0] = std::bit_cast<float>(0x3C8EFA35u);
+    ctx.fpr[12] = psp_mul(ctx.fpr[12], ctx.fpr[0]);
+    GuestFrame frame(ctx, 0x10u);
+    put_float(rt, frame.at(0u), ctx.fpr[12]);
+    v::load_scalar(rt, ctx, 0x04u, frame.at(0u));        // lv.s S100
+    v::constant(ctx, 0x24u, 1u, 5u);                     // vcst.s S101, VFPU_2_PI
+    v::binary(ctx, v::Binary::Mul, 0x04u, 0x04u, 0x24u, 1u);  // vmul.s S100, S100, S101
+    v::rotation(ctx, 0x00u, 0x04u, 2u, 4u);              // vrot.p C000, S100, [C, S]
+    v::rotation(ctx, 0x01u, 0x04u, 2u, 17u);             // vrot.p C010, S100, [-S, C]
+    v::matrix_move(ctx, 0x28u, 0x20u, 2u);               // vmmov.p E200, E000
+    v::load_scalar(rt, ctx, 0x04u, m);
+    v::load_scalar(rt, ctx, 0x24u, m + 4u);
+    v::load_scalar(rt, ctx, 0x05u, m + 0xCu);
+    v::load_scalar(rt, ctx, 0x25u, m + 0x10u);
+    v::matrix_multiply(ctx, 0x28u, 0x04u, 0x20u, 2u);    // vmmul.p E200, E100, E000
+    v::store_scalar(rt, ctx, 0x08u, m);
+    v::store_scalar(rt, ctx, 0x28u, m + 4u);
+    v::store_scalar(rt, ctx, 0x09u, m + 0xCu);
+    v::store_scalar(rt, ctx, 0x29u, m + 0x10u);
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -651,3 +782,9 @@ HOT106(0x08B55218u, func_08B55218, Word);
 HOT106(0x08B53D2Cu, func_08B53D2C, Word);
 HOT106(0x08B57AB8u, func_08B57AB8, Word);
 HOT106(0x08B53978u, func_08B53978, Word);
+HOT106(0x089641DCu, func_089641DC, Word);
+HOT106(0x08964254u, func_08964254, Word);
+HOT106(0x089C3DA8u, func_089C3DA8, Word);
+HOT106(0x089A9064u, func_089A9064, Word);
+HOT106(0x089A900Cu, func_089A900C, Word);
+HOT106(0x089C3DF0u, func_089C3DF0, Word);
