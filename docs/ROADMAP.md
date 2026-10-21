@@ -997,6 +997,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lotes 113-114** (2026-10-21): 34 funciones de 141 a 185 instrucciones escritas por dos agentes en paralelo y
+      revisadas por un tercero contra el asm (7 fallos corregidos antes de la puerta: seis copiaban en el hueco de retardo
+      de un `jal` el resultado de la llamada siguiente en vez de la anterior; uno no pasaba a2 a un `erase`). 16 quedan
+      aparcadas. La primera puerta perdió la ruta `challenge` con la máquina a carga 27 (sola pasa); una puerta final dio
+      una discrepancia de 3 bytes en `func_0899CB44` (lote 95) que no se repitió ni sola ni con el lote (dos rutas
+      dirigidas y la puerta siguiente). Sabotajes 16 de 16 y 18 de 18 con `--full`.
+      **7.137 funciones, 5.644 comparadas, 0 discrepancias.**
 - [x] **Lote 112** (2026-10-21): 36 funciones de 81 a 140 instrucciones (inserciones en vectores, envoltorios SVID de
       libm, conversión de 64 bits a float, árboles de cadenas, recorridos de listas de dibujo, separadores de miles). 22
       quedan aparcadas: el gate completo no compara ningún caso suyo. Cuatro dejaban v0 distinto: el crecimiento de un
