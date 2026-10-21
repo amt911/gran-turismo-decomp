@@ -293,4 +293,23 @@ inline void vector_init(psprecomp::AllegrexContext &ctx, std::uint32_t destinati
     ctx.write_vfpu_vector_with_destination_prefix(value, destination, length);
 }
 
+// vcst destination, constant: the VFPU constant `selector` (VFPU_HUGE, VFPU_SQRT2, ..., VFPU_PI 9, VFPU_2PI 15) in
+// `length` lanes.
+inline void constant(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t length,
+                     std::uint32_t selector) {
+    static constexpr std::uint32_t kBits[32] = {
+        0x00000000u, 0x7F7FFFFFu, 0x3FB504F3u, 0x3F3504F3u, 0x3F906EBAu, 0x3F22F983u, 0x3EA2F983u, 0x3F490FDBu,
+        0x3FC90FDBu, 0x40490FDBu, 0x402DF854u, 0x3FB8AA3Bu, 0x3EDE5BD9u, 0x3F317218u, 0x40135D8Eu, 0x40C90FDBu,
+        0x3F060A92u, 0x3E9A209Bu, 0x40549A78u, 0x3F5DB3D7u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+    };
+    const float value = std::bit_cast<float>(kBits[selector & 31u]);
+    const float values[4]{value, value, value, value};
+    ctx.write_vfpu_vector_with_destination_prefix(values, destination, length);
+}
+
+// vpfxs / vpfxt / vpfxd (control 0 / 1 / 2): the prefix the next operation applies to its source, target or destination.
+inline void prefix(psprecomp::AllegrexContext &ctx, std::uint32_t control, std::uint32_t data) {
+    ctx.vfpu_ctrl[control] = control == 2u ? (data & 0x00000FFFu) : (data & 0x000FFFFFu);
+}
+
 } // namespace gt::vfpu

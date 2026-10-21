@@ -580,6 +580,68 @@ void func_08B5A75C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     gt::vfpu::store_scalar(rt, ctx, 0x41u, out + 8u);
 }
 
+// func_08B5A668(a0, out, v, transpose, t0 = flag): out = M x v for the 4x4 matrix func_08B56FAC(0x08D6D0E0, a0,
+// (t0 & 0xFF) != 0) returns, M taken as stored (vtfm4.q C010, M100, C000, in the bnez's delay slot, so always) and,
+// when the low byte of `transpose` is 0, transposed after it (E100), as the asm does.
+void func_08B5A668(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t first = ctx.gpr[4], out = ctx.gpr[5], v = ctx.gpr[6];
+    const std::uint32_t transpose = ctx.gpr[7] & 0xFFu;
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[8] &= 0xFFu;
+    const std::uint32_t matrix = call_set(rt, ctx, 0x08B56FACu, {kGuCommandBlock, first, ctx.gpr[8] != 0u ? 1u : 0u});
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 4u + column, matrix + 0x10u * column);
+    for (std::uint32_t row = 0u; row < 4u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, v + 4u * row);
+    gt::vfpu::transform(ctx, 1u, 0x04u, 0u, 4u, 4u);
+    if (transpose == 0u) gt::vfpu::transform(ctx, 1u, 0x24u, 0u, 4u, 4u);
+    gt::vfpu::store_quad_left(rt, ctx, 1u, out + 0xCu);
+    gt::vfpu::store_quad_right(rt, ctx, 1u, out);
+}
+
+// func_08B498AC(f12 = angle, s_out, c_out): sine and cosine of the angle by a polynomial (coefficients at 0x08CB69B0) on
+// the VFPU, the angle first reduced against pi/2, pi, 1/pi and 2pi (vcst). One VFPU instruction a line, prefixes
+// (vpfxt) included, as the asm runs them; S000 is stored to s_out and S001 to c_out.
+void func_08B498AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    using B = v::Binary;
+    ctx.gpr[2] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    v::constant(ctx, 0x01u, 1u, 8u);            // vcst.s S010, VFPU_PI_2
+    v::load_half(ctx, 0x40u, 0x3800u);          // vfim.s S002, 0.5
+    v::constant(ctx, 0x21u, 1u, 9u);            // vcst.s S011, VFPU_PI
+    v::move_to(ctx, ctx.gpr[2], 0x20u);         // mtv v0, S001
+    v::constant(ctx, 0x41u, 1u, 6u);            // vcst.s S012, VFPU_1_PI
+    v::constant(ctx, 0x61u, 1u, 15u);           // vcst.s S013, VFPU_2PI
+    v::binary(ctx, B::Sub, 0x00u, 0x20u, 0x01u, 1u);  // vsub.s S000, S001, S010
+    v::binary(ctx, B::Mul, 0x41u, 0x41u, 0x40u, 1u);  // vmul.s S012, S012, S002
+    ctx.gpr[2] = lui_of(0x08CB69B0u);
+    v::load_quad(rt, ctx, 0x02u, 0x08CB69B0u);  // lv.q C020
+    v::unary(ctx, 1u, 0x00u, 0x00u, 2u);         // vabs.p C000, C000
+    v::scale(ctx, 0x40u, 0x00u, 0x41u, 2u);      // vscl.p C002, C000, S012
+    v::float_to_int(ctx, 17u, 0x40u, 0x40u, 0u, 2u);  // vf2iz.p C002, C002, 0
+    v::int_to_float(ctx, 0x40u, 0x40u, 0u, 2u);  // vi2f.p C002, C002, 0
+    v::scale(ctx, 0x40u, 0x40u, 0x61u, 2u);      // vscl.p C002, C002, S013
+    v::prefix(ctx, 1u, 0xE5u);                   // vpfxt Y, Y, Z, W
+    v::binary(ctx, B::Sub, 0x00u, 0x00u, 0x01u, 2u);  // vsub.p C000, C000, C010
+    v::binary(ctx, B::Sub, 0x00u, 0x00u, 0x40u, 2u);  // vsub.p C000, C000, C002
+    v::unary(ctx, 1u, 0x00u, 0x00u, 2u);         // vabs.p C000, C000
+    v::prefix(ctx, 1u, 0xE0u);                   // vpfxt X, X, Z, W
+    v::binary(ctx, B::Sub, 0x00u, 0x00u, 0x01u, 2u);  // vsub.p C000, C000, C010
+    v::binary(ctx, B::Mul, 0x01u, 0x00u, 0x00u, 2u);  // vmul.p C010, C000, C000
+    v::scale(ctx, 0x40u, 0x01u, 0x62u, 2u);      // vscl.p C002, C010, S023
+    v::binary(ctx, B::Mul, 0x41u, 0x01u, 0x00u, 2u);  // vmul.p C012, C010, C000
+    v::prefix(ctx, 1u, 0xE0u);                   // vpfxt X, X, Z, W
+    v::binary(ctx, B::Add, 0x40u, 0x40u, 0x42u, 2u);  // vadd.p C002, C002, C022
+    v::binary(ctx, B::Mul, 0x40u, 0x40u, 0x01u, 2u);  // vmul.p C002, C002, C010
+    v::prefix(ctx, 1u, 0xE5u);                   // vpfxt Y, Y, Z, W
+    v::binary(ctx, B::Add, 0x40u, 0x40u, 0x02u, 2u);  // vadd.p C002, C002, C020
+    v::binary(ctx, B::Mul, 0x40u, 0x40u, 0x01u, 2u);  // vmul.p C002, C002, C010
+    v::prefix(ctx, 1u, 0xE0u);                   // vpfxt X, X, Z, W
+    v::binary(ctx, B::Add, 0x40u, 0x40u, 0x02u, 2u);  // vadd.p C002, C002, C020
+    v::binary(ctx, B::Mul, 0x40u, 0x40u, 0x41u, 2u);  // vmul.p C002, C002, C012
+    v::binary(ctx, B::Add, 0x00u, 0x40u, 0x00u, 2u);  // vadd.p C000, C002, C000
+    v::store_scalar(rt, ctx, 0x00u, ctx.gpr[4]);
+    v::store_scalar(rt, ctx, 0x20u, ctx.gpr[5]);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -613,5 +675,7 @@ HOT105(0x08B5436Cu, func_08B5436C, Word);
 HOT105(0x08B5A7A8u, func_08B5A7A8, Word);
 HOT105(0x08B5A7F0u, func_08B5A7F0, Word);
 HOT105(0x08B5A75Cu, func_08B5A75C, Word);
+HOT105(0x08B5A668u, func_08B5A668, Word);
+HOT105(0x08B498ACu, func_08B498AC, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
