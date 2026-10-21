@@ -7,6 +7,7 @@
 // (`GuestFrame`, offsets as in the original), the dead stack is not.
 #include "decomp_registry.hpp"
 #include "gt/game/hot_common.hpp"
+#include "gt/vfpu.hpp"
 #include "guest_call.hpp"
 
 #include <algorithm>
@@ -201,6 +202,99 @@ void func_08B4BB00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put_float(rt, out + 8u, ctx.fpr[1]);
 }
 
+// func_08B4F71C(v) -> length of v (func_08B4A744); when it is not 0, v is negated in place and func_08B4A6A0(v, 1 / length)
+// runs on it (f0 = the length either way; a NaN length is not 0, as c.eq.s).
+void func_08B4F71C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t v = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x20u);
+    (void)call_set(rt, ctx, 0x08B4A744u, {v});
+    const float length = ctx.fpr[0];
+    ctx.fpr[0] = 0.0f;
+    ctx.gpr[4] = v;  // the branch's delay slot, both paths
+    if (length == 0.0f) {
+        ctx.fpr[0] = length;
+        return;
+    }
+    ctx.fpr[12] = 1.0f / length;
+    ctx.fpr[0] = -float_at(rt, v);
+    ctx.fpr[1] = -float_at(rt, v + 4u);
+    ctx.fpr[2] = -float_at(rt, v + 8u);
+    put_float(rt, v, ctx.fpr[0]);
+    put_float(rt, v + 4u, ctx.fpr[1]);
+    put_float(rt, v + 8u, ctx.fpr[2]);  // the jal's delay slot
+    (void)call_set(rt, ctx, 0x08B4A6A0u, {v});
+    ctx.fpr[0] = length;
+}
+
+// func_08B4C0F8(out, f12 = a, f13 = b): func_08B498AC gives (s1, c1) for a * 0.5 and (s2, c2) for b * 0.5 in a frame;
+// out = (s1 * c2, c1 * s2, -(s1 * s2), c2 * c1), stored at +0, +0xC, +4, +8 in the original's order.
+void func_08B4C0F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4];
+    const float b = ctx.fpr[13];
+    ctx.fpr[12] = psp_mul(ctx.fpr[12], 0.5f);
+    GuestFrame frame(ctx, 0x30u);
+    (void)call_set(rt, ctx, 0x08B498ACu, {frame.at(0u), frame.at(4u)});
+    ctx.fpr[12] = psp_mul(b, 0.5f);
+    (void)call_set(rt, ctx, 0x08B498ACu, {frame.at(8u), frame.at(0xCu)});
+    const float s1 = float_at(rt, frame.at(0u)), c1 = float_at(rt, frame.at(4u));
+    const float s2 = float_at(rt, frame.at(8u)), c2 = float_at(rt, frame.at(0xCu));
+    ctx.fpr[4] = s2;
+    ctx.fpr[3] = -psp_mul(s1, s2);
+    ctx.fpr[2] = psp_mul(s1, c2);
+    ctx.fpr[0] = psp_mul(c2, c1);
+    ctx.fpr[1] = psp_mul(c1, s2);
+    put_float(rt, out, ctx.fpr[2]);
+    put_float(rt, out + 0xCu, ctx.fpr[0]);
+    put_float(rt, out + 4u, ctx.fpr[1]);
+    put_float(rt, out + 8u, ctx.fpr[3]);
+}
+
+// func_08B54288: loads the vector at 0x08CB6A80 into VFPU C000 and tail-calls func_08B54104(a0, the words at
+// 0x08D6DDE0 / 0x08D6DDE4, f12 = the float at 0x08CE0DD0).
+void func_08B54288(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    gt::vfpu::load_column(rt, ctx, 0u, 0u, 0x08CB6A80u);
+    ctx.gpr[2] = kGuState;
+    ctx.gpr[6] = word(rt, kGuState + 0xFE4u);
+    ctx.gpr[3] = lui_of(0x08CE0DD0u);
+    ctx.fpr[12] = float_at(rt, 0x08CE0DD0u);
+    ctx.gpr[5] = word(rt, kGuState + 0xFE0u);
+    tail_call(ctx, 0x08B54104u, {});
+}
+
+// func_08B58EE4: closes the graphics library's display list. func_08B59ED0(0x08D6DE70), then at the state block
+// (0x08D6CE00): +0x2D4 = +0x2D0; the GE commands FINISH (0x0F) and END (0x0C) are written at the write pointer, which moves
+// past them; +0x2D0 = the next entry of the list it points to ((+0x2D0)->+4), and when there is one, its +0xC
+// object gets the two words that point the GE at the new write pointer (0x10 with the high byte, 0x08 with the low 24
+// bits). When +0x64 is 0 it tail-calls the import at 0x08C7AAD8 (after vflush / sync, which a host does not need).
+void func_08B58EE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    (void)call_set(rt, ctx, 0x08B59ED0u, {kGuBlock2});
+    const std::uint32_t state = kGuState;
+    ctx.gpr[6] = state;
+    const std::uint32_t list = word(rt, state + 0x5Cu);
+    put(rt, state + 0x2D4u, word(rt, state + 0x2D0u));
+    const std::uint32_t next = list + 8u;
+    put(rt, list, 0x0F000000u);
+    put(rt, list + 4u, 0x0C000000u);
+    ctx.gpr[4] = list;
+    ctx.gpr[5] = next;
+    ctx.gpr[3] = next >> 24;
+    ctx.gpr[8] = 0x10000000u | ((next >> 24) & 0xFFu) << 16;
+    ctx.gpr[7] = 0x08000000u | (next & 0x00FFFFFFu);
+    std::uint32_t entry = word(rt, word(rt, state + 0x2D0u) + 4u);
+    put(rt, state + 0x2D0u, entry);
+    if (entry != 0u) {
+        const std::uint32_t target = word(rt, entry + 0xCu);
+        put(rt, target + 4u, ctx.gpr[7]);
+        put(rt, target, ctx.gpr[8]);
+        entry = target;
+    }
+    ctx.gpr[2] = word(rt, state + 0x64u);
+    put(rt, state + 0x5Cu, next);
+    if (ctx.gpr[2] != 0u) return;
+    tail_call(ctx, 0x08C7AAD8u, {});
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -215,4 +309,8 @@ HOT105(0x08B4AC54u, func_08B4AC54, Word);
 HOT105(0x08B4AD90u, func_08B4AD90, Word);
 HOT105(0x08B572C8u, func_08B572C8, Word);
 HOT105(0x08B4BB00u, func_08B4BB00, Word);
+HOT105(0x08B4F71Cu, func_08B4F71C, Float);
+HOT105(0x08B4C0F8u, func_08B4C0F8, Word);
+HOT105(0x08B54288u, func_08B54288, Word);
+HOT105(0x08B58EE4u, func_08B58EE4, Word);
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
