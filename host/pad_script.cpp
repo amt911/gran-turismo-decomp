@@ -147,6 +147,7 @@ void pad_script_tick(psprecomp::Runtime &runtime) {
     static const bool log = std::getenv("GT_PAD_LOG") != nullptr;
     if (state == PadSequencer::State::TimedOut) {
         std::fprintf(stderr, "[pad] %s\n", s.sequencer.message().c_str());
+        kernel_thread_report();
         std::fflush(stderr);
         std::_Exit(97);
     }

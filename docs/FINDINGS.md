@@ -2085,3 +2085,21 @@ only makes virtual calls.
 - Decompiled code that touches the VFPU must leave the same register file while it runs next to recompiled code.
 
 Found: 2026-10-20 · feat/harness-vfpu (before batch 105, which targets the VFPU-heavy graphics library)
+
+## Full-gate routes stalled on a WAIT about one run in two, on main too: pad presses lost under load
+
+**Symptom.** With 11 routes in parallel, one route (usually options, once challenge2) sometimes waited 12,000 vblanks
+for a page load that never came (exit 97). The same route alone, or in 11 parallel copies of itself, always passed.
+main had it too, so it was not the VFPU change.
+**Cause (most likely).** Under the gate's load the game skips frames and counts several vblanks per frame, so a
+6-vblank scripted press can fall between two pad reads. Every stall happened right after a page where the route
+presses buttons on fixed timings.
+**Fix / workaround.**
+- `PressLatch` (`host/pad_sequence.hpp`, tested) holds a scripted press until the game has read the pad twice.
+- Since the fix, 4 of 5 full gates were clean. The one stall that remained (options, latch1) is unexplained, but any
+  WAIT timeout now prints the PSP thread table (`[threads]`), so a deadlock would show.
+- A gdb SIGSEGV inside a harness case is not a crash: the dirty-page tracker write-protects pages and handles the
+  fault. Use `coredumpctl` for real crashes. One run hit a real SIGSEGV in the software rasterizer
+  (`rasterize_rectangle`, worker thread), which has not been reproduced since.
+
+Found: 2026-10-21 · feat/harness-vfpu

@@ -5814,4 +5814,20 @@ void restore_kernel_replay_state(const KernelReplayState &state) {
 
 namespace gt {
 void wait_for_ge_idle() { lcs::ge_worker_wait_idle(); }
+
+// The PSP threads and where each one stands, for a run that stalls (a pad WAIT that timed out): a deadlocked game
+// still counts vblanks on another thread, so the stall shows here and not in the [pad] line.
+void kernel_thread_report() {
+    static const char *const kStates[] = {"created", "ready", "running", "sleeping", "delayed", "completed", "io-deferred"};
+    const auto &table = lcs::thread_table;
+    std::fprintf(stderr, "[threads] current %d, virtual time %llu us\n", table.current_uid,
+                 static_cast<unsigned long long>(lcs::virtual_time_us));
+    for (const auto &[uid, thread] : table.threads) {
+        const auto &ctx = thread.suspended_context;
+        std::fprintf(stderr, "[threads]   %d %-24s %-11s pc %08X ra %08X wakeups %u delay_until %llu%s\n", uid,
+                     thread.name.c_str(), kStates[static_cast<int>(thread.state)], ctx.pc, ctx.gpr[31],
+                     thread.wakeup_count, static_cast<unsigned long long>(thread.delay_until_us),
+                     thread.externally_suspended ? " suspended" : "");
+    }
+}
 } // namespace gt
