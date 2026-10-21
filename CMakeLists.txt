@@ -113,6 +113,7 @@ add_library(gt_host_objs OBJECT
     host/gt_ge_exec.cpp
     host/ge_state_revision.cpp
     host/vblank_pacer.cpp
+    host/frame_log.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
 target_include_directories(gt_host_objs PRIVATE host include "${GT_LCS_HOST_DIR}")
@@ -207,6 +208,9 @@ add_test(NAME ge_state_revision COMMAND ge_state_revision_tests)
 add_executable(vblank_pacer_tests host/tests/vblank_pacer_test.cpp host/vblank_pacer.cpp)
 target_include_directories(vblank_pacer_tests PRIVATE host)
 add_test(NAME vblank_pacer COMMAND vblank_pacer_tests)
+add_executable(frame_log_tests host/tests/frame_log_test.cpp host/frame_log.cpp)
+target_include_directories(frame_log_tests PRIVATE host)
+add_test(NAME frame_log COMMAND frame_log_tests)
 add_executable(dirty_pages_tests host/tests/dirty_pages_test.cpp host/dirty_pages.cpp)
 target_include_directories(dirty_pages_tests PRIVATE host)
 target_link_libraries(dirty_pages_tests PRIVATE Threads::Threads)

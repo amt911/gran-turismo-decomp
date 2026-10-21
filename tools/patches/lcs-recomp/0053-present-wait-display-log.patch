@@ -1,0 +1,225 @@
+diff --git a/lcs/host/ge_gpu_backend.hpp b/lcs/host/ge_gpu_backend.hpp
+index 19011b1..bd0a14d 100644
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -318,6 +318,11 @@ struct GeGpuBackendReport {
+ 
+ [[nodiscard]] bool initialize_ge_gpu_backend(std::string &error);
+ void shutdown_ge_gpu_backend() noexcept;
++// GT patch 0053: called (on a waiter thread) when the screen has shown present number `present_id` (1, 2, ...), measured
++// with VK_KHR_present_wait. Set before the backend starts; the extensions are enabled only when a hook is set and the
++// device has them. For GT_FRAME_LOG: the screen-side frame pacing.
++using GeGpuDisplayHook = void (*)(std::uint64_t present_id);
++void ge_gpu_backend_set_display_hook(GeGpuDisplayHook hook) noexcept;
+ 
+ [[nodiscard]] bool ge_gpu_backend_active() noexcept;
+ [[nodiscard]] bool ge_gpu_backend_transfer_ready() noexcept;
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+index 653f2d4..e23c25c 100644
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -19,6 +19,8 @@
+ #include <algorithm>
+ #include <array>
+ #include <chrono>
++#include <condition_variable>
++#include <deque>
+ #include <cmath>
+ #include <cstddef>
+ #include <cstdlib>
+@@ -154,8 +156,28 @@ struct Staging {
+     VkDeviceMemory memory{};
+ };
+ 
++// GT patch 0053: VK_KHR_present_wait completions reported to the display hook (GT_FRAME_LOG), one waiter thread.
++std::atomic<GeGpuDisplayHook> g_display_hook{nullptr};
++struct PresentWaiter {
++    std::mutex mutex;
++    std::condition_variable wake;
++    std::deque<std::uint64_t> ids;
++    std::atomic<bool> stop{false};
++    std::thread thread;
++    ~PresentWaiter() {  // a process that exits without shutting the backend down
++        if (!thread.joinable()) return;
++        stop = true;
++        wake.notify_all();
++        thread.join();
++    }
++};
++
+ struct VulkanState {
+     std::recursive_mutex mutex;
++    bool present_wait{};                 // GT patch 0053
++    PFN_vkWaitForPresentKHR wait_for_present{};
++    std::uint64_t present_id{};
++    PresentWaiter waiter;
+     GeGpuBackendReport report{};
+     bool enabled{};
+     VkInstance instance{};
+@@ -308,6 +330,8 @@ struct VulkanState {
+     bool present_lost{};
+ };
+ 
++void present_waiter_stop(VulkanState &s);  // GT patch 0053
++
+ VulkanState &state() {
+     static VulkanState s;
+     return s;
+@@ -1660,7 +1684,7 @@ void destroy_present_semaphores(VulkanState &s) noexcept {
+ void destroy_present_device(VulkanState &s) noexcept {
+     destroy_swap_views(s);
+     if (s.device != VK_NULL_HANDLE && s.swapchain != VK_NULL_HANDLE)
+-        vkDestroySwapchainKHR(s.device, s.swapchain, nullptr);
++        { present_waiter_stop(s); vkDestroySwapchainKHR(s.device, s.swapchain, nullptr); }
+     s.swapchain = VK_NULL_HANDLE;
+     destroy_present_pipeline(s);
+     if (s.device != VK_NULL_HANDLE) {
+@@ -1721,6 +1745,58 @@ bool device_has_swapchain(VkPhysicalDevice device) {
+     return false;
+ }
+ 
++// GT patch 0053
++bool device_has_extension(VkPhysicalDevice device, const char *name) {
++    std::uint32_t count = 0u;
++    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
++    std::vector<VkExtensionProperties> extensions(count);
++    if (count > 0u) vkEnumerateDeviceExtensionProperties(device, nullptr, &count, extensions.data());
++    for (const VkExtensionProperties &extension : extensions)
++        if (std::strcmp(extension.extensionName, name) == 0) return true;
++    return false;
++}
++
++// GT patch 0053: waits for each present in order and reports it shown; stopped (and joined) before the swapchain it waits
++// on is destroyed, so it never waits on a dead handle.
++void present_waiter_stop(VulkanState &s) {
++    if (!s.waiter.thread.joinable()) return;
++    {
++        std::lock_guard lock(s.waiter.mutex);
++        s.waiter.stop = true;
++    }
++    s.waiter.wake.notify_all();
++    s.waiter.thread.join();
++    s.waiter.ids.clear();
++    s.waiter.stop = false;
++}
++
++void present_waiter_push(VulkanState &s, std::uint64_t id) {
++    if (!s.waiter.thread.joinable()) {
++        s.waiter.thread = std::thread([device = s.device, swapchain = s.swapchain, wait = s.wait_for_present,
++                                       &waiter = s.waiter] {
++            for (;;) {
++                std::uint64_t next = 0u;
++                {
++                    std::unique_lock lock(waiter.mutex);
++                    waiter.wake.wait(lock, [&] { return waiter.stop.load() || !waiter.ids.empty(); });
++                    if (waiter.stop) return;
++                    next = waiter.ids.front();
++                    waiter.ids.pop_front();
++                }
++                VkResult result = VK_TIMEOUT;
++                while (result == VK_TIMEOUT && !waiter.stop) result = wait(device, swapchain, next, 20'000'000ull);
++                if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)
++                    if (GeGpuDisplayHook hook = g_display_hook.load()) hook(next);
++            }
++        });
++    }
++    {
++        std::lock_guard lock(s.waiter.mutex);
++        s.waiter.ids.push_back(id);
++    }
++    s.waiter.wake.notify_one();
++}
++
+ std::uint32_t graphics_family(VkPhysicalDevice device, VkSurfaceKHR surface, bool need_present) {
+     std::uint32_t count = 0u;
+     vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
+@@ -2122,14 +2198,14 @@ bool ensure_swapchain(VulkanState &s, std::string &error) {
+     VkSwapchainKHR created = VK_NULL_HANDLE;
+     if (vkCreateSwapchainKHR(s.device, &info, nullptr, &created) != VK_SUCCESS) {
+         // oldSwapchain is retired even when creation fails.
+-        if (s.swapchain != VK_NULL_HANDLE) vkDestroySwapchainKHR(s.device, s.swapchain, nullptr);
++        if (s.swapchain != VK_NULL_HANDLE) { present_waiter_stop(s); vkDestroySwapchainKHR(s.device, s.swapchain, nullptr); }
+         s.swapchain = VK_NULL_HANDLE;
+         s.swapchain_dirty = true;
+         s.report.swapchain_active = false;
+         error = "vkCreateSwapchainKHR failed";
+         return false;
+     }
+-    if (s.swapchain != VK_NULL_HANDLE) vkDestroySwapchainKHR(s.device, s.swapchain, nullptr);
++    if (s.swapchain != VK_NULL_HANDLE) { present_waiter_stop(s); vkDestroySwapchainKHR(s.device, s.swapchain, nullptr); }
+     s.swapchain = created;
+     s.swap_width = extent.width;
+     s.swap_height = extent.height;
+@@ -2453,7 +2529,17 @@ VkResult queue_present(VulkanState &s) {
+     info.pSwapchains = &s.swapchain;
+     info.pImageIndices = &s.present_image_index;
+     s.present_recorded = false;
+-    return vkQueuePresentKHR(s.queue, &info);
++    if (!s.present_wait) return vkQueuePresentKHR(s.queue, &info);
++    // GT patch 0053: number the present, and let the waiter report when the screen shows it
++    const std::uint64_t id = ++s.present_id;
++    VkPresentIdKHR present_id{};
++    present_id.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
++    present_id.swapchainCount = 1u;
++    present_id.pPresentIds = &id;
++    info.pNext = &present_id;
++    const VkResult result = vkQueuePresentKHR(s.queue, &info);
++    if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) present_waiter_push(s, id);
++    return result;
+ }
+ 
+ void log_frame_failure(const VulkanState &s, const char *step, VkResult result) noexcept {
+@@ -3015,15 +3101,40 @@ bool create_backend(VulkanState &s, std::string &error) {
+     device_info.queueCreateInfoCount = 1u;
+     device_info.pQueueCreateInfos = &queue_info;
+     device_info.pEnabledFeatures = &enabled_features;
+-    if (s.swapchain_extension) {
+-        device_info.enabledExtensionCount = 1u;
+-        device_info.ppEnabledExtensionNames = &swapchain_extension;
++    std::vector<const char *> device_extensions;
++    if (s.swapchain_extension) device_extensions.push_back(swapchain_extension);
++    // GT patch 0053: present ids and waits, only for the display hook (GT_FRAME_LOG) and only if the device has them.
++    VkPhysicalDevicePresentWaitFeaturesKHR wait_features{};
++    wait_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
++    VkPhysicalDevicePresentIdFeaturesKHR id_features{};
++    id_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
++    id_features.pNext = &wait_features;
++    if (s.swapchain_extension && g_display_hook.load() != nullptr &&
++        device_has_extension(s.physical, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
++        device_has_extension(s.physical, VK_KHR_PRESENT_WAIT_EXTENSION_NAME)) {
++        VkPhysicalDeviceFeatures2 query{};
++        query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
++        query.pNext = &id_features;
++        vkGetPhysicalDeviceFeatures2(s.physical, &query);
++        if (id_features.presentId && wait_features.presentWait) {
++            device_extensions.push_back(VK_KHR_PRESENT_ID_EXTENSION_NAME);
++            device_extensions.push_back(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
++            id_features.pNext = &wait_features;
++            device_info.pNext = &id_features;
++            s.present_wait = true;
++        }
+     }
++    std::cerr << "[vulkan] present wait (screen-side frame log) " << (s.present_wait ? "on" : "off") << "\n";
++    device_info.enabledExtensionCount = static_cast<std::uint32_t>(device_extensions.size());
++    device_info.ppEnabledExtensionNames = device_extensions.empty() ? nullptr : device_extensions.data();
+     if (vkCreateDevice(s.physical, &device_info, nullptr, &s.device) != VK_SUCCESS) {
+         error = "vkCreateDevice failed";
+         return false;
+     }
+     vkGetDeviceQueue(s.device, s.queue_family, 0u, &s.queue);
++    if (s.present_wait)
++        s.wait_for_present = reinterpret_cast<PFN_vkWaitForPresentKHR>(vkGetDeviceProcAddr(s.device, "vkWaitForPresentKHR"));
++    s.present_wait = s.present_wait && s.wait_for_present != nullptr;
+     s.report.device_created = true;
+     VkCommandPoolCreateInfo pool_info{};
+     pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+@@ -4543,6 +4654,9 @@ GeGpuBackendReport ge_gpu_backend_report() {
+     return s.report;
+ }
+ 
++// GT patch 0053
++void ge_gpu_backend_set_display_hook(GeGpuDisplayHook hook) noexcept { g_display_hook.store(hook); }
++
+ }  // namespace lcs
+ 
+ #endif

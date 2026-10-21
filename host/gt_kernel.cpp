@@ -20,6 +20,7 @@
 #include "atrac_decoder.hpp"
 #include "audio_dump.hpp"
 #include "frame_dump.hpp"
+#include "frame_log.hpp"
 #include "pad_script.hpp"
 #include "vblank_pacer.hpp"
 #include "lcs_profile.hpp"
@@ -1976,17 +1977,25 @@ void perf_log_tick() {
 
 // Whether the last vblank that measured the lag found the host more than 4 ms late (gt::VblankPacer; read by the frameskip).
 bool g_host_late = false;
+// The lag the last vblank wait measured, for GT_FRAME_LOG (valid only on the first wait of each vblank).
+std::int64_t g_vblank_lag_us = 0;
+bool g_vblank_lag_valid = false;
 
 // Keeps guest time in step with the wall clock (gt::VblankPacer). Several threads wait on the same vblank (GT has two),
 // so pacing each call by one period instead ran the game at half speed (docs/FINDINGS.md). Returns the vblanks to skip
 // when the host has fallen behind, re-anchoring after a long stall.
 std::uint32_t throttle_vblank_to_real_time() {
     static const bool uncapped = std::getenv("LCS_UNCAPPED") != nullptr;
+    g_vblank_lag_valid = false;
     if (uncapped) return 0u;
     static gt::VblankPacer pacer(kVblankPeriodUs);
     const std::uint64_t next_vblank_us = (virtual_time_us / kVblankPeriodUs + 1u) * kVblankPeriodUs;
     const gt::VblankPacer::Wait wait = pacer.on_wait(std::chrono::steady_clock::now(), next_vblank_us);
     g_host_late = pacer.host_late();
+    if (wait.lag) {
+        g_vblank_lag_valid = true;
+        g_vblank_lag_us = wait.lag->count();
+    }
     if (wait.lag && perf_log_enabled()) {
         const double ms = std::chrono::duration<double, std::milli>(*wait.lag).count();
         ++perf_vblank_lag.waits;
@@ -2235,6 +2244,7 @@ void note_present_interval(bool new_frame) {
 }
 
 void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
+    const std::int64_t frame_log_begin_us = gt::frame_log() != nullptr ? gt::frame_log_now_us() : 0;
     std::uint32_t present_buffer = request.display_buffer;
     std::uint32_t present_stride = request.display_stride;
     const std::uint32_t render_target = rendered_render_target();
@@ -2305,6 +2315,11 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
         gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height);
         display_window_present(rt, present_buffer, present_stride, request.pixel_format,
                                present_width, present_height);
+    }
+    if (gt::FrameLog *log = gt::frame_log()) {  // GT_FRAME_LOG: one row per present, stamped when it returned
+        const std::int64_t end_us = gt::frame_log_now_us();
+        log->add_present({end_us, request.vblank, virtual_time_us, flipped, gpu_frame_ready,
+                          stale != nullptr && stale->load(), end_us - frame_log_begin_us});
     }
 }
 
@@ -4378,6 +4393,16 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         const auto sleep_begin = std::chrono::steady_clock::now();
         const std::uint32_t skipped = throttle_vblank_to_real_time();
         g_skip_frame = skip_next_frame();
+        if (gt::FrameLog *log = gt::frame_log(); log != nullptr && g_vblank_lag_valid)  // GT_FRAME_LOG: the first wait of each vblank
+            log->add_vblank({gt::frame_log_now_us(), display_vblank_index, virtual_time_us, g_vblank_lag_us,
+                             static_cast<std::int64_t>(milliseconds_since(sleep_begin) * 1000.0), skipped, g_skip_frame});
+        if (g_vblank_lag_valid) {  // GT_FRAME_LOG: the first wait of each vblank, which measures the lag
+            if (gt::FrameLog *log = gt::frame_log()) {
+                const std::int64_t now_us = gt::frame_log_now_us();
+                log->add_vblank({now_us, display_vblank_index, virtual_time_us, g_vblank_lag_us,
+                                 static_cast<std::int64_t>(milliseconds_since(sleep_begin) * 1000.0), skipped, g_host_late});
+            }
+        }
         if (perf) {
             perf_log.sleep_ms += milliseconds_since(sleep_begin);
             perf_log.skipped += skipped;
