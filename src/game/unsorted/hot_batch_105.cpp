@@ -642,6 +642,100 @@ void func_08B498AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     v::store_scalar(rt, ctx, 0x20u, ctx.gpr[5]);
 }
 
+// The shared start of func_08B4F2E4 / func_08B4F3B0 / func_08B4F47C (their first 38 instructions): the matrix at a0 in
+// VFPU M200, and the sine and cosine of f12 in C100 by the polynomial of func_08B498AC (coefficients at `coefficients`).
+void rotation_start(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t coefficients) {
+    namespace v = gt::vfpu;
+    using B = v::Binary;
+    const std::uint32_t m = ctx.gpr[4];
+    ctx.gpr[2] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    v::constant(ctx, 0x00u, 1u, 8u);            // vcst.s S000, VFPU_PI_2
+    v::load_half(ctx, 0x44u, 0x3800u);          // vfim.s S102, 0.5
+    v::constant(ctx, 0x20u, 1u, 9u);            // vcst.s S001, VFPU_PI
+    v::move_to(ctx, ctx.gpr[2], 0x24u);         // mtv v0, S101
+    v::constant(ctx, 0x40u, 1u, 6u);            // vcst.s S002, VFPU_1_PI
+    v::constant(ctx, 0x60u, 1u, 15u);           // vcst.s S003, VFPU_2PI
+    v::binary(ctx, B::Sub, 0x04u, 0x24u, 0x00u, 1u);  // vsub.s S100, S101, S000
+    v::binary(ctx, B::Mul, 0x40u, 0x40u, 0x44u, 1u);  // vmul.s S002, S002, S102
+    ctx.gpr[2] = lui_of(coefficients);
+    for (std::uint32_t column = 0u; column < 4u; ++column) v::load_quad(rt, ctx, 8u + column, m + 0x10u * column);
+    v::load_quad(rt, ctx, 0x01u, coefficients);  // lv.q C010
+    v::unary(ctx, 1u, 0x04u, 0x04u, 2u);         // vabs.p C100, C100
+    v::scale(ctx, 0x44u, 0x04u, 0x40u, 2u);      // vscl.p C102, C100, S002
+    v::float_to_int(ctx, 17u, 0x44u, 0x44u, 0u, 2u);  // vf2iz.p C102, C102, 0
+    v::int_to_float(ctx, 0x44u, 0x44u, 0u, 2u);  // vi2f.p C102, C102, 0
+    v::scale(ctx, 0x44u, 0x44u, 0x60u, 2u);      // vscl.p C102, C102, S003
+    v::prefix(ctx, 1u, 0xE5u);                   // vpfxt Y, Y, Z, W
+    v::binary(ctx, B::Sub, 0x04u, 0x04u, 0x00u, 2u);  // vsub.p C100, C100, C000
+    v::binary(ctx, B::Sub, 0x04u, 0x04u, 0x44u, 2u);  // vsub.p C100, C100, C102
+    v::unary(ctx, 1u, 0x04u, 0x04u, 2u);         // vabs.p C100, C100
+    v::prefix(ctx, 1u, 0xE0u);                   // vpfxt X, X, Z, W
+    v::binary(ctx, B::Sub, 0x04u, 0x04u, 0x00u, 2u);  // vsub.p C100, C100, C000
+    v::binary(ctx, B::Mul, 0x00u, 0x04u, 0x04u, 2u);  // vmul.p C000, C100, C100
+    v::scale(ctx, 0x44u, 0x00u, 0x61u, 2u);      // vscl.p C102, C000, S013
+    v::binary(ctx, B::Mul, 0x40u, 0x00u, 0x04u, 2u);  // vmul.p C002, C000, C100
+    v::prefix(ctx, 1u, 0xE0u);                   // vpfxt X, X, Z, W
+    v::binary(ctx, B::Add, 0x44u, 0x44u, 0x41u, 2u);  // vadd.p C102, C102, C012
+    v::binary(ctx, B::Mul, 0x44u, 0x44u, 0x00u, 2u);  // vmul.p C102, C102, C000
+    v::prefix(ctx, 1u, 0xE5u);                   // vpfxt Y, Y, Z, W
+    v::binary(ctx, B::Add, 0x44u, 0x44u, 0x01u, 2u);  // vadd.p C102, C102, C010
+    v::binary(ctx, B::Mul, 0x44u, 0x44u, 0x00u, 2u);  // vmul.p C102, C102, C000
+    v::prefix(ctx, 1u, 0xE0u);                   // vpfxt X, X, Z, W
+    v::binary(ctx, B::Add, 0x44u, 0x44u, 0x01u, 2u);  // vadd.p C102, C102, C010
+    v::binary(ctx, B::Mul, 0x44u, 0x44u, 0x40u, 2u);  // vmul.p C102, C102, C002
+}
+
+// Their shared end: C030 = (0, 0, 0, 1), M100 = E200 x M000 (vmmul.q), stored back to the matrix at a0.
+void rotation_end(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t m = ctx.gpr[4];
+    gt::vfpu::unit(ctx, 0x03u, 4u);              // vidt.q C030
+    gt::vfpu::matrix_multiply(ctx, 4u, 0x28u, 0u, 4u);
+    gt::vfpu::store_quad(rt, ctx, 7u, m + 0x30u);
+    gt::vfpu::store_quad(rt, ctx, 4u, m);
+    gt::vfpu::store_quad(rt, ctx, 5u, m + 0x10u);
+    gt::vfpu::store_quad(rt, ctx, 6u, m + 0x20u);
+}
+
+// func_08B4F2E4(m, f12 = angle): m = m rotated by the angle about the first axis (rows (1, 0, 0), (0, c, s),
+// (0, -s, c) built by vidt and source prefixes; coefficients at 0x08CB6A10).
+void func_08B4F2E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    rotation_start(rt, ctx, 0x08CB6A10u);
+    v::unit(ctx, 0x00u, 4u);                     // vidt.q C000
+    v::binary(ctx, v::Binary::Add, 0x04u, 0x44u, 0x04u, 2u);  // vadd.p C100, C102, C100
+    v::prefix(ctx, 0u, 0x09004u);                // vpfxs 0, Y, X, 0
+    v::unary(ctx, 0u, 0x01u, 0x04u, 4u);         // vmov.q C010, C100
+    v::prefix(ctx, 0u, 0x29010u);                // vpfxs 0, -X, Y, 0
+    v::unary(ctx, 0u, 0x02u, 0x04u, 4u);         // vmov.q C020, C100
+    rotation_end(rt, ctx);
+}
+
+// func_08B4F3B0(m, f12 = angle): the same about the second axis (coefficients at 0x08CB6A20).
+void func_08B4F3B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    rotation_start(rt, ctx, 0x08CB6A20u);
+    v::binary(ctx, v::Binary::Add, 0x04u, 0x44u, 0x04u, 2u);  // vadd.p C100, C102, C100
+    v::prefix(ctx, 0u, 0x4A001u);                // vpfxs
+    v::unary(ctx, 0u, 0x00u, 0x04u, 4u);         // vmov.q C000, C100
+    v::unit(ctx, 0x01u, 4u);                     // vidt.q C010
+    v::prefix(ctx, 0u, 0x0A010u);                // vpfxs
+    v::unary(ctx, 0u, 0x02u, 0x04u, 4u);         // vmov.q C020, C100
+    rotation_end(rt, ctx);
+}
+
+// func_08B4F47C(m, f12 = angle): the same about the third axis (coefficients at 0x08CB6A30).
+void func_08B4F47C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    rotation_start(rt, ctx, 0x08CB6A30u);
+    v::binary(ctx, v::Binary::Add, 0x04u, 0x44u, 0x04u, 2u);  // vadd.p C100, C102, C100
+    v::prefix(ctx, 0u, 0x0C001u);                // vpfxs
+    v::unary(ctx, 0u, 0x00u, 0x04u, 4u);         // vmov.q C000, C100
+    v::prefix(ctx, 0u, 0x1C004u);                // vpfxs
+    v::unary(ctx, 0u, 0x01u, 0x04u, 4u);         // vmov.q C010, C100
+    v::unit(ctx, 0x02u, 4u);                     // vidt.q C020
+    rotation_end(rt, ctx);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -677,5 +771,8 @@ HOT105(0x08B5A7F0u, func_08B5A7F0, Word);
 HOT105(0x08B5A75Cu, func_08B5A75C, Word);
 HOT105(0x08B5A668u, func_08B5A668, Word);
 HOT105(0x08B498ACu, func_08B498AC, Word);
+HOT105(0x08B4F2E4u, func_08B4F2E4, Word);
+HOT105(0x08B4F3B0u, func_08B4F3B0, Word);
+HOT105(0x08B4F47Cu, func_08B4F47C, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses

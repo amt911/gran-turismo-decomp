@@ -312,4 +312,11 @@ inline void prefix(psprecomp::AllegrexContext &ctx, std::uint32_t control, std::
     ctx.vfpu_ctrl[control] = control == 2u ? (data & 0x00000FFFu) : (data & 0x000FFFFFu);
 }
 
+// vidt destination: a unit vector, the 1 in the lane the destination register's own position gives.
+inline void unit(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t length) {
+    float value[4]{};
+    value[destination & (length >= 3u ? 3u : 1u)] = 1.0f;
+    ctx.write_vfpu_vector_with_destination_prefix(value, destination, length);
+}
+
 } // namespace gt::vfpu
