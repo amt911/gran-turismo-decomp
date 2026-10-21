@@ -8,6 +8,7 @@
 //   clear_field          `sw $zero, K($a0)`        this->field = 0;
 //   clear_byte           `sb $zero, K($a0)`        this->byte_field = 0;
 //   set_byte             `sb $a1, K($a0)`          this->byte_field = value;
+//   return_pair          `move $v0, $a0; move $v1, $a1` (a 16-byte frame, unused)  return {a0, a1};
 //   return_argument      `move $v0, $a0` / `$a1`   return the first / second argument;
 // Listed: the ones the routes call (the harness compared them equal); the others stay recompiled
 // until a run reaches them.
@@ -63,6 +64,11 @@ void clear_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void set_byte(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store8(ctx.gpr[4] + leaf_constant(ctx), static_cast<std::uint8_t>(ctx.gpr[5]));
 }
+// return_pair(a, b) -> the 64-bit pair (a, b) in v0 / v1.
+void return_pair(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = ctx.gpr[4];
+    ctx.gpr[3] = ctx.gpr[5];
+}
 void return_first_argument(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[4]; }
 
 void return_second_argument(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = ctx.gpr[5]; }
@@ -82,6 +88,7 @@ void return_second_argument(psprecomp::Runtime &, psprecomp::AllegrexContext &ct
 #define GT_DECOMP_SET_BYTE(entry, k) GT_DECOMP_LEAF_(set_byte, gt::ReturnKind::Void, entry, k)
 #define GT_DECOMP_RETURN_FIRST_ARG(entry) GT_DECOMP(entry, gt::core::return_first_argument, gt::ReturnKind::Word)
 #define GT_DECOMP_RETURN_SECOND_ARG(entry) GT_DECOMP(entry, gt::core::return_second_argument, gt::ReturnKind::Word)
+#define GT_DECOMP_RETURN_PAIR(entry) GT_DECOMP(entry, gt::core::return_pair, gt::ReturnKind::DoubleWord)
 
 GT_DECOMP_CONST(0x088666E8u, 48);
 GT_DECOMP_CONST(0x088975C8u, 192);
@@ -155,3 +162,12 @@ GT_DECOMP_RETURN_FIRST_ARG(0x08C45D8Cu);
 GT_DECOMP_RETURN_FIRST_ARG(0x08C46D64u);
 GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC0u);
 GT_DECOMP_RETURN_FIRST_ARG(0x08C4ACC8u);
+// Batch 107: reached by the 11-route gate.
+GT_DECOMP_RETURN_PAIR(0x08BAE264u);
+GT_DECOMP_RETURN_PAIR(0x08C4AC84u);
+GT_DECOMP_RETURN_PAIR(0x08C498A0u);
+GT_DECOMP_RETURN_PAIR(0x08C45F58u);
+GT_DECOMP_RETURN_PAIR(0x08C45FB8u);
+GT_DECOMP_RETURN_PAIR(0x08BDCCB8u);
+GT_DECOMP_RETURN_PAIR(0x08C45F30u);
+GT_DECOMP_RETURN_PAIR(0x08C46048u);
