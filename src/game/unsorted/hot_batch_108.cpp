@@ -485,6 +485,89 @@ void func_0890EF6C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, out + 8u, call_set(rt, ctx, 0x08ABC388u, {0x08CA1784u, frame.at(0u)}));
 }
 
+// func_08B2213C(this, a1) -> 0 when bit 0 of the half at (this->+0x60->+0xF4)+2 is clear; else whether the low bytes
+// r1 = func_08B21410(this->+0x60->+0xF4, a1, 0) and r2 = func_08B21410(this->+0x5C->+0xF4, a1) give r1 & (r1 ^ r2) != 0.
+void func_08B2213C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], second = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    ctx.gpr[6] = 0u;
+    const std::uint32_t first_object = word(rt, word(rt, self + 0x60u) + 0xF4u);
+    ctx.gpr[4] = first_object;
+    if ((half_u(rt, first_object + 2u) & 1u) == 0u) {
+        ctx.gpr[2] = 0u;
+        return;
+    }
+    const std::uint32_t r1 = call_set(rt, ctx, 0x08B21410u, {first_object}) & 0xFFu;
+    const std::uint32_t r2 = call_set(rt, ctx, 0x08B21410u, {word(rt, word(rt, self + 0x5Cu) + 0xF4u), second}) & 0xFFu;
+    ctx.gpr[2] = (r1 & (r1 ^ r2)) != 0u ? 1u : 0u;
+}
+
+// func_088FDC18(this) -> func_088FDB9C(this, n - 1) when func_088FDA84(this, n - 1) is not 0, else 0.0; n =
+// func_088FDA60().
+void func_088FDC18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    std::uint32_t last = 0u, ok = 0u;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        last = call_set(rt, ctx, 0x088FDA60u, {self}) - 1u;
+        ok = call_set(rt, ctx, 0x088FDA84u, {self, last});
+        ctx.gpr[4] = self;
+        ctx.gpr[5] = last;
+    }
+    if (ok != 0u) return tail_call(ctx, 0x088FDB9Cu, {});
+    ctx.fpr[0] = 0.0f;
+}
+
+// func_088FE5B4(this, i) -> a word of the table this->+0->+0x20->+0x48->+0x18 describes, or 0 when any step is null or
+// out of range: entry i (96 bytes each, at +0x30; i x 2 must be below the half +0x10) holds an index at +0x2C (signed
+// half) that must be below the half +0x28; the result is the word at +0xA4 + index x 4.
+void func_088FE5B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t i = ctx.gpr[5];
+    ctx.gpr[8] = 0u;
+    ctx.gpr[2] = 0u;
+    std::uint32_t node = word(rt, word(rt, ctx.gpr[4]) + 0x20u);
+    ctx.gpr[6] = i << 1;
+    if (node == 0u) return;
+    const std::uint32_t table = word(rt, word(rt, node + 0x48u) + 0x18u);
+    ctx.gpr[7] = table;
+    ctx.gpr[4] = i << 7;
+    if (table == 0u) return;
+    ctx.gpr[3] = (i << 7) - (i << 5);
+    if (!(signed_of(i << 1) < signed_of(half_u(rt, table + 0x10u)))) return;
+    const std::uint32_t entry = ctx.gpr[3] + word(rt, table + 0x30u);
+    ctx.gpr[4] = half_u(rt, table + 0x28u);
+    const std::uint32_t index = sext16(half_u(rt, entry + 0x2Cu));
+    ctx.gpr[5] = index << 2;
+    if (!(signed_of(index) < signed_of(ctx.gpr[4]))) return;
+    ctx.gpr[8] = word(rt, ctx.gpr[5] + word(rt, table + 0xA4u));
+    ctx.gpr[2] = ctx.gpr[8];
+}
+
+// func_08893D4C(this, i, record): copies the 32-byte record to entry i of (*this)->+8 (all eight words are read before
+// any is written) and raises (*this)->+4 to i when it was below.
+void func_08893D4C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4], i = ctx.gpr[5], record = ctx.gpr[6];
+    std::uint32_t words[8];
+    for (std::uint32_t k = 0u; k < 8u; ++k) words[k] = word(rt, record + 4u * k);
+    const std::uint32_t entry = (i << 5) + word(rt, word(rt, self) + 8u);
+    put(rt, entry + 0x1Cu, words[7]);
+    for (std::uint32_t k = 0u; k < 7u; ++k) put(rt, entry + 4u * k, words[k]);
+    const std::uint32_t owner = word(rt, self);
+    ctx.gpr[2] = word(rt, owner + 4u) < i ? 1u : 0u;
+    if (ctx.gpr[2] != 0u) put(rt, owner + 4u, i);
+}
+
+// func_088D2C30(this, a1) -> 0 when (*this)->+0x14C's virtual +0x2C(a1) is null, else that object's virtual +0x18(a1).
+void func_088D2C30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t second = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t source = word(rt, word(rt, ctx.gpr[4]) + 0x14Cu);
+    const std::uint32_t object = call_virtual_at(rt, ctx, source, 0x2Cu, {source, second});
+    ctx.gpr[3] = 0u;
+    if (object != 0u) ctx.gpr[3] = call_virtual_at(rt, ctx, object, 0x18u, {object, second});
+    ctx.gpr[2] = ctx.gpr[3];
+}
+
 }  // namespace
 }  // namespace hot_batch_108
 }  // namespace gt::game
@@ -520,3 +603,8 @@ HOT108(0x088FDCF4u, func_088FDCF4, Float);
 HOT108(0x08918B48u, func_08918B48, Word);
 HOT108(0x089962B8u, func_089962B8, Word);
 HOT108(0x0890EF6Cu, func_0890EF6C, Word);
+HOT108(0x08B2213Cu, func_08B2213C, Word);
+HOT108(0x088FDC18u, func_088FDC18, Float);
+HOT108(0x088FE5B4u, func_088FE5B4, Word);
+HOT108(0x08893D4Cu, func_08893D4C, Word);
+HOT108(0x088D2C30u, func_088D2C30, Word);
