@@ -524,6 +524,62 @@ void func_08B580F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     gt::vfpu::store_scalar(rt, ctx, 0x20u, ctx.gpr[5]);
 }
 
+// func_08B5436C: copies the 4x4 matrix func_08B56C34(0x08D6D0E0) returns to the state block's +0x1290, through VFPU
+// M000 (left loaded); v0 = the state block (0x08D6CE00).
+void func_08B5436C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t matrix = call_set(rt, ctx, 0x08B56C34u, {kGuCommandBlock});
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, column, matrix + 0x10u * column);
+    ctx.gpr[2] = kGuState;
+    for (std::uint32_t column = 0u; column < 4u; ++column)
+        gt::vfpu::store_quad(rt, ctx, column, kGuState + 0x1290u + 0x10u * column);
+}
+
+// The current matrix of the state block's stack: the word at +0xFE0 + 4 x (the index at +0xFF0). v0 / v1 / a2 keep
+// the pointers the original leaves.
+std::uint32_t current_matrix(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[3] = kGuState;
+    ctx.gpr[2] = (word(rt, kGuState + 0xFF0u) << 2) + kGuState;
+    ctx.gpr[6] = word(rt, ctx.gpr[2] + 0xFE0u);
+    return ctx.gpr[6];
+}
+
+// func_08B5A7A8(out, p): out = current matrix x (p, 1) (vtfm4.q C010, E100, C000 with S003 = 1), stored svl / svr.
+void func_08B5A7A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], p = ctx.gpr[5];
+    const std::uint32_t matrix = current_matrix(rt, ctx);
+    for (std::uint32_t row = 0u; row < 3u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, p + 4u * row);
+    gt::vfpu::vector_init(ctx, 0x60u, 1u, true);
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 4u + column, matrix + 0x10u * column);
+    gt::vfpu::transform(ctx, 1u, 0x24u, 0u, 4u, 4u);
+    gt::vfpu::store_quad_left(rt, ctx, 1u, out + 0xCu);
+    gt::vfpu::store_quad_right(rt, ctx, 1u, out);
+}
+
+// func_08B5A7F0(out, v): out = current matrix x v (a 4-vector), stored svl / svr.
+void func_08B5A7F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], v = ctx.gpr[5];
+    const std::uint32_t matrix = current_matrix(rt, ctx);
+    for (std::uint32_t row = 0u; row < 4u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, v + 4u * row);
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 4u + column, matrix + 0x10u * column);
+    gt::vfpu::transform(ctx, 1u, 0x24u, 0u, 4u, 4u);
+    gt::vfpu::store_quad_left(rt, ctx, 1u, out + 0xCu);
+    gt::vfpu::store_quad_right(rt, ctx, 1u, out);
+}
+
+// func_08B5A75C(out, p): out = the first three lanes of current matrix x (p, 1).
+void func_08B5A75C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], p = ctx.gpr[5];
+    const std::uint32_t matrix = current_matrix(rt, ctx);
+    for (std::uint32_t row = 0u; row < 3u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, p + 4u * row);
+    gt::vfpu::vector_init(ctx, 0x60u, 1u, true);
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 4u + column, matrix + 0x10u * column);
+    gt::vfpu::transform(ctx, 1u, 0x24u, 0u, 4u, 4u);
+    gt::vfpu::store_scalar(rt, ctx, 0x01u, out);
+    gt::vfpu::store_scalar(rt, ctx, 0x21u, out + 4u);
+    gt::vfpu::store_scalar(rt, ctx, 0x41u, out + 8u);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -553,5 +609,9 @@ HOT105(0x08B4E994u, func_08B4E994, Word);
 HOT105(0x08B54474u, func_08B54474, Word);
 HOT105(0x08B5A838u, func_08B5A838, Word);
 HOT105(0x08B580F0u, func_08B580F0, Word);
+HOT105(0x08B5436Cu, func_08B5436C, Word);
+HOT105(0x08B5A7A8u, func_08B5A7A8, Word);
+HOT105(0x08B5A7F0u, func_08B5A7F0, Word);
+HOT105(0x08B5A75Cu, func_08B5A75C, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses

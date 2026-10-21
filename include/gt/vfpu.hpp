@@ -287,4 +287,10 @@ inline void matrix_multiply(psprecomp::AllegrexContext &ctx, std::uint32_t desti
     ctx.eat_vfpu_prefixes();
 }
 
+// vzero / vone destination: `length` lanes of 0 or 1.
+inline void vector_init(psprecomp::AllegrexContext &ctx, std::uint32_t destination, std::uint32_t length, bool one) {
+    const float value[4]{one ? 1.0f : 0.0f, one ? 1.0f : 0.0f, one ? 1.0f : 0.0f, one ? 1.0f : 0.0f};
+    ctx.write_vfpu_vector_with_destination_prefix(value, destination, length);
+}
+
 } // namespace gt::vfpu
