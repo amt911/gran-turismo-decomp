@@ -405,6 +405,63 @@ void func_08B4FE74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_set(rt, ctx, 0x08B4BB00u, {out, axis});
 }
 
+// func_08B4E648(m): m = the 4x4 identity, built in VFPU M000 (vmidt.q, left there) and stored column by column in the
+// original's order (C030, C000, C010, C020).
+void func_08B4E648(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t m = ctx.gpr[4];
+    gt::vfpu::matrix_init(ctx, 0u, 4u, 3u);
+    gt::vfpu::store_quad(rt, ctx, 3u, m + 0x30u);
+    gt::vfpu::store_quad(rt, ctx, 0u, m);
+    gt::vfpu::store_quad(rt, ctx, 1u, m + 0x10u);
+    gt::vfpu::store_quad(rt, ctx, 2u, m + 0x20u);
+}
+
+// func_08B4E734(to, from): copies a 4x4 matrix through VFPU M000 (left loaded), stored C030, C000, C010, C020.
+void func_08B4E734(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t to = ctx.gpr[4], from = ctx.gpr[5];
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, column, from + 0x10u * column);
+    gt::vfpu::store_quad(rt, ctx, 3u, to + 0x30u);
+    gt::vfpu::store_quad(rt, ctx, 0u, to);
+    gt::vfpu::store_quad(rt, ctx, 1u, to + 0x10u);
+    gt::vfpu::store_quad(rt, ctx, 2u, to + 0x20u);
+}
+
+// func_08B57E40(f12..f15): puts the four floats in VFPU S000..S003 (C000) and tail-calls func_08B57DF4.
+void func_08B57E40(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = std::bit_cast<std::uint32_t>(ctx.fpr[12]);
+    ctx.gpr[3] = std::bit_cast<std::uint32_t>(ctx.fpr[13]);
+    ctx.gpr[4] = std::bit_cast<std::uint32_t>(ctx.fpr[14]);
+    ctx.gpr[5] = std::bit_cast<std::uint32_t>(ctx.fpr[15]);
+    gt::vfpu::move_to(ctx, ctx.gpr[2], 0x00u);
+    gt::vfpu::move_to(ctx, ctx.gpr[3], 0x20u);
+    gt::vfpu::move_to(ctx, ctx.gpr[4], 0x40u);
+    gt::vfpu::move_to(ctx, ctx.gpr[5], 0x60u);
+    tail_call(ctx, 0x08B57DF4u, {});
+}
+
+// func_08B4A774(out, m, v): out = m x v for a 4x4 matrix and a 4-vector (vtfm4.q C010, E100, C000: m in M100, v in
+// C000, the result in C010), stored with svl.q / svr.q (unaligned out).
+void func_08B4A774(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], m = ctx.gpr[5], v = ctx.gpr[6];
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 4u + column, m + 0x10u * column);
+    for (std::uint32_t row = 0u; row < 4u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, v + 4u * row);
+    gt::vfpu::transform(ctx, 1u, 0x24u, 0u, 4u, 4u);
+    gt::vfpu::store_quad_left(rt, ctx, 1u, out + 0xCu);
+    gt::vfpu::store_quad_right(rt, ctx, 1u, out);
+}
+
+// func_08B4ACE0(out, m, p): out = m x (p, 1) for a 4x4 matrix and a point (vhtfm4.q C010, E100, C000); the first three
+// lanes are stored (+8, +0, +4, in the original's order).
+void func_08B4ACE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t out = ctx.gpr[4], m = ctx.gpr[5], p = ctx.gpr[6];
+    for (std::uint32_t column = 0u; column < 4u; ++column) gt::vfpu::load_quad(rt, ctx, 4u + column, m + 0x10u * column);
+    for (std::uint32_t row = 0u; row < 3u; ++row) gt::vfpu::load_scalar(rt, ctx, row * 0x20u, p + 4u * row);
+    gt::vfpu::transform(ctx, 1u, 0x24u, 0u, 4u, 3u);
+    gt::vfpu::store_scalar(rt, ctx, 0x41u, out + 8u);
+    gt::vfpu::store_scalar(rt, ctx, 0x01u, out);
+    gt::vfpu::store_scalar(rt, ctx, 0x21u, out + 4u);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -425,5 +482,10 @@ HOT105(0x08B54288u, func_08B54288, Word);
 HOT105(0x08B58EE4u, func_08B58EE4, Word);
 HOT105(0x08B5730Cu, func_08B5730C, Word);
 HOT105(0x08B4FE74u, func_08B4FE74, Word);
+HOT105(0x08B4E648u, func_08B4E648, Word);
+HOT105(0x08B4E734u, func_08B4E734, Word);
+HOT105(0x08B57E40u, func_08B57E40, Word);
+HOT105(0x08B4A774u, func_08B4A774, Word);
+HOT105(0x08B4ACE0u, func_08B4ACE0, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
