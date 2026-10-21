@@ -2103,3 +2103,25 @@ presses buttons on fixed timings.
   (`rasterize_rectangle`, worker thread), which has not been reproduced since.
 
 Found: 2026-10-21 · feat/harness-vfpu
+
+## VFPU code decompiles bit-exactly when each VFPU operation is the recompiler's own semantics
+
+**Symptom.** Every batch until 104 skipped VFPU functions. That left out GT's graphics library core (matrices,
+transforms, sin/cos, visibility tests), the hottest code the routes reach.
+**Cause.** A decompiled VFPU function must leave the same VFPU registers, control registers included, as its original,
+and the harness now compares them (#258). The recompiler's VFPU semantics have quirks a plain rewrite would miss: source
+and destination prefixes, `vtfm` rewriting the destination prefix, `vf2i*` rounding through double, and `vfim`'s
+half-float decode.
+**Fix / workaround.** `include/gt/vfpu.hpp` gives one helper per VFPU operation (`transform`, `matrix_multiply`,
+`binary`, `unary`, `float_to_int`, `pack_ints`, `rotation`, `compare3`, `prefix`, …). Each is lcs-recomp's codegen for
+that operation (MIT), written once as a function over the context's own accessors. Batch 105 wrote 29 VFPU functions on
+these helpers, and all were bit-exact on the first fast gate, the polynomial sin/cos included. Register numbers are the
+instruction's 7-bit fields; decode them from the word as `tools/src/lcs-recomp/tools/codegen_main.cpp` does, and note the
+VFPU mnemonic next to each call. Stage 2 of the no-emulation plan retypes this state; until then a function's VFPU body
+stays one helper per instruction.
+- A function list entry can run past a tail jump: `func_08B56790` and `func_08B5606C` are 8 instructions, and the rest
+  of their listed size is the next functions.
+- `tools.pool` and the probe symbol list missed registrations by address alone (`GT_DECOMP_EMPTY(0x…u)`) and offered 8
+  done functions again. `done_addresses` now reads them (test).
+
+Found: 2026-10-21 · decomp/hot-batch-105

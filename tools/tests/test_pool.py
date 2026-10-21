@@ -137,3 +137,9 @@ def test_done_addresses_ignores_a_mention_in_a_comment_or_a_call():
     (void)func_08B4B864(rt, ctx);
     """
     assert pool.done_addresses(source) == set()  # neither is a definition nor a registration
+
+
+def test_done_addresses_reads_single_argument_registrations():
+    """GT_DECOMP_EMPTY(0x..u) / GT_DECOMP_ZERO(0x..u) register shared bodies: batch 105's pool offered 8 of them again."""
+    source = "GT_DECOMP_EMPTY(0x08B5380Cu);\nGT_DECOMP_ZERO( 0x08B6E524u );\n// see 0x08B4AC54u in a comment\n"
+    assert pool.done_addresses(source) == {0x08B5380C, 0x08B6E524}

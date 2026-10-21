@@ -53,6 +53,8 @@ def done_addresses(source: str) -> set[int]:
     # A definition is `void func_XXXXXXXX(`: a mention in a comment or a call to a recompiled function is not one.
     done = {int(m, 16) for m in re.findall(r"\bvoid\s+func_([0-9A-Fa-f]{8})\(", source)}
     done |= {int(m, 16) for m in re.findall(r"\w+\(0x([0-9A-Fa-f]{8})u?\s*,", source)}
+    # A shared body registered by address alone: GT_DECOMP_EMPTY(0xXXXXXXXXu), GT_DECOMP_ZERO(...).
+    done |= {int(m, 16) for m in re.findall(r"\b[A-Z][A-Z0-9_]*\(\s*0x([0-9A-Fa-f]{8})u?\s*\)", source)}
     return done
 
 

@@ -42,6 +42,12 @@ Other PSPRecomp lineages exist (`sp00nznet/psprecomp`, C output, 12 stars, forks
 `zmbkilla/…`); not evaluated. The `jessicanataliagta` one is chosen because two working PC ports
 (VCS, LCS) are built on it.
 
+### Code derived from third-party sources (kept with its licence)
+
+| Our file | Taken from | Licence |
+| --- | --- | --- |
+| `include/gt/vfpu.hpp` | The per-operation VFPU semantics of lcs-recomp's `tools/codegen_main.cpp` @ `ab91e87`, written as functions over `psprecomp::AllegrexContext` | MIT, © the lcs-recomp authors (notice in the file header) |
+
 ### Optional — matching track
 
 | Tool | Pin | Role | Source / note |
