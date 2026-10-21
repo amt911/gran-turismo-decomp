@@ -345,6 +345,123 @@ void func_08B55218(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x08B552ECu, {});
 }
 
+// The end both paths of func_08B53D2C share: BASE, VADDR, VTYPE and PRIM(prim & 7, count) for `vertices` go to the
+// display list (t0 = the state block, as the asm leaves it).
+void emit_primitive(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t prim, std::uint32_t count,
+                    std::uint32_t vertices, std::uint32_t vertex_type) {
+    ctx.gpr[8] = kGuState;
+    const std::uint32_t list = word(rt, kGuListPointer);
+    ctx.gpr[7] = list;
+    ctx.gpr[4] = 0x10000000u | ((vertices >> 24) & 0xFFu) << 16;
+    ctx.gpr[3] = 0x04000000u | (prim & 7u) << 16 | (count & 0xFFFFu);
+    ctx.gpr[5] = 0x01000000u | (vertices & 0x00FFFFFFu);
+    ctx.gpr[6] = 0x12000000u | vertex_type;
+    ctx.gpr[2] = list + 0x10u;
+    put(rt, list, ctx.gpr[4]);
+    put(rt, list + 4u, ctx.gpr[5]);
+    put(rt, list + 8u, ctx.gpr[6]);
+    put(rt, list + 0xCu, ctx.gpr[3]);
+    put(rt, kGuListPointer, ctx.gpr[2]);
+}
+
+// func_08B53D2C(prim, uv_matrix, count, uvs, t0 = colors): func_08B53898 with an optional second source. With colors,
+// each vertex is 24 bytes - two words from `colors` (8 bytes a vertex), then the transformed (u, v) and z - and the
+// vertex type is 0x19F; without them it is func_08B53898's 16-byte vertex and type 0x19C. count 0 does nothing.
+void func_08B53D2C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    const std::uint32_t prim = ctx.gpr[4], uv_matrix = ctx.gpr[5], count = ctx.gpr[6];
+    std::uint32_t uvs = ctx.gpr[7], colors = ctx.gpr[8];
+    ctx.gpr[9] = count;
+    ctx.gpr[11] = prim;
+    ctx.gpr[6] = uv_matrix;  // the beqz's delay slot
+    if (count == 0u) return;
+    ctx.gpr[12] = lui_of(kGuState);  // the second beqz's delay slot
+    const auto load_matrix = [&]() {
+        v::unary(ctx, 0u, 0x01u, 0x00u, 4u);       // vmov.q C010, C000
+    };
+    if (colors != 0u) {
+        ctx.gpr[3] = kGuState;
+        ctx.gpr[5] = word(rt, kGuState + 0x60u);
+        ctx.gpr[4] = count << 3;
+        ctx.gpr[2] = (count << 5) - ctx.gpr[4];
+        const std::uint32_t vertices = ctx.gpr[5] - ctx.gpr[2];
+        ctx.gpr[10] = vertices;
+        put(rt, kGuState + 0x60u, vertices);
+        load_matrix();
+        v::load_scalar(rt, ctx, 0x00u, uv_matrix);
+        v::load_scalar(rt, ctx, 0x20u, uv_matrix + 0xCu);
+        v::load_scalar(rt, ctx, 0x40u, uv_matrix + 0x18u);
+        v::load_scalar(rt, ctx, 0x02u, kGuState + 0x2C4u);
+        v::load_scalar(rt, ctx, 0x01u, uv_matrix + 4u);
+        v::vector_init(ctx, 0x62u, 1u, false);       // vzero.s S023
+        v::vector_init(ctx, 0x43u, 1u, true);        // vone.s S032
+        v::load_scalar(rt, ctx, 0x21u, uv_matrix + 0x10u);
+        v::load_scalar(rt, ctx, 0x41u, uv_matrix + 0x1Cu);
+        v::unary(ctx, 0u, 0x04u, 0x00u, 4u);        // vmov.q C100, C000 (the blez's delay slot)
+        if (static_cast<std::int32_t>(count) > 0) {
+            ctx.gpr[3] = vertices + 8u;
+            ctx.gpr[4] = 0u;
+            do {
+                ctx.gpr[2] = word(rt, colors);
+                v::unary(ctx, 0u, 0x00u, 0x03u, 4u);    // vmov.q C000, C030
+                v::load_scalar(rt, ctx, 0x00u, uvs);
+                v::load_scalar(rt, ctx, 0x20u, uvs + 4u);
+                put(rt, ctx.gpr[3] - 8u, ctx.gpr[2]);
+                ctx.gpr[4] += 1u;
+                v::unary(ctx, 0u, 0x03u, 0x00u, 4u);    // vmov.q C030, C000
+                ctx.gpr[2] = word(rt, colors + 4u);
+                v::dot(ctx, 0x22u, 0x04u, 0x03u, 3u);   // vdot.t S021, C100, C030
+                uvs += 8u;
+                put(rt, ctx.gpr[3] - 4u, ctx.gpr[2]);
+                v::dot(ctx, 0x42u, 0x01u, 0x03u, 3u);   // vdot.t S022, C010, C030
+                colors += 8u;
+                v::store_quad_left(rt, ctx, 0x02u, ctx.gpr[3] + 0xCu);
+                v::store_quad_right(rt, ctx, 0x02u, ctx.gpr[3]);
+                ctx.gpr[3] += 0x18u;  // the bne's delay slot
+            } while (count != ctx.gpr[4]);
+        }
+        ctx.gpr[7] = uvs;
+        emit_primitive(rt, ctx, prim, count, vertices, 0x19Fu);
+        return;
+    }
+    ctx.gpr[2] = kGuState;
+    ctx.gpr[4] = word(rt, kGuState + 0x60u);
+    ctx.gpr[3] = count << 4;
+    const std::uint32_t vertices = ctx.gpr[4] - ctx.gpr[3];
+    ctx.gpr[10] = vertices;
+    put(rt, kGuState + 0x60u, vertices);
+    load_matrix();
+    v::load_scalar(rt, ctx, 0x02u, kGuState + 0x2C4u);
+    v::load_scalar(rt, ctx, 0x00u, uv_matrix);
+    v::load_scalar(rt, ctx, 0x20u, uv_matrix + 0xCu);
+    v::load_scalar(rt, ctx, 0x40u, uv_matrix + 0x18u);
+    v::vector_init(ctx, 0x62u, 1u, false);           // vzero.s S023
+    v::load_scalar(rt, ctx, 0x01u, uv_matrix + 4u);
+    v::vector_init(ctx, 0x43u, 1u, true);            // vone.s S032
+    v::load_scalar(rt, ctx, 0x21u, uv_matrix + 0x10u);
+    v::load_scalar(rt, ctx, 0x41u, uv_matrix + 0x1Cu);
+    v::unary(ctx, 0u, 0x04u, 0x00u, 4u);            // vmov.q C100, C000 (the blez's delay slot)
+    if (static_cast<std::int32_t>(count) > 0) {
+        ctx.gpr[2] = vertices;
+        ctx.gpr[3] = 0u;
+        do {
+            v::unary(ctx, 0u, 0x00u, 0x03u, 4u);    // vmov.q C000, C030
+            v::load_scalar(rt, ctx, 0x00u, uvs);
+            v::load_scalar(rt, ctx, 0x20u, uvs + 4u);
+            ctx.gpr[3] += 1u;
+            uvs += 8u;
+            v::unary(ctx, 0u, 0x03u, 0x00u, 4u);    // vmov.q C030, C000
+            v::dot(ctx, 0x22u, 0x04u, 0x03u, 3u);   // vdot.t S021, C100, C030
+            v::dot(ctx, 0x42u, 0x01u, 0x03u, 3u);   // vdot.t S022, C010, C030
+            v::store_quad_left(rt, ctx, 0x02u, ctx.gpr[2] + 0xCu);
+            v::store_quad_right(rt, ctx, 0x02u, ctx.gpr[2]);
+            ctx.gpr[2] += 0x10u;  // the bne's delay slot
+        } while (count != ctx.gpr[3]);
+    }
+    ctx.gpr[7] = uvs;
+    emit_primitive(rt, ctx, prim, count, vertices, 0x19Cu);
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -356,3 +473,4 @@ HOT106(0x08B565F8u, func_08B565F8, Word);
 HOT106(0x08B53898u, func_08B53898, Word);
 HOT106(0x08B54D28u, func_08B54D28, Word);
 HOT106(0x08B55218u, func_08B55218, Word);
+HOT106(0x08B53D2Cu, func_08B53D2C, Word);
