@@ -3007,9 +3007,9 @@ void func_089CB534(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define HOT118(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_118::name, gt::ReturnKind::kind)
-HOT118(0x08BACB64u, func_08BACB64, Word);
-HOT118(0x08A1ED68u, func_08A1ED68, Word);
-HOT118(0x0895FA54u, func_0895FA54, Word);
+// HOT118(0x08BACB64u, func_08BACB64, Word);  // batch 118: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT118(0x08A1ED68u, func_08A1ED68, Word);  // batch 118: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT118(0x0895FA54u, func_0895FA54, Word);  // batch 118: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT118(0x088AC1D4u, func_088AC1D4, Word);
 HOT118(0x08A7858Cu, func_08A7858C, Word);
 HOT118(0x08889244u, func_08889244, Word);
@@ -3024,10 +3024,10 @@ HOT118(0x088D00B0u, func_088D00B0, Word);
 HOT118(0x088C3D5Cu, func_088C3D5C, Word);
 HOT118(0x08A189C0u, func_08A189C0, Word);
 HOT118(0x08BD25E4u, func_08BD25E4, Word);
-HOT118(0x08BC728Cu, func_08BC728C, Word);
+// HOT118(0x08BC728Cu, func_08BC728C, Word);  // batch 118: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT118(0x0895D7CCu, func_0895D7CC, Word);
 HOT118(0x0893BE1Cu, func_0893BE1C, Float);
-HOT118(0x08BC9A34u, func_08BC9A34, Word);
+// HOT118(0x08BC9A34u, func_08BC9A34, Word);  // batch 118: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT118(0x088C38ACu, func_088C38AC, Word);
 HOT118(0x08A7FD4Cu, func_08A7FD4C, Word);
 HOT118(0x08BB2FB4u, func_08BB2FB4, Word);

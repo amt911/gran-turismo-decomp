@@ -2406,27 +2406,27 @@ void func_08C4BD80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 #define HOT116(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_116::name, gt::ReturnKind::kind)
 HOT116(0x088464ECu, func_088464EC, Word);
-HOT116(0x08861CB0u, func_08861CB0, Word);
-HOT116(0x0886D88Cu, func_0886D88C, Word);
-HOT116(0x08883E74u, func_08883E74, Word);
+// HOT116(0x08861CB0u, func_08861CB0, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT116(0x0886D88Cu, func_0886D88C, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT116(0x08883E74u, func_08883E74, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT116(0x08888D58u, func_08888D58, Word);
-HOT116(0x0888C750u, func_0888C750, Word);
-HOT116(0x08892C28u, func_08892C28, Word);
+// HOT116(0x0888C750u, func_0888C750, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT116(0x08892C28u, func_08892C28, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT116(0x0896E9F4u, func_0896E9F4, Word);
-HOT116(0x08A4AFB4u, func_08A4AFB4, Word);
+// HOT116(0x08A4AFB4u, func_08A4AFB4, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT116(0x08AA3F44u, func_08AA3F44, Word);
-HOT116(0x08AAADC8u, func_08AAADC8, Word);
+// HOT116(0x08AAADC8u, func_08AAADC8, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT116(0x08AB398Cu, func_08AB398C, Word);
 HOT116(0x08ADE5A4u, func_08ADE5A4, Word);
 HOT116(0x08B2CB18u, func_08B2CB18, Word);
-HOT116(0x08B6E920u, func_08B6E920, Float);
+// HOT116(0x08B6E920u, func_08B6E920, Float);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 // HOT116(0x08BA996Cu, func_08BA996C, Word);  // batch 116: mismatched in the full gate (v0 on the in-place insert path: original 0, decompiled a pointer); to fix
-HOT116(0x08BBFAACu, func_08BBFAAC, Word);
+// HOT116(0x08BBFAACu, func_08BBFAAC, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT116(0x08BC17C8u, func_08BC17C8, Word);
-HOT116(0x08BDC338u, func_08BDC338, Word);
+// HOT116(0x08BDC338u, func_08BDC338, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT116(0x08BDFB84u, func_08BDFB84, Word);
 HOT116(0x08BE6708u, func_08BE6708, Word);
 HOT116(0x08BE6DB8u, func_08BE6DB8, Word);
 HOT116(0x08BE8700u, func_08BE8700, Word);
 HOT116(0x08C2C56Cu, func_08C2C56C, Word);
-HOT116(0x08C4BD80u, func_08C4BD80, Word);
+// HOT116(0x08C4BD80u, func_08C4BD80, Word);  // batch 116: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
