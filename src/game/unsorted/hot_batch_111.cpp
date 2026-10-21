@@ -122,7 +122,10 @@ void func_0888D8B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t key = half_u(rt, keys + index * 2u);
         const std::uint32_t entry = call_set(rt, ctx, 0x088DA788u, {word(rt, self + 4u), key});
         const std::uint32_t flags = call_set(rt, ctx, 0x0889417Cu, {word(rt, self + 0xCu)});
-        if (byte_u(rt, entry + 0x26u) != 0u || (word(rt, flags) & 2u) == 0u) continue;
+        ctx.gpr[2] = byte_u(rt, entry + 0x26u);  // a skipped element leaves v0 = the value its test read
+        if (ctx.gpr[2] != 0u) continue;
+        ctx.gpr[2] = word(rt, flags) & 2u;
+        if (ctx.gpr[2] == 0u) continue;
         const std::uint32_t found = call_set(rt, ctx, 0x088DB2C8u, {word(rt, self + 4u), key});
         ctx.gpr[4] = self;
         ctx.gpr[5] = second;
@@ -803,6 +806,8 @@ void func_08957B30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t mode = byte_u(rt, config + 0x140Fu);
     const float level = float_at(rt, state + 0x6C4u);
     GuestFrame frame(ctx, 0x10u);
+    // v0 is left by the mode tests: 1 for modes 0, 1 and 6, 8 for the others (mode 8 then sets 1 unless it stores 2).
+    ctx.gpr[2] = mode < 2u || mode == 6u ? 1u : 8u;
     switch (mode) {
     case 2u:
         call_setf(rt, ctx, 0x08957AD4u, {}, {level});
@@ -818,7 +823,10 @@ void func_08957B30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     case 8u:
         if (float_at(rt, config + 0x1414u) <= level) {
             put8(rt, state + 0x60Eu, 2u);
-        } else if (float_at(rt, config + 0x1410u) <= level) {
+            break;
+        }
+        ctx.gpr[2] = 1u;
+        if (float_at(rt, config + 0x1410u) <= level) {
             put8(rt, state + 0x60Eu, 1u);
             put_float(rt, state + 0x610u, 1.0f);
         }
@@ -1346,7 +1354,8 @@ void func_089EE2E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     for (std::uint32_t part = 0u; part < 2u; ++part) {
         const std::uint32_t text = self + 0x238u + part * 4u;
         const std::uint32_t slot = self + 0x240u + part * 4u;
-        if (word(rt, word(rt, text) - 0xCu) == 0u) continue;
+        ctx.gpr[2] = word(rt, word(rt, text) - 0xCu);
+        if (ctx.gpr[2] == 0u) continue;
         const std::uint32_t object = word(rt, slot);
         if (object != 0u && call_virtual_at(rt, ctx, object, 0x28u, {object}) != 0u) continue;
         const std::uint32_t temporary = frame.at(part == 0u ? 4u : 0u);
@@ -1553,6 +1562,7 @@ void func_088EA900(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ++collected;
         call_set(rt, ctx, 0x088E8518u, {record, 0u});
     }
+    ctx.gpr[2] = 0u;  // the loop test that ended it
     if (collected == 0u) return;
     const std::uint32_t object = word(rt, self + 0x134u);
     ctx.gpr[2] = word(rt, object);
@@ -1914,10 +1924,14 @@ void func_0888C0E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x30u);
     const std::uint32_t flags = call_set(rt, ctx, 0x0889417Cu, {word(rt, self + 0xCu)});
     const std::uint32_t pending = word(rt, word(rt, self + 4u) + 0x618u);
-    if ((word(rt, flags) & 0x20u) == 0u) return;
+    if ((word(rt, flags) & 0x20u) == 0u) return;  // v0 stays the flags pointer; later early returns leave the value read
     const std::uint32_t entry = call_set(rt, ctx, 0x088DA788u, {word(rt, self + 4u), key});
-    if (byte_u(rt, entry + 0x25u) != 0u || byte_u(rt, entry + 0x27u) != 0u || byte_u(rt, entry + 0x26u) != 0u) return;
-    if (byte_u(rt, pending) == 0u) return;
+    for (const std::uint32_t offset : {0x25u, 0x27u, 0x26u}) {
+        ctx.gpr[2] = byte_u(rt, entry + offset);
+        if (ctx.gpr[2] != 0u) return;
+    }
+    ctx.gpr[2] = byte_u(rt, pending);
+    if (ctx.gpr[2] == 0u) return;
     if (call_set(rt, ctx, 0x088DB2C8u, {word(rt, self + 4u), key}) == 0u) return;
     const std::uint32_t index = call_set(rt, ctx, 0x088E0BE4u, {word(rt, self + 4u), value});
     bool match = false;
@@ -2183,14 +2197,22 @@ void func_0888E62C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x40u);
     const std::uint32_t flags = call_set(rt, ctx, 0x0889417Cu, {word(rt, self + 0xCu)});
     const std::uint32_t pending = word(rt, word(rt, self + 4u) + 0x618u);
+    ctx.gpr[2] = word(rt, flags) & 4u;  // every early return leaves v0 = the value its test read
     if ((word(rt, flags) & 0x44u) == 0u) return;
     const std::uint32_t entry = call_set(rt, ctx, 0x088DA788u, {word(rt, self + 4u), key});
-    if (byte_u(rt, entry + 0x25u) != 0u || byte_u(rt, entry + 0x27u) != 0u || byte_u(rt, entry + 0x26u) != 0u) return;
-    if (byte_u(rt, pending) == 0u) return;
+    for (const std::uint32_t offset : {0x25u, 0x27u, 0x26u}) {
+        ctx.gpr[2] = byte_u(rt, entry + offset);
+        if (ctx.gpr[2] != 0u) return;
+    }
+    ctx.gpr[2] = byte_u(rt, pending);
+    if (ctx.gpr[2] == 0u) return;
     if (call_set(rt, ctx, 0x088DB2C8u, {word(rt, self + 4u), key}) == 0u) return;
     const std::uint32_t object = call_set(rt, ctx, 0x088DCD28u, {word(rt, self + 4u), key});
     call_virtual_at(rt, ctx, object, 0x10u, {object});
-    if ((word(rt, flags) & 4u) != 0u && !(5.0f <= value / ctx.fpr[0])) return;
+    if ((word(rt, flags) & 4u) != 0u && !(5.0f <= value / ctx.fpr[0])) {
+        ctx.gpr[2] = 4u;
+        return;
+    }
     put16(rt, frame.at(0u), key);
     put8(rt, word(rt, word(rt, self + 4u) + 0x618u), 0u);
     ctx.gpr[2] = word(rt, self);
@@ -2496,29 +2518,29 @@ void func_088FA42C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define HOT111(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_111::name, gt::ReturnKind::kind)
-HOT111(0x0885BFE0u, func_0885BFE0, Word);
+// HOT111(0x0885BFE0u, func_0885BFE0, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x0888D8B4u, func_0888D8B4, Word);
 HOT111(0x0892F95Cu, func_0892F95C, DoubleWord);
 HOT111(0x089CF6D4u, func_089CF6D4, Word);
 HOT111(0x089D6284u, func_089D6284, Word);
 HOT111(0x08C3DDB8u, func_08C3DDB8, Word);
-HOT111(0x088AAE08u, func_088AAE08, Word);
-HOT111(0x088D3DA0u, func_088D3DA0, Word);
-HOT111(0x08875138u, func_08875138, Word);
+// HOT111(0x088AAE08u, func_088AAE08, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x088D3DA0u, func_088D3DA0, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x08875138u, func_08875138, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x088DE24Cu, func_088DE24C, Word);
 HOT111(0x08A78490u, func_08A78490, Word);
 HOT111(0x08AFEC54u, func_08AFEC54, Word);
 HOT111(0x08811D30u, func_08811D30, Word);
-HOT111(0x08A32F9Cu, func_08A32F9C, Word);
+// HOT111(0x08A32F9Cu, func_08A32F9C, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08BA0D34u, func_08BA0D34, Word);
-HOT111(0x08C48EC4u, func_08C48EC4, Word);
+// HOT111(0x08C48EC4u, func_08C48EC4, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08841AD0u, func_08841AD0, Word);
-HOT111(0x0888EA68u, func_0888EA68, Word);
-HOT111(0x08AF8AB0u, func_08AF8AB0, Word);
-HOT111(0x0883B950u, func_0883B950, DoubleWord);
+// HOT111(0x0888EA68u, func_0888EA68, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x08AF8AB0u, func_08AF8AB0, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x0883B950u, func_0883B950, DoubleWord);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08B1C958u, func_08B1C958, DoubleWord);
-HOT111(0x08B33790u, func_08B33790, Word);
-HOT111(0x08861B20u, func_08861B20, Word);
+// HOT111(0x08B33790u, func_08B33790, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x08861B20u, func_08861B20, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08957B30u, func_08957B30, Word);
 HOT111(0x08BEED1Cu, func_08BEED1C, Word);
 HOT111(0x08BF2D6Cu, func_08BF2D6C, Word);
@@ -2532,21 +2554,21 @@ HOT111(0x0888BC00u, func_0888BC00, Word);
 HOT111(0x088D06ACu, func_088D06AC, Word);
 HOT111(0x08832FC4u, func_08832FC4, Word);
 HOT111(0x088697E8u, func_088697E8, Word);
-HOT111(0x088A6FB4u, func_088A6FB4, Word);
+// HOT111(0x088A6FB4u, func_088A6FB4, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08A28884u, func_08A28884, Word);
-HOT111(0x08ACD2ECu, func_08ACD2EC, Word);
+// HOT111(0x08ACD2ECu, func_08ACD2EC, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x0882AA38u, func_0882AA38, Word);
-HOT111(0x0885F550u, func_0885F550, Word);
-HOT111(0x0888EC10u, func_0888EC10, Word);
+// HOT111(0x0885F550u, func_0885F550, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x0888EC10u, func_0888EC10, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08B8A4C0u, func_08B8A4C0, Word);
 HOT111(0x08849848u, func_08849848, Word);
 HOT111(0x089EE2E4u, func_089EE2E4, Word);
-HOT111(0x08B2EEB8u, func_08B2EEB8, Word);
+// HOT111(0x08B2EEB8u, func_08B2EEB8, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x0883074Cu, func_0883074C, Word);
 HOT111(0x0880F6B0u, func_0880F6B0, Word);
-HOT111(0x08AD31E0u, func_08AD31E0, Word);
-HOT111(0x08B1A284u, func_08B1A284, Word);
-HOT111(0x0881BAC0u, func_0881BAC0, Word);
+// HOT111(0x08AD31E0u, func_08AD31E0, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x08B1A284u, func_08B1A284, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x0881BAC0u, func_0881BAC0, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x088EA900u, func_088EA900, Word);
 HOT111(0x08ABE178u, func_08ABE178, Word);
 HOT111(0x08AEFE28u, func_08AEFE28, Word);
@@ -2560,16 +2582,16 @@ HOT111(0x08AB8430u, func_08AB8430, Word);
 HOT111(0x08AF8EB4u, func_08AF8EB4, Word);
 HOT111(0x0888C0E4u, func_0888C0E4, Word);
 HOT111(0x088D32E0u, func_088D32E0, Word);
-HOT111(0x089AEF20u, func_089AEF20, Word);
+// HOT111(0x089AEF20u, func_089AEF20, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08B66FBCu, func_08B66FBC, Float);
-HOT111(0x08937918u, func_08937918, Word);
+// HOT111(0x08937918u, func_08937918, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08AF07C8u, func_08AF07C8, Word);
-HOT111(0x08B82420u, func_08B82420, Word);
+// HOT111(0x08B82420u, func_08B82420, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x0888E62Cu, func_0888E62C, Word);
-HOT111(0x088B4178u, func_088B4178, Word);
-HOT111(0x08BBEA18u, func_08BBEA18, Word);
+// HOT111(0x088B4178u, func_088B4178, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT111(0x08BBEA18u, func_08BBEA18, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x088F9CE4u, func_088F9CE4, Word);
 HOT111(0x08A1FE40u, func_08A1FE40, Word);
-HOT111(0x08B93734u, func_08B93734, Word);
+// HOT111(0x08B93734u, func_08B93734, Word);  // batch 111: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT111(0x08A01A24u, func_08A01A24, Word);
 HOT111(0x088FA42Cu, func_088FA42C, Word);
