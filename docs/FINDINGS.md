@@ -2173,3 +2173,30 @@ gate wrote. Given the full gate's tag, it rewrote the logs route by route while 
 Its per-function counts live only in those logs.
 
 Found: 2026-10-21 · decomp/hot-batch-109
+
+## A `Word` return compares v0 even where the function returns nothing: early exits leave the value their test read
+
+**Symptom.** Batches 110 and 111 had 8 mismatches, all `v0: original X, decompiled Y`, in functions whose body was
+correct (memory and the other registers matched).
+**Cause.** `ReturnKind::Word` compares v0 on every case. A `void` function's early exit in the asm leaves v0 = the value
+its last test loaded (`lbu v0, 0x25(v1); bnez v0, exit`), or an address the code computed (`addu v0, a1, s2` before a
+load). The C++ returned with v0 = the previous callee's result.
+**Fix / workaround.** On each early exit, set `ctx.gpr[2]` to what the asm's last v0 write left: walk the exit's path back
+to the last instruction that writes v0. A table of tests becomes a loop that stores each value read in `ctx.gpr[2]`
+before testing it.
+
+Found: 2026-10-21 · decomp/hot-batch-110, decomp/hot-batch-111
+
+## Eleven full-gate routes outgrew the slice: the options route stalled at `MemoryHigh`
+
+**Symptom.** The options route of three full gates in a row (batches 110 and 111) ended `WAIT seek=722883648 timed
+out` with exit 97, also on an idle machine, while every other route passed with 0 mismatches. Alone, in real time or
+uncapped, with all functions, only the batch's or `--decomp off`, it passed every time.
+**Cause.** A route's peak RSS grew with the build to ~0.5 GB (506 MB measured); the full gate started all 11 at once,
+~5.6 GB, past the slice's `MemoryHigh` (5 GB; `MemoryPeak` read 5.37 GB). The kernel throttles the slice there, and a
+real-time route that falls behind stops seeing the seek its pad script waits for.
+**Fix / workaround.** `route_shell` keeps at most `MAX_PARALLEL_ROUTES` (8) full-gate routes alive, longest first
+(bash `wait -n`), so the race still sets the gate's length. When a real-time route stalls only inside the gate, read
+`systemctl --user show gt-heavy.slice -p MemoryPeak` before bisecting functions.
+
+Found: 2026-10-21 · decomp/hot-batch-111
