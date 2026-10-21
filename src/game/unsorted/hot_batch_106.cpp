@@ -462,6 +462,52 @@ void func_08B53D2C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     emit_primitive(rt, ctx, prim, count, vertices, 0x19Cu);
 }
 
+// func_08B57AB8(id, kind, value): dispatches on kind (jump table at 0x08C9573C, read from the ELF) with s = id - 0x65:
+// kinds 0 / 1 / 4 tail-call func_08B577D0(state, 0x8F / 0x90 / 0x91, s, func_08B57E68(value)); 5 loads value's three
+// floats into VFPU C000 and tail-calls func_08B578E8(state, s); 6-10 tail-call func_08B57968(s, f12 = *value); 13 loads
+// four floats and tail-calls func_08B57860(state, s); 2, 3, 11, 12 and kinds past 13 return.
+void func_08B57AB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    static constexpr std::uint32_t kTargets[14] = {
+        0x08B57AECu, 0x08B57B18u, 0x08B57BE4u, 0x08B57BE4u, 0x08B57B44u, 0x08B57BA0u, 0x08B57BCCu,
+        0x08B57BCCu, 0x08B57BCCu, 0x08B57BCCu, 0x08B57BCCu, 0x08B57BE4u, 0x08B57BE4u, 0x08B57B70u,
+    };
+    const std::uint32_t kind = ctx.gpr[5], value = ctx.gpr[6];
+    const std::uint32_t s = ctx.gpr[4] - 0x65u;
+    ctx.gpr[2] = kind < 14u ? 1u : 0u;
+    if (kind >= 14u) return;
+    ctx.gpr[3] = 0x08C9573Cu;
+    ctx.gpr[2] = (kind << 2) + 0x08C9573Cu;
+    ctx.gpr[4] = kTargets[kind];
+    const auto light = [&](std::uint32_t command) {
+        {
+            GuestFrame frame(ctx, 0x10u);
+            (void)call_set(rt, ctx, 0x08B57E68u, {value});
+        }
+        ctx.gpr[6] = s;
+        ctx.gpr[7] = ctx.gpr[2];
+        tail_call(ctx, 0x08B577D0u, {kGuState, command});
+    };
+    switch (kind) {
+    case 0u: return light(0x8Fu);
+    case 1u: return light(0x90u);
+    case 4u: return light(0x91u);
+    case 5u:
+        for (std::uint32_t row = 0u; row < 3u; ++row) v::load_scalar(rt, ctx, row * 0x20u, value + 4u * row);
+        return tail_call(ctx, 0x08B578E8u, {kGuState, s});
+    case 13u:
+        ctx.gpr[4] = kGuState;
+        ctx.gpr[5] = s;
+        for (std::uint32_t row = 0u; row < 4u; ++row) v::load_scalar(rt, ctx, row * 0x20u, value + 4u * row);
+        return tail_call(ctx, 0x08B57860u, {});
+    case 6u: case 7u: case 8u: case 9u: case 10u:
+        ctx.fpr[12] = float_at(rt, value);
+        return tail_call(ctx, 0x08B57968u, {s});
+    default:
+        return;
+    }
+}
+
 }  // namespace
 }  // namespace hot_batch_106
 }  // namespace gt::game
@@ -474,3 +520,4 @@ HOT106(0x08B53898u, func_08B53898, Word);
 HOT106(0x08B54D28u, func_08B54D28, Word);
 HOT106(0x08B55218u, func_08B55218, Word);
 HOT106(0x08B53D2Cu, func_08B53D2C, Word);
+HOT106(0x08B57AB8u, func_08B57AB8, Word);
