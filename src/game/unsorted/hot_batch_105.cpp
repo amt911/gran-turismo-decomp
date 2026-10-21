@@ -816,6 +816,69 @@ void func_08B542AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     finish(v::condition(ctx, 4u) ? 0u : 1u);
 }
 
+// func_08B56790(a0, a1, a2, a3): tail-calls func_08B566F8(0x08D6D0E0, a1, low byte of a2 != 0, low byte of a3 != 0,
+// t0 = a0). (The function list runs it on to 08B567EC; the code after the jump belongs to the next functions.)
+void func_08B56790(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[8] = ctx.gpr[4];
+    ctx.gpr[6] = (ctx.gpr[6] & 0xFFu) != 0u ? 1u : 0u;
+    ctx.gpr[7] = (ctx.gpr[7] & 0xFFu) != 0u ? 1u : 0u;
+    tail_call(ctx, 0x08B566F8u, {kGuCommandBlock});
+}
+
+// func_08B5606C: sets bit 1 of the state block's flag word (+0x6C) and tail-calls func_08B55FD0(0x08D6D0E0).
+void func_08B5606C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = kGuState;
+    ctx.gpr[3] = word(rt, kGuFlags) | 2u;
+    put(rt, kGuFlags, ctx.gpr[3]);
+    tail_call(ctx, 0x08B55FD0u, {kGuCommandBlock});
+}
+
+// A word at an address of any alignment (lwl + lwr on its last and first byte), little endian.
+std::uint32_t unaligned_word(psprecomp::Runtime &rt, std::uint32_t address) {
+    return rt.memory().load8(address) | rt.memory().load8(address + 1u) << 8u | rt.memory().load8(address + 2u) << 16u |
+           static_cast<std::uint32_t>(rt.memory().load8(address + 3u)) << 24u;
+}
+
+// func_08B543B4(count, points): for each point (3 floats, any alignment) up to `count`, the matrix func_08B56C34
+// (0x08D6D0E0) returns transforms it (vhtfm4 with E100) and vscmp against -w / w, packed by vi2c, clears bits of two
+// masks that start at 0x808080; returns 1 as soon as both masks are 0, else 0 after the last point.
+void func_08B543B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    namespace v = gt::vfpu;
+    std::uint32_t count = ctx.gpr[4], points = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t matrix = call_set(rt, ctx, 0x08B56C34u, {kGuCommandBlock});
+    ctx.gpr[3] = 0x00800000u;
+    ctx.gpr[6] = 0x00808080u;
+    for (std::uint32_t column = 0u; column < 4u; ++column) v::load_quad(rt, ctx, 4u + column, matrix + 0x10u * column);
+    ctx.gpr[5] = ctx.gpr[6];
+    do {
+        ctx.gpr[2] = unaligned_word(rt, points);
+        ctx.gpr[3] = unaligned_word(rt, points + 4u);
+        ctx.gpr[4] = unaligned_word(rt, points + 8u);
+        v::move_to(ctx, ctx.gpr[2], 0x00u);
+        v::move_to(ctx, ctx.gpr[3], 0x20u);
+        v::move_to(ctx, ctx.gpr[4], 0x40u);
+        v::transform(ctx, 1u, 0x24u, 0u, 4u, 3u);      // vhtfm4.q C010, E100, C000
+        points += 0xCu;
+        count -= 1u;
+        v::prefix(ctx, 1u, 0xF00FFu);                  // vpfxt -W, -W, -W, -W
+        v::compare3(ctx, 0x00u, 0x01u, 0x01u, 4u, 5u);  // vscmp.q C000, C010, C010
+        v::prefix(ctx, 0u, 0xFFu);                     // vpfxs W, W, W, W
+        v::compare3(ctx, 0x01u, 0x01u, 0x01u, 4u, 5u);  // vscmp.q C010, C010, C010
+        v::pack_ints(ctx, 1u, 0x00u, 0x00u, 4u);       // vi2c.q S000, C000
+        v::pack_ints(ctx, 1u, 0x20u, 0x01u, 4u);       // vi2c.q S001, C010
+        ctx.gpr[2] = ctx.vfpu_scalar_bits(0x00u);      // mfv
+        ctx.gpr[3] = ctx.vfpu_scalar_bits(0x20u);
+        ctx.gpr[6] &= ctx.gpr[2];
+        ctx.gpr[5] &= ctx.gpr[3];
+        if ((ctx.gpr[6] | ctx.gpr[5]) == 0u) {
+            ctx.gpr[2] = 1u;
+            return;
+        }
+        ctx.gpr[2] = 0u;  // the bnez's delay slot
+    } while (count != 0u);
+}
+
 }  // namespace
 }  // namespace hot_batch_105
 }  // namespace gt::game
@@ -856,5 +919,8 @@ HOT105(0x08B4F3B0u, func_08B4F3B0, Word);
 HOT105(0x08B4F47Cu, func_08B4F47C, Word);
 HOT105(0x08B4F174u, func_08B4F174, Word);
 HOT105(0x08B542ACu, func_08B542AC, Word);
+HOT105(0x08B56790u, func_08B56790, Word);
+HOT105(0x08B5606Cu, func_08B5606C, Word);
+HOT105(0x08B543B4u, func_08B543B4, Word);
 // HOT105(0x08B5A344u, func_08B5A344, Word);  // not written: the graphics library one-time init (11 calls, at boot), which registers GE callbacks through imports a case refuses
 // HOT105(0x08B599E0u, func_08B599E0, Word);  // not written: it waits for vblank (0x08C7AC18) a0 times, which a case refuses
