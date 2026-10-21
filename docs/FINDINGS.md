@@ -2125,3 +2125,20 @@ stays one helper per instruction.
   done functions again. `done_addresses` now reads them (test).
 
 Found: 2026-10-21 · decomp/hot-batch-105
+
+## The software rasterizer's row pool counted one worker twice, and a worker then crashed on a dead stack frame
+
+**Symptom.** Now and then a gate route exited 139: about one full gate in five, later a fast gate's drift route. The
+core dumps all stopped in `rasterize_rectangle`, on a `RowWorkerPool` thread. The same route alone did not crash.
+Earlier a gdb run seemed to reproduce it, but those SIGSEGVs were the harness's dirty-page tracker (handled faults).
+**Cause.** `RowWorkerPool::run` waited only for the participating workers. A worker that took no part and woke late
+could still read generation N while the next `run()` had already written `active_participants_` for N+1, which happens
+before N+1 is published. That worker then ran N+1's chunks as if they were N's, ran them again once N+1 was published,
+and decremented `pending_` twice. `run()` returned while another worker was still inside the body, a lambda whose
+captures live on the caller's stack. The rows it wrote went through dangling references.
+**Fix / workaround.** lcs-recomp patch 0052: every worker acknowledges every generation, whether it took part or not.
+`run()` returns only when all of them have seen it, so none is still inside the old generation when the next one's
+fields are written. The fast gate that had crashed passed twice after the fix. The race needs a late wake, so it is
+rare by nature.
+
+Found: 2026-10-21 · core dumps via `coredumpctl debug`, fix/row-pool-race

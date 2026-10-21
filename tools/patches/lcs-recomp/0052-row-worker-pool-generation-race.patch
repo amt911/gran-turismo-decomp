@@ -1,0 +1,37 @@
+GT patch 0052: RowWorkerPool's generation race (FINDINGS 2026-10-21). run() counted only the participating workers in
+pending_. A non-participant that woke late could read the next run's active_participants_ (written before that run's
+generation is published), work that run as if it were the one it woke for, then work it again and decrement pending_
+twice. run() then returned while another worker still ran the body, whose captures live on the caller's stack, and the
+worker crashed in rasterize_rectangle (exit 139, only under load). Every worker now acknowledges every generation.
+
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -227,7 +227,12 @@
+         chunk_count_ = chunks;
+         active_participants_ = participants;
+         next_chunk_.store(0u, std::memory_order_relaxed);
+-        pending_.store(participants - 1u, std::memory_order_relaxed);
++        // GT patch 0052: every worker acknowledges every generation, taking part or not. When only the participants
++        // counted, a non-participant that woke late could read the next run's active_participants_ (written before
++        // that run's generation was published), work that run as if it were this one, then work it again and count it
++        // twice: run() returned while a worker still ran the body, whose captures live on the caller's stack, and the
++        // worker crashed in rasterize_rectangle under load (FINDINGS 2026-10-21).
++        pending_.store(static_cast<unsigned>(workers_.size()), std::memory_order_relaxed);
+ 
+         generation_.fetch_add(1u, std::memory_order_release);
+         if (parked_.load(std::memory_order_acquire) != 0u)
+@@ -310,11 +315,9 @@
+             if (stopping_.load(std::memory_order_acquire)) return;
+             seen = generation_.load(std::memory_order_acquire);
+ 
+-            if (worker_index < active_participants_) {
+-                run_available_chunks(worker_index);
+-                if (pending_.fetch_sub(1u, std::memory_order_acq_rel) == 1u)
+-                    pending_.notify_one();
+-            }
++            if (worker_index < active_participants_) run_available_chunks(worker_index);
++            if (pending_.fetch_sub(1u, std::memory_order_acq_rel) == 1u)  // GT patch 0052: every worker
++                pending_.notify_one();
+         }
+     }
+ 
