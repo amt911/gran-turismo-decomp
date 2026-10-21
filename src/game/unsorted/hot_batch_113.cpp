@@ -1904,16 +1904,16 @@ void func_088D8CA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 #define HOT113(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_113::name, gt::ReturnKind::kind)
 
 HOT113(0x08844924u, func_08844924, Word);
-HOT113(0x088DEA1Cu, func_088DEA1C, Word);
-HOT113(0x08A13BE0u, func_08A13BE0, Word);
+// HOT113(0x088DEA1Cu, func_088DEA1C, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT113(0x08A13BE0u, func_08A13BE0, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT113(0x08845CB0u, func_08845CB0, Word);
-HOT113(0x0888BD14u, func_0888BD14, Word);
+// HOT113(0x0888BD14u, func_0888BD14, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT113(0x08B71720u, func_08B71720, Word);
 HOT113(0x08C23158u, func_08C23158, Word);
 HOT113(0x08A535A4u, func_08A535A4, Word);
 HOT113(0x089A50A0u, func_089A50A0, Word);
 HOT113(0x0888AF70u, func_0888AF70, Word);
-HOT113(0x08A14D6Cu, func_08A14D6C, Word);
+// HOT113(0x08A14D6Cu, func_08A14D6C, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT113(0x08AFFA70u, func_08AFFA70, Word);
 HOT113(0x08AACAF8u, func_08AACAF8, Word);
 HOT113(0x088A66A4u, func_088A66A4, Word);
@@ -1922,9 +1922,9 @@ HOT113(0x08BB2CFCu, func_08BB2CFC, Word);
 HOT113(0x089E1C90u, func_089E1C90, Word);
 HOT113(0x08940610u, func_08940610, Word);
 HOT113(0x08A993B4u, func_08A993B4, Word);
-HOT113(0x08A1AC08u, func_08A1AC08, Word);
-HOT113(0x08BAC714u, func_08BAC714, Word);
-HOT113(0x0889E258u, func_0889E258, Word);
+// HOT113(0x08A1AC08u, func_08A1AC08, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT113(0x08BAC714u, func_08BAC714, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT113(0x0889E258u, func_0889E258, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT113(0x089348D0u, func_089348D0, Word);
-HOT113(0x08A2C2B4u, func_08A2C2B4, Word);
-HOT113(0x088D8CA8u, func_088D8CA8, Word);
+// HOT113(0x08A2C2B4u, func_08A2C2B4, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT113(0x088D8CA8u, func_088D8CA8, Word);  // batch 113: compared 0 in the full gate (reached by the probe, but no case of it was comparable)

@@ -1828,13 +1828,13 @@ HOT114(0x089AECECu, func_089AECEC, Word);
 HOT114(0x0880F7E0u, func_0880F7E0, Word);
 HOT114(0x08B13B84u, func_08B13B84, Word);
 HOT114(0x0899A048u, func_0899A048, Word);
-HOT114(0x088DC974u, func_088DC974, Word);
+// HOT114(0x088DC974u, func_088DC974, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT114(0x0894D6D0u, func_0894D6D0, Word);
-HOT114(0x089C8C70u, func_089C8C70, Word);
-HOT114(0x08B0B8CCu, func_08B0B8CC, Word);
+// HOT114(0x089C8C70u, func_089C8C70, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT114(0x08B0B8CCu, func_08B0B8CC, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT114(0x08A7F5FCu, func_08A7F5FC, Word);
 HOT114(0x0891179Cu, func_0891179C, Word);
-HOT114(0x088D2098u, func_088D2098, Word);
+// HOT114(0x088D2098u, func_088D2098, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT114(0x08810010u, func_08810010, Word);
 HOT114(0x08B6DFD0u, func_08B6DFD0, Float);
 HOT114(0x08B8BF44u, func_08B8BF44, Word);
@@ -1843,9 +1843,9 @@ HOT114(0x0892C4B8u, func_0892C4B8, Word);
 HOT114(0x08AF0508u, func_08AF0508, Word);
 HOT114(0x08AF98F0u, func_08AF98F0, Word);
 HOT114(0x0899EFFCu, func_0899EFFC, Word);
-HOT114(0x088638A8u, func_088638A8, Word);
-HOT114(0x08BBF0D0u, func_08BBF0D0, Word);
+// HOT114(0x088638A8u, func_088638A8, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
+// HOT114(0x08BBF0D0u, func_08BBF0D0, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT114(0x08B65F0Cu, func_08B65F0C, Float);
-HOT114(0x08A20010u, func_08A20010, Word);
+// HOT114(0x08A20010u, func_08A20010, Word);  // batch 114: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT114(0x0881BF5Cu, func_0881BF5C, Word);
 HOT114(0x08A6A40Cu, func_08A6A40C, Word);
