@@ -598,13 +598,13 @@ HOT108(0x0880F1A8u, func_0880F1A8, Word);
 HOT108(0x0880F27Cu, func_0880F27C, Word);
 HOT108(0x088A3B24u, func_088A3B24, Float);
 HOT108(0x08896658u, func_08896658, Word);
-HOT108(0x088B13CCu, func_088B13CC, Word);
+// HOT108(0x088B13CCu, func_088B13CC, Word);  // batch 108: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT108(0x088FDCF4u, func_088FDCF4, Float);
-HOT108(0x08918B48u, func_08918B48, Word);
+// HOT108(0x08918B48u, func_08918B48, Word);  // batch 108: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT108(0x089962B8u, func_089962B8, Word);
 HOT108(0x0890EF6Cu, func_0890EF6C, Word);
 HOT108(0x08B2213Cu, func_08B2213C, Word);
 HOT108(0x088FDC18u, func_088FDC18, Float);
 HOT108(0x088FE5B4u, func_088FE5B4, Word);
 HOT108(0x08893D4Cu, func_08893D4C, Word);
-HOT108(0x088D2C30u, func_088D2C30, Word);
+// HOT108(0x088D2C30u, func_088D2C30, Word);  // batch 108: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
