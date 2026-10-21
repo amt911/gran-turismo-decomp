@@ -51,6 +51,9 @@ SLICE = "gt-heavy.slice"
 SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0")
 SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
+# A real-time route peaks at ~0.5 GB (506 MB measured 2026-10-21); eleven at once passed MemoryHigh and the throttled
+# routes stalled (options timed out three full gates running). The full gate keeps this many alive, longest first.
+MAX_PARALLEL_ROUTES = 8
 BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(
@@ -279,12 +282,17 @@ def parse_only(text: str) -> list[int]:
 
 
 def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
-    """One shell line running the three routes in parallel, each logging its report and exit code."""
+    """One bash line running the routes in parallel, each logging its report and exit code (the full gate's at most
+    MAX_PARALLEL_ROUTES at a time)."""
     parts = []
-    for route, seconds in ROUTES[kind]:
+    routes = ROUTES[kind]
+    if kind == "full":  # longest first, at most MAX_PARALLEL_ROUTES alive (bash: `wait -n`)
+        routes = sorted(routes, key=lambda item: -item[1])
+    for route, seconds in routes:
         log = logs / f"gt_diff_{tag}_{route}"
         if kind == "full":  # ends a tail after the script is done; the wall clock is only a cap (FULL_TAIL)
             tail = FULL_TAIL.get(route, DEFAULT_TAIL)
+            parts.append(f"while [ $(jobs -rp | wc -l) -ge {MAX_PARALLEL_ROUTES} ]; do wait -n; done;")
             parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
                          f"timeout {2 * seconds + 120} {binary} --max-seconds {2 * seconds} --decomp diff > {log}.log 2>&1; "
                          f"echo $? > {log}.exit ) &")
@@ -519,7 +527,7 @@ def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no c
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
         return 2
-    subprocess.run(heavy(["sh", "-c", route_shell(Path("build/gt_native"), kind, tag, Path("recomp/analysis"))]),
+    subprocess.run(heavy(["bash", "-c", route_shell(Path("build/gt_native"), kind, tag, Path("recomp/analysis"))]),
                    env=env)
     return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after)
 

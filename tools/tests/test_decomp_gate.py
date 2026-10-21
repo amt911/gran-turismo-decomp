@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -118,6 +120,30 @@ def test_full_routes_end_after_their_script_not_on_the_wall_clock():
     buy = next(part for part in full.split(") &") if "buy.pad" in part)
     assert "GT_PAD_EXIT_AFTER=23400" in race and "--max-seconds 1200" in race and "timeout 1320" in race
     assert "GT_PAD_EXIT_AFTER=600" in buy and "--max-seconds 440" in buy and "timeout 560" in buy
+
+
+def test_full_routes_start_longest_first_and_at_most_max_parallel_at_once():
+    """Eleven real-time routes at ~0.5 GB each (measured 2026-10-21: 506 MB) pass the slice's MemoryHigh (5 GB); the
+    kernel then throttles them and a real-time route stalls (options timed out three gates running). The full gate
+    keeps MAX_PARALLEL_ROUTES running and starts the longest first, so the race still sets its length."""
+    full = gate.route_shell(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
+    started = [route for route in re.findall(r"config/pad_routes/(\w+)\.pad", full)]
+    lengths = dict(gate.ROUTES["full"])
+    assert started[0] == "race" and [lengths[r] for r in started] == sorted(lengths.values(), reverse=True)
+    assert full.count("wait -n") == len(started) and f"-ge {gate.MAX_PARALLEL_ROUTES} ]" in full
+    assert gate.MAX_PARALLEL_ROUTES * 0.55 < 5.0  # route budget x routes stays under MemoryHigh
+
+
+def test_route_shell_never_runs_more_than_the_cap_at_once(tmp_path):
+    """Runs the generated line with a stand-in binary that records how many copies are alive."""
+    fake = tmp_path / "fake"
+    fake.write_text("#!/bin/sh\nmkdir -p live; touch live/$$; ls live | wc -l >> peaks; sleep 0.3; rm live/$$\n")
+    fake.chmod(0o755)
+    command = gate.route_shell(fake, "full", "t1", tmp_path)
+    subprocess.run(["bash", "-c", command], cwd=tmp_path, check=True, timeout=30)
+    peaks = [int(line) for line in (tmp_path / "peaks").read_text().split()]
+    assert len(peaks) == len(gate.ROUTES["full"]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES
+    assert all((tmp_path / f"gt_diff_t1_{route}.exit").read_text().strip() == "0" for route, _ in gate.ROUTES["full"])
 
 
 def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
