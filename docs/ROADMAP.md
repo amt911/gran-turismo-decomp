@@ -997,6 +997,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lotes 115-118** (2026-10-22): 61 funciones de 185 a 315 instrucciones (inserciones en vectores, asignadores,
+      libm `expm1f`, multiplicación de dobles por software, recorridos de escena), escritas por cuatro agentes y revisadas
+      contra el asm (115-116 por un revisor aparte: un `erase` sin a2; 117-118 solo por sus autores). 37 quedan aparcadas
+      (sin casos comparables) y 2 más por discrepar: `func_08867268` (la rama de +0x9C leída al revés) y
+      `func_08BA996C` (v0 del camino de inserción in situ). Dos puertas perdieron una ruta por carga ajena (`cargo` de
+      otra sesión a carga 30): desde entonces las tareas en tiempo real cogen el cerrojo de CPU compartido
+      (`tools/cpu_lock.sh`). Sabotajes 14/14, 13/13, 15/15, 19/19 con `--full`.
+      **7.198 funciones, 5.633 comparadas, 0 discrepancias.**
 - [x] **Lotes 113-114** (2026-10-21): 34 funciones de 141 a 185 instrucciones escritas por dos agentes en paralelo y
       revisadas por un tercero contra el asm (7 fallos corregidos antes de la puerta: seis copiaban en el hueco de retardo
       de un `jal` el resultado de la llamada siguiente en vez de la anterior; uno no pasaba a2 a un `erase`). 16 quedan

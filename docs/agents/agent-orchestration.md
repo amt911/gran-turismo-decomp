@@ -72,3 +72,20 @@ Phase 2–3 build and harness — there is no lap to time and no suite to break 
    rows this stack cannot produce, and name the mechanism for the ones it can.
 
 Record all three in this file, not in a session — the point is that the next session inherits them.
+
+## Sharing the CPU with other agent sessions — real-time jobs only
+
+Another agent session (another project) may share this machine for a whole night. The full differential gate, its
+sabotage runs and the pacing measurements run real-time game routes that **fail under foreign load** (`WAIT seek …
+timed out`): three gates failed on 2026-10-21 at load 27–32 from another session's `cargo` jobs, and each route passed
+alone. Builds, `pytest` and `ctest` only get slower under load; they share the CPU normally and never take the lock.
+
+- **`tools/cpu_lock.sh WHAT COMMAND...`** holds `flock /tmp/claude-<uid>/cpu-heavy.lock` around COMMAND and writes
+  `<holder pid> <session name> <session pid> <start> <what>` to `cpu-heavy.owner`. The agreement with the other session
+  goes through `SendMessage` (find it with `ListAgents`).
+- **Holds stay under 30 min** and run under `timeout 1800`; split longer work (one sabotage file per hold).
+- **Nobody waits forever:** a waiter goes ahead at once when the holder or its agent session is gone (a stopped session
+  leaves its job behind), and after 30 min in any case (the user's rule; a peer may run niced instead of killing).
+- **Never rewrite the script while a job uses it** — a running shell reads it as it goes; a chain started under the old
+  file died with a syntax error. It lives in the repo for that reason.
+- Before debugging a real-time failure, read `uptime`/`top`: foreign load is a rerun under the lock, not a bug.

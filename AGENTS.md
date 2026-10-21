@@ -121,6 +121,8 @@ A rule is edited in its document, not here and there at once — except for its 
 - **Agent orchestration** → [docs/agents/agent-orchestration.md](docs/agents/agent-orchestration.md).
   Review in parallel with the next implementation; shared `docs/FACTS.md`; one agent per worktree
   (the build dir, the REA session, the Ghidra project and each emulator/game instance are exclusive).
+  Real-time gates and perf measurements take the CPU lock shared with other sessions (`tools/cpu_lock.sh`:
+  30-min holds; orphaned holders skipped); builds and tests never do.
 - **Reuse first** → [docs/agents/reuse-first.md](docs/agents/reuse-first.md). Search `include/`,
   `config/symbol_addrs.txt` and FACTS before declaring a type, a struct or a name.
 - **Codex and Claude Code** → [docs/agents/agent-compatibility.md](docs/agents/agent-compatibility.md).
