@@ -2200,3 +2200,16 @@ real-time route that falls behind stops seeing the seek its pad script waits for
 `systemctl --user show gt-heavy.slice -p MemoryPeak` before bisecting functions.
 
 Found: 2026-10-21 · decomp/hot-batch-111
+
+## `tools.disasm` pairs a `lui` with the next low half in address order, not on the path that reaches it
+
+**Symptom.** In `func_08AEE144` the log call at 0x08AEE2E4 printed `lw a0, 0x3640(v0) [LO] = 0x08D3FB40`, while the
+other log sites of the function load 0x08CDFB40.
+**Cause.** 0x08AEE2E4 is reached only by the branch at 0x08AEE210, whose delay slot sets `lui v0` (the HI half that
+gives 0x08CDFB40). The tool annotates each LO with the latest `lui` of the register in address order, here the
+`lui v0, 6` at 0x08AEE218 that the branch skips.
+**Fix / workaround.** At a LO that is a branch target (or right after a branch whose delay slot loads the same
+register), take the HI from the `lui` on the path that reaches it; the relocation table pairs them correctly. The
+tool itself is not fixed yet.
+
+Found: 2026-10-21 · src/game/unsorted/hot_batch_115.cpp (func_08AEE144), independent review of the draft
