@@ -403,3 +403,14 @@ def test_every_route_has_a_pad_file_and_a_budget_within_the_race():
 
 def test_fast_and_full_run_the_same_routes():
     assert [r for r, _ in gate.ROUTES["fast"]] == [r for r, _ in gate.ROUTES["full"]]
+
+
+def test_sabotage_can_run_the_full_gate(monkeypatch):
+    """A function only the full routes reach can't have its sabotage pinned on the fast gate (batch 106 parked 15):
+    `sabotage --full` runs the sabotaged build on the full gate instead."""
+    calls = []
+    monkeypatch.setattr(gate, "_sabotage_run", lambda *a, **k: calls.append((a, k)) or 0)
+    assert gate.main(["sabotage", "t1", "--file", "src/x.cpp", "--only", "0x08800000", "--full"]) == 0
+    assert calls[0][1].get("kind") == "full"
+    assert gate.main(["sabotage", "t1", "--file", "src/x.cpp", "--only", "0x08800000"]) == 0
+    assert calls[1][1].get("kind", "fast") == "fast"

@@ -581,7 +581,8 @@ def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False
     return status
 
 
-def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  # pragma: no cover - runs
+def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int],  # pragma: no cover - runs
+                    kind: str = "fast"):
     """Sabotages `targets` (with every function of `only` installed), runs the fast gate, restores the file.
     Returns the run's mismatching cases and every registration the bumps reached (template instances share a
     body), or None when the sabotaged build didn't run."""
@@ -595,7 +596,7 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  
         print("not found in", file, ":", ", ".join(missing))
     try:
         file.write_text(sabotaged)
-        ran = _run_gate("fast", tag, only)
+        ran = _run_gate(kind, tag, only)
     finally:
         file.write_text(original)
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
@@ -605,14 +606,15 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int]):  
 
 
 def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - edits, runs, restores
-                  also: Sequence[int] = ()) -> int:
-    """Sabotages `only`; `also` is installed too (their callers or callees) without being sabotaged."""
+                  also: Sequence[int] = (), kind: str = "fast") -> int:
+    """Sabotages `only`; `also` is installed too (their callers or callees) without being sabotaged. `kind` "full"
+    runs the sabotaged build on the full gate, for functions only the full routes reach."""
     installed = sorted(set(only) | set(also))
     targets = set(only)
     seen: set[tuple[int, frozenset[int]]] = set()
     found: set[int] = set()
     for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
-        result = _sabotage_round(f"{tag}s{round_number}", file, installed, targets)
+        result = _sabotage_round(f"{tag}s{round_number}", file, installed, targets, kind)
         if result is None:
             print("sabotage: the sabotaged build did not run")
             return 2
@@ -685,6 +687,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     sab.add_argument("--only", required=True)
     sab.add_argument("--also", default="", help="installed but not sabotaged (e.g. the decompiled callers of "
                                                 "functions reached only nested)")
+    sab.add_argument("--full", action="store_true", help="run the sabotaged build on the full gate (functions only the "
+                                                         "full routes reach)")
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
@@ -707,7 +711,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "coverage":
         return _coverage_run(args.tag, parse_only(args.only))
     if args.command == "sabotage":
-        return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else ())
+        return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else (),
+                             kind="full" if args.full else "fast")
     return _report(args.tag, check_floor=True)
 
 
