@@ -1064,7 +1064,7 @@ void func_0894DD9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             put(rt, frame.at(0u), 0u);
             const float limit = vcall(word(rt, world + 0x10u), 0x28u, {word(rt, world + 0x10u), index, frame.at(0u)}).f0;
             std::uint32_t gear = 0xFFFFFFFFu;
-            if (limit < f(constants + 0x6C4u)) gear = sext8(call_set(rt, ctx, 0x0895DD80u, {car, 1u}));
+            if (limit < f(constants + 0x6C4u)) gear = sext8(call_setf(rt, ctx, 0x0895DD80u, {car, 1u}, {limit}).v0);
             put8(rt, constants + 0x732u, gear);
             put8(rt, constants + 0x733u, word(rt, frame.at(0u)));
         };
