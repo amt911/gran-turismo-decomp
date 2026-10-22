@@ -497,13 +497,6 @@ void func_08C18650(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 1u;
 }
 
-// func_08BF5B28(begin, end): the destructor loop of a vector of trivially destructible 16-byte items: steps a0 by 16
-// until it reaches `end` (and once more), nothing else.
-void func_08BF5B28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    (void)rt;
-    ctx.gpr[4] = ctx.gpr[5] + 0x10u;
-}
-
 // func_08C1667C(first, last, pivot, order): libstdc++'s __unguarded_partition of the focus entries:
 // func_08A15D54(order, a, b) is "a before b"; entries are swapped through a copy at sp+0. Answers the cut.
 void func_08C1667C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -577,7 +570,6 @@ HOT125(0x08A3BE8Cu, func_08A3BE8C, Word);
 HOT125(0x08A16708u, func_08A16708, Word);
 HOT125(0x08C16F58u, func_08C16F58, Word);
 HOT125(0x08C18650u, func_08C18650, Word);
-HOT125(0x08BF5B28u, func_08BF5B28, Word);
 HOT125(0x08C1667Cu, func_08C1667C, Word);
 HOT125(0x08C1683Cu, func_08C1683C, Word);
 HOT125(0x08C16B9Cu, func_08C16B9C, Word);
