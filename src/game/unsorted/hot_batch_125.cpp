@@ -566,10 +566,10 @@ void func_08C16B9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 #define HOT125(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_125::name, gt::ReturnKind::kind)
 HOT125(0x089F3108u, func_089F3108, Word);
 HOT125(0x089A3930u, func_089A3930, Word);
-HOT125(0x08A3BE8Cu, func_08A3BE8C, Word);
+// HOT125(0x08A3BE8Cu, func_08A3BE8C, Word);  // batch 125: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT125(0x08A16708u, func_08A16708, Word);
 HOT125(0x08C16F58u, func_08C16F58, Word);
 HOT125(0x08C18650u, func_08C18650, Word);
-HOT125(0x08C1667Cu, func_08C1667C, Word);
+// HOT125(0x08C1667Cu, func_08C1667C, Word);  // batch 125: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT125(0x08C1683Cu, func_08C1683C, Word);
 HOT125(0x08C16B9Cu, func_08C16B9C, Word);
