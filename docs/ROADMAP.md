@@ -997,6 +997,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lote 119** (2026-10-22): 3 funciones de 134 a 346 instrucciones (historial de posiciones con VFPU, matriz de
+      balanceo de la cámara interior, actualización de la cámara de repetición); otras 5 escritas quedan aparcadas
+      (constructores y registros de módulos que corren una vez: el gate no compara ningún caso suyo). Una discrepancia de
+      v0: `func_08967530` solo devuelve f0, así que v0 conserva el desplazamiento calculado antes. Las rutas en tiempo
+      real se colgaban por las pruebas de otra sesión aun con `nice 19`: el slice del gate tiene ahora
+      `CPUWeight=10000` y la puerta final pasó con carga 27-36. Sabotajes 3 de 3 con `--full`.
+      **7.201 funciones, 5.618 comparadas, 0 discrepancias.**
 - [x] **Lotes 115-118** (2026-10-22): 61 funciones de 185 a 315 instrucciones (inserciones en vectores, asignadores,
       libm `expm1f`, multiplicación de dobles por software, recorridos de escena), escritas por cuatro agentes y revisadas
       contra el asm (115-116 por un revisor aparte: un `erase` sin a2; 117-118 solo por sus autores). 37 quedan aparcadas

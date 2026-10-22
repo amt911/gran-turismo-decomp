@@ -2214,6 +2214,17 @@ tool itself is not fixed yet.
 
 Found: 2026-10-21 · src/game/unsorted/hot_batch_115.cpp (func_08AEE144), independent review of the draft
 
+## Another session's niced jobs still stall real-time routes: give the gate slice a high CPU weight
+
+**Symptom.** With the shared CPU lock held (no other timing job running), full gates still lost a route to `WAIT seek
+… timed out` while another agent session ran its builds and tests at `nice 19` (load 27-36 on 24 cores).
+**Cause.** `nice` only orders threads inside one cgroup; between cgroups the kernel shares CPU by `CPUWeight`, and the
+gate's slice had the default (100), the same as the other session's.
+**Fix / workaround.** `tools.decomp_gate` sets `CPUWeight=10000` on `gt-heavy.slice` with its memory limits (runtime,
+no root). The next final gate passed every route at load 27-36.
+
+Found: 2026-10-22 · decomp/hot-batch-119
+
 ## Uneven frame pacing comes from the game thread missing vblanks while it waits for the GE thread, not from presenting
 
 **Symptom.** On the laptop the user saw irregular pacing and drops below 60 fps, while every `GT_PERF_LOG` average said
