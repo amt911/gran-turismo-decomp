@@ -1,5 +1,6 @@
-// Hot batch 121: functions of 300-400 instructions the 11-route gate reaches, written by hand from `tools.disasm`;
-// role words describe access shapes, none is a game name.
+// Hot batch 121: high-hit functions the 11-route gate reaches (div, 64-bit division, a libm wrapper, a buffered read,
+// a bit / value interpreter, the voice mixer), written by hand from `tools.disasm`; role words describe access shapes,
+// none is a game name.
 #include "decomp_registry.hpp"
 #include "gt/game/hot_common.hpp"
 #include "guest_call.hpp"
@@ -575,6 +576,6 @@ void func_08AEFFE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 HOT121(0x08B67720u, func_08B67720, Float);
 HOT121(0x08B702B4u, func_08B702B4, DoubleWord);
 HOT121(0x08B77CD8u, func_08B77CD8, DoubleWord);
-HOT121(0x08B14A18u, func_08B14A18, Word);
+// HOT121(0x08B14A18u, func_08B14A18, Word);  // batch 121: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT121(0x08B22E94u, func_08B22E94, Word);
 HOT121(0x08AEFFE0u, func_08AEFFE0, Word);
