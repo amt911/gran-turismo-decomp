@@ -287,5 +287,5 @@ void func_088467D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 #define HOT127(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_127::name, gt::ReturnKind::kind)
 HOT127(0x089EB580u, func_089EB580, Word);
-HOT127(0x08A25498u, func_08A25498, Word);
+// HOT127(0x08A25498u, func_08A25498, Word);  // batch 127: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT127(0x088467D4u, func_088467D4, Word);
