@@ -2270,3 +2270,11 @@ hides it: the caller's own cases pass while the callee's garbage happens to matc
 seen in one gate of three).
 
 Found: 2026-10-22 · decomp/hot-batch-123
+
+## A loop the compiler entered with `j` into its middle calls the producer once more than the C reads: the first token is dropped
+
+**Symptom.** Batch 124's first full gate: `func_08A0B264` (a style colour parser) left `RAM at 0x09FB15E2: original 80, decompiled 00 (3 bytes differ)` — one colour channel off.
+**Cause.** After `jal func_08987A74` (next token) the asm copies the defaults and `j`umps to the loop's *own* `jal func_08987A74` before the first test, so the first token is read and dropped and the loop starts on the second; written as "kind = next(); while (kind != -1) …" the C used the dropped token as the first value. In the same batch `func_08811684` faulted at 0x4 because `beq $s0, $v0` right after `jal func_089DDC94` was read as a test of the slot count against a constant: it compares the callee's answer with the wanted count, and the layout setup runs only when they differ.
+**Fix / workaround.** Follow the `j` target of a loop head before writing the loop, and read the operand of a `beq`/`bne` after a `jal` as the callee's `v0` unless an instruction in between redefines it.
+
+Found: 2026-10-22 · src/game/unsorted/hot_batch_124.cpp (func_08A0B264, func_08811684)
