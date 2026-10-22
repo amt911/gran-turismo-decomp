@@ -2085,6 +2085,6 @@ HOT123(0x0889BAB0u, func_0889BAB0, Word);
 HOT123(0x089FBC08u, func_089FBC08, Word);
 HOT123(0x089193B8u, func_089193B8, Word);
 HOT123(0x0894DD9Cu, func_0894DD9C, Word);
-HOT123(0x08B708C4u, func_08B708C4, DoubleWord);
+// HOT123(0x08B708C4u, func_08B708C4, DoubleWord);  // batch 123: compared 0 in the full gate (reached by the probe, but no case of it was comparable)
 HOT123(0x0894B310u, func_0894B310, Word);
 HOT123(0x0895C394u, func_0895C394, Word);
