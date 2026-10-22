@@ -134,6 +134,21 @@ void func_08A0B264(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return difference == 0u;
     };
     const auto next = [&] { return call_set(rt, ctx, 0x08987A74u, {lexer, token}); };
+    // up to four values at sp+0x44 (defaults copied from `defaults`): the first token is read and dropped, then each
+    // token until -1, 0x7D (the lexer stays open) or the fourth value goes through `read`
+    const auto read_values = [&](std::uint32_t defaults, const auto &read) {
+        const std::uint32_t values = frame.at(0x44u);
+        next();
+        for (std::uint32_t k = 0u; k < 16u; k += 4u) put(rt, values + k, word(rt, defaults + k));
+        for (std::uint32_t slot = 0u; slot != 16u; slot += 4u) {
+            const std::uint32_t kind = next();
+            if (kind == 0xFFFFFFFFu) break;
+            if (kind == 0x7Du) return values;
+            read(values + slot);
+        }
+        call_set(rt, ctx, 0x0898682Cu, {lexer, 1u});
+        return values;
+    };
     const auto store = [&](std::uint32_t colour, const float (&channel)[4]) {
         ctx.gpr[2] = 0xFFFFFFFFu;
         put(rt, colour + 0x10u, ctx.gpr[2]);
@@ -141,21 +156,9 @@ void func_08A0B264(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     };
     if (named(0x34u, 0x20u, 0x08CA924Cu, 0x10u, 0xFu, 0xEu)) {
         put(rt, token, kEmpty + 0xCu);
-        const std::uint32_t values = frame.at(0x44u);
-        std::int32_t kind = signed_of(next());
-        for (std::uint32_t k = 0u; k < 16u; k += 4u) put(rt, values + k, word(rt, 0x08C8DF1Cu + k));
-        bool closed = false;
-        for (std::uint32_t slot = 0u; kind != -1;) {
-            if (kind == 0x7D) {
-                closed = true;
-                break;
-            }
-            put(rt, values + slot, call_set(rt, ctx, 0x08B77BFCu, {word(rt, token)}));
-            slot += 4u;
-            if (slot == 16u) break;
-            kind = signed_of(next());
-        }
-        if (!closed) call_set(rt, ctx, 0x0898682Cu, {lexer, 1u});
+        const std::uint32_t values = read_values(0x08C8DF1Cu, [&](std::uint32_t slot) {
+            put(rt, slot, call_set(rt, ctx, 0x08B77BFCu, {word(rt, token)}));
+        });
         float channel[4];
         for (std::uint32_t k = 0u; k < 4u; ++k) {
             const std::int32_t value = signed_of(word(rt, values + k * 4u));
@@ -168,22 +171,10 @@ void func_08A0B264(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     if (named(0x30u, 0x1Cu, 0x08CA9254u, 0xCu, 0xBu, 0xAu)) {
         put(rt, token, kEmpty + 0xCu);
-        const std::uint32_t values = frame.at(0x44u);
-        std::int32_t kind = signed_of(next());
-        for (std::uint32_t k = 0u; k < 16u; k += 4u) put(rt, values + k, word(rt, 0x08C8DF0Cu + k));
-        bool closed = false;
-        for (std::uint32_t slot = 0u; kind != -1;) {
-            if (kind == 0x7D) {
-                closed = true;
-                break;
-            }
+        const std::uint32_t values = read_values(0x08C8DF0Cu, [&](std::uint32_t slot) {
             const std::uint32_t low = call_set(rt, ctx, 0x08B77BF4u, {word(rt, token)});
-            put_float(rt, values + slot, call_setf(rt, ctx, 0x08B71EC8u, {low, ctx.gpr[3]}, {}).f0);
-            slot += 4u;
-            if (slot == 16u) break;
-            kind = signed_of(next());
-        }
-        if (!closed) call_set(rt, ctx, 0x0898682Cu, {lexer, 1u});
+            put_float(rt, slot, call_setf(rt, ctx, 0x08B71EC8u, {low, ctx.gpr[3]}, {}).f0);
+        });
         float channel[4];
         for (std::uint32_t k = 0u; k < 4u; ++k) channel[k] = float_at(rt, values + k * 4u);
         store(word(rt, self + 0xCu), channel);
@@ -365,11 +356,12 @@ void func_089A9654(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 
 // func_08811684(self, text, time, unsigned_tail, signed_tail, sign_mode): lays out a lap time (milliseconds) as glyphs
-// of the font self+0x224 in the text object (nothing without one): func_089DDC94, with a sign column (mode 1 '+'/'-',
-// mode 2 an arrow) the 20-slot layout (func_089DE054 / func_089DE1BC, glyph widths from func_0880E024) and flag 0x4000
-// in text+0xE0. Times past 336 hours show seven dashes; otherwise the time (capped at 99:59.999) is drawn as m:ss.mmm
-// digit by digit with func_089DB078(text, slot, record) where record = font data + 16 * (code - first + 1) (+0x300 for
-// digits, first = the font's +8); a zero tens-of-minutes digit is the blank record 0x08CE29F0 and moves the sign
+// of the font self+0x224 in the text object (nothing without one): func_089DDC94, and when its slot count is not
+// the wanted one (20 with a sign column: mode 1 '+'/'-', mode 2 an arrow; else 18) it rebuilds the layout
+// (func_089DE054 / func_089DE1BC, glyph widths from func_0880E024) and sets flag 0x4000 in text+0xE0. Times
+// past 336 hours show seven dashes; otherwise the time (capped at 99:59.999) is drawn as m:ss.mmm digit by digit
+// with func_089DB078(text, slot, record) where record = font data + 16 * (code - first + 1) (+0x300 for digits,
+// first = the font's +8); a zero tens-of-minutes digit is the blank record 0x08CE29F0 and moves the sign
 // (func_089DAEA0). It ends in func_089DB5CC(text, self+0x23C for dashes, else the tail for the sign).
 void func_08811684(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
@@ -384,8 +376,7 @@ void func_08811684(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t slots = sign_mode != 0u ? 0x14u : 0x12u;
     std::int32_t rest = std::max(time, signed_of(0u - ctx.gpr[6]));  // the asm's max(t, -t): INT32_MIN stays
     const std::uint32_t font = self + 0x224u;
-    call_set(rt, ctx, 0x089DDC94u, {text});
-    if (slots != 0x12u) {
+    if (call_set(rt, ctx, 0x089DDC94u, {text}) != slots) {
         put(rt, text + 0xE8u, 6u);
         call_set(rt, ctx, 0x089DE054u, {text, slots});
         call_set(rt, ctx, 0x089DE1BCu, {text, slots});
@@ -575,6 +566,199 @@ void func_08812198(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     tail_call(ctx, 0x089DB5CCu, {text, tail});
 }
 
+
+// func_08997D38(self, cursor): one step of a scroll view (content self+0x130, mode +0x120, rate +0x124, target
+// +0x134 / +0x138) after func_08A00FA4. Mode 1, or a focused item (func_089BD4DC with bit 0x80 of its +0x138 and
+// func_089AA910): the cursor's position (func_089AA95C) is kept inside the middle of the view (func_08969B98: 3/8 margin,
+// 1/4 band) by scrolling the content (func_0896A35C / func_0896A9C4 per axis, clamped to its size), then handed back
+// (func_089AA9BC). Modes 0 and 2 ease the content toward the target by the rate (snapping inside +-0.01); mode 0 ends,
+// once still and func_08969330 agrees, by releasing self+0x154 (func_08A5B930). Mode 3, under the lock 0x08CF4598,
+// steps the flag state self+0x12C (bits 3-4: 0 start (flips bit 2, restarts the animation self+0x184, func_089D87E0 /
+// func_08A0F0CC), 1 running (progress +0x178 by +0x128 over the path length +0x170), 2 done (func_0899C97C through
+// func_0897783C)), then places the content at the point (func_08996A18) of the path list self+0x150 + 12 * bit 2
+// (36-byte segments, lengths func_08995CB0) reached by func_08996308's fraction, centred in the view.
+void func_08997D38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = ctx.gpr[4];
+    const std::uint32_t cursor = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x70u);
+    const auto f = [&](std::uint32_t address) { return float_at(rt, address); };
+    const auto sp = [&](std::uint32_t offset) { return frame.at(offset); };
+    call_set(rt, ctx, 0x08A00FA4u, {self});
+    if (cursor == 0u) return;
+    ctx.gpr[2] = word(rt, self + 0x130u);
+    if (ctx.gpr[2] == 0u) return;
+    const std::uint32_t mode = word(rt, self + 0x120u);
+    const std::uint32_t focus = call_set(rt, ctx, 0x089BD4DCu, {self});
+    bool follow = false;
+    if (focus != 0u && call_set(rt, ctx, 0x089AA910u, {cursor}) != 0u && (word(rt, focus + 0x138u) & 0x80u) != 0u) follow = true;
+    if (mode == 1u) follow = true;
+    const auto content = [&] { return word(rt, self + 0x130u); };
+    const auto set_position = [&](std::uint32_t x, std::uint32_t y) { call_set(rt, ctx, 0x0896A9C4u, {content(), x, y, 0u, 0u}); };
+    const auto ease = [&](float target, float current, float rate) {
+        const float step = psp_mul(rate, target - current);
+        if (step < std::bit_cast<float>(0xBC23D70Au) || std::bit_cast<float>(0x3C23D70Au) < step) return current + step;
+        return target;
+    };
+    if (follow) {
+        const std::uint32_t item = call_set(rt, ctx, 0x089AAC8Cu, {cursor});
+        if (item != call_set(rt, ctx, 0x089BD4DCu, {self})) return;
+        call_set(rt, ctx, 0x089AA95Cu, {cursor, sp(4u), sp(8u)});
+        call_set(rt, ctx, 0x08969B98u, {self, sp(0xCu), sp(0x10u), sp(0x14u), sp(0x2Cu)});
+        const float view_w = f(sp(0x14u));
+        const float view_h = f(sp(0x2Cu));
+        const float left = psp_mul(view_w, 0.375f) + f(sp(0xCu));
+        const float top = psp_mul(view_h, 0.375f) + f(sp(0x10u));
+        const float band_w = psp_mul(view_w, 0.25f);
+        const float band_h = psp_mul(view_h, 0.25f);
+        call_set(rt, ctx, 0x0896A35Cu, {content(), sp(0x28u), sp(0x24u), sp(0x20u), sp(0x1Cu)});
+        const float tx = f(sp(4u));
+        float dx = 0.0f;
+        if (tx < left) dx = tx - left;
+        if (left + band_w < tx) dx = tx - (left + band_w);
+        const float ty = f(sp(8u));
+        float dy = 0.0f;
+        if (ty < top) dy = ty - top;
+        if (top + band_h < ty) dy = ty - (top + band_h);
+        const auto scroll = [&](std::uint32_t position, std::uint32_t target, float delta, float view, std::uint32_t size) {
+            const float now = f(sp(position));
+            if (now < 0.0f && view - f(sp(size)) < now) put_float(rt, sp(target), f(sp(target)) - delta);
+            float moved = now - delta;
+            put_float(rt, sp(position), moved);
+            if (0.0f < moved) {
+                moved = 0.0f;
+                put_float(rt, sp(position), 0.0f);
+            }
+            const float lowest = view - f(sp(size));
+            if (moved < lowest) {
+                moved = lowest;
+                put_float(rt, sp(position), lowest);
+            }
+            put_float(rt, sp(0x18u), moved);
+        };
+        scroll(0x28u, 4u, dx, view_w, 0x20u);
+        set_position(sp(0x18u), 0u);
+        scroll(0x24u, 8u, dy, view_h, 0x1Cu);
+        set_position(0u, sp(0x18u));
+        call_setf(rt, ctx, 0x089AA9BCu, {cursor}, {f(sp(4u)), f(sp(8u))});
+        return;
+    }
+    if (mode == 0u) {
+        if (call_set(rt, ctx, 0x08997C1Cu, {self, self + 0x134u, self + 0x138u}) == 0u) return;
+        call_set(rt, ctx, 0x0896A35Cu, {content(), sp(0x18u), sp(0x1Cu), 0u, 0u});
+        const float x = ease(f(self + 0x134u), f(sp(0x18u)), f(self + 0x124u));
+        const float y = ease(f(self + 0x138u), f(sp(0x1Cu)), f(self + 0x124u));
+        if (!(x == f(sp(0x18u))) || !(y == f(sp(0x1Cu)))) {
+            put_float(rt, sp(0x24u), x);
+            put_float(rt, sp(0x20u), y);
+            set_position(sp(0x24u), sp(0x20u));
+            return;
+        }
+        if (call_set(rt, ctx, 0x08969330u, {self}) != 0u) return;
+        const std::uint32_t owned = word(rt, self + 0x154u);
+        ctx.gpr[2] = owned;
+        if (owned != 0u) call_set(rt, ctx, 0x08A5B930u, {owned});
+        put(rt, self + 0x154u, 0u);
+        return;
+    }
+    if (mode == 2u) {
+        call_set(rt, ctx, 0x0896A35Cu, {content(), sp(0x24u), sp(0x20u), 0u, 0u});
+        const float x = ease(f(self + 0x134u), f(sp(0x24u)), f(self + 0x124u));
+        put_float(rt, sp(0x24u), x);
+        const float y = ease(f(self + 0x138u), f(sp(0x20u)), f(self + 0x124u));
+        put_float(rt, sp(0x18u), f(sp(0x24u)));
+        put_float(rt, sp(0x1Cu), y);
+        put_float(rt, sp(0x20u), y);
+        set_position(sp(0x18u), sp(0x1Cu));
+        return;
+    }
+    ctx.gpr[2] = 3u;
+    if (mode != 3u) return;
+    call_set(rt, ctx, 0x08969B98u, {self, sp(0x18u), sp(0x1Cu), sp(0x20u), sp(0x24u)});
+    constexpr std::uint32_t kLock = 0x08CF4598u;
+    call_set(rt, ctx, 0x08B344E0u, {kLock});
+    std::uint32_t flags = word(rt, self + 0x12Cu);
+    const std::uint32_t state = flags & 0x18u;
+    if (state == 0u) {
+        flags = (flags & ~4u) | (((1u - ((flags >> 2) & 1u)) & 1u) << 2);
+        flags = (flags & ~0x18u) | (1u << 3);
+        put_float(rt, self + 0x178u, 0.0f);
+        put(rt, self + 0x12Cu, flags);
+        std::uint32_t animation = word(rt, self + 0x184u);
+        if (animation != 0u) {
+            const float speed = f(self + 0x128u);
+            if (0.0f < speed) {
+                const float length = f(self + 0x170u + (flags & 4u));
+                call_setf(rt, ctx, 0x089D87E0u, {animation}, {psp_mul(length / speed, f(self + 0x188u))});
+                animation = word(rt, self + 0x184u);
+            }
+            if (animation == 0u) call_set(rt, ctx, 0x08A5BB7Cu, {0x08CA43F8u});
+            call_set(rt, ctx, 0x08A0F0CCu, {animation});
+        }
+    } else if (state == 8u) {
+        const std::uint32_t animation = word(rt, self + 0x184u);
+        if (animation != 0u) {
+            if ((word(rt, animation + 0x60u) & 0x40000u) == 0u) {
+                flags = (flags & ~0x18u) | (2u << 3);
+                put_float(rt, self + 0x178u, 1.0f);
+                put(rt, self + 0x12Cu, flags);
+            }
+        } else {
+            const float length = f(self + 0x170u + (flags & 4u));
+            float progress;
+            if (0.0f < length) {
+                progress = f(self + 0x178u) + f(self + 0x128u) / length;
+                put_float(rt, self + 0x178u, progress);
+            } else {
+                progress = 1.0f;
+                put_float(rt, self + 0x178u, 1.0f);
+            }
+            if (1.0f <= progress) {
+                flags = (flags & ~0x18u) | (2u << 3);
+                put_float(rt, self + 0x178u, 1.0f);
+                put(rt, self + 0x12Cu, flags);
+            }
+        }
+        if ((flags & 0x18u) == 0x10u && word(rt, self + 0x180u) != 0u) {
+            call_set(rt, ctx, 0x08A98A70u, {sp(0u)});
+            call_set(rt, ctx, 0x0899C97Cu, {sp(0x30u), cursor, self, self + 0x180u, sp(0u)});
+            call_set(rt, ctx, kDestroy, {sp(0u)});
+            call_set(rt, ctx, 0x0897783Cu, {word(rt, cursor + 0x14u), sp(0x30u)});
+            call_set(rt, ctx, kDestroy, {sp(0x30u)});
+        }
+    }
+    call_set(rt, ctx, 0x08B3457Cu, {kLock});
+    const auto path = [&] { return self + 0x150u + ((word(rt, self + 0x12Cu) >> 2) & 1u) * 12u; };
+    ctx.gpr[2] = path();
+    if (word(rt, ctx.gpr[2] + 8u) == word(rt, ctx.gpr[2] + 0xCu)) return;
+    const float fraction = call_setf(rt, ctx, 0x08996308u, {self}, {}).f0;
+    const std::uint32_t list = path();
+    const std::uint32_t begin = word(rt, list + 8u);
+    const std::uint32_t count = ((word(rt, list + 0xCu) - begin) >> 2) * 0x38E38E39u;
+    const float total = psp_mul(fraction, f(self + 0x170u + ((word(rt, self + 0x12Cu) >> 2) & 1u) * 4u));
+    float walked = 0.0f;
+    std::uint32_t segment = begin;
+    for (std::uint32_t index = 0u; index + 1u < count + 0u && count - 1u != 0u;) {
+        segment = begin + index * 0x24u;
+        const float reach = walked + call_setf(rt, ctx, 0x08995CB0u, {segment}, {}).f0;
+        ++index;
+        if (total < reach) break;
+        walked = reach;
+        if (index == count - 1u) {
+            segment = begin + index * 0x24u;
+            break;
+        }
+    }
+    const float inside = (total - walked) / call_setf(rt, ctx, 0x08995CB0u, {segment}, {}).f0;
+    call_setf(rt, ctx, 0x08996A18u, {sp(0x30u), segment}, {inside});
+    const float x = -(f(sp(0x30u)) + psp_mul(f(sp(0x20u)), -0.5f));
+    const float y = -(f(sp(0x34u)) + psp_mul(f(sp(0x24u)), -0.5f));
+    put_float(rt, self + 0x134u, x);
+    put_float(rt, self + 0x138u, y);
+    put_float(rt, sp(0x2Cu), x);
+    put_float(rt, sp(0x28u), y);
+    set_position(sp(0x2Cu), sp(0x28u));
+}
+
 } // namespace hot_batch_124
 } // namespace gt::game
 
@@ -583,3 +767,4 @@ HOT124(0x08A0B264u, func_08A0B264, Word);
 HOT124(0x089A9654u, func_089A9654, Word);
 HOT124(0x08811684u, func_08811684, Word);
 HOT124(0x08812198u, func_08812198, Word);
+HOT124(0x08997D38u, func_08997D38, Word);
