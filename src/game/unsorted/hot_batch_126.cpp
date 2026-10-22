@@ -383,7 +383,7 @@ void func_089AC618(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const auto f = [&](std::uint32_t address) { return float_at(rt, address); };
     const auto sp = [&](std::uint32_t offset) { return frame.at(offset); };
     const auto slot = [&](std::uint32_t offset) { return word(rt, word(rt, drawer) + offset); };
-    (void)call_set(rt, ctx, slot(0x150u), {drawer});
+    (void)call_virtual_at(rt, ctx, drawer, 0x150u, {drawer});
     std::uint32_t binding = 0u;
     if (word(rt, style) != 0u) {
         (void)call_set(rt, ctx, 0x089E4BC4u, {word(rt, style), sp(0x18u), 0u});
@@ -398,7 +398,9 @@ void func_089AC618(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::int32_t segments = ctx.fpu_float_to_word(count, 1u);
     if (static_cast<float>(segments) != count || count == 1.0f) ++segments;
     const auto draw = [&](std::uint32_t quad, std::uint32_t texture) {
-        (void)call_set(rt, ctx, slot(0x10Cu), {drawer, word(rt, 0x08C8CC14u), 4u, quad, texture, 0u});
+        ctx.gpr[3] = word(rt, drawer);  // `lw v1, 0(drawer); lw t2, 0x10C(v1); jalr t2`
+        ctx.gpr[10] = slot(0x10Cu);
+        (void)call_set(rt, ctx, ctx.gpr[10], {drawer, word(rt, 0x08C8CC14u), 4u, quad, texture, 0u});
     };
     if (segments > 0) {
         bool first = true;
@@ -474,7 +476,7 @@ void func_089AC618(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         draw(sp(cap), sp(0x18u));
     }
     (void)call_set(rt, ctx, 0x089A8C24u, {drawer});
-    (void)call_set(rt, ctx, slot(0x154u), {drawer});
+    (void)call_virtual_at(rt, ctx, drawer, 0x154u, {drawer});  // v0 = the slot's address when it leaves v0 alone
 }
 
 } // namespace hot_batch_126
