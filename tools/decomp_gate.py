@@ -48,7 +48,9 @@ FULL_TAIL = {"race": 23400}
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
 SLICE = "gt-heavy.slice"
-SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0")
+SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
+                # real-time routes first when other sessions load the machine (their niced jobs still stalled routes)
+                "CPUWeight=10000")
 SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 # A real-time route peaks at ~0.5 GB (506 MB measured 2026-10-21); eleven at once passed MemoryHigh and the throttled
