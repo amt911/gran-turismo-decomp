@@ -153,6 +153,12 @@ def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
     assert wrapped[-4:] == ["cmake", "--build", "build", "-j8"]
 
 
+def test_slice_gives_the_real_time_routes_cpu_priority_over_other_sessions():
+    """Another agent session's niced builds and tests (load ~30) still stalled real-time routes (2026-10-22); a high
+    CPUWeight on the shared slice makes the kernel serve the gate's routes first, without root."""
+    assert "CPUWeight=10000" in gate.slice_limits()
+
+
 def test_slice_limits_cap_the_total_at_6g_without_swap():
     command = gate.slice_limits()
     assert command[:4] == ["systemctl", "--user", "set-property", "--runtime"]
