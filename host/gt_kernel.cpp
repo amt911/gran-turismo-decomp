@@ -58,6 +58,7 @@
 #include <deque>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <cstdlib>
 #include <cstring>
@@ -1615,9 +1616,8 @@ void lcs_callback_return(psprecomp::Runtime &runtime, psprecomp::AllegrexContext
 
     if (frame.kind == AsyncReturnKind::GeFinishThenDelay) {
         ctx = frame.resume;
-        if (frame.vblank_wait ? dispatch_vblank_interrupt(runtime, ctx, frame.delay_us)
-                              : dispatch_vblank_interrupt_if_due(runtime, ctx, frame.delay_us))
-            return;
+        // At most once per vblank, like every other wait: see the vblank wait below.
+        if (dispatch_vblank_interrupt_if_due(runtime, ctx, frame.delay_us)) return;
         (void)delay_current_thread(runtime, ctx, frame.delay_us);
         return;
     }
@@ -1697,7 +1697,7 @@ bool deliver_pending_ge_callback(psprecomp::AllegrexContext &ctx, std::uint32_t 
     return true;
 }
 
-std::uint64_t g_vblank_interrupt_due_us = 0u;
+std::optional<std::uint64_t> g_vblank_dispatched_index;  // the last vblank whose handler run is scheduled
 
 bool in_vblank_interrupt() {
     const auto found = async_return_frames.find(thread_table.current_uid);
@@ -1730,15 +1730,21 @@ bool dispatch_vblank_interrupt(psprecomp::Runtime &rt, psprecomp::AllegrexContex
     current->second.suspended_context = handler;
     current->second.delay_until_us = virtual_time_us + delay_us;
     current->second.delay_sequence = thread_table.next_delay_sequence++;
-    g_vblank_interrupt_due_us = virtual_time_us + delay_us + kVblankPeriodUs;
+    g_vblank_dispatched_index = (virtual_time_us + delay_us) / kVblankPeriodUs;
     if (!activate_next_thread(ctx, "vblank-interrupt"))
         rt.stop("PSP scheduler deadlock while waiting for the VBlank interrupt");
     return true;
 }
 
+// GT's vblank sub-interrupt handler runs once per vblank, on the first wait that wakes at it: a wait that ends at the
+// next vblank boundary not yet dispatched. A longer delay (sceKernelDelayThread of several vblanks) does not take the
+// handler with it, or every vblank before its wake-up would go without one (the frame counter stops, FINDINGS
+// 2026-10-22).
 bool dispatch_vblank_interrupt_if_due(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx,
                                       std::uint32_t delay_us) {
-    if (virtual_time_us + delay_us < g_vblank_interrupt_due_us) return false;
+    const std::uint64_t wake_index = (virtual_time_us + delay_us) / kVblankPeriodUs;
+    if (wake_index != virtual_time_us / kVblankPeriodUs + 1u) return false;
+    if (g_vblank_dispatched_index && wake_index <= *g_vblank_dispatched_index) return false;
     return dispatch_vblank_interrupt(rt, ctx, delay_us);
 }
 
@@ -2074,7 +2080,10 @@ void ge_worker_wait_idle(int site = -1) {
     if (!ge_worker.started) return;
     if (ge_worker.tasks.empty() && !ge_worker.busy) return;
     const auto begin = std::chrono::steady_clock::now();
+    const std::int64_t frame_log_begin_us = gt::frame_log() != nullptr ? gt::frame_log_now_us() : 0;
     ge_worker.cv.wait(lock, [] { return ge_worker.tasks.empty() && !ge_worker.busy; });
+    if (gt::FrameLog *log = gt::frame_log())  // GT_FRAME_LOG: the game thread's wait, by site
+        log->add_span({'W', frame_log_begin_us, gt::frame_log_now_us(), site});
     const auto waited = static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin).count());
     perf_ge_wait_us.fetch_add(waited);
@@ -2112,6 +2121,10 @@ struct PresentRequest {
     std::uint32_t display_height{};
     std::uint32_t game_width{};
     std::uint32_t game_height{};
+    // The game's flip count when the vblank was reached: the frames this present may show. The GE worker runs the
+    // present later (behind the lists queued before it), and the game may flip again meanwhile; reading the live count
+    // there let a present take a flip from after its vblank, and the next present then found nothing new (a lost frame).
+    std::uint64_t flips{};
 };
 
 void cap_frame_rate(std::uint32_t list_address) {
@@ -2166,6 +2179,24 @@ void note_screen_buffer(std::uint32_t address) {
     g_screen_stale[0] = false;
     g_screen_stale[1] = false;
 }
+
+// sceDisplaySetFrameBuf's effect: the frame buffer the next vblank latches, counted as a flip for present_frame.
+struct Flip {
+    std::uint32_t address, stride, format, sync;
+};
+void apply_flip(const Flip &flip) {
+    display_state.frame_buffer = flip.address;
+    g_display_flips.fetch_add(1u, std::memory_order_release);  // a finished frame: present_frame
+    if (gt::FrameLog *log = gt::frame_log()) {  // GT_FRAME_LOG: when the flip took effect, by the thread that made it
+        const std::int64_t now_us = gt::frame_log_now_us();
+        log->add_span({'F', now_us, now_us, thread_table.current_uid});
+    }
+    if (flip.address != 0u) note_screen_buffer(flip.address);
+    display_state.buffer_width = flip.stride;
+    display_state.pixel_format = flip.format;
+    display_state.sync_mode = flip.sync;
+}
+
 std::atomic<bool> *screen_staleness(std::uint32_t address) {
     const std::uint32_t key = address & 0x001FFFF0u;
     for (std::size_t i = 0; i < g_screen_buffers.size(); ++i)
@@ -2198,7 +2229,10 @@ void execute_ge_list_frame(psprecomp::Runtime &rt, std::uint32_t list_address, s
     }
     ge_set_frameskip(skip_screen_draws, g_screen_buffers[0], g_screen_buffers[1]);
     const auto list_begin = std::chrono::steady_clock::now();
+    const std::int64_t frame_log_list_us = gt::frame_log() != nullptr ? gt::frame_log_now_us() : 0;
     execute_ge_list_rendered(rt.memory(), list_address);
+    if (gt::FrameLog *log = gt::frame_log())  // GT_FRAME_LOG: the GE worker's time on this list
+        log->add_span({'L', frame_log_list_us, gt::frame_log_now_us(), 0});
     if (perf_log_enabled())
         perf_ge_list_us.fetch_add(static_cast<std::uint64_t>(milliseconds_since(list_begin) * 1000.0));
     ge_set_frameskip(false, 0u, 0u);
@@ -2267,7 +2301,7 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
     // With the GPU drawing, a frame is closed and presented only once the game has flipped since the last
     // one (see g_display_flips); until then the window keeps the last complete frame.
     static std::uint64_t finished_flips = 0u;
-    const std::uint64_t flips = g_display_flips.load(std::memory_order_acquire);
+    const std::uint64_t flips = request.flips;
     const bool flipped = flips != finished_flips;
     const bool gpu_active = ge_gpu_backend_active();
     const bool gpu_frame_ready = (!gpu_active || flipped) && ge_gpu_backend_finish_color_frame(request.vblank);
@@ -2918,7 +2952,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
     ge_next_list_id = 1;
     async_return_frames.clear();
     virtual_time_us = 0u;
-    g_vblank_interrupt_due_us = 0u;
+    g_vblank_dispatched_index.reset();
     lcs_install_lang(runtime);
 
     {
@@ -4334,12 +4368,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 ctx.set_gpr(2, 0x80000107u);
                 return;
             }
-            display_state.frame_buffer = address;
-            g_display_flips.fetch_add(1u, std::memory_order_release);  // a finished frame: present_frame
-            if (address != 0u) note_screen_buffer(address);
-            display_state.buffer_width = stride;
-            display_state.pixel_format = format;
-            display_state.sync_mode = sync;
+            apply_flip({address, stride, format, sync});
             set_success(ctx);
         });
     runtime.register_hle("sceDisplay", 0x4D4E10ECu,
@@ -4357,6 +4386,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         check_wall_clock_limit(rt, 0x3Fu);
         PresentRequest request{};
         request.vblank = display_vblank_index;
+        request.flips = g_display_flips.load(std::memory_order_acquire);
         request.display_buffer = display_state.frame_buffer;
         request.display_stride = display_state.buffer_width;
         request.pixel_format = display_state.pixel_format;
@@ -4387,6 +4417,10 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             }
         }
         presented_period = period;
+        if (gt::FrameLog *log = gt::frame_log()) {  // GT_FRAME_LOG: every vblank wait, tag 1 = the period's first
+            const std::int64_t now_us = gt::frame_log_now_us();
+            log->add_span({'B', now_us, now_us, thread_table.current_uid * 2 + (new_period ? 1 : 0)});
+        }
         // Wait for the vblank in real time first, then present: the window gets frames at the vblank
         // instant, not whenever the game thread got here (which varies with the frame's CPU work).
         audio_output_advance(virtual_time_us);
@@ -4446,7 +4480,10 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         const std::uint32_t vblank_delay = static_cast<std::uint32_t>(
             (virtual_time_us / kVblankPeriodUs + 1u) * kVblankPeriodUs - virtual_time_us);
         if (deliver_pending_ge_callback(ctx, vblank_delay, true)) return;
-        if (dispatch_vblank_interrupt(rt, ctx, vblank_delay)) return;
+        // GT's vblank sub-interrupt handler (0x08B5A330) runs once per vblank, as on the PSP: two threads wait for each
+        // vblank, and running it on both waits advanced its frame counter (0x08D6CE20) ~1.7x too fast, so the render
+        // thread drew ~80 frames per second for a 60 Hz screen (FINDINGS 2026-10-22).
+        if (dispatch_vblank_interrupt_if_due(rt, ctx, vblank_delay)) return;
         (void)delay_current_thread(rt, ctx, vblank_delay);
     };
     runtime.register_hle("sceDisplay", 0x36CDFADEu, wait_vblank);

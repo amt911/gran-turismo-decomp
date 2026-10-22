@@ -30,6 +30,12 @@ public:
     void add_present(const Present &row);
     void add_vblank(const Vblank &row);
     void add_display(std::int64_t wall_us, std::uint64_t present_id);  // the screen showed present `present_id`
+    struct Span {
+        char kind;  // 'W' the game thread waiting for the GE worker (tag: the wait site), 'L' the GE executing a list
+        std::int64_t begin_us, end_us;
+        int tag;
+    };
+    void add_span(const Span &row);
     void write(std::ostream &out) const;  // "# gt-frame-log v1" then the rows, presents and vblanks interleaved by time
 
 private:
@@ -37,6 +43,7 @@ private:
     std::vector<Present> presents_;
     std::vector<Vblank> vblanks_;
     std::vector<std::pair<std::int64_t, std::uint64_t>> displays_;
+    std::vector<Span> spans_;
 };
 
 // The process-wide log when GT_FRAME_LOG is set (written at exit), else nullptr.
