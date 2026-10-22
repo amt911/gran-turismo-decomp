@@ -1,0 +1,14 @@
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -2996,7 +2996,9 @@
+     VkApplicationInfo application{};
+     application.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+     application.pApplicationName = "GTNative";  // GT patch 0022
+-    application.apiVersion = VK_API_VERSION_1_0;
++    // GT patch 0054: 1.1, so vkGetPhysicalDeviceFeatures2 reports presentId/presentWait (under 1.0 they read as absent
++    // and the display lock of host/display_phase.cpp never gets the screen's times).
++    application.apiVersion = VK_API_VERSION_1_1;
+     VkInstanceCreateInfo instance_info{};
+     instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     instance_info.pApplicationInfo = &application;

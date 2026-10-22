@@ -35,6 +35,30 @@ Found: <YYYY-MM-DD> · <area: extract | split | build | match | re | runtime | e
 
 ## Findings
 
+### Images 60/s, screen 30/s: KDE's Night Color made KWin compose every frame (and the 59.94/60.05 Hz beat)
+
+**Symptom.** On the laptop (KWin 6.8, Renoir, power-saver) the menu ticker and passing cars stuttered with the game at
+a perfect 59.9 images/s (intervals p99 17.5 ms). Screen-side times (`GT_FRAME_LOG` D rows, VK_KHR_present_wait) showed
+one image every two refreshes, the other replaced unseen; in FIFO, every image held for two refreshes. Halving the GPU
+work (scale ×2) changed nothing; the performance profile helped only partly, and then the losses came in bursts every
+~9 s.
+**Cause.** Two. (1) Night Color on: KWin went from 0.2 % to 33 % CPU with the game (10 % with it off), i.e. it
+composed the fullscreen window every frame instead of scanning it out, and with power-saver clocks (GPU at 400 MHz,
+CPU 1.9 GHz) that composition missed the refresh, so KWin ran at 30 Hz. Night Color off, same power-saver: 5091 of
+5103 images exactly one refresh apart. (2) The guest's 59.94 Hz against the 60.05 Hz panel: every 9.2 s the present
+slides across KWin's deadline and for a second or two images land late or get replaced (bursts at a 9 s period in the
+per-second loss share).
+**Fix / workaround.** (1) Not ours: switch Night Color off (or play in performance) — written in
+`docs/PRUEBAS_PORTATIL.md`. (2) `gt::DisplayPhase` + `VblankPacer` lock guest vblanks to the screen's refreshes
+(present_wait times; game 0.18 % faster on a 60.05 Hz panel, audio absorbs it, patch 0055): losses 64 → 12 per 85 s.
+Present wait needs a Vulkan 1.1 instance (patch 0054): under 1.0, `vkGetPhysicalDeviceFeatures2` reports presentWait
+absent on RADV.
+**Why it isn't obvious.** Every client-side number (present cadence, GPU time, vblank lag) was clean; only the
+screen-side times showed the loss, and a compositor setting decided it. `perf` cannot attach to kwin_wayland (it has
+capabilities, so it is non-dumpable): compare its CPU in `top` with and without the game instead.
+
+Found: 2026-10-22 · runtime
+
 ### A race never finishes loading: 10.5 MB free, a 6.6 MB block refused
 
 **Symptom.** After the track's "Confirm" the GT logo stays on screen; the log shows
