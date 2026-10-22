@@ -24,6 +24,11 @@ void FrameLog::add_display(std::int64_t wall_us, std::uint64_t present_id) {
     std::lock_guard lock(mutex_);
     displays_.emplace_back(wall_us, present_id);
 }
+void FrameLog::add_span(const Span &row) {
+    std::lock_guard lock(mutex_);
+    spans_.push_back(row);
+}
+
 void FrameLog::write(std::ostream &out) const {
     std::lock_guard lock(mutex_);
     out << "# gt-frame-log v1\n";
@@ -41,6 +46,7 @@ void FrameLog::write(std::ostream &out) const {
         }
     }
     for (const auto &[wall_us, id] : displays_) out << "D " << wall_us << ' ' << id << '\n';
+    for (const Span &r : spans_) out << "S " << r.kind << ' ' << r.begin_us << ' ' << r.end_us << ' ' << r.tag << '\n';
 }
 
 std::int64_t frame_log_now_us() {

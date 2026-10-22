@@ -164,3 +164,53 @@ def test_without_display_rows_the_display_figures_are_zero():
 def test_window_keeps_display_rows_in_range():
     log = fp.parse(HEADER + present(0, 1) + display(1_000, 1) + display(5_000_000, 2))
     assert [d.present_id for d in fp.window(log, 1.0).displays] == [2]
+
+
+def span(kind, begin_us, end_us, tag=0):
+    return f"S {kind} {begin_us} {end_us} {tag}\n"
+
+
+def test_parse_reads_span_rows():
+    log = fp.parse(HEADER + span("W", 100, 400, 1) + span("L", 50, 900))
+    assert log.spans == [fp.Span("W", 100, 400, 1), fp.Span("L", 50, 900, 0)]
+
+
+def test_parse_rejects_a_span_that_ends_before_it_begins():
+    with pytest.raises(ValueError, match="line 2"):
+        fp.parse(HEADER + span("W", 400, 100))
+
+
+def test_window_keeps_spans_that_begin_in_range():
+    log = fp.parse(HEADER + span("W", 500_000, 600_000) + span("W", 2_000_000, 2_100_000))
+    assert [s.begin_us for s in fp.window(log, 1.0).spans] == [2_000_000]
+
+
+def test_miss_breakdown_splits_long_frames_from_normal_ones():
+    """A long frame (two refreshes) that the game spent waiting for the GE shows the wait; the GE's list time inside each
+    frame is clipped to the frame."""
+    text = HEADER + present(0, 1) + present(16683, 2) + present(50049, 4) + present(66732, 5)
+    text += span("W", 20000, 45000, 1)  # inside the long frame
+    text += span("L", 10000, 30000) + span("L", 52000, 60000)  # crosses into the long frame; one in the last frame
+    b = fp.miss_breakdown(fp.parse(text))
+    assert b["long_frames"] == 1 and b["normal_frames"] == 2
+    assert b["long_wait_ms"] == pytest.approx(25.0)
+    assert b["normal_wait_ms"] == pytest.approx(0.0)
+    assert b["long_ge_ms"] == pytest.approx(13.317)  # the list 10000..30000 clipped to the frame 16683..50049
+    assert b["normal_ge_ms"] == pytest.approx((6.683 + 8.0) / 2)
+
+
+def test_main_adds_the_miss_breakdown_when_the_log_has_spans(tmp_path, capsys):
+    text = HEADER + "".join(present(i * 16683, i + 1) for i in range(6)) + present(6 * 16683 + 33366, 9)
+    text += span("W", 100_500, 130_000, 1)
+    path = tmp_path / "run.framelog"
+    path.write_text(text)
+    assert fp.main([str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "missed refreshes: 1 long frames" in out and "waiting for the GE 29.5 ms" in out
+
+
+def test_main_has_no_miss_breakdown_without_spans(tmp_path, capsys):
+    path = tmp_path / "run.framelog"
+    path.write_text(HEADER + "".join(present(i * 16683, i + 1) for i in range(4)))
+    assert fp.main([str(path)]) == 0
+    assert "missed refreshes" not in capsys.readouterr().out

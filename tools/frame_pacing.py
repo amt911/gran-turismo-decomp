@@ -14,12 +14,17 @@ Log format (text, one row per line, `#` lines ignored; times are wall-clock micr
       skipped: guest vblanks jumped over to catch up, late: the pacer's host_late flag (frameskip trigger)
   D wall_us present_id   one per present the screen showed (VK_KHR_present_wait completed; Vulkan with a window)
       the screen-side truth: presents can leave evenly and still reach the screen unevenly
+  S kind begin_us end_us tag   one per timed span: W = the game thread waiting for the GE worker (tag: 0 queue,
+      1 sceGeDrawSync, 2 sceGeListSync), L = the GE worker executing one display list (tag 0), F = the game flipped
+      (sceDisplaySetFrameBuf; begin = end, tag = the guest thread's uid), B = a guest thread reached a vblank wait (tag = 2 * thread uid + 1 for the period's
+      first wait, the one that presents, + 0 otherwise)
 No game data is in a log: only timestamps and counters.
 """
 
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import sys
 from dataclasses import asdict, dataclass, field
@@ -58,11 +63,20 @@ class Display:
     present_id: int
 
 
+@dataclass(frozen=True)
+class Span:
+    kind: str
+    begin_us: int
+    end_us: int
+    tag: int
+
+
 @dataclass
 class Log:
     presents: list[Present] = field(default_factory=list)
     vblanks: list[Vblank] = field(default_factory=list)
     displays: list[Display] = field(default_factory=list)
+    spans: list[Span] = field(default_factory=list)
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -95,6 +109,11 @@ def parse(text: str) -> Log:
                 log.vblanks.append(Vblank(w, v, g, lag, sleep, skipped, bool(late)))
             elif fields[0] == "D" and len(fields) == 3:
                 log.displays.append(Display(int(fields[1]), int(fields[2])))
+            elif fields[0] == "S" and len(fields) == 5:
+                begin, end, tag = (int(x) for x in fields[2:])
+                if end < begin:
+                    raise ValueError("span ends before it begins")
+                log.spans.append(Span(fields[1], begin, end, tag))
             else:
                 raise ValueError("unknown or short row")
         except ValueError as error:
@@ -111,13 +130,37 @@ def window(log: Log, start_s: float = 0.0, end_s: float | None = None) -> Log:
         return wall_us >= lo and (hi is None or wall_us < hi)
 
     return Log([p for p in log.presents if keep(p.wall_us)], [v for v in log.vblanks if keep(v.wall_us)],
-               [d for d in log.displays if keep(d.wall_us)])
+               [d for d in log.displays if keep(d.wall_us)], [s for s in log.spans if keep(s.begin_us)])
 
 
 def new_frame_intervals_us(log: Log) -> list[int]:
     """Wall time between consecutive presents that showed a new picture."""
     walls = [p.wall_us for p in log.presents if p.new]
     return [b - a for a, b in zip(walls, walls[1:])]
+
+
+def miss_breakdown(log: Log, long_ms: float = 25.0) -> dict:
+    """Per new-frame interval, the game thread's time waiting for the GE (W spans) and the GE's list time (L spans),
+    clipped to the interval: medians for the long intervals (a refresh missed) and the normal ones."""
+    walls = [p.wall_us for p in log.presents if p.new]
+    groups: dict[str, dict[str, list[float]]] = {"long": {"W": [], "L": []}, "normal": {"W": [], "L": []}}
+    by_kind = {kind: sorted((s for s in log.spans if s.kind == kind), key=lambda s: s.begin_us) for kind in ("W", "L")}
+    begins = {kind: [s.begin_us for s in spans] for kind, spans in by_kind.items()}
+    longest = {kind: max((s.end_us - s.begin_us for s in spans), default=0) for kind, spans in by_kind.items()}
+    for a, b in zip(walls, walls[1:]):
+        group = groups["long" if (b - a) / 1000.0 > long_ms else "normal"]
+        for kind, spans in by_kind.items():
+            first = bisect.bisect_left(begins[kind], a - longest[kind])
+            last = bisect.bisect_left(begins[kind], b)
+            inside = sum(max(0, min(s.end_us, b) - max(s.begin_us, a)) for s in spans[first:last])
+            group[kind].append(inside / 1000.0)
+
+    def median(values: list[float]) -> float:
+        return percentile(values, 50) if values else 0.0
+
+    return {"long_frames": len(groups["long"]["W"]), "normal_frames": len(groups["normal"]["W"]),
+            "long_wait_ms": median(groups["long"]["W"]), "normal_wait_ms": median(groups["normal"]["W"]),
+            "long_ge_ms": median(groups["long"]["L"]), "normal_ge_ms": median(groups["normal"]["L"])}
 
 
 def histogram_ms(intervals_ms: list[float]) -> list[tuple[str, int]]:
@@ -224,6 +267,12 @@ def report(s: Summary, name: str = "run") -> str:
     ] if s.displays > 1 else []))
 
 
+def miss_report(b: dict) -> str:
+    return (f"missed refreshes: {b['long_frames']} long frames (median waiting for the GE {b['long_wait_ms']:.1f} ms, "
+            f"GE lists {b['long_ge_ms']:.1f} ms) vs {b['normal_frames']} normal ({b['normal_wait_ms']:.1f} ms, "
+            f"{b['normal_ge_ms']:.1f} ms)")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Per-frame pacing summary of GT_FRAME_LOG files")
     parser.add_argument("logs", nargs="+", type=Path)
@@ -234,15 +283,17 @@ def main(argv: list[str] | None = None) -> int:
     summaries = []
     for path in args.logs:
         try:
-            summary = summarize(window(parse(path.read_text()), args.skip_s, args.end_s))
+            log = window(parse(path.read_text()), args.skip_s, args.end_s)
+            summary = summarize(log)
         except (OSError, ValueError) as error:
             print(f"{path}: {error}", file=sys.stderr)
             return 2
-        summaries.append((path, summary))
+        summaries.append((path, summary, miss_breakdown(log) if log.spans else None))
     if args.json:
-        print(json.dumps([{"file": str(p), **asdict(s)} for p, s in summaries], indent=2))
+        print(json.dumps([{"file": str(p), **asdict(s), **({"miss_breakdown": b} if b else {})} for p, s, b in summaries],
+                         indent=2))
     else:
-        print("\n\n".join(report(s, p.name) for p, s in summaries))
+        print("\n\n".join(report(s, p.name) + (f"\n{miss_report(b)}" if b else "") for p, s, b in summaries))
     return 0
 
 

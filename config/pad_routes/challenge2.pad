@@ -1,3 +1,5 @@
+# Times after a 3D page (the course, a car view) were scaled by 1.2 on 2026-10-22: those pages wait for vblank 120 times
+# per second now that GT's vblank handler runs once per vblank (FINDINGS), not ~100.
 # Route J — Driving Challenges A-6 "Braking and steering simultaneously": the block map, Block A, the list (RIGHT x5 to A-6), Start, then the
 # course is driven (accelerator held, steering pulsed, a brake pulse) until the result screen, and Retry (200 s). A different car and course
 # from route G's A-1, and a cornering test (steering, grip and the lap-time rules). Page offsets: challenge.pad.
@@ -7,4 +9,4 @@ WAIT:seek=0x1ce62e80,500:CROSS,
 WAIT:seek=0x1ce7d400,500:CROSS,
 WAIT:seek=0x1cdf8540,500:RIGHT,700:RIGHT,900:RIGHT,1100:RIGHT,1300:RIGHT,1700:CROSS,
 WAIT:seek=0x1cc98cc0,500:CROSS,
-WAIT:seek=0x1d19db00,900:CROSS:1500,1000:LEFT:60,1300:RIGHT:60,1600:LEFT:60,1900:SQUARE:200,2500:CROSS:1500,2700:RIGHT:60,3000:LEFT:60,3300:RIGHT:60
+WAIT:seek=0x1d19db00,1080:CROSS:1800,1200:LEFT:72,1560:RIGHT:72,1920:LEFT:72,2280:SQUARE:240,3000:CROSS:1800,3240:RIGHT:72,3600:LEFT:72,3960:RIGHT:72

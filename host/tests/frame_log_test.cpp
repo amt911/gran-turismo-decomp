@@ -37,6 +37,14 @@ int main() {
     shown.write(screen);
     check(screen.str() == "# gt-frame-log v1\nP 1000 2 33366 1 1 0 450\nD 21000 7\n",
           "display rows follow as D wall_us present_id");
+    gt::FrameLog spans;
+    spans.add_present({1000, 2, 33366, true, true, false, 450});
+    spans.add_span({'W', 1200, 4800, 1});
+    spans.add_span({'L', 900, 3000, 0});
+    std::ostringstream timed;
+    spans.write(timed);
+    check(timed.str() == "# gt-frame-log v1\nP 1000 2 33366 1 1 0 450\nS W 1200 4800 1\nS L 900 3000 0\n",
+          "span rows follow as S kind begin_us end_us tag");
     check(gt::frame_log() == nullptr, "no GT_FRAME_LOG: the process log is off");
     return failures == 0 ? 0 : 1;
 }
