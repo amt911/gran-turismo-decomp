@@ -149,7 +149,7 @@ systemd-run --user --scope --quiet --slice=gt-heavy.slice -- <command>
 an incremental clang build at `-j4` peaks at 0.86 GB, a fresh **gcc** build at `-j8` at 3.76 GB
 (~470 MB/job — **configure builds with clang**, `-DCMAKE_CXX_COMPILER=clang++`, as `docs/COMPILAR.md`
 does), `tools.recomp` at **3.8 GB** (so it takes both slots: `HeavySlot(exclusive=True)`), a gate route
-~0.5 GB (506 MB, 2026-10-21; the full gate keeps at most 8 alive, `MAX_PARALLEL_ROUTES`). Two gates need two worktrees (the build dir is exclusive). The slice holds (a 7 GB
+~0.5 GB (506 MB, 2026-10-21; the full gate keeps at most 6 alive, `MAX_PARALLEL_ROUTES`: each also keeps ~3 cores busy). Two gates need two worktrees (the build dir is exclusive). The slice holds (a 7 GB
 allocation stalled at 5.4 GB) — but **at `MemoryHigh` it throttles, and a throttled gate's real-time
 routes time out**: a gcc build + recomp + a gate together made every route of a full gate exit 124. A
 route that times out or prints no report is a gate failure (`route_problem`), never a pass.

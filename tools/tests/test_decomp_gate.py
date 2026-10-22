@@ -134,6 +134,12 @@ def test_full_routes_start_longest_first_and_at_most_max_parallel_at_once():
     assert gate.MAX_PARALLEL_ROUTES * 0.55 < 5.0  # route budget x routes stays under MemoryHigh
 
 
+def test_route_cap_leaves_cpu_headroom():
+    """A real-time route keeps ~3 cores busy (game, GE worker and audio threads: 2.6-3.1 measured in `top`, 2026-10-22);
+    eight of them filled all 24 cores and finals lost a route to a missed seek (FINDINGS)."""
+    assert gate.MAX_PARALLEL_ROUTES * gate.ROUTE_CORES <= 0.8 * gate.MACHINE_CORES
+
+
 def test_route_shell_never_runs_more_than_the_cap_at_once(tmp_path):
     """Runs the generated line with a stand-in binary that records how many copies are alive."""
     fake = tmp_path / "fake"

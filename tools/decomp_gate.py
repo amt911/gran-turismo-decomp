@@ -20,6 +20,7 @@ regression check over everything; script-driven functions are often reached only
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import shutil
 import re
@@ -55,7 +56,10 @@ SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 # A real-time route peaks at ~0.5 GB (506 MB measured 2026-10-21); eleven at once passed MemoryHigh and the throttled
 # routes stalled (options timed out three full gates running). The full gate keeps this many alive, longest first.
-MAX_PARALLEL_ROUTES = 8
+MAX_PARALLEL_ROUTES = 6
+# A route keeps ~3 cores busy (game, GE worker, audio); the cap leaves a fifth of the machine free so routes keep pace.
+ROUTE_CORES = 3
+MACHINE_CORES = os.cpu_count() or 1
 BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(

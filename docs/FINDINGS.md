@@ -2229,6 +2229,10 @@ With that run frozen while the lock is held (the other session now `systemctl --
 to the awaited offset, so the game took another path, not merely a slower one. The rerun passed. Every loss is on a
 different route, so it looks like route flakiness that load makes likelier; untested yet whether `--decomp off` loses
 routes too. Rerun the final gate; a route problem is never counted as a pass.
+**Then measured** (batch 123, other session frozen): each route keeps 2.6-3.1 cores busy in `top` (game, GE worker,
+audio threads), so the gate's own 8 routes filled the 24 cores; `options` lost three finals in a row, twice at the same
+menu step (the game alive, waiting where a press should have taken it). `MAX_PARALLEL_ROUTES` is now 6 (18 cores, a test
+keeps it under 80 % of the machine); the full gate grows from ~600 s to ~705 s.
 
 Found: 2026-10-22 · decomp/hot-batch-119; 2026-10-22 · decomp/hot-batch-122
 
@@ -2250,3 +2254,19 @@ throughput and how long the game thread blocks in `sceGeDrawSync`. `VK_KHR_prese
 screen-side times (`D` rows) where the driver offers it; it reported off on the desktop's NVIDIA/Wayland surface.
 
 Found: 2026-10-22 · branch perf/frame-pacing-measure (GT_FRAME_LOG, tools/frame_pacing.py)
+
+## A callee reads argument registers the asm set long before the call
+
+**Symptom.** Batch 123: `func_0894DD9C` wrote a gear request one higher than the original (constants+0x732) on two
+routes; `func_089193B8` intermittently faulted at guest address 0x23 in the decompiled run only.
+**Cause.** Both called a function with fewer arguments than it reads. `func_0895DD80` compares the speed against f12,
+which the original sets (`mov.s $f12, $f0`, the controller's limit) a few instructions before the `jal`;
+`func_08918C84` starts with `lw $a2, 0x20($a1)`, and the original's a1 is the timer it loaded for an earlier test,
+not set next to the call at all. `call_set` / `call_setf` leave unlisted registers as the previous callee left them,
+so the decompiled call saw garbage there.
+**Fix / workaround.** Before writing a call, read the callee's first instructions for every a0-a3 / t0-t3 / f12-f15
+it uses, and pass each one with the value the asm holds at the `jal`, wherever that value was loaded. The shape that
+hides it: the caller's own cases pass while the callee's garbage happens to match (here 2 of 18 cases, and a fault
+seen in one gate of three).
+
+Found: 2026-10-22 · decomp/hot-batch-123
