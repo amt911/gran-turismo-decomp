@@ -2222,8 +2222,15 @@ Found: 2026-10-21 · src/game/unsorted/hot_batch_115.cpp (func_08AEE144), indepe
 gate's slice had the default (100), the same as the other session's.
 **Fix / workaround.** `tools.decomp_gate` sets `CPUWeight=10000` on `gt-heavy.slice` with its memory limits (runtime,
 no root). The next final gate passed every route at load 27-36.
+**Not the whole story** (batches 121-122). The weight did not stop it under a mutation-testing run (4 workers, ~11 of 24
+cores, `nice 19`): two finals in a row lost a route (`buy` seek wait, then `manual` / `circuit` past `--max-seconds`).
+With that run frozen while the lock is held (the other session now `systemctl --user freeze`s its cgroup whenever
+`cpu-heavy.owner` names a live holder), one more final still lost `challenge`: 9 seeks after the last satisfied wait, none
+to the awaited offset, so the game took another path, not merely a slower one. The rerun passed. Every loss is on a
+different route, so it looks like route flakiness that load makes likelier; untested yet whether `--decomp off` loses
+routes too. Rerun the final gate; a route problem is never counted as a pass.
 
-Found: 2026-10-22 · decomp/hot-batch-119
+Found: 2026-10-22 · decomp/hot-batch-119; 2026-10-22 · decomp/hot-batch-122
 
 ## Uneven frame pacing comes from the game thread missing vblanks while it waits for the GE thread, not from presenting
 
