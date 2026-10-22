@@ -619,7 +619,9 @@ void func_08945664(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         manual = opponent == 0u && byte_u(rt, constants + 0x69Du) == 4u;
     }
     const auto finish = [&] { tail_call(ctx, 0x08945654u, {constants}); };
-    if (byte_u(rt, constants + 0x731u) == 0u && !manual) return finish();
+    // func_08945654 keeps v0: each exit leaves the asm's v0 in place first
+    ctx.gpr[2] = byte_u(rt, constants + 0x731u);
+    if (ctx.gpr[2] == 0u && !manual) return finish();
     if (call_set(rt, ctx, 0x089557BCu, {car}) != 0u) return finish();
     const bool limit_slip = lead == 0u && !manual && !assisted;
     ctx.gpr[2] = lead;
@@ -736,7 +738,14 @@ void func_08945664(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (capped < factor) factor = capped;
     }
     if (f(constants + 0x6C4u) < std::bit_cast<float>(0x41DE38E4u)) {
-        if (factor < 1.0f && byte_u(rt, constants + 0x731u) != 0u) put8(rt, constants + 0x731u, 2u);
+        ctx.gpr[2] = v0;
+        if (factor < 1.0f) {
+            ctx.gpr[2] = byte_u(rt, constants + 0x731u);
+            if (ctx.gpr[2] != 0u) {
+                ctx.gpr[2] = 2u;
+                put8(rt, constants + 0x731u, 2u);
+            }
+        }
         put_float(rt, constants + 0x534u, psp_mul(factor, f(constants + 0x534u)));
         return finish();
     }
