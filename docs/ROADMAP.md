@@ -85,7 +85,9 @@ Dividida en **2a** (headless, comparada con PPSSPP) y **2b** (gráficos, audio, 
       `sceUtilitySavedata` no ponía el campo `bind` al cargar (GT exige `bind & 3 == 1`); ahora 1021,
       y el `sfoParam` se guarda y se devuelve como en un PARAM.SFO. `gt_play` conserva las partidas en
       `build/savedata/`; `gt_native` sigue empezando sin partida (reproducible).
-- [ ] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo.
+- [x] El vídeo va a ~16 fps de juego (PPSSPP: 30): mirar el ritmo. **Hecho (2026-10-22):** el manejador de vblank de GT
+      se ejecutaba en cada espera de vblank (dos hilos esperan cada una); ahora una vez por vblank y el vídeo va a ~30 fps
+      (FINDINGS).
 - [ ] `sceDisplaySetMode` espera un vblank en PPSSPP (divergencia nº 236 de la traza).
 
 - [ ] Perfil GT en PSPRecomp sobre el ELF descifrado; el C++ generado va a `recomp/` (ignorado).

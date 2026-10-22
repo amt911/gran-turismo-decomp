@@ -2278,3 +2278,11 @@ Found: 2026-10-22 · decomp/hot-batch-123
 **Fix / workaround.** Follow the `j` target of a loop head before writing the loop, and read the operand of a `beq`/`bne` after a `jal` as the callee's `v0` unless an instruction in between redefines it.
 
 Found: 2026-10-22 · src/game/unsorted/hot_batch_124.cpp (func_08A0B264, func_08811684)
+
+## GT drew ~80 frames per second for a 60 Hz screen: the vblank handler ran on every vblank wait
+
+**Symptom.** On the laptop, Time Trial on the start straight lost ~5 images per second (55 new images/s, 684 repeats in 140 s, 611 intervals of 30–36 ms), the scrolling text under the menus moved in jerks, the intro video ran at ~16 fps (PPSSPP: 30), and the GE thread had ~25 % more work than needed. The GE was not the cause: in the frames that missed a refresh the game waited 0.7 ms for it and its lists took 1.8 ms (`GT_FRAME_LOG` S rows, `tools.frame_pacing` "missed refreshes").
+**Cause.** GT's render thread (uid 6) paces itself by a frame counter (0x08D6CE20) that only its vblank sub-interrupt handler (0x08B5A330) advances. Two threads wait for each vblank, and `wait_vblank` ran the handler on every wait: ~100 times per second. The render thread flipped ~80 times per second (one or two flips per vblank period), so the 60 presents per second sampled them unevenly. PPSSPP's trace has 10,469 flips for 21,169 vblank waits: one flip per vblank.
+**Fix / workaround.** The handler runs once per vblank, on the first wait that wakes at a boundary not yet dispatched (`dispatch_vblank_interrupt_if_due`). A first attempt also let a long `sceKernelDelayThread` book the handler for its own wake-up; every vblank before it then went without one and the game froze — a wait now takes the handler only when it ends at the next boundary. Capping flips at one per vblank in `sceDisplaySetFrameBuf` instead (holding the render thread) was tried and dropped: it treated the symptom and made the menus' loading ~1.6x slower. Result on the laptop in power-saver, Time Trial: 59.9 new images/s, 4 repeats, 0.9 % of intervals over 17.5 ms, p99 17.5 ms; the intro video decodes at ~30 fps.
+
+Found: 2026-10-22 · host/gt_kernel.cpp (wait_vblank, dispatch_vblank_interrupt_if_due)
