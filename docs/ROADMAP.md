@@ -997,6 +997,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lote 120** (2026-10-22): 6 funciones de 320 a 380 instrucciones escogidas por llamadas en las rutas (matriz
+      de balanceo de la cámara, tabla ordenada de un script, partículas, rig de cámara con tres interpolaciones, reparto de
+      tracción de las cuatro ruedas, banderas de un registro). Una discrepancia de v0 (los setters de float conservan el
+      v0 del original); 0 aparcadas. Sabotajes 6 de 6. Abierto: `func_0899CB44` (lote 95) difiere 3 bytes en
+      `0x09C7AC97` en algunas puertas (3 de 9), sin funciones decompiladas anidadas en el caso.
+      **7.207 funciones, 5.617 comparadas, 0 discrepancias (puerta final).**
 - [x] **Lote 119** (2026-10-22): 3 funciones de 134 a 346 instrucciones (historial de posiciones con VFPU, matriz de
       balanceo de la cámara interior, actualización de la cámara de repetición); otras 5 escritas quedan aparcadas
       (constructores y registros de módulos que corren una vez: el gate no compara ningún caso suyo). Una discrepancia de
