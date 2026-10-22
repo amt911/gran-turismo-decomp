@@ -585,8 +585,10 @@ void func_08871A7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     call_set(rt, ctx, 0x0890AEF8u, {camera, scratch});
     call_set(rt, ctx, 0x0887C9F8u, {owner, scratch});
     rig = word(rt, rig_slot);
+    ctx.gpr[2] = rig;  // the float-only setters keep v0 = the rig the original loads before each
     call_setf(rt, ctx, 0x0887C998u, {target}, {float_at(rt, rig + 0x28u) + float_at(rt, rig + 0x40u)});
     rig = word(rt, rig_slot);
+    ctx.gpr[2] = rig;
     call_setf(rt, ctx, 0x0887C9C8u, {target}, {float_at(rt, rig + 0x4Cu) + float_at(rt, rig + 0x64u)});
 }
 
