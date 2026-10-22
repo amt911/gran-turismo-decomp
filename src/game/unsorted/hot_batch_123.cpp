@@ -606,7 +606,8 @@ void func_0889BAB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (lit) call(0x08B52DDCu, {}, {1.0f, 1.0f, 1.0f, 1.0f});
     call(0x08AF7DE8u, {0u});
     call(0x08B54FB8u, {0x71u});
-    if (word(rt, frame.at(0x130u)) != 0u) vcall(light, 0xCu, {light, scene});
+    ctx.gpr[2] = word(rt, frame.at(0x130u));
+    if (ctx.gpr[2] != 0u) vcall(light, 0xCu, {light, scene});
 }
 
 
@@ -1005,11 +1006,9 @@ void func_089193B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     call(0x08B4A774u, {self + 0x1E4u, view, sp(0x14u)});
     const std::uint32_t flags = word(rt, 0x08C8A87Cu);
     put(rt, self + 0x410u, flags);
-    ctx.gpr[2] = word(rt, shot) & 0x1000u;
-    if (ctx.gpr[2] != 0u) {
-        ctx.gpr[2] = flags | 0x80u;
-        put(rt, self + 0x410u, ctx.gpr[2]);
-    }
+    // the delay slot of the last branch: v0 = flags | 0x80 on both paths
+    ctx.gpr[2] = flags | 0x80u;
+    if ((word(rt, shot) & 0x1000u) != 0u) put(rt, self + 0x410u, ctx.gpr[2]);
 }
 
 
