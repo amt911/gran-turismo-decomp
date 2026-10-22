@@ -2,6 +2,7 @@
 // checkout) in the order its LCSNative main uses, and the few parts of its host interface GT must not
 // take from the LCS implementation. Design: docs/superpowers/specs/2026-10-10-playable-window-design.md.
 
+#include "display_phase.hpp"
 #include "frame_log.hpp"
 #include "display_window.hpp"
 #include "frontend.hpp"
@@ -34,10 +35,12 @@ void gt::frontend_init(const std::filesystem::path &executable_directory) {
     for (const std::string &warning : lcs::lcs_render_configuration().warnings)  // lcs-recomp keeps them silent
         std::cerr << "[config] " << warning << "\n";
     lcs::display_window_init();
-    if (gt::frame_log() != nullptr)  // GT_FRAME_LOG: the screen-side times too (VK_KHR_present_wait, when the device has it)
-        lcs::ge_gpu_backend_set_display_hook([](std::uint64_t present_id) {
-            gt::frame_log()->add_display(gt::frame_log_now_us(), present_id);
-        });
+    // The screen-side times (VK_KHR_present_wait, when the device has it): the vblank pacer locks to them
+    // (host/display_phase.hpp), and GT_FRAME_LOG records them.
+    lcs::ge_gpu_backend_set_display_hook([](std::uint64_t present_id) {
+        gt::display_phase().on_shown(std::chrono::steady_clock::now());
+        if (gt::frame_log() != nullptr) gt::frame_log()->add_display(gt::frame_log_now_us(), present_id);
+    });
 }
 
 void gt::frontend_attach() {

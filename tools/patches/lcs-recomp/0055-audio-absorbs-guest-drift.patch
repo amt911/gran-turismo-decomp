@@ -1,0 +1,52 @@
+diff --git a/lcs/host/lcs_audio_mixer.hpp b/lcs/host/lcs_audio_mixer.hpp
+index 2ddd3fa..1dcea26 100644
+--- a/lcs/host/lcs_audio_mixer.hpp
++++ b/lcs/host/lcs_audio_mixer.hpp
+@@ -161,17 +161,33 @@ private:
+     bool queue_one_block(Device &device) {
+         std::int16_t *samples = nullptr;
+         if (!device.begin_block(samples) || samples == nullptr) return false;
++        // GT patch 0055: guest time can run slightly faster than the device (gt_play locks the guest's 59.94 Hz to a
++        // 60.05 Hz screen, +0.18 %). While the queue is above its target a block plays one extra frame (+0.195 %,
++        // linear interpolation, ~3 cents) instead of the queue growing until a whole block is thrown away (a click).
++        const bool catch_up = playback_started_ && device.outstanding_blocks() > prebuffer_blocks_;
++        const std::size_t consumed = kBlockFrames + (catch_up ? 1u : 0u);
+         for (std::size_t frame = 0u; frame < kBlockFrames; ++frame) {
++            const std::size_t position = frame * consumed;
++            const std::size_t fraction = position % kBlockFrames;
+             const std::size_t slot =
+-                static_cast<std::size_t>((output_frame_ + frame) % kRingFrames) * kOutputChannels;
++                static_cast<std::size_t>((output_frame_ + position / kBlockFrames) % kRingFrames) * kOutputChannels;
++            const std::size_t next =
++                static_cast<std::size_t>((output_frame_ + position / kBlockFrames + 1u) % kRingFrames) * kOutputChannels;
+             for (std::size_t channel = 0u; channel < kOutputChannels; ++channel) {
+-                samples[frame * kOutputChannels + channel] = static_cast<std::int16_t>(
+-                    std::clamp(ring_[slot + channel], -32768, 32767));
+-                ring_[slot + channel] = 0;
++                const std::int64_t mixed = fraction == 0u ? ring_[slot + channel]
++                    : (static_cast<std::int64_t>(ring_[slot + channel]) * static_cast<std::int64_t>(kBlockFrames - fraction) +
++                       static_cast<std::int64_t>(ring_[next + channel]) * static_cast<std::int64_t>(fraction)) /
++                          static_cast<std::int64_t>(kBlockFrames);
++                samples[frame * kOutputChannels + channel] =
++                    static_cast<std::int16_t>(std::clamp<std::int64_t>(mixed, -32768, 32767));
+             }
+         }
++        for (std::size_t frame = 0u; frame < consumed; ++frame) {
++            const std::size_t slot = static_cast<std::size_t>((output_frame_ + frame) % kRingFrames) * kOutputChannels;
++            for (std::size_t channel = 0u; channel < kOutputChannels; ++channel) ring_[slot + channel] = 0;
++        }
+         if (!device.commit_block()) return false;
+-        output_frame_ += kBlockFrames;
++        output_frame_ += consumed;
+         const std::size_t target_blocks = recovering_from_underrun_
+             ? recovery_prebuffer_blocks_ : prebuffer_blocks_;
+         if (!playback_started_ && device.outstanding_blocks() >= target_blocks) {
+@@ -197,7 +213,7 @@ private:
+         const std::uint64_t sealed_frame = guest_frame > safety_frames
+             ? guest_frame - safety_frames : 0u;
+         const std::size_t latency_limit_blocks = prebuffer_blocks_ + 2u;
+-        while (sealed_frame >= output_frame_ + kBlockFrames) {
++        while (sealed_frame >= output_frame_ + kBlockFrames + 1u) {  // + 1: a catching-up block reads one more
+             if (playback_started_ && outstanding >= latency_limit_blocks) {
+                 for (std::size_t frame = 0u; frame < kBlockFrames; ++frame) {
+                     const std::size_t slot =

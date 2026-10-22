@@ -113,6 +113,7 @@ add_library(gt_host_objs OBJECT
     host/gt_ge_exec.cpp
     host/ge_state_revision.cpp
     host/vblank_pacer.cpp
+    host/display_phase.cpp
     host/frame_log.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
@@ -205,9 +206,15 @@ add_test(NAME diff_compare COMMAND host_tests)
 add_executable(ge_state_revision_tests host/tests/ge_state_revision_test.cpp host/ge_state_revision.cpp)
 target_include_directories(ge_state_revision_tests PRIVATE host)
 add_test(NAME ge_state_revision COMMAND ge_state_revision_tests)
-add_executable(vblank_pacer_tests host/tests/vblank_pacer_test.cpp host/vblank_pacer.cpp)
+add_executable(vblank_pacer_tests host/tests/vblank_pacer_test.cpp host/vblank_pacer.cpp host/display_phase.cpp)
 target_include_directories(vblank_pacer_tests PRIVATE host)
 add_test(NAME vblank_pacer COMMAND vblank_pacer_tests)
+add_executable(display_phase_tests host/tests/display_phase_test.cpp host/vblank_pacer.cpp host/display_phase.cpp)
+target_include_directories(display_phase_tests PRIVATE host)
+add_test(NAME display_phase COMMAND display_phase_tests)
+add_executable(audio_mixer_tests host/tests/audio_mixer_test.cpp)
+target_include_directories(audio_mixer_tests PRIVATE "${GT_LCS_HOST_DIR}")
+add_test(NAME audio_mixer COMMAND audio_mixer_tests)
 add_executable(frame_log_tests host/tests/frame_log_test.cpp host/frame_log.cpp)
 target_include_directories(frame_log_tests PRIVATE host)
 add_test(NAME frame_log COMMAND frame_log_tests)

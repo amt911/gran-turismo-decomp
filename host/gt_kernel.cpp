@@ -1994,9 +1994,19 @@ std::uint32_t throttle_vblank_to_real_time() {
     static const bool uncapped = std::getenv("LCS_UNCAPPED") != nullptr;
     g_vblank_lag_valid = false;
     if (uncapped) return 0u;
-    static gt::VblankPacer pacer(kVblankPeriodUs);
+    // Locked to the screen's refreshes when gt_play's presenter reports them (host/display_phase.hpp); GT_DISPLAY_LOCK=0
+    // paces by the wall clock alone, GT_DISPLAY_OFFSET_US moves the vblanks within the refresh (default 1 ms after it).
+    static const bool display_lock = [] {
+        const char *value = std::getenv("GT_DISPLAY_LOCK");
+        return value == nullptr || std::string_view(value) != "0";
+    }();
+    static gt::VblankPacer pacer(kVblankPeriodUs, [] {
+        const char *value = std::getenv("GT_DISPLAY_OFFSET_US");
+        return value != nullptr ? std::strtoll(value, nullptr, 10) : 1000;
+    }());
     const std::uint64_t next_vblank_us = (virtual_time_us / kVblankPeriodUs + 1u) * kVblankPeriodUs;
-    const gt::VblankPacer::Wait wait = pacer.on_wait(std::chrono::steady_clock::now(), next_vblank_us);
+    const gt::VblankPacer::Wait wait = pacer.on_wait(std::chrono::steady_clock::now(), next_vblank_us,
+                                                     display_lock ? &gt::display_phase() : nullptr);
     g_host_late = pacer.host_late();
     if (wait.lag) {
         g_vblank_lag_valid = true;

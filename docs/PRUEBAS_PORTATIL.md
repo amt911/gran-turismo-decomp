@@ -58,3 +58,18 @@ tools/pgo.sh          # compila, juega sola 220 s sin ventana para medir, y reco
 ```
 
 - [ ] ¿Notas el juego más suelto en power-saver? ¿Se calienta o gasta menos batería?
+
+## 7. Tirones con la luz nocturna de KDE (y fotogramas atados a la pantalla)
+
+Con la **luz nocturna** activada, KWin recompone la ventana del juego en cada fotograma en vez de mostrarla
+directamente, y en power-saver no llega: la pantalla enseña una imagen de cada dos (30 Hz reales), aunque el juego
+entregue 60. Se nota en el texto que se desplaza y en los coches que adelantan. Desactívala mientras juegas (icono de
+luz nocturna en la bandeja → suspender). Medido en tu portátil en power-saver: con ella, 9 de cada 10 imágenes fuera
+de su refresco; sin ella, 12 de 5103.
+
+Además el juego ahora sigue los refrescos de la pantalla (60,05 Hz en tu panel) en vez de los 59,94 Hz de la PSP: va
+un 0,18 % más rápido y ya no se cruza con la pantalla cada 9 s (el sonido lo absorbe sin cortes). `GT_DISPLAY_LOCK=0`
+vuelve al reloj de la PSP para comparar.
+
+- [ ] Con la luz nocturna apagada y en power-saver, ¿van fluidos el texto del menú y la carrera?
+- [ ] ¿Oyes algún chasquido o cambio de tono en la música tras unos minutos?
