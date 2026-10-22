@@ -997,6 +997,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lote 125** (2026-10-22): 7 funciones de la interfaz y de la ordenación del foco (reconstrucción de los ocho
+      valores de una vista a partir de sus nombres, teclas de una vista con el foco —códigos con valores de keysym de
+      X11—, movimiento del foco a la entrada siguiente o anterior, y cuatro piezas de la ordenación de libstdc++
+      instanciadas con ese comparador de 0x4C bytes: `__introsort_loop`, `__final_insertion_sort`, `__insertion_sort`,
+      `__unguarded_linear_insert`). 2 aparcadas (la lista de pistas de música y la partición: ninguna ruta las
+      compara). `func_08BF5B28` se quitó del lote: ya estaba registrada como recorrido de zancada y el arranque rechazó
+      el doble registro. Sabotajes 7 de 7. **7.242 funciones, 5.662 comparadas, 0 discrepancias (puerta final).**
 - [x] **Lote 124** (2026-10-22): 5 funciones de 400 a 700 instrucciones de la interfaz (lector de atributos de color
       de un estilo, rectángulo redondeado, maquetado de un tiempo de vuelta en glifos, renderizado de números, paso de una
       vista con desplazamiento). 0 aparcadas. Dos discrepancias corregidas leyendo mejor el asm: un bucle en el que el
