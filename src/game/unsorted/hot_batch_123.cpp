@@ -816,7 +816,7 @@ void func_089193B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         } else {
             const float now = f(self + 0x40Cu) + f(timer + 0x14u);
             put_float(rt, sp(0u), now);
-            shot = call(0x08918C84u, {self}, {now}).v0;
+            shot = call(0x08918C84u, {self, timer}, {now}).v0;  // a1 still holds the timer, as the asm leaves it
             put_float(rt, self + 0x40Cu, f(self + 0x40Cu) + 0.5f);
             const std::uint32_t span = word(rt, self + 0x1FCu);
             if (f(span + 0x18u) - f(span + 0x14u) < f(self + 0x40Cu)) put(rt, self + 0x40Cu, 0u);
