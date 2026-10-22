@@ -999,6 +999,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lote 131** (2026-10-22): siete funciones grandes. Los avisos de cada fotograma de la carrera (860
+      instrucciones: diez pasadas sobre los coches que reúnen claves y avisan al oyente por sus ranuras virtuales:
+      vueltas, meta, tiempo límite), el lector de valores de script desde un flujo de bytes (tabla de saltos de 16
+      tipos y registros recursivos), el volcado de las secciones de un perfil (27 secciones por desplazamientos de 64
+      bits), dos tablas de métodos de clases de script (30 y 32), una de 61 miembros (métodos y propiedades) y el
+      constructor/destructor estático de una unidad con 94 símbolos globales. Aparcadas tres sin casos comparables
+      (contactos de colisión, la selección de un `partial_sort` y la apertura de un vídeo PSMF). Sabotajes 7 de 7.
+      **7.256 funciones, 5.631 comparadas, 0 discrepancias (puerta final).**
 - [x] **Lote 130** (2026-10-22): el cargador de bytecode de una función de script (542 instrucciones): versión del
       flujo, nombre, parámetros y capturas con sus índices, campos del código según la versión (8, 9, 11, 12) y cada
       instrucción creada por su opcode (el despachador de 67 entradas del lote 122). Comparada en las 11 rutas.
