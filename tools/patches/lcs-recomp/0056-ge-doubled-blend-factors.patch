@@ -1,0 +1,46 @@
+diff --git a/lcs/host/ge_renderer.cpp b/lcs/host/ge_renderer.cpp
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -2770,10 +2770,13 @@
+     case 3u: return {1-src[3],1-src[3],1-src[3],1-src[3]};
+     case 4u: return {dst[3],dst[3],dst[3],dst[3]};
+     case 5u: return {1-dst[3],1-dst[3],1-dst[3],1-dst[3]};
+-    case 6u: return {std::min(1.0f, 2*src[3]),std::min(1.0f, 2*src[3]),std::min(1.0f, 2*src[3]),std::min(1.0f, 2*src[3])};
+-    case 7u: return {std::min(1.0f, 2*(1-src[3])),std::min(1.0f, 2*(1-src[3])),std::min(1.0f, 2*(1-src[3])),std::min(1.0f, 2*(1-src[3]))};
+-    case 8u: return {std::min(1.0f, 2*dst[3]),std::min(1.0f, 2*dst[3]),std::min(1.0f, 2*dst[3]),std::min(1.0f, 2*dst[3])};
+-    case 9u: return {std::min(1.0f, 2*(1-dst[3])),std::min(1.0f, 2*(1-dst[3])),std::min(1.0f, 2*(1-dst[3])),std::min(1.0f, 2*(1-dst[3]))};
++    // GT patch 0056: the doubled factors as the GE computes them (PPSSPP's software GPU, DrawPixel.cpp): 2A unclamped
++    // (the sum is clamped) and 1 - min(2A, 1). GT's PS2-style alpha 0x80 is opaque only this way: min(1, 2(1 - A))
++    // kept the destination and added the source on top (Trial Mountain's hills drawn see-through).
++    case 6u: return {2*src[3], 2*src[3], 2*src[3], 2*src[3]};
++    case 7u: return {1-std::min(1.0f, 2*src[3]),1-std::min(1.0f, 2*src[3]),1-std::min(1.0f, 2*src[3]),1-std::min(1.0f, 2*src[3])};
++    case 8u: return {2*dst[3], 2*dst[3], 2*dst[3], 2*dst[3]};
++    case 9u: return {1-std::min(1.0f, 2*dst[3]),1-std::min(1.0f, 2*dst[3]),1-std::min(1.0f, 2*dst[3]),1-std::min(1.0f, 2*dst[3])};
+     case 10u: return color_float(fixed);
+     default: return {1,1,1,1};
+     }
+diff --git a/lcs/host/vulkan/ge.frag b/lcs/host/vulkan/ge.frag
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -113,8 +113,8 @@
+ vec4 blendFactor(uint code, float a, uint fixedColor) {
+     if (code == 2u) return vec4(a);
+     if (code == 3u) return vec4(1.0 - a);
+-    if (code == 6u) return vec4(min(1.0, 2.0 * a));
+-    if (code == 7u) return vec4(min(1.0, 2.0 * (1.0 - a)));
++    if (code == 6u) return vec4(2.0 * a);                   // GT patch 0056: 2As, not clamped
++    if (code == 7u) return vec4(1.0 - min(1.0, 2.0 * a));   // GT patch 0056: 1 - min(2As, 1)
+     return vec4(float(fixedColor & 0xFFu), float((fixedColor >> 8u) & 0xFFu),
+                 float((fixedColor >> 16u) & 0xFFu), 255.0) / 255.0;  // 10: fixed colour, alpha 1
+ }
+@@ -147,8 +147,8 @@
+         uint mask = alphaControl.w;
+         if (!alphaPass(alphaControl.y, a & mask, alphaControl.z & mask)) discard;
+     }
+-    // GT patch 0021: blend factors the fixed-function blend can't express (the GE's min(1, 2As) and
+-    // min(1, 2(1-As))) are computed here: the colour premultiplied by the source factor (blend ONE) and the
++    // GT patch 0021: blend factors the fixed-function blend can't express (the GE's 2As and 1 - min(2As, 1),
++    // patch 0056) are computed here: the colour premultiplied by the source factor (blend ONE) and the
+     // destination factor in the second output (blend SRC1), as ge_renderer.cpp blend_pixel does.
+     outBlendFactor = vec4(0.0);
+     if ((u.pixel1.y & 1u) != 0u) {
