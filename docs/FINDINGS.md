@@ -2313,6 +2313,13 @@ Found: 2026-10-22 · src/game/unsorted/hot_batch_124.cpp (func_08A0B264, func_08
 
 Found: 2026-10-22 · host/gt_kernel.cpp (wait_vblank, dispatch_vblank_interrupt_if_due)
 
+## `decomp_gate sabotage` restores the batch file from a snapshot: edits made while it runs are lost
+
+**Symptom.** During batch 134 a new function (func_08BD7974) and its helpers, added to the batch file while a sabotage run of the same file was in progress, were gone when the run ended; the build then had no trace of them.
+**Cause.** `sabotage --file F` copies F before flipping s0 at each function's entry and writes that copy back at the end. Anything written to F in between is overwritten with the snapshot.
+**Fix / workaround.** Never edit a batch file while a sabotage of it runs; work on the next function in another file or wait for the run to end.
+
+Found: 2026-10-23 · tools/decomp_gate.py (sabotage)
 ## Trial Mountain's hills were see-through: the GE's doubled blend factors are 2A and 1 - min(2A, 1)
 
 **Symptom.** In a race on Trial Mountain the rock walls and hills behind the track looked washed out and see-through, white where they cross the sky; the same in the GPU renderer and in the software rasterizer, so the GPU gate (GPU against software) could not see it.
