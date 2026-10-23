@@ -33,13 +33,13 @@ from pathlib import Path
 ROUTES = {
     "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230),
              ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150),
-             ("circuit", 200), ("challenge2", 200)),
+             ("circuit", 200), ("challenge2", 200), ("trialmtn", 300)),
     # Each full route runs until its pad script is done (checked) with ~10 % to spare; they run in parallel, so the
     # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 409,
-    # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271.
+    # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271; trialmtn 412 (2026-10-23).
     "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 470),
              ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
-             ("circuit", 335), ("challenge2", 300)),
+             ("circuit", 335), ("challenge2", 300), ("trialmtn", 455)),
 }
 # A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the
 # 11 parallel routes run slower than real time on a loaded machine and a wall-clock end cut their scripts short. The
@@ -288,17 +288,16 @@ def parse_only(text: str) -> list[int]:
 
 
 def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
-    """One bash line running the routes in parallel, each logging its report and exit code (the full gate's at most
-    MAX_PARALLEL_ROUTES at a time)."""
+    """One bash line running the routes in parallel, each logging its report and exit code, at most MAX_PARALLEL_ROUTES
+    at a time and the longest first (both gates: twelve fast routes at once passed the slice's MemoryHigh and all
+    stalled to their timeout, 2026-10-23)."""
     parts = []
-    routes = ROUTES[kind]
-    if kind == "full":  # longest first, at most MAX_PARALLEL_ROUTES alive (bash: `wait -n`)
-        routes = sorted(routes, key=lambda item: -item[1])
+    routes = sorted(ROUTES[kind], key=lambda item: -item[1])  # bash `wait -n` keeps MAX_PARALLEL_ROUTES alive
     for route, seconds in routes:
+        parts.append(f"while [ $(jobs -rp | wc -l) -ge {MAX_PARALLEL_ROUTES} ]; do wait -n; done;")
         log = logs / f"gt_diff_{tag}_{route}"
         if kind == "full":  # ends a tail after the script is done; the wall clock is only a cap (FULL_TAIL)
             tail = FULL_TAIL.get(route, DEFAULT_TAIL)
-            parts.append(f"while [ $(jobs -rp | wc -l) -ge {MAX_PARALLEL_ROUTES} ]; do wait -n; done;")
             parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
                          f"timeout {2 * seconds + 120} {binary} --max-seconds {2 * seconds} --decomp diff > {log}.log 2>&1; "
                          f"echo $? > {log}.exit ) &")
@@ -313,7 +312,8 @@ def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path, kind: str = "
     the functions named in `symbols` probed (GT_PROBE_SYMBOLS: `name = 0xADDR;` lines), one log per route. The
     logs say which functions the routes call: `python -m tools.family_members --probe` reads them."""
     parts = []
-    for route, seconds in ROUTES[kind]:
+    for route, seconds in sorted(ROUTES[kind], key=lambda item: -item[1]):  # at most MAX_PARALLEL_ROUTES, as the gates
+        parts.append(f"while [ $(jobs -rp | wc -l) -ge {MAX_PARALLEL_ROUTES} ]; do wait -n; done;")
         log = logs / f"probe_{tag}_{route}.log"
         if kind == "full":  # like the full gate: a tail after the pad script, the wall clock only a cap
             tail = FULL_TAIL.get(route, DEFAULT_TAIL)

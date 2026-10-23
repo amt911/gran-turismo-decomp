@@ -301,7 +301,7 @@ the line says otherwise.
   `--decomp on` (the race route's 12 waits are satisfied one after the other in both). A press 300 vblank waits after a page's seek landed on every
   page of the nine routes (from a press to the next page's seek takes 110-190, ~1250 for the race's own pages); the first load (the main menu,
   `0x1FA48900`) comes ~800 before the menu shows (the Welcome screen runs first, and in `--decomp on` the load comes ~350 earlier than in `off`
-  while the screen does not), hence its 1700 margin. *(measured: `GT_IO_LOG=1` seeks with their vblank
+  while the screen does not), hence its margin: 1700 until 2026-10-23, 2300 since (under load the Welcome screen outran 1700 and the first press was lost: exit 97 in options, challenge2, manual). *(measured: `GT_IO_LOG=1` seeks with their vblank
   against `GT_FRAME_DUMP` frames, `off` and `on`, 2026-10-19)*
 - Page offsets seen: `0x1CF2A980` the Single Player hub (every visit reloads it), `0x1CDB9140` Mode Selection, `0x1D04FC40` Race Options,
   `0x1D058440` the Drift Trial popup, `0x1CD6DB80` Car Selection, `0x1D0332C0` Car Settings, `0x1CD7D200` Track Selection, `0x1D043C80` Track Options,

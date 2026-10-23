@@ -140,16 +140,18 @@ def test_route_cap_leaves_cpu_headroom():
     assert gate.MAX_PARALLEL_ROUTES * gate.ROUTE_CORES <= 0.8 * gate.MACHINE_CORES
 
 
-def test_route_shell_never_runs_more_than_the_cap_at_once(tmp_path):
-    """Runs the generated line with a stand-in binary that records how many copies are alive."""
+@pytest.mark.parametrize("kind", ["full", "fast"])
+def test_route_shell_never_runs_more_than_the_cap_at_once(tmp_path, kind):
+    """Runs the generated line with a stand-in binary that records how many copies are alive. The fast gate too:
+    twelve uncapped routes at once passed the slice's MemoryHigh and every one stalled to its timeout (2026-10-23)."""
     fake = tmp_path / "fake"
     fake.write_text("#!/bin/sh\nmkdir -p live; touch live/$$; ls live | wc -l >> peaks; sleep 0.3; rm live/$$\n")
     fake.chmod(0o755)
-    command = gate.route_shell(fake, "full", "t1", tmp_path)
+    command = gate.route_shell(fake, kind, "t1", tmp_path)
     subprocess.run(["bash", "-c", command], cwd=tmp_path, check=True, timeout=30)
     peaks = [int(line) for line in (tmp_path / "peaks").read_text().split()]
-    assert len(peaks) == len(gate.ROUTES["full"]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES
-    assert all((tmp_path / f"gt_diff_t1_{route}.exit").read_text().strip() == "0" for route, _ in gate.ROUTES["full"])
+    assert len(peaks) == len(gate.ROUTES[kind]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES
+    assert all((tmp_path / f"gt_diff_t1_{route}.exit").read_text().strip() == "0" for route, _ in gate.ROUTES[kind])
 
 
 def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
@@ -452,3 +454,14 @@ def test_sabotage_can_run_the_full_gate(monkeypatch):
     assert calls[0][1].get("kind") == "full"
     assert gate.main(["sabotage", "t1", "--file", "src/x.cpp", "--only", "0x08800000"]) == 0
     assert calls[1][1].get("kind", "fast") == "fast"
+
+
+def test_probe_shell_never_runs_more_than_the_cap_at_once(tmp_path):
+    """The probe starts the same routes as the fast gate, so the same memory cap applies."""
+    fake = tmp_path / "fake"
+    fake.write_text("#!/bin/sh\nmkdir -p live; touch live/$$; ls live | wc -l >> peaks; sleep 0.3; rm live/$$\n")
+    fake.chmod(0o755)
+    command = gate.probe_shell(fake, "t1", tmp_path / "symbols.txt", tmp_path)
+    subprocess.run(["bash", "-c", command], cwd=tmp_path, check=True, timeout=30)
+    peaks = [int(line) for line in (tmp_path / "peaks").read_text().split()]
+    assert len(peaks) == len(gate.ROUTES["fast"]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES

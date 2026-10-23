@@ -1,0 +1,19 @@
+# Route L — a race on Trial Mountain: the race route's choices, but Track Selection goes to the last page (24 presses, 240 vblanks apart:
+# 120 apart drops some and lands on another track), wrapping at the end of the list), then three left and one down to Trial Mountain (row 2, column 2). The car is
+# driven 50 s with the accelerator held and no steering, into the barrier of the first corner (collision code). Reaches 33 functions no other route reaches (30 of them
+# already decompiled, 2026-10-23: tools.route_reach). Its hills are drawn with the GE's doubled blend factors (patch 0056).
+# Page offsets: race.pad.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,600:RIGHT,840:RIGHT,1080:RIGHT,1320:RIGHT,1560:RIGHT,1800:RIGHT,2040:RIGHT,2280:RIGHT,2520:RIGHT,2760:RIGHT,3000:RIGHT,3240:RIGHT,3480:RIGHT,3720:RIGHT,3960:RIGHT,4200:RIGHT,4440:RIGHT,4680:RIGHT,4920:RIGHT,5160:RIGHT,5400:RIGHT,5640:RIGHT,5880:RIGHT,6120:RIGHT,6600:LEFT,6840:LEFT,7080:LEFT,7320:DOWN,7700:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1200:CROSS:3000

@@ -3,7 +3,7 @@
 # WAIT count from the load. Offsets: 1fa48900 main menu, 1cf24800 the records / garage / theatre menus, 1cd6db80 a car list, 1d03c5c0 the garage's
 # car view, 1cd2ff80 a list page, 1ced7480 the replay track list.
 3300:START,
-WAIT:seek=0x1fa48900,1700:DOWN,1800:CROSS,
+WAIT:seek=0x1fa48900,2300:DOWN,2400:CROSS,
 WAIT:seek=0x1cf24800,667:CROSS,
 WAIT:seek=0x1cd6db80,684:RIGHT,784:CROSS,
 WAIT:seek=0x1d03c5c0,796:CIRCLE,1196:CIRCLE,

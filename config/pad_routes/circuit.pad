@@ -3,7 +3,7 @@
 # third icon leaves the race (confirmed), which is a path no other route takes: the race's replay starts, and the last CROSS switches its
 # camera (310 s). Page offsets: race.pad.
 3300:START,
-WAIT:seek=0x1fa48900,1700:CROSS,
+WAIT:seek=0x1fa48900,2300:CROSS,
 WAIT:seek=0x1cf2a980,300:CROSS,
 WAIT:seek=0x1cdb9140,300:CROSS,
 WAIT:seek=0x1d04fc40,300:CROSS,
