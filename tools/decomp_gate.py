@@ -23,6 +23,7 @@ import argparse
 import os
 import json
 import shutil
+import signal
 import re
 import subprocess
 import sys
@@ -685,7 +686,14 @@ def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - recon
         subprocess.run([*configure, "-DGT_COVERAGE_FILES="], stdout=subprocess.DEVNULL)
 
 
+def exit_on_sigterm() -> None:
+    """SIGTERM (`timeout`, a killed session) raises SystemExit, so `finally` blocks run: a sabotage run restores its
+    source file instead of leaving the sabotage in the tree (2026-10-23: mrandom.cpp stayed sabotaged)."""
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
+
+
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wiring
+    exit_on_sigterm()
     parser = argparse.ArgumentParser(prog="tools.decomp_gate", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     fast = sub.add_parser("fast")

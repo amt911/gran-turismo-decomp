@@ -2344,3 +2344,11 @@ Found: 2026-10-23 · config/pad_routes/*.pad
 **Fix / workaround.** `route_shell` and `probe_shell` cap both gates and the probe at `MAX_PARALLEL_ROUTES`, longest first (tests run the generated line with a stand-in binary). Adding a route means checking it against this cap, not against the slice.
 
 Found: 2026-10-23 · tools/decomp_gate.py (route_shell, probe_shell)
+
+## A sabotage run stopped by `timeout` left its sabotage in the source
+
+**Symptom.** After a run of the sabotage loop came back with no result line, `git status` showed `src/game/adhoc/mrandom.cpp` modified: `GetValue` still began with the sabotage (`ctx.gpr[16] += 1u; …0x08000F00…`). The next file's run was built with it.
+**Cause.** Each run is capped by `timeout 1800`, which sends SIGTERM. Python's default for SIGTERM ends the process at once, without running `finally`, so `_sabotage`'s restore of the snapshot never happened.
+**Fix / workaround.** `tools.decomp_gate` turns SIGTERM into `SystemExit` (`exit_on_sigterm`) so the restore runs; the test kills a child with SIGTERM mid-`try`. After any interrupted sabotage, check `git status src` before trusting the next run, and redo the runs built after it.
+
+Found: 2026-10-24 · tools/decomp_gate.py (exit_on_sigterm)
