@@ -2312,3 +2312,12 @@ Found: 2026-10-22 · src/game/unsorted/hot_batch_124.cpp (func_08A0B264, func_08
 **Also gone, probably:** a crash at the start of a Time Trial (guest memory access at 0x0A000000 in func_089467AC, a curve table at car state+0x448 not built yet) hit 2 of 5 laptop runs before the fix and 0 of 6 after it. With the frame counter ~1.7x fast, frame-counted waits ended before the car's set-up did. Not proven; recorded so a recurrence is recognised.
 
 Found: 2026-10-22 · host/gt_kernel.cpp (wait_vblank, dispatch_vblank_interrupt_if_due)
+
+## Trial Mountain's hills were see-through: the GE's doubled blend factors are 2A and 1 - min(2A, 1)
+
+**Symptom.** In a race on Trial Mountain the rock walls and hills behind the track looked washed out and see-through, white where they cross the sky; the same in the GPU renderer and in the software rasterizer, so the GPU gate (GPU against software) could not see it.
+**Cause.** GT draws those layers (CLUT4 textures whose CLUT alpha is 0x80, PS2-style "opaque") with blend mode 0x76: source x DOUBLE_SRC_ALPHA + destination x DOUBLE_INV_SRC_ALPHA. lcs-recomp's rasterizer (`ge_renderer.cpp` `blend_factor`) and our shader (`ge.frag`, patch 0021) took the inverse as min(1, 2(1 - A)), which for A = 0x80 keeps 99.6 % of the destination: the layer was added on top of the sky. The GE (PPSSPP's software GPU, `GPU/Software/DrawPixel.cpp`) computes 1 - min(2A, 1) = 0 here, and 2A without clamping it to 1 (the sum is clamped). Same for the destination-alpha pair (8, 9).
+**Fix / workaround.** Patch 0056 in both renderers; `host/tests/ge_blend_test.cpp` pins the four factors. Found with `GT_GE_LOG` + `GT_GE_LOG_DETAIL` on one race frame: the layer's blend mode and CLUT alpha were the clue; the textures themselves decoded correctly.
+**Why it isn't obvious.** Both renderers shared the wrong formula, so every GPU-against-software comparison passed. A visual bug both renderers agree on needs PPSSPP's source (or PPSSPP itself) as the reference.
+
+Found: 2026-10-23 · tools/patches/lcs-recomp/0056-ge-doubled-blend-factors.patch

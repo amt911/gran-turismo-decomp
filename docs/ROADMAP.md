@@ -1164,6 +1164,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
 - [x] Fotogramas atados a la pantalla (2026-10-22): los vblank siguen los refrescos reales (VK_KHR_present_wait,
       `host/display_phase.cpp`); el audio absorbe el 0,18 % de más (parche 0055). Los tirones del portátil eran la luz
       nocturna de KDE (FINDINGS).
+- [x] Colinas traslúcidas en Trial Mountain (2026-10-23): los factores de mezcla "doble alfa" de la GE se calculaban
+      mal en los dos renderizadores (2(1 - A) en vez de 1 - 2A); con el alfa 0x80 de GT las capas del fondo se sumaban
+      al cielo. Parche 0056, test `ge_blend` (FINDINGS).
 - [ ] Backend Vulkan de la GE para GT (`NativeGE=true` dibuja mal: escrito para LCS). Spec:
       `docs/superpowers/specs/2026-10-12-gpu-ge-backend-design.md`.
   - [x] **Fase 1 — medir** (2026-10-12): `tools/gpu_gate.sh` pinta cada frame con la GPU y con el
