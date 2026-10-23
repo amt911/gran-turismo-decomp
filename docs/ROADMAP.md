@@ -999,6 +999,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Lote 134** (2026-10-23): el registro de los resultados al acabar una carrera (los récords de cada modo) y
+      la copia de un puntero compartido de la biblioteca 0x08Bxxxxx con sus cuentas de uso (cuatro subidas cuando el
+      dueño tiene bloque de control). Aparcados el cargador de archivos PAC y una función nativa de script, que las
+      rutas no comparan. Sabotajes 2 de 2. **7.291 funciones, 5.631 comparadas, 0 discrepancias (puerta final).**
 - [x] **Lote 133** (2026-10-23): el envío de eventos del juego a los scripts (switch de 40 tipos que convierte cada
       campo en un valor de script: bytes, palabras, 64 bits, flotantes y cadenas), la búsqueda de vecinos de un nodo
       del trazado (mismo grupo: anterior y siguiente; otros grupos: los extremos respecto al centro, con márgenes y
