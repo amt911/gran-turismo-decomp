@@ -21,7 +21,9 @@
 #include "audio_dump.hpp"
 #include "frame_dump.hpp"
 #include "frame_log.hpp"
+#include "kirk_slot_keys.hpp"
 #include "pad_script.hpp"
+#include "psp_savedata_crypto.hpp"
 #include "vblank_pacer.hpp"
 #include "lcs_profile.hpp"
 #include "display_window.hpp"
@@ -40,6 +42,8 @@
 #include "kernel_isolation.hpp"
 #include "kernel_replay_state.hpp"
 #include "ge_trace.hpp"
+#include "kirk_slot_keys.hpp"
+#include "psp_savedata_crypto.hpp"
 #include "movie_decoder.hpp"
 #include "ps_demux.hpp"
 
@@ -986,26 +990,58 @@ bool write_savedata_auxiliary(psprecomp::Runtime &runtime, std::uint32_t paramet
     return write_guest_file(runtime, savedata_directory(runtime, parameter_address) / filename, buffer, actual_size);
 }
 
+// A real PSP's save is encrypted (PARAM.SFO's SAVEDATA_PARAMS not 0): the firmware decrypts it with the key the game
+// passes and checks the hash PARAM.SFO keeps for the file, so the game only ever sees the plaintext. Spec:
+// docs/superpowers/specs/2026-10-23-savedata-routes-design.md. GT uses mode 5 (SDK 5.x, a key, secureVersion 0); other
+// modes are refused loudly. Returns 0 (bytes now the plaintext, or untouched for a plain save) or the firmware error.
+constexpr std::uint32_t kSavedataKeyOffset = 0x5DCu;
+constexpr std::uint32_t kSavedataSecureVersionOffset = 0x5ECu;
+std::uint32_t decrypt_secure_savedata(psprecomp::Runtime &runtime, std::uint32_t parameter_address,
+                                      const std::filesystem::path &path, std::vector<std::uint8_t> &bytes, bool raw_mode) {
+    std::ifstream input(path.parent_path() / "PARAM.SFO", std::ios::binary);
+    if (!input) return 0u;  // a save this HLE wrote: plain
+    const std::vector<std::uint8_t> sfo((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    const auto info = gt::savedata_sfo_crypto(sfo, path.filename().string());
+    if (!info || !info->encrypted) return 0u;
+    const std::uint32_t broken = raw_mode ? 0x80110326u : 0x80110306u;  // RW_DATA_BROKEN / LOAD_DATA_BROKEN
+    std::array<std::uint8_t, 16> key{};
+    for (std::uint32_t i = 0; i < 16u; ++i) key[i] = runtime.memory().load8(parameter_address + kSavedataKeyOffset + i);
+    const std::uint32_t secure_version = runtime.memory().load32(parameter_address + kSavedataSecureVersionOffset);
+    if (std::all_of(key.begin(), key.end(), [](std::uint8_t b) { return b == 0u; }) ||
+        (secure_version != 0u && secure_version != 3u)) {
+        std::fprintf(stderr, "[savedata] %s: encrypted save in a mode other than 5 (secure version %u): refused\n",
+                     path.string().c_str(), secure_version);
+        return broken;
+    }
+    static const gt::KirkSlotKeys slot_keys{gt::kKirkSlot16, gt::kKirkSlot18, gt::kKirkSlot100};
+    if (!info->hash || gt::savedata_hash(bytes, key, slot_keys) != *info->hash) {
+        std::fprintf(stderr, "[savedata] %s: hash does not match PARAM.SFO: broken data\n", path.string().c_str());
+        return broken;
+    }
+    auto plain = gt::savedata_decrypt(bytes, key, slot_keys);
+    if (!plain) return broken;
+    bytes = std::move(*plain);
+    return 0u;
+}
+
 std::uint32_t load_savedata_file(psprecomp::Runtime &runtime, std::uint32_t parameter_address,
                                  const std::filesystem::path &path, bool raw_mode) {
     if (!std::filesystem::is_regular_file(path)) {
         return raw_mode ? 0x80110329u : 0x80110307u;
     }
-    std::ifstream input(path, std::ios::binary | std::ios::ate);
+    std::ifstream input(path, std::ios::binary);
     if (!input) return raw_mode ? 0x80110329u : 0x80110305u;
-    const auto end = input.tellg();
-    if (end < 0) return 0x80110305u;
-    const auto file_size = static_cast<std::uint64_t>(end);
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    if (input.bad()) return 0x80110305u;
+    if (const std::uint32_t error = decrypt_secure_savedata(runtime, parameter_address, path, bytes, raw_mode); error != 0u)
+        return error;
+    const std::uint64_t file_size = bytes.size();
     const std::uint32_t destination = runtime.memory().load32(parameter_address + kSavedataDataBufferOffset);
     const std::uint32_t capacity = runtime.memory().load32(parameter_address + kSavedataDataBufferSizeOffset);
     if (file_size > capacity || file_size > 0xFFFFFFFFull ||
         (file_size != 0u && (destination == 0u || !runtime.memory().contains(destination, static_cast<std::size_t>(file_size))))) {
         return raw_mode ? 0x80110328u : 0x80110308u;
     }
-    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(file_size));
-    input.seekg(0, std::ios::beg);
-    if (!bytes.empty()) input.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-    if (!input && !bytes.empty()) return 0x80110305u;
     if (!bytes.empty()) runtime.memory().copy_in(destination, bytes);
     runtime.memory().store32(parameter_address + kSavedataDataSizeOffset, static_cast<std::uint32_t>(bytes.size()));
     runtime.memory().store32(parameter_address + kSavedataBindOffset, kSavedataBindThisSystem);
@@ -1027,6 +1063,11 @@ std::uint32_t save_savedata_file(psprecomp::Runtime &runtime, std::uint32_t para
         return raw_mode ? 0x80110328u : 0x80110388u;
     }
     if (!write_guest_file(runtime, path, source, size)) return raw_mode ? 0x80110329u : 0x80110385u;
+    // The save is plain now: a real PSP's PARAM.SFO left in the folder (encrypted, the old file's hash) no longer
+    // describes it, and the next load would call the data broken. SFOPARAM.BIN keeps the parameters, as for any save
+    // this HLE writes.
+    std::error_code ignored;
+    std::filesystem::remove(path.parent_path() / "PARAM.SFO", ignored);
     if (!raw_mode) {
         if (!write_guest_file(runtime, path.parent_path() / kSavedataSfoParamFile,
                               parameter_address + kSavedataSfoParamOffset, kSavedataSfoParamSize))
