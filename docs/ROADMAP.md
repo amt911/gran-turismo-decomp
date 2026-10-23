@@ -1000,7 +1000,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
 - [x] **Lote 132** (2026-10-23): registros de clases de script que el juego hace al arrancar, generados desde el
-      asm: cuatro tablas de métodos (86, 16, 13 y 11 + 7 con una constante entera), cuatro definiciones de clase con
+      asm: cuatro tablas de métodos (86, 16, 13 y 11 + 7 con una constante entera), cinco definiciones de clase con
       sus atributos (19, 25, 5, 8 y 7: objetos tipados con su tabla virtual, valores simples y «cajas» encadenadas) a
       través de un `ClassBuilder` común, y siete clases seguidas con su tabla de métodos. Se recupera `MUnit` (lote 127,
       aparcada): la puerta rápida sí la compara. Sabotajes 11 de 11. **7.267 funciones, 5.632 comparadas, 0
