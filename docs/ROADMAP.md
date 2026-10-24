@@ -1005,6 +1005,13 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       formateo de fecha y hora con sus dos órdenes; la conversión de segundos a fecha; el control de selección de una
       lista; y varios constructores y getters). Como los padres decompilados ocultan a sus hijos, se comparó en cinco
       pasadas (cada una solo con las que faltaban): 62 de 62 comparadas, 0 discrepancias, sabotaje 62 de 62.
+- [x] **Lote 136** (2026-10-24): 6 funciones más que solo alcanzan las rutas desde la partida: física de sus coches
+      (la fuerza de la suspensión de una rueda, tres parámetros de los ajustes del coche, la tabla de desarrollos de la
+      caja de cambios, la clasificación de la tracción y el paso de un estado con cuatro canales que se acercan a su
+      fila) y un lector de un registro versionado (`func_08AAB0B4`: un mapa de cadenas a nodos por debajo de la versión
+      13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
+      de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
+      funciones, 5.681 comparadas, 0 discrepancias.
 - [x] **Rutas desde una partida guardada** (2026-10-24, spec `2026-10-23-savedata-routes-design.md`): el HLE de
       `sceUtilitySavedata` descifra las partidas reales de PSP como el firmware (modo 5, con la clave que pasa el juego;
       `tools/savedata.py` es la referencia, `host/psp_savedata_crypto` la versión C++ sobre libcrypto). La partida del
