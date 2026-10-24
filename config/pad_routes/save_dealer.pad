@@ -1,0 +1,12 @@
+# Save route — Car Dealerships, started from the user's finished save (game_files/UCES01245-GAMEDAT, checked against
+# config/savedata.sha1, copied fresh per run by tools.decomp_gate; spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md).
+# The empty-save route dealer.pad converted: with the save the main menu loads 0x2458a6c0 (not 0x1fa48900) with the cursor on
+# Driving Challenges (three LEFTs to Single Player, 1200 after the load), and the Single Player hub and Mode Selection
+# remember the last choice (the hub's k-th visit goes left three times, then k-1 RIGHTs; Mode Selection left three
+# times, then one RIGHT to Single Race's place). Reaches 55 functions the empty-save routes do not (10 beyond the other three, tools.route_reach).
+3300:START,
+WAIT:seek=0x2458a6c0,1200:LEFT,1300:LEFT,1400:LEFT,1600:RIGHT,1700:RIGHT,1800:CROSS,
+WAIT:seek=0x1cdb3240,666:CROSS,1466:RIGHT,1566:RIGHT,1666:CROSS,
+WAIT:seek=0x1cd65580,955:CIRCLE,1435:CIRCLE,1915:CIRCLE,2635:DOWN,2755:RIGHT,2875:RIGHT,2995:CROSS,3955:DOWN,4075:CROSS,
+WAIT:seek=0x1cd65580,956:CIRCLE,1436:CIRCLE,1916:LEFT,2036:CROSS,
+WAIT:seek=0x1d032dc0,730:CROSS,1530:CIRCLE,1930:CIRCLE

@@ -189,7 +189,8 @@ numbers you'd trust by mistake.
 
 - **Nothing copyrighted enters git**: no ISO/CSO, no `EBOOT.BIN`, no decrypted ELF/PRX, no
   `GT.VOL` contents, no extracted assets, no RAM dumps, no screenshots of game data in docs. The user
-  supplies their own dump in `game_files/`; everything derived from it lives in gitignored dirs
+  supplies their own dump in `game_files/` (and their save, `game_files/UCES01245-GAMEDAT`, for the `save_*` routes; the
+  game's savedata key and the KIRK keys are never written to the repo); everything derived from it lives in gitignored dirs
   (`extracted/`, `recomp/`, `asm/`, `assets/`, `build/`, `expected/`). `.gitignore` already covers them
   — run `git status --ignored` before a commit that touches new paths.
 - **Recompiler output is game-derived, not ours**: the C++ PSPRecomp generates from the EBOOT is a

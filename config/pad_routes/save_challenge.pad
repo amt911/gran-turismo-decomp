@@ -1,0 +1,13 @@
+# Save route — Driving Challenges, started from the user's finished save (game_files/UCES01245-GAMEDAT, checked against
+# config/savedata.sha1, copied fresh per run by tools.decomp_gate; spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md).
+# The empty-save route challenge.pad converted: with the save the main menu loads 0x2458a6c0 (not 0x1fa48900) with the cursor on
+# Driving Challenges (three LEFTs to Single Player, 1200 after the load), and the Single Player hub and Mode Selection
+# remember the last choice (the hub's k-th visit goes left three times, then k-1 RIGHTs; Mode Selection left three
+# times, then one RIGHT to Single Race's place). Reaches 57 functions the empty-save routes do not (14 beyond save_trialmtn, tools.route_reach).
+3300:START,
+WAIT:seek=0x2458a6c0,1200:LEFT,1300:LEFT,1400:LEFT,1600:RIGHT,1800:RIGHT,2000:RIGHT,2400:CROSS,
+WAIT:seek=0x1ce62e80,500:CROSS,
+WAIT:seek=0x1ce7d400,500:CROSS,
+WAIT:seek=0x1cdf8540,500:CROSS,
+WAIT:seek=0x1cc98cc0,500:CROSS,
+WAIT:seek=0x1d19db00,1080:CROSS:840,2400:SQUARE:1080,4200:CROSS:600

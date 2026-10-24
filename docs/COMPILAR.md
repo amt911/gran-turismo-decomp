@@ -85,6 +85,14 @@ La última línea `Runtime stopped:` dice dónde se para: una función del siste
 (`Missing HLE import`) o una instrucción que el recompilador aún no traduce (`Unsupported Allegrex
 instruction`).
 
+### Rutas con partida guardada (puerta diferencial)
+
+Las rutas `save_*` arrancan desde una partida terminada del usuario: la carpeta `UCES01245-GAMEDAT` de una PSP o de PPSSPP
+(versión europea) va en `game_files/` (nunca en git) y se comprueba con `config/savedata.sha1`; la puerta la copia limpia
+para cada ruta. Sin ella, o con otra, la puerta se niega con un mensaje. El HLE de `sceUtilitySavedata` la descifra como
+el firmware (modo 5, con la clave que pasa el juego); las claves de KIRK se leen al compilar del checkout de pspdecrypt que
+ya baja `tools/setup.sh` (`build/generated/kirk_slot_keys.hpp`) y se comprueban con `config/kirk_slot_keys.sha256`.
+
 ### Ver los gráficos (volcado de frames)
 
 `gt_native` no abre ventana: el renderer por software dibuja en la VRAM emulada y, si se lo pides,

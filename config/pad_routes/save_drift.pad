@@ -1,0 +1,22 @@
+# Save route — Drift Trial, started from the user's finished save (game_files/UCES01245-GAMEDAT, checked against
+# config/savedata.sha1, copied fresh per run by tools.decomp_gate; spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md).
+# The empty-save route drift.pad converted: with the save the main menu loads 0x2458a6c0 (not 0x1fa48900) with the cursor on
+# Driving Challenges (three LEFTs to Single Player, 1200 after the load), and the Single Player hub and Mode Selection
+# remember the last choice (the hub's k-th visit goes left three times, then k-1 RIGHTs; Mode Selection left three
+# times, then one RIGHT to Single Race's place). Reaches 60 functions the empty-save routes do not (10 beyond save_trialmtn and save_challenge, tools.route_reach).
+3300:START,
+WAIT:seek=0x2458a6c0,1200:LEFT,1300:LEFT,1400:LEFT,1600:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT,400:LEFT,500:LEFT,700:CROSS,
+WAIT:seek=0x1cdb9140,300:LEFT,400:LEFT,500:LEFT,700:RIGHT,900:RIGHT,1100:CROSS,
+WAIT:seek=0x1d058440,300:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT,400:LEFT,500:LEFT,700:RIGHT,1100:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT,400:LEFT,500:LEFT,700:RIGHT,900:RIGHT,1300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT,400:LEFT,500:LEFT,700:RIGHT,900:RIGHT,1100:RIGHT,1500:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,900:CROSS:2600,
+1300:LEFT:90,1700:RIGHT:90,2100:LEFT:90,2500:RIGHT:90,2900:LEFT:90,3300:RIGHT:90,
+3800:START,4500:CROSS
