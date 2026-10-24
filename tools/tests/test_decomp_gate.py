@@ -497,3 +497,24 @@ def test_clear_run_creates_the_log_directory(tmp_path):
     logs = tmp_path / "recomp" / "analysis"
     gate.clear_run("t1", logs)
     assert logs.is_dir()
+
+
+def test_sigterm_restores_pending_files_at_once(tmp_path):
+    """A waiter on the CPU lock sends TERM, then KILL after a short grace; unwinding through subprocess.run (which kills
+    and waits for its children first) outlasted the grace and left unit_system.cpp sabotaged (2026-10-24). The handler
+    writes the pending originals back before anything else."""
+    target = tmp_path / "f.cpp"
+    target.write_text("original")
+    script = (
+        "import time, pathlib\n"
+        "from tools import decomp_gate as gate\n"
+        "gate.exit_on_sigterm()\n"
+        f"p = pathlib.Path({str(target)!r})\n"
+        "gate.pending_restore(p, 'original')\n"
+        "p.write_text('sabotaged'); print('ready', flush=True); time.sleep(30)\n")
+    proc = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, text=True,
+                            cwd=Path(__file__).resolve().parents[2])
+    assert proc.stdout.readline().strip() == "ready"
+    proc.terminate()
+    proc.wait(timeout=10)
+    assert target.read_text() == "original"

@@ -612,10 +612,12 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int],  #
     if missing:
         print("not found in", file, ":", ", ".join(missing))
     try:
+        pending_restore(file, original)
         file.write_text(sabotaged)
         ran = _run_gate(kind, tag, only)
     finally:
         file.write_text(original)
+        pending_restore(file, None)
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
         return None
     logs = [Path(f"recomp/analysis/gt_diff_{tag}_{r}.log") for r, _ in ROUTES["full"]]
@@ -688,10 +690,26 @@ def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - recon
         subprocess.run([*configure, "-DGT_COVERAGE_FILES="], stdout=subprocess.DEVNULL)
 
 
+_PENDING_RESTORE: dict[Path, str] = {}  # sabotaged files and their originals, while a sabotage run is in flight
+
+
+def pending_restore(path: Path, original: str | None) -> None:
+    """Registers (or, with None, clears) a file the SIGTERM handler must write back before anything else."""
+    if original is None:
+        _PENDING_RESTORE.pop(path, None)
+    else:
+        _PENDING_RESTORE[path] = original
+
+
 def exit_on_sigterm() -> None:
-    """SIGTERM (`timeout`, a killed session) raises SystemExit, so `finally` blocks run: a sabotage run restores its
-    source file instead of leaving the sabotage in the tree (2026-10-23: mrandom.cpp stayed sabotaged)."""
-    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
+    """SIGTERM (`timeout`, a waiter on the CPU lock, a killed session): the pending originals are written back at once,
+    then SystemExit so `finally` blocks run. A TERM is followed by KILL after a short grace, and unwinding through
+    subprocess.run outlasted it (2026-10-23/24: mrandom.cpp, then unit_system.cpp stayed sabotaged)."""
+    def handler(signum, frame):
+        for path, original in list(_PENDING_RESTORE.items()):
+            path.write_text(original)
+        sys.exit(128 + signum)
+    signal.signal(signal.SIGTERM, handler)
 
 
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wiring
