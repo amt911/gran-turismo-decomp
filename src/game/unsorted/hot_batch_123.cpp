@@ -1598,7 +1598,7 @@ void func_0895C394(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             const float boost = call_setf(rt, ctx, 0x08947AD8u, {car}, {}).f0;
             const float base = call_setf(rt, ctx, 0x089491A0u, {car}, {boost}).f0;
             produced = base + call_setf(rt, ctx, 0x08947F70u, {car}, {}).f0;
-        } else if (byte_u(rt, drive) == 4u) {
+        } else if (byte_u(rt, drive + 0x12u) == 4u) {  // +0x12, not the layout +0: the bnel's delay slot reloads v1
             const float throttle = f(settings + 0x534u);
             const float base = call_setf(rt, ctx, 0x089491A0u, {car}, {throttle}).f0;
             produced = base + call_setf(rt, ctx, 0x089479ECu, {sext16(half_u(rt, settings + 0x58Eu))}, {throttle}).f0;

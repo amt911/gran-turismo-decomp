@@ -31,16 +31,21 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from tools import checksums
+
 ROUTES = {
     "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230),
              ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150),
-             ("circuit", 200), ("challenge2", 200), ("trialmtn", 300)),
+             ("circuit", 200), ("challenge2", 200), ("trialmtn", 300),
+             ("save_trialmtn", 360), ("save_challenge", 200), ("save_drift", 250), ("save_dealer", 200)),
     # Each full route runs until its pad script is done (checked) with ~10 % to spare; they run in parallel, so the
     # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 409,
-    # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271; trialmtn 412 (2026-10-23).
+    # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271; trialmtn 412 (2026-10-23); save_trialmtn 464,
+    # save_challenge 261, save_drift 347, save_dealer 273 (2026-10-24).
     "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 470),
              ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
-             ("circuit", 335), ("challenge2", 300), ("trialmtn", 455)),
+             ("circuit", 335), ("challenge2", 300), ("trialmtn", 455),
+             ("save_trialmtn", 515), ("save_challenge", 290), ("save_drift", 385), ("save_dealer", 300)),
 }
 # A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the
 # 11 parallel routes run slower than real time on a loaded machine and a wall-clock end cut their scripts short. The
@@ -58,6 +63,46 @@ MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round ea
 # A real-time route peaks at ~0.5 GB (506 MB measured 2026-10-21); eleven at once passed MemoryHigh and the throttled
 # routes stalled (options timed out three full gates running). The full gate keeps this many alive, longest first.
 MAX_PARALLEL_ROUTES = 6
+# Routes named save_* start from the user's finished save (spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md):
+# each gets a fresh copy, checked by hash like the ISO; the original is never written. The save is the user's data and
+# stays in game_files/ (gitignored).
+SAVE_PREFIX = "save_"
+SAVE_DIR = Path("game_files/UCES01245-GAMEDAT")
+SAVE_HASHES = Path("config/savedata.sha1")
+
+
+class SaveError(Exception):
+    """The save the save_* routes need is missing or is not the expected one."""
+
+
+def save_dir_for(logs: Path, run: str, route: str) -> Path:
+    return logs / f"savedata_{run}_{route}"
+
+
+def prepare_saves(tag: str, logs: Path, kind: str, save: Path = SAVE_DIR, hashes: Path = SAVE_HASHES,
+                  run: str | None = None) -> list[str]:
+    """Copies a fresh save into each save_* route's savedata dir (logs/savedata_<run>_<route>/<save name>), after
+    checking it against `hashes`; returns those routes. Without save routes nothing is needed."""
+    routes = [route for route, _ in ROUTES[kind] if route.startswith(SAVE_PREFIX)]
+    if not routes:
+        return []
+    if not save.is_dir():
+        raise SaveError(f"no save at {save}: the save_* routes need the user's save in game_files/ (spec 2026-10-23)")
+    try:
+        expected = checksums.load_checksums(hashes)
+        for name, digest in expected.items():
+            checksums.verify(save / name, digest, "save")
+    except (checksums.ChecksumError, OSError) as error:
+        raise SaveError(f"{save} is not the expected save: {error}") from error
+    for route in routes:
+        target = save_dir_for(logs, run or tag, route)
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.copytree(save, target / save.name)
+    return routes
+
+
+def _save_env(logs: Path, run: str, route: str) -> str:
+    return f"GT_SAVEDATA_DIR={save_dir_for(logs, run, route)} " if route.startswith(SAVE_PREFIX) else ""
 # A route keeps ~3 cores busy (game, GE worker, audio); the cap leaves a fifth of the machine free so routes keep pace.
 ROUTE_CORES = 3
 MACHINE_CORES = os.cpu_count() or 1
@@ -299,11 +344,11 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
         log = logs / f"gt_diff_{tag}_{route}"
         if kind == "full":  # ends a tail after the script is done; the wall clock is only a cap (FULL_TAIL)
             tail = FULL_TAIL.get(route, DEFAULT_TAIL)
-            parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
+            parts.append(f'( {_save_env(logs, tag, route)}GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
                          f"timeout {2 * seconds + 120} {binary} --max-seconds {2 * seconds} --decomp diff > {log}.log 2>&1; "
                          f"echo $? > {log}.exit ) &")
             continue
-        parts.append(f'( GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout 1000 {binary} '
+        parts.append(f'( {_save_env(logs, tag, route)}GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout 1000 {binary} '
                      f"--max-seconds {seconds} --decomp diff > {log}.log 2>&1; echo $? > {log}.exit ) &")
     return " ".join(parts) + " wait"
 
@@ -319,11 +364,11 @@ def probe_shell(binary: Path, tag: str, symbols: Path, logs: Path, kind: str = "
         if kind == "full":  # like the full gate: a tail after the pad script, the wall clock only a cap
             tail = FULL_TAIL.get(route, DEFAULT_TAIL)
             cap = round(2 * seconds * scale)
-            parts.append(f'( GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 '
+            parts.append(f'( {_save_env(logs, "probe_" + tag, route)}GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 '
                          f'GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout {cap + 120} {binary} '
                          f"--max-seconds {cap} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
             continue
-        parts.append(f'( GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
+        parts.append(f'( {_save_env(logs, "probe_" + tag, route)}GT_PAD_LOG=1 GT_PROBE_SYMBOLS={symbols} LCS_UNCAPPED=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
                      f"timeout 1000 {binary} --max-seconds {round(seconds * scale)} --decomp off > {log} 2>&1; echo $? > {log.with_suffix('.exit')} ) &")
     return " ".join(parts) + " wait"
 
@@ -502,6 +547,11 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
         if only is not None:
             env.update(GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
     clear_run(tag, Path("recomp/analysis"))
+    try:
+        prepare_saves(tag, Path("recomp/analysis"), kind)
+    except SaveError as error:
+        print(f"save routes: {error}")
+        return 2
     cache = Path("build/CMakeCache.txt")
     if not (extra_env or {}).get("LLVM_PROFILE_FILE") and cache.exists() and coverage_left_configured(cache.read_text()):
         print("warning: build/ still instruments sources for coverage (a coverage run was killed?); reconfigure with "
@@ -545,6 +595,7 @@ def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) 
     slot = HeavySlot()
     slot.acquire()
     Path("recomp/analysis").mkdir(parents=True, exist_ok=True)  # a fresh clone has none
+    prepare_saves(tag, Path("recomp/analysis"), kind, run="probe_" + tag)  # SaveError stops the probe with its message
     for stale in Path("recomp/analysis").glob(f"probe_{tag}_*"):
         stale.unlink()  # an earlier run's logs and exit codes must not stand in for this one
     try:

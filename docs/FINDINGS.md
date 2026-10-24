@@ -2352,3 +2352,18 @@ Found: 2026-10-23 · tools/decomp_gate.py (route_shell, probe_shell)
 **Fix / workaround.** `tools.decomp_gate` turns SIGTERM into `SystemExit` (`exit_on_sigterm`) so the restore runs; the test kills a child with SIGTERM mid-`try`. After any interrupted sabotage, check `git status src` before trusting the next run, and redo the runs built after it.
 
 Found: 2026-10-24 · tools/decomp_gate.py (exit_on_sigterm)
+
+## The first save route found a wrong branch in a function the gate had passed for days
+
+**Symptom.** With the save routes, `func_0895C394` (the drivetrain step, batch 123) mismatched on `save_trialmtn` only: the
+engine speed `settings + 0x590` differed by a few ulps, then everything after it. Isolated (`--only`), the same.
+**Cause.** After `bnel $v1, 7, …` with `lbu $v1, 0x12($s7)` in its delay slot (a branch-likely: the delay slot runs only
+when the branch is taken), the next test `== 4` reads the drivetrain's byte `+0x12`, not the layout `+0`. The C tested the
+layout. The empty-save routes only drive layouts 0 and 1, so neither the C nor the original ever took that branch there;
+the save's car has layout 4, and the C added `func_089479EC`'s torque the original does not.
+**Fix / workaround.** Read `+0x12` there. Two lessons: a branch-likely's delay slot that reloads the compared register
+changes what the next test reads (read the asm, not the shape); and a function "verified" by the gate is verified on the
+paths its routes drive — a route with other cars, tracks or modes is how such a branch shows up (the lessons file:
+"the gate only proves the paths it runs").
+
+Found: 2026-10-24 · src/game/unsorted/hot_batch_123.cpp (func_0895C394)

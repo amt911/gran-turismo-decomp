@@ -314,3 +314,17 @@ the line says otherwise.
   queue, `src/game/unsorted/hot_leaves.cpp` func_0897783C), heap pointers (`0x0944CFB0` held a pointer to the page's background image path,
   right for each screen, but a heap address is whatever the allocator gave), and returns to a page that stays resident (the main menu after Ad Hoc Mode loads nothing).
   *(measured: RAM dumps at 20 vblanks of two runs, stable-and-deterministic words only)*
+
+## The user's save and the savedata cipher (verified 2026-10-23)
+
+- A real PSP save of GT (`UCES01245-GAMEDAT`: `GAME.DAT`, `PARAM.SFO`, `ICON0.PNG`, `PIC1.PNG`) is encrypted: `PARAM.SFO`'s
+  `SAVEDATA_PARAMS` starts with `0x41`, and `SAVEDATA_FILE_LIST` keeps a 16-byte hash after each file's 13-byte name.
+  GT passes a 16-byte key at param `+0x5DC` with `secureVersion` 0 at `+0x5EC`, built with SDK 5.x: the firmware's
+  **mode 5**, which uses no console-bound (fuse) key, so any PSP's save decrypts. *(measured: the key logged from the
+  savedata HLE; the hash computed by `tools/savedata.py` equals `PARAM.SFO`'s; the decrypted save boots to Day 25)*
+- GT also scrambles its own payload (both the encrypted save and the plain save the HLE writes have entropy ~7.9);
+  `func_08C4FE98` is a two-generator XOR over it (read from its asm).
+- With a save the main menu loads `0x2458A6C0` instead of `0x1FA48900` (the Welcome screen's first-start page), with
+  the cursor on Driving Challenges; the Single Player hub opens with its cursor on OK and Mode Selection on the last mode
+  (the save's: Drift Trial). The other page offsets are the same as with an empty save. *(measured: `GT_IO_LOG` + frames)*
+- Mode Selection's order with the save: Time Trial, Single Race, Drift Trial (from the left).

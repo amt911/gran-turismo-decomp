@@ -518,3 +518,58 @@ def test_sigterm_restores_pending_files_at_once(tmp_path):
     proc.terminate()
     proc.wait(timeout=10)
     assert target.read_text() == "original"
+
+
+SAVE_ROUTES = {"fast": (("race", 200), ("save_tour", 300)), "full": (("race", 600), ("save_tour", 400))}
+
+
+def test_save_routes_get_their_own_savedata_dir(monkeypatch):
+    """A route named save_* starts from a fresh copy of the user's save (spec 2026-10-23-savedata-routes); the others
+    keep the default savedata."""
+    monkeypatch.setattr(gate, "ROUTES", SAVE_ROUTES)
+    for kind in ("fast", "full"):
+        command = gate.route_shell(Path("build/gt_native"), kind, "t1", Path("logs"))
+        parts = command.split(") &")
+        tour = next(p for p in parts if "save_tour.pad" in p)
+        race = next(p for p in parts if "race.pad" in p)
+        assert "GT_SAVEDATA_DIR=logs/savedata_t1_save_tour" in tour
+        assert "GT_SAVEDATA_DIR" not in race
+    probe = gate.probe_shell(Path("build/gt_native"), "t1", Path("s.sym"), Path("logs"))
+    assert "GT_SAVEDATA_DIR=logs/savedata_probe_t1_save_tour" in next(p for p in probe.split(") &") if "save_tour.pad" in p)
+
+
+def _save(tmp_path):
+    save = tmp_path / "UCES01245-GAMEDAT"
+    save.mkdir()
+    for name, text in (("GAME.DAT", "data"), ("PARAM.SFO", "sfo")):
+        (save / name).write_text(text)
+    hashes = tmp_path / "savedata.sha1"
+    hashes.write_text("".join(f"{gate.checksums.sha1_of(save / n)}  {n}\n" for n in ("GAME.DAT", "PARAM.SFO")))
+    return save, hashes
+
+
+def test_prepare_saves_copies_a_fresh_save_per_route(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "ROUTES", SAVE_ROUTES)
+    save, hashes = _save(tmp_path)
+    logs = tmp_path / "logs"
+    stale = logs / "savedata_t1_save_tour" / "UCES01245-GAMEDAT"
+    stale.mkdir(parents=True)
+    (stale / "GAME.DAT").write_text("written by an earlier run")
+    assert gate.prepare_saves("t1", logs, "fast", save, hashes) == ["save_tour"]
+    assert (stale / "GAME.DAT").read_text() == "data" and (stale / "PARAM.SFO").read_text() == "sfo"
+    assert not (logs / "savedata_t1_race").exists()
+
+
+def test_prepare_saves_refuses_another_or_missing_save(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "ROUTES", SAVE_ROUTES)
+    save, hashes = _save(tmp_path)
+    (save / "GAME.DAT").write_text("another save")
+    with pytest.raises(gate.SaveError, match="GAME.DAT"):
+        gate.prepare_saves("t1", tmp_path / "logs", "fast", save, hashes)
+    with pytest.raises(gate.SaveError, match="game_files"):
+        gate.prepare_saves("t1", tmp_path / "logs", "fast", tmp_path / "missing", hashes)
+
+
+def test_prepare_saves_needs_no_save_without_save_routes(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "ROUTES", {"fast": (("race", 200),), "full": (("race", 600),)})
+    assert gate.prepare_saves("t1", tmp_path / "logs", "fast", tmp_path / "missing", tmp_path / "none.sha1") == []

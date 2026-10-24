@@ -72,6 +72,7 @@ target_compile_options(gt_generated PRIVATE ${GT_GENERATED_OPT} -w)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavformat libavutil libswresample libswscale)
+pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)  # AES for the PSP savedata cipher (OpenSSL, system)
 find_package(Threads REQUIRED)
 
 # Kernel/IO/media HLE: host/gt_kernel.cpp, our copy of lcs-recomp's lcs_profile.cpp (MIT, notice kept)
@@ -83,7 +84,20 @@ file(GLOB_RECURSE GT_DECOMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*
 
 # Everything both executables share. An OBJECT library, so the GT_DECOMP registrars in src/ are
 # linked in whole (a static archive would let the linker drop them).
+# KIRK slot keys for the PSP savedata cipher (spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md): read as
+# data from the pinned pspdecrypt checkout tools/setup.sh fetches, checked against config/kirk_slot_keys.sha256, written
+# under the build directory only — never committed.
+set(GT_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+add_custom_command(
+    OUTPUT "${GT_GENERATED_DIR}/kirk_slot_keys.hpp"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${GT_GENERATED_DIR}"
+    COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python" -I tools/savedata.py keys "${GT_GENERATED_DIR}/kirk_slot_keys.hpp"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    DEPENDS tools/savedata.py config/kirk_slot_keys.sha256 tools/src/pspdecrypt/libkirk/kirk_engine.c
+    VERBATIM)
+add_custom_target(gt_kirk_slot_keys DEPENDS "${GT_GENERATED_DIR}/kirk_slot_keys.hpp")
 add_library(gt_host_objs OBJECT
+    host/psp_savedata_crypto.cpp
     host/main.cpp
     host/diff_harness.cpp
     host/import_replay.cpp
@@ -117,8 +131,9 @@ add_library(gt_host_objs OBJECT
     host/frame_log.cpp
     "${GT_LCS_HOST_DIR}/ge_renderer.cpp"
 )
-target_include_directories(gt_host_objs PRIVATE host include "${GT_LCS_HOST_DIR}")
-target_link_libraries(gt_host_objs PRIVATE psprecomp_core PkgConfig::FFMPEG)
+target_include_directories(gt_host_objs PRIVATE host include "${GT_LCS_HOST_DIR}" "${GT_GENERATED_DIR}")
+target_link_libraries(gt_host_objs PRIVATE psprecomp_core PkgConfig::FFMPEG PkgConfig::LIBCRYPTO)
+add_dependencies(gt_host_objs gt_kirk_slot_keys)
 # PSP fonts fetched by tools/setup.sh (never committed): the sceLibFont HLE's default directory.
 target_compile_definitions(gt_host_objs PRIVATE
     GT_DEFAULT_FONT_DIR="${CMAKE_SOURCE_DIR}/tools/src/ppsspp-fonts/assets/flash0/font")
@@ -127,7 +142,7 @@ target_compile_definitions(gt_host_objs PRIVATE
 # and the boot checks run this one.
 add_executable(gt_native $<TARGET_OBJECTS:gt_host_objs> host/headless_backends.cpp)
 target_include_directories(gt_native PRIVATE host "${GT_LCS_HOST_DIR}")
-target_link_libraries(gt_native PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG Threads::Threads)
+target_link_libraries(gt_native PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::LIBCRYPTO Threads::Threads)
 
 # gt_play: the same game with lcs-recomp's real host backends (SDL2 window and input, audio output,
 # Vulkan GE backend), compiled from the pinned checkout (MIT, not vendored), plus our hooks for what
@@ -189,7 +204,7 @@ if(GT_PLAY)
     endif()
     target_include_directories(gt_play BEFORE PRIVATE "${GT_PLAY_GENERATED}")
     target_include_directories(gt_play PRIVATE host "${GT_LCS_HOST_DIR}")
-    target_link_libraries(gt_play PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::SDL2
+    target_link_libraries(gt_play PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::LIBCRYPTO PkgConfig::SDL2
                           PkgConfig::VULKAN Threads::Threads)
     # The user's settings live in build/gt_play.ini: copy the template only when there is none, so a reconfigure or a
     # pull that changes config/gt_play.ini doesn't wipe them (keys an older copy lacks take the program's defaults).
@@ -216,6 +231,10 @@ add_executable(ge_blend_tests host/tests/ge_blend_test.cpp "${GT_LCS_HOST_DIR}/g
 target_include_directories(ge_blend_tests PRIVATE host "${GT_LCS_HOST_DIR}")
 target_link_libraries(ge_blend_tests PRIVATE psprecomp_core)
 add_test(NAME ge_blend COMMAND ge_blend_tests)
+add_executable(savedata_crypto_tests host/tests/savedata_crypto_test.cpp host/psp_savedata_crypto.cpp)
+target_include_directories(savedata_crypto_tests PRIVATE host)
+target_link_libraries(savedata_crypto_tests PRIVATE PkgConfig::LIBCRYPTO)
+add_test(NAME savedata_crypto COMMAND savedata_crypto_tests)
 add_executable(audio_mixer_tests host/tests/audio_mixer_test.cpp)
 target_include_directories(audio_mixer_tests PRIVATE "${GT_LCS_HOST_DIR}")
 add_test(NAME audio_mixer COMMAND audio_mixer_tests)

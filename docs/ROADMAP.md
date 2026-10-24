@@ -999,6 +999,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       Puerta rápida (cinco rutas sin tope): 44 instaladas, 43 comparadas en una pasada y todas en otra, 0 discrepancias; sabotajes 31 de 31 en la primera ronda y las 13 re-registradas pinadas por fichero (`func_08A235F8` solo tras quitar un `[[maybe_unused]]` que ocultaba la función al sabotaje). **6.708 funciones, 0 discrepancias** (puerta completa: 5.270 comparadas, suelo 5.226 → 5.270).
       Caminos leídos solo del asm, los más débiles primero: `func_08AE2160` (el bucle nunca corrió), `func_08909D98` (el último objeto compartido siempre nulo: sin la llamada final), `func_08B34B2C`/`func_088B0520` (sin registrar), `func_08B59A24` (solo los casos sin espera de vblank), `func_088D8B20` (un único caso), `func_08A17A28` (toda la búsqueda en la lista), `func_08BFEBAC`/`func_08C1EEEC`/`func_08B940D8` (solo los brazos con la pista en el encabezado o con clave menor), `func_08B33C0C`, `func_08B2BFDC` y `func_08B2CE7C` (los caminos de error).
       Revisión del PR #251: `__sceSasSetVoice` pasa a comparar sus cinco argumentos (máscara `0x1F`; la HLE lee también la dirección del VAG, su tamaño y el bucle) y `func_08B59A24` vuelve a quedar sin registrar (lo bloquea la espera de vblank, que sigue prohibida en un caso): 6.707 funciones.
+- [x] **Rutas desde una partida guardada** (2026-10-24, spec `2026-10-23-savedata-routes-design.md`): el HLE de
+      `sceUtilitySavedata` descifra las partidas reales de PSP como el firmware (modo 5, con la clave que pasa el juego;
+      `tools/savedata.py` es la referencia, `host/psp_savedata_crypto` la versión C++ sobre libcrypto). La partida del
+      usuario (Día 25) es una entrada más, comprobada por hash y copiada limpia por ruta; cuatro rutas `save_*`
+      (Trial Mountain, Driving Challenges, Drift Trial, concesionarios) alcanzan 95 funciones que las rutas de partida
+      vacía no. Encontraron enseguida un fallo real: `func_0895C394` (lote 123) leía el tipo de tracción donde el original
+      lee el byte `+0x12` (rama que solo toma un coche con tracción total). Puerta completa: 16 rutas, 5.662 comparadas,
+      0 discrepancias.
 - [x] **Ruta Trial Mountain y puerta más fiable** (2026-10-23): ruta 12 (`trialmtn`, carrera en Trial Mountain).
       Arreglos de la puerta: el margen tras el menú principal pasa de 1700 a 2300 vblanks en las 12 rutas (con carga
       se perdía la primera pulsación: exit 97 aleatorio), y la puerta rápida y la sonda ejecutan como mucho 6 rutas a la
