@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -140,16 +141,18 @@ def test_route_cap_leaves_cpu_headroom():
     assert gate.MAX_PARALLEL_ROUTES * gate.ROUTE_CORES <= 0.8 * gate.MACHINE_CORES
 
 
-def test_route_shell_never_runs_more_than_the_cap_at_once(tmp_path):
-    """Runs the generated line with a stand-in binary that records how many copies are alive."""
+@pytest.mark.parametrize("kind", ["full", "fast"])
+def test_route_shell_never_runs_more_than_the_cap_at_once(tmp_path, kind):
+    """Runs the generated line with a stand-in binary that records how many copies are alive. The fast gate too:
+    twelve uncapped routes at once passed the slice's MemoryHigh and every one stalled to its timeout (2026-10-23)."""
     fake = tmp_path / "fake"
     fake.write_text("#!/bin/sh\nmkdir -p live; touch live/$$; ls live | wc -l >> peaks; sleep 0.3; rm live/$$\n")
     fake.chmod(0o755)
-    command = gate.route_shell(fake, "full", "t1", tmp_path)
+    command = gate.route_shell(fake, kind, "t1", tmp_path)
     subprocess.run(["bash", "-c", command], cwd=tmp_path, check=True, timeout=30)
     peaks = [int(line) for line in (tmp_path / "peaks").read_text().split()]
-    assert len(peaks) == len(gate.ROUTES["full"]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES
-    assert all((tmp_path / f"gt_diff_t1_{route}.exit").read_text().strip() == "0" for route, _ in gate.ROUTES["full"])
+    assert len(peaks) == len(gate.ROUTES[kind]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES
+    assert all((tmp_path / f"gt_diff_t1_{route}.exit").read_text().strip() == "0" for route, _ in gate.ROUTES[kind])
 
 
 def test_heavy_runs_in_the_shared_slice_that_caps_all_heavy_jobs_together():
@@ -452,3 +455,66 @@ def test_sabotage_can_run_the_full_gate(monkeypatch):
     assert calls[0][1].get("kind") == "full"
     assert gate.main(["sabotage", "t1", "--file", "src/x.cpp", "--only", "0x08800000"]) == 0
     assert calls[1][1].get("kind", "fast") == "fast"
+
+
+def test_probe_shell_never_runs_more_than_the_cap_at_once(tmp_path):
+    """The probe starts the same routes as the fast gate, so the same memory cap applies."""
+    fake = tmp_path / "fake"
+    fake.write_text("#!/bin/sh\nmkdir -p live; touch live/$$; ls live | wc -l >> peaks; sleep 0.3; rm live/$$\n")
+    fake.chmod(0o755)
+    command = gate.probe_shell(fake, "t1", tmp_path / "symbols.txt", tmp_path)
+    subprocess.run(["bash", "-c", command], cwd=tmp_path, check=True, timeout=30)
+    peaks = [int(line) for line in (tmp_path / "peaks").read_text().split()]
+    assert len(peaks) == len(gate.ROUTES["fast"]) and 1 < max(peaks) <= gate.MAX_PARALLEL_ROUTES
+
+
+def test_sigterm_still_restores_a_sabotaged_file(tmp_path):
+    """`timeout` stops a run with SIGTERM; Python's default dies without `finally`, so a sabotage run killed that way
+    left its sabotaged source behind (2026-10-23, mrandom.cpp) and every later build carried it. The CLI turns SIGTERM
+    into an exit, so the restore runs."""
+    target = tmp_path / "f.cpp"
+    target.write_text("original")
+    script = (
+        "import sys, time, pathlib\n"
+        "from tools import decomp_gate as gate\n"
+        "gate.exit_on_sigterm()\n"
+        f"p = pathlib.Path({str(target)!r})\n"
+        "try:\n"
+        "    p.write_text('sabotaged'); print('ready', flush=True); time.sleep(30)\n"
+        "finally:\n"
+        "    p.write_text('original')\n")
+    proc = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, text=True,
+                            cwd=Path(__file__).resolve().parents[2])
+    assert proc.stdout.readline().strip() == "ready"
+    proc.terminate()
+    proc.wait(timeout=10)
+    assert target.read_text() == "original"
+
+
+def test_clear_run_creates_the_log_directory(tmp_path):
+    """A fresh clone has no recomp/analysis/: every route's `> log` failed at once and the gate read no report (the
+    PR #291 verdict, 2026-10-24). clear_run prepares the directory the routes write to."""
+    logs = tmp_path / "recomp" / "analysis"
+    gate.clear_run("t1", logs)
+    assert logs.is_dir()
+
+
+def test_sigterm_restores_pending_files_at_once(tmp_path):
+    """A waiter on the CPU lock sends TERM, then KILL after a short grace; unwinding through subprocess.run (which kills
+    and waits for its children first) outlasted the grace and left unit_system.cpp sabotaged (2026-10-24). The handler
+    writes the pending originals back before anything else."""
+    target = tmp_path / "f.cpp"
+    target.write_text("original")
+    script = (
+        "import time, pathlib\n"
+        "from tools import decomp_gate as gate\n"
+        "gate.exit_on_sigterm()\n"
+        f"p = pathlib.Path({str(target)!r})\n"
+        "gate.pending_restore(p, 'original')\n"
+        "p.write_text('sabotaged'); print('ready', flush=True); time.sleep(30)\n")
+    proc = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, text=True,
+                            cwd=Path(__file__).resolve().parents[2])
+    assert proc.stdout.readline().strip() == "ready"
+    proc.terminate()
+    proc.wait(timeout=10)
+    assert target.read_text() == "original"

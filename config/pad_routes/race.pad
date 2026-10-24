@@ -1,12 +1,12 @@
 # Route A — the race: title screen, Single Player, the default choices up to the first race (600 s).
 # Waits for the game, not for a time (host/pad_sequence.hpp): WAIT:seek=<offset> holds until the game seeks GT.VOL to
 # <offset>, the entry of the page it is loading (FACTS § Page loads as screen signals); the time after it counts from there.
-# Margins: 1700 after the main menu's load (the Welcome screen runs first), 300 elsewhere (a page is ready ~125-190 after its load).
+# Margins: 2300 after the main menu's load (the Welcome screen runs first; 1700 lost presses under load, 2026-10-23), 300 elsewhere (a page is ready ~125-190 after its load).
 # Each page's offset: 1fa48900 main menu, 1cf2a980 Single Player hub, 1cdb9140 Mode Selection, 1d04fc40 Race Options,
 # 1cd6db80 Car Selection, 1d0332c0 Car Settings, 1cd7d200 Track Selection, 1d043c80 Track Options, 1cc98cc0 Starting Grid,
 # 1d19db00 the race's own pages.
 3300:START,
-WAIT:seek=0x1fa48900,1700:CROSS,
+WAIT:seek=0x1fa48900,2300:CROSS,
 WAIT:seek=0x1cf2a980,300:CROSS,
 WAIT:seek=0x1cdb9140,300:CROSS,
 WAIT:seek=0x1d04fc40,300:CROSS,

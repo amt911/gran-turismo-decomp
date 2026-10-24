@@ -2328,3 +2328,27 @@ Found: 2026-10-23 · tools/decomp_gate.py (sabotage)
 **Why it isn't obvious.** Both renderers shared the wrong formula, so every GPU-against-software comparison passed. A visual bug both renderers agree on needs PPSSPP's source (or PPSSPP itself) as the reference.
 
 Found: 2026-10-23 · tools/patches/lcs-recomp/0056-ge-doubled-blend-factors.patch
+
+## Exit 97 at the main menu: the routes pressed before the Welcome screen was over
+
+**Symptom.** Full gates failed now and then on one route (manual, challenge2, options — a different one each time) with exit 97: `WAIT seek=… timed out after 12000 vblanks (N seeks since vblank ~5270, none to …)`, always the wait right after the main menu.
+**Cause.** The main menu's page load (`0x1FA48900`) comes ~800 vblanks before the menu shows (the Welcome screen runs first) and every route pressed 1700 after it. With six routes in parallel and another session's jobs, the Welcome screen took longer than that, the first press went to it, and the route never reached its next page. The wait is in vblanks, which keep wall-clock pace while the starved game thread does less per vblank.
+**Fix / workaround.** 2300 instead of 1700 in all twelve routes (every press of that line moved by 600). A route that fails this way is a gate failure (`route_problem`), never a pass; rerun, and if the same wait times out again, look at the frames before raising the margin again.
+
+Found: 2026-10-23 · config/pad_routes/*.pad
+
+## Twelve fast-gate routes at once: every route stalled to its timeout (exit 124, no report)
+
+**Symptom.** With the twelfth route (trialmtn) every fast gate failed: all routes `exit 124` after 1000 s, logs ending at `Running from entry`, the same with one verified function (`--only 0x088DDB6C`) as with fifteen. Each route run by hand in a bare shell passed.
+**Cause.** The fast gate (and the probe) started every route at once in one scope of `gt-heavy.slice` (MemoryHigh 5 GB). Eleven routes at ~0.5 GB fit just below it; twelve passed it, the kernel throttled the whole scope and nothing progressed. The full gate already ran at most `MAX_PARALLEL_ROUTES` at a time for the same reason (entry above: "Eleven full-gate routes outgrew the slice").
+**Fix / workaround.** `route_shell` and `probe_shell` cap both gates and the probe at `MAX_PARALLEL_ROUTES`, longest first (tests run the generated line with a stand-in binary). Adding a route means checking it against this cap, not against the slice.
+
+Found: 2026-10-23 · tools/decomp_gate.py (route_shell, probe_shell)
+
+## A sabotage run stopped by `timeout` left its sabotage in the source
+
+**Symptom.** After a run of the sabotage loop came back with no result line, `git status` showed `src/game/adhoc/mrandom.cpp` modified: `GetValue` still began with the sabotage (`ctx.gpr[16] += 1u; …0x08000F00…`). The next file's run was built with it.
+**Cause.** Each run is capped by `timeout 1800`, which sends SIGTERM. Python's default for SIGTERM ends the process at once, without running `finally`, so `_sabotage`'s restore of the snapshot never happened.
+**Fix / workaround.** `tools.decomp_gate` turns SIGTERM into `SystemExit` (`exit_on_sigterm`) so the restore runs; the test kills a child with SIGTERM mid-`try`. After any interrupted sabotage, check `git status src` before trusting the next run, and redo the runs built after it.
+
+Found: 2026-10-24 · tools/decomp_gate.py (exit_on_sigterm)

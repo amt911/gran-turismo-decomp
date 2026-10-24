@@ -2,7 +2,7 @@
 # Start, then drive 20 s with the accelerator held and the steering pulsed, and pause (Continue) (250 s). Page offsets: race.pad; 1d058440 is
 # the Drift Trial popup.
 3300:START,
-WAIT:seek=0x1fa48900,1700:CROSS,
+WAIT:seek=0x1fa48900,2300:CROSS,
 WAIT:seek=0x1cf2a980,300:CROSS,
 WAIT:seek=0x1cdb9140,300:RIGHT,500:CROSS,
 WAIT:seek=0x1d058440,300:CROSS,
