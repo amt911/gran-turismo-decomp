@@ -56,6 +56,9 @@ constexpr std::uint32_t kIconBoxItemWidget = 0x089E7AF4u;      // (holder *out, 
 constexpr std::uint32_t kRenderContextClosePage = 0x089AFC78u; // (render context *, root window *)
 constexpr std::uint32_t kIconBoxSetItemCount = 0x089E8848u;    // (icon box *, columns, rows)
 constexpr std::uint32_t kIconBoxSetItemTemplate = 0x089E6050u; // (icon box *, render context *, template *)
+constexpr std::uint32_t kIconBoxSetItemWidget = 0x089E778Cu;   // (icon box *, index, render context *, widget holder *)
+constexpr std::uint32_t kToIntSlot = 15u;                      // value->toInt()
+constexpr std::uint32_t kReportNull = 0x08A5BB7Cu;             // (message): what the originals do with a null pointer
 constexpr std::uint32_t kListBoxSetItemTemplate = 0x089CDC0Cu; // (list box *, render context *, template *)
 constexpr std::uint32_t kCompositeClearChildren = 0x089B8BA0u; // (child list *): the composite's +0xE8
 constexpr std::uint32_t kCompositeChildren = 0xE8u;
@@ -658,6 +661,33 @@ void MRenderContext_finish(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     destroy(rt, ctx, context);
 }
 
+// MIconBox.setItemWidget(index, context, widget): with exactly three arguments, sets item argv[0] (its toInt()) of the
+// box to argv[2] in context argv[1]. A null box or index value is reported (0x08CA7A10 / 0x08CA78D8) and used anyway.
+void MIconBox_setItemWidget(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t argc = ctx.gpr[6];
+    const std::uint32_t argv = ctx.gpr[7];
+    if (argc != 3u) return;
+    auto &memory = rt.memory();
+    GuestFrame frame(ctx, 0x40u);
+    const std::uint32_t box = frame.at(0x8u);
+    const std::uint32_t context = frame.at(0xCu);
+    const std::uint32_t widget = frame.at(0x10u);
+    (void)call_guest(rt, ctx, kSelfAsIconBox, {box});
+    memory.store32(frame.at(0x4u), memory.load32(argv + 4u));
+    (void)call_guest(rt, ctx, kHolderCopyRenderContext, {context, frame.at(0x4u)});
+    memory.store32(frame.at(0x0u), memory.load32(argv + 8u));
+    (void)call_guest(rt, ctx, kHolderCopy, {widget, frame.at(0x0u)});
+    const std::uint32_t icon_box = memory.load32(box);
+    if (icon_box == 0u) (void)call_guest(rt, ctx, kReportNull, {0x08CA7A10u});
+    const std::uint32_t index_value = memory.load32(argv);
+    if (index_value == 0u) (void)call_guest(rt, ctx, kReportNull, {0x08CA78D8u});
+    const std::uint32_t index = call_guest(rt, ctx, virtual_function(rt, index_value, kToIntSlot), {index_value});
+    (void)call_guest(rt, ctx, kIconBoxSetItemWidget, {icon_box, index, memory.load32(context), widget});
+    destroy(rt, ctx, widget);
+    destroy(rt, ctx, context);
+    destroy(rt, ctx, box);
+}
+
 } // namespace gt::adhoc::ui
 
 GT_DECOMP(0x089A358Cu, gt::adhoc::ui::MRootWindow_setFocus, gt::ReturnKind::Void);
@@ -688,6 +718,7 @@ GT_DECOMP(0x089E9944u, gt::adhoc::ui::MIconBox_getItemWidget, gt::ReturnKind::Vo
 // Not comparable yet (sleeps the thread: sceKernelSleepThread), so not swapped in: GT_DECOMP(0x089AFE00u, gt::adhoc::ui::MRenderContext_closePage, gt::ReturnKind::Void);
 GT_DECOMP(0x089E8894u, gt::adhoc::ui::MIconBox_setItemCount, gt::ReturnKind::Void);
 GT_DECOMP(0x089E6160u, gt::adhoc::ui::MIconBox_setItemTemplate, gt::ReturnKind::Void);
+GT_DECOMP(0x089E7A00u, gt::adhoc::ui::MIconBox_setItemWidget, gt::ReturnKind::Void);
 GT_DECOMP(0x089CDD40u, gt::adhoc::ui::MListBox_setItemTemplate, gt::ReturnKind::Void);
 // Not comparable yet (sleeps the thread: sceKernelSleepThread), so not swapped in: GT_DECOMP(0x08A018D8u, gt::adhoc::ui::MComposite_clearChild, gt::ReturnKind::Void);
 GT_DECOMP(0x089AE57Cu, gt::adhoc::ui::MRenderContext_getCommonPage, gt::ReturnKind::Void);
