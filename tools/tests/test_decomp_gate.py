@@ -489,3 +489,11 @@ def test_sigterm_still_restores_a_sabotaged_file(tmp_path):
     proc.terminate()
     proc.wait(timeout=10)
     assert target.read_text() == "original"
+
+
+def test_clear_run_creates_the_log_directory(tmp_path):
+    """A fresh clone has no recomp/analysis/: every route's `> log` failed at once and the gate read no report (the
+    PR #291 verdict, 2026-10-24). clear_run prepares the directory the routes write to."""
+    logs = tmp_path / "recomp" / "analysis"
+    gate.clear_run("t1", logs)
+    assert logs.is_dir()

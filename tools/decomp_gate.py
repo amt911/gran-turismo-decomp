@@ -348,7 +348,8 @@ def probe_problem(text: str, exit_code: str, require_done: bool = False) -> str 
 
 def clear_run(tag: str, logs: Path) -> None:
     """Removes a tag's logs and exit codes from an earlier run, so a run that dies early can't be read
-    with an old run's results."""
+    with an old run's results. Creates the directory: a fresh clone has none."""
+    logs.mkdir(parents=True, exist_ok=True)
     for route, _ in ROUTES["full"]:
         for suffix in (".log", ".exit"):
             (logs / f"gt_diff_{tag}_{route}{suffix}").unlink(missing_ok=True)
@@ -543,6 +544,7 @@ def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) 
     subprocess.run(slice_limits(), check=True)
     slot = HeavySlot()
     slot.acquire()
+    Path("recomp/analysis").mkdir(parents=True, exist_ok=True)  # a fresh clone has none
     for stale in Path("recomp/analysis").glob(f"probe_{tag}_*"):
         stale.unlink()  # an earlier run's logs and exit codes must not stand in for this one
     try:
