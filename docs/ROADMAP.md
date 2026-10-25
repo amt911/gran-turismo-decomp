@@ -1012,6 +1012,12 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 140** (2026-10-25): 24 miembros más de dos familias de envoltorio (`register_names`, `handle_wrapper`),
+      verificados con casos sintéticos (27 comparados, sabotaje 24 de 27: los 3 sin detectar quedan comentados). Cuatro
+      familias más se revirtieron: su plantilla no era de la familia que usa ese envoltorio (FINDINGS). Los barridos
+      sintéticos encontraron 5 fallos más en código ya verificado por rutas: los 6 indicadores de CarDriverParameter
+      (`> 0`), `over_entry_max`, `func_08B212B4` (con signo donde el original no), y dos casos de registros sobrantes o
+      lecturas adelantadas; quedan 7 sin explicar. Las entradas sintéticas ya no cambian con cada lote. Total: 8.167.
 - [x] **Lotes 138 y 139** (2026-10-25): los primeros lotes de código que ninguna ruta alcanza, verificados con casos
       sintéticos. Son los demás miembros de familias de una sola forma cuya plantilla ya estaba decompilada: thunks,
       funciones vacías, devolver cero, reenvíos, cabeceras de destructor, llamar-y-devolver (lote 138, 523) y las

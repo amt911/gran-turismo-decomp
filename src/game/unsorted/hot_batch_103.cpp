@@ -437,6 +437,39 @@ void func_0899B04C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 void func_089D8F3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A10020u, 0x08C0457Cu); }
 void func_089DBFC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x0896BF44u, 0x08C06438u); }
 void func_089E2DB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A093ECu, 0x08C07FE8u); }
+// Batch 140 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_08974F64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D8F3Cu, 0x08BEC8A8u); }
+void func_08975088(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D7BE0u, 0x08BEC8E8u); }
+void func_0897FB14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x0896BF44u, 0x08BEEA3Cu); }
+void func_08984358(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x0897D578u, 0x08BEF030u); }
+void func_0898A958(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x0896BF44u, 0x08BEFCDCu); }
+void func_089908D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089958A0u, 0x08BF087Cu); }
+void func_089940BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08BF0960u); }
+void func_08997794(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A02C2Cu, 0x08BF0BB0u); }
+void func_0899A660(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08BF3334u); }
+void func_0899E074(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08BF409Cu); }
+void func_089A131C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D8F3Cu, 0x08BF4688u); }
+void func_089A1440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D7BE0u, 0x08BF46C8u); }
+void func_089A4AE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08BF5A9Cu); }
+void func_089B4258(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A02C2Cu, 0x08BFD1E4u); }
+void func_089B8580(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08BFDEDCu); }
+void func_089B9B48(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089BCCDCu, 0x08BFE5A4u); }
+void func_089C0F84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089E2DB0u, 0x08BFFAD0u); }
+void func_089C2FAC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A10020u, 0x08BFFDC0u); }
+void func_089CAF8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08C01D9Cu); }
+void func_089D0A5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089958A0u, 0x08C02400u); }
+void func_089E6624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x0899B04Cu, 0x08C09670u); }
+void func_089EFD70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089E2DB0u, 0x08C0AAA0u); }
+void func_089F450C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089E2DB0u, 0x08C0B428u); }
+void func_089F6F74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A10020u, 0x08C0B560u); }
+void func_089F877C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D8F3Cu, 0x08C0C30Cu); }
+void func_089F88A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D7BE0u, 0x08C0C34Cu); }
+void func_089FD2C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089BCCDCu, 0x08C0ECACu); }
+void func_089FEAE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A0DF1Cu, 0x08C0EE58u); }
+void func_089FFE38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x08A10020u, 0x08C0EF40u); }
+void func_08A0598C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D8F3Cu, 0x08C10974u); }
+void func_08A05AB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x089D7BE0u, 0x08C109B4u); }
+void func_08A19F68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_names(rt, ctx, 0x0897D578u, 0x08C18E94u); }
 
 // The "insert with a hint" of a sorted unique-key tree (the standard library's _Rb_tree::insert_unique(hint, value)): tree = a0 (header at +4, leftmost +0xC, rightmost +0x10, size +0x14), hint = a1 (a node, key at +0x10), value = a2 (key = its first word). The three members differ in the key comparison (`signed_keys`) and in the two callees `insert_unique` (value) -> {iterator in v0} and `insert_at` (x, y, value) -> iterator:
 //  - hint == the header: an empty tree, or a key that is not above the rightmost one, goes through insert_unique; otherwise insert_at(0, rightmost);
@@ -841,3 +874,38 @@ HOT103(0x08AE2160u, func_08AE2160, Word);
 HOT103(0x08AEFB40u, func_08AEFB40, Word);
 HOT103(0x088D8B20u, func_088D8B20, Word);
 HOT103(0x088D5AFCu, func_088D5AFC, Word);
+
+// Batch 140 (2026-10-25): the rows above, verified by synthetic cases; a commented registration had no comparable
+// synthetic case (every one faulted in the original), so its row runs as the recompiled original.
+// HOT103(0x08974F64u, func_08974F64, Word);
+// HOT103(0x08975088u, func_08975088, Word);
+// HOT103(0x0897FB14u, func_0897FB14, Word);
+// HOT103(0x08984358u, func_08984358, Word);
+// HOT103(0x0898A958u, func_0898A958, Word);
+HOT103(0x089908D8u, func_089908D8, Word);
+// HOT103(0x089940BCu, func_089940BC, Word);
+// HOT103(0x08997794u, func_08997794, Word);
+// HOT103(0x0899A660u, func_0899A660, Word);
+// HOT103(0x0899E074u, func_0899E074, Word);
+// HOT103(0x089A131Cu, func_089A131C, Word);
+// HOT103(0x089A1440u, func_089A1440, Word);
+// HOT103(0x089A4AE4u, func_089A4AE4, Word);
+// HOT103(0x089B4258u, func_089B4258, Word);
+// HOT103(0x089B8580u, func_089B8580, Word);
+// HOT103(0x089B9B48u, func_089B9B48, Word);
+// HOT103(0x089C0F84u, func_089C0F84, Word);
+// HOT103(0x089C2FACu, func_089C2FAC, Word);
+// HOT103(0x089CAF8Cu, func_089CAF8C, Word);
+// HOT103(0x089D0A5Cu, func_089D0A5C, Word);
+// HOT103(0x089E6624u, func_089E6624, Word);
+// HOT103(0x089EFD70u, func_089EFD70, Word);
+// HOT103(0x089F450Cu, func_089F450C, Word);
+// HOT103(0x089F6F74u, func_089F6F74, Word);
+// HOT103(0x089F877Cu, func_089F877C, Word);
+// HOT103(0x089F88A0u, func_089F88A0, Word);
+// HOT103(0x089FD2C0u, func_089FD2C0, Word);
+// HOT103(0x089FEAE4u, func_089FEAE4, Word);
+// HOT103(0x089FFE38u, func_089FFE38, Word);
+// HOT103(0x08A0598Cu, func_08A0598C, Word);
+// HOT103(0x08A05AB0u, func_08A05AB0, Word);
+// HOT103(0x08A19F68u, func_08A19F68, Word);

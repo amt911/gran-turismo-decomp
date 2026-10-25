@@ -2401,12 +2401,14 @@ comparable cases, 20 with mismatches, although every one of them passes the rout
   in the original and 0 in the C++ (`call_guest` does not load the target into v0) — the arena now only uses
   `jr ra; li v0, K`. The arena also must not depend on which functions are installed (GT_DECOMP_ONLY), or a
   single-function rerun sees other inputs.
-**Fix / workaround.** All of the above fixed. Still open with the tool's default 8 cases (`tools.decomp_gate synth`:
-4736 functions compared, 10 mismatched): `func_0882AA38`, `func_08945664`, `func_08957B30`, `func_089687D8`,
-`func_08968850`, `func_0896B4D4`, `func_08AD1990`, `func_08AFD484`, `func_08B212B4`, `func_08C18650` (and
-`func_08C416DC` with 4 cases): not explained yet — one may be the time bound (the decompiled loops have none). Also: a case can loop inside one recompiled function where the dispatcher's step / time
-bounds never run, and a stop inside a case stopped the whole sweep — hence one forked child per function, killed
-after 10 s.
+**Fix / workaround.** All of the above fixed, and later sweeps found more of the same: the six CarDriverParameter flag
+getters (`> 0` again), `over_entry_max` (the raw `online_on` byte instead of its getter's non-zero test),
+`func_08B212B4` (a signed `< 2` where the original has `sltiu`), and leftover / eager-read cases in `func_0882AA38`
+and `func_08957B30`. Still open (8 cases, 2026-10-25): `func_088FB970` (s0 at exit), `func_089687D8`, `func_08968850`,
+`func_0896B4D4` (bytes written), `func_08AD1990` (one VFPU bit), `func_08AFD484`, `func_08C18650` (only the C++ faults)
+— not explained yet; one may be the time bound (the decompiled loops have none). Also: a case can loop inside one
+recompiled function where the dispatcher's step / time bounds never run, and a stop inside a case stopped the whole
+sweep — hence one forked child per function, killed after 10 s.
 
 Found: 2026-10-25 · host/diff_harness.cpp (synthetic cases), src/game/race/race_parameter.cpp
 
@@ -2418,3 +2420,26 @@ although each was compared 20 times.
 **Fix / workaround.** Sabotage the store by hand (`value + 1`): 20 of 20 cases mismatched for each, file restored.
 
 Found: 2026-10-25 · src/game/race/race_parameter.cpp
+
+## Synthetic inputs must not depend on what is registered
+
+**Symptom.** After batches 138-139 the synthetic sweep showed two "new" mismatches in functions decompiled long before
+(`physics_pro`, `over_entry_max`) and lost one old one.
+**Cause.** The arena's trivial "return" functions left out every registered function; each batch registered some of
+them, so every function's generated inputs changed with each batch.
+**Fix / workaround.** The trivial functions are chosen from the code alone (a decompiled one runs its decompiled
+version in the decompiled run, which its own cases already compare). The two "new" ones were real bugs anyway.
+
+Found: 2026-10-25 · host/diff_harness.cpp (run_synthetic_cases)
+
+## A family's rows with the wrong wrapper: `--check` flags the old rows, not the new ones
+
+**Symptom.** Rows generated with `tools.family_members TEMPLATE --cpp WRAPPER` for `pair_call_b`,
+`guarded_static_object`, `target_setting_row` and `ptmf_chain_fill` made `--check` report BAD on rows that were
+already in the file (37 in hot_batch_70), and ptmf_chain_fill's came out without arguments.
+**Cause.** The family whose template I took is not the family that wrapper's rows belong to (another shape uses the same
+wrapper, or the wrapper takes other columns); the new rows outnumbered the old ones and moved the column map.
+**Fix / workaround.** Run `--check` on the file before and after adding rows; any new BAD (old rows included) means
+the family / wrapper pairing is wrong — revert those rows. register_names and handle_wrapper paired cleanly.
+
+Found: 2026-10-25 · tools.family_members, src/game/unsorted/hot_batch_70/73/74/79.cpp (rows reverted)
