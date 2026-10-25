@@ -49,6 +49,12 @@ ROUTES = {
              ("save_trialmtn", 515), ("save_challenge", 290), ("save_drift", 385), ("save_dealer", 300),
              ("save_garage", 410)),
 }
+# Synthetic cases (docs/superpowers/specs/2026-10-25-synthetic-cases-design.md): one short route sets the scene, then
+# gt_native runs SYNTH_CASES generated cases of every installed function and ends ("Synthetic cases done"). The wall
+# clock is only a cap: the route takes ~100 s, all 7368 functions' cases a few minutes more.
+ROUTES["synth"] = (("dealer", 1500),)
+SYNTH_CASES = 8
+SYNTH_SEED = 1
 # A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the
 # 11 parallel routes run slower than real time on a loaded machine and a wall-clock end cut their scripts short. The
 # race's script ends at the start of the race; its tail is the rest of its 600 s of racing.
@@ -344,6 +350,11 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
     for route, seconds in routes:
         parts.append(f"while [ $(jobs -rp | wc -l) -ge {MAX_PARALLEL_ROUTES} ]; do wait -n; done;")
         log = logs / f"gt_diff_{tag}_{route}"
+        if kind == "synth":  # the synthetic phase ends the run; no GT_PAD_EXIT_AFTER, which would end it first
+            parts.append(f'( GT_SYNTH={SYNTH_CASES} GT_SYNTH_SEED={SYNTH_SEED} LCS_UNCAPPED=1 GT_PAD_LOG=1 '
+                         f'GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout {seconds + 120} {binary} '
+                         f"--max-seconds {seconds} --decomp diff > {log}.log 2>&1; echo $? > {log}.exit ) &")
+            continue
         if kind == "full":  # ends a tail after the script is done; the wall clock is only a cap (FULL_TAIL)
             tail = FULL_TAIL.get(route, DEFAULT_TAIL)
             parts.append(f'( {_save_env(logs, tag, route)}GT_PAD_EXIT_AFTER={tail} GT_PAD_LOG=1 GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" '
@@ -589,7 +600,7 @@ def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no c
         return 2
     subprocess.run(heavy(["bash", "-c", route_shell(Path("build/gt_native"), kind, tag, Path("recomp/analysis"))]),
                    env=env)
-    return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after)
+    return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after, kind=kind)
 
 
 def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) -> int:  # pragma: no cover - runs the game
@@ -617,10 +628,16 @@ def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) 
     return status
 
 
-def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False) -> int:  # pragma: no cover - reads the run's files
+def report_routes(kind: str) -> list[str]:
+    """The routes whose logs a report reads: the synthetic run's own, else the full gate's (a superset of the fast's)."""
+    return [route for route, _ in ROUTES["synth" if kind == "synth" else "full"]]
+
+
+def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False,  # pragma: no cover - reads the run's files
+            kind: str = "full") -> int:
     reports = []
     status = 0
-    for route, _ in ROUTES["full"]:
+    for route in report_routes(kind):
         log = Path(f"recomp/analysis/gt_diff_{tag}_{route}.log")
         text = log.read_text(errors="replace") if log.exists() else ""
         exit_file = log.with_suffix(".exit")
@@ -784,6 +801,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
                                                 "functions reached only nested)")
     sab.add_argument("--full", action="store_true", help="run the sabotaged build on the full gate (functions only the "
                                                          "full routes reach)")
+    sab.add_argument("--synth", action="store_true", help="run the sabotaged build on synthetic cases (functions no "
+                                                          "route reaches)")
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
@@ -794,6 +813,10 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
                                                            "did not finish is a failure (the logs say everything a route reaches)")
     probe.add_argument("--scale", type=float, default=1.0, help="multiply every route's --max-seconds (a loaded machine "
                                                                 "runs fewer vblanks per second; a route that does not finish covers less)")
+    synth = sub.add_parser("synth", help="generated cases for the installed functions, after one route "
+                                          "(docs/superpowers/specs/2026-10-25-synthetic-cases-design.md)")
+    synth.add_argument("tag")
+    synth.add_argument("--only", help="the functions to install (default: every registered one)")
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -801,13 +824,15 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
         return _run_gate("fast", args.tag, parse_only(args.only))
     if args.command == "full":
         return _run_gate("full", args.tag, None, raise_floor_after=args.raise_floor)
+    if args.command == "synth":
+        return _run_gate("synth", args.tag, parse_only(args.only) if args.only else None)
     if args.command == "probe":
         return _probe_run(args.tag, args.symbols, "full" if args.full else "fast", args.scale)
     if args.command == "coverage":
         return _coverage_run(args.tag, parse_only(args.only))
     if args.command == "sabotage":
         return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else (),
-                             kind="full" if args.full else "fast")
+                             kind="full" if args.full else "synth" if args.synth else "fast")
     return _report(args.tag, check_floor=True)
 
 

@@ -1012,6 +1012,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Casos sintéticos** (2026-10-25, spec `2026-10-25-synthetic-cases-design.md`): como las rutas ya casi no
+      alcanzan código sin decompilar, la misma puerta recibe casos generados: al final de la ruta `dealer`, cada función
+      instalada se llama con argumentos y una zona de memoria inventados (punteros entre sí, enteros pequeños, flotantes,
+      funciones triviales reales), cada función en un proceso hijo. Barrido completo de las 7.368 funciones: 75 s, 4.001
+      con casos comparables, 3.995 iguales. Encontró un fallo real (los indicadores de RaceParameter usaban `> 0` en vez
+      de `!= 0`) y varias derivas en caminos que ninguna ruta toma (registros sobrantes, lecturas adelantadas); quedan 6
+      sin explicar (FINDINGS). `tools.decomp_gate synth` y `sabotage --synth`; el sabotaje por casos sintéticos queda
+      probado en dos funciones. Siguiente: decompilar funciones que ninguna ruta alcanza y verificarlas así.
 - [x] **Lote 137 y ruta `save_garage`** (2026-10-25): con el lote 136 las 16 rutas ya no alcanzaban nada de juego sin
       decompilar (solo el `longjmp` del SDK, la entrada del módulo y la de un hilo). Lo que falta se alcanza con rutas
       nuevas: `save_garage` recorre el garaje de la partida en sus cuatro vistas (últimos 100, últimos conducidos,

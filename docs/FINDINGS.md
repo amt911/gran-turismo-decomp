@@ -2384,3 +2384,37 @@ before blaming code or load: idle, shmem should be near zero. Write large dumps 
 not tmpfs.
 
 Found: 2026-10-25 · gt-heavy.slice, GT_FRAME_DUMP
+
+## Synthetic cases: the first sweep found a real bug and three kinds of drift on paths no route takes
+
+**Symptom.** The first `GT_SYNTH` sweep over all 7368 decompiled functions (4 generated cases each, 70 s): 4001 with
+comparable cases, 20 with mismatches, although every one of them passes the route gate.
+**Causes, by kind.**
+- A real bug: the race-parameter flag getters used `> 0` on the signed byte; the original is `sltu v0, zero, v0`
+  (non-zero). Routes only store 0 / 1, so -1 never showed. Two callers (`func_088DE9CC`, `func_088D6310`) mismatched
+  only through it.
+- Leftover registers a `Word` function returns: v0 = the empty string rep on `release_string`'s early return (hot
+  batches 110 and 112), v0 = a `lui` on `func_088B1550`'s early return, v0 = 1 on `object.defined`'s.
+- Eager reads: `tree_find` / `tree_lower_bound` read the key and `object.defined` read `*self` before the checks the
+  original makes first (an empty tree, argc); with a bad pointer only the C++ faulted.
+- The harness itself: trivial "return" functions in the arena that leave v0 alone made a caller's v0 the jump target
+  in the original and 0 in the C++ (`call_guest` does not load the target into v0) — the arena now only uses
+  `jr ra; li v0, K`. The arena also must not depend on which functions are installed (GT_DECOMP_ONLY), or a
+  single-function rerun sees other inputs.
+**Fix / workaround.** All of the above fixed. Still open with the tool's default 8 cases (`tools.decomp_gate synth`:
+4736 functions compared, 10 mismatched): `func_0882AA38`, `func_08945664`, `func_08957B30`, `func_089687D8`,
+`func_08968850`, `func_0896B4D4`, `func_08AD1990`, `func_08AFD484`, `func_08B212B4`, `func_08C18650` (and
+`func_08C416DC` with 4 cases): not explained yet — one may be the time bound (the decompiled loops have none). Also: a case can loop inside one recompiled function where the dispatcher's step / time
+bounds never run, and a stop inside a case stopped the whole sweep — hence one forked child per function, killed
+after 10 s.
+
+Found: 2026-10-25 · host/diff_harness.cpp (synthetic cases), src/game/race/race_parameter.cpp
+
+## Pure byte setters escape the automatic sabotage
+
+**Symptom.** `tools.decomp_gate sabotage` left `set_boost_param<0..2>` (race_parameter.cpp) undetected, alone or not,
+although each was compared 20 times.
+**Cause.** The tool bumps s0 and a RAM word; these setters use no s0, and their one store overwrites the bumped word.
+**Fix / workaround.** Sabotage the store by hand (`value + 1`): 20 of 20 cases mismatched for each, file restored.
+
+Found: 2026-10-25 · src/game/race/race_parameter.cpp

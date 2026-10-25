@@ -10,12 +10,19 @@
 #include "decomp_registry.hpp"
 #include "diff_compare.hpp"
 #include "dirty_pages.hpp"
+#include "synth_case.hpp"
 #include "psprecomp/common.hpp"
 
+#include <sstream>
+#include <poll.h>
+#include <csignal>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 #include <exception>
 #include <optional>
@@ -45,8 +52,13 @@ constexpr std::uint32_t kSentinelBase = 0x0BAD0000u;
 constexpr std::uint32_t kSentinelSlots = 1024u;
 std::vector<std::uint32_t> g_free_sentinels;
 std::uint32_t g_sentinel = 0u;  // the running case's
+// Synthetic cases (docs/superpowers/specs/2026-10-25-synthetic-cases-design.md): with GT_SYNTH set no live call is
+// sampled; run_synthetic_cases issues the only cases, each with g_synthetic_call set while it runs.
+bool g_synth_mode = false;
+bool g_synthetic_call = false;
 constexpr std::uint64_t kMaxSteps = 1'000'000u;
 constexpr auto kMaxIsolatedTime = std::chrono::milliseconds(250);
+constexpr auto kMaxSyntheticTime = std::chrono::milliseconds(20);
 // Dead stack below the caller's sp that an original may scribble on (spilled registers).
 constexpr std::uint32_t kDeadStackWindow = 64u * 1024u;
 
@@ -334,7 +346,8 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint64_t generation = psprecomp::runtime_thread_switch_generation();
     // Also bounded in time: an original that spins waiting for another thread (which never runs in
     // isolation) would otherwise burn its whole step budget per case and stall the game.
-    const auto deadline = std::chrono::steady_clock::now() + kMaxIsolatedTime;
+    // synthetic cases: generated inputs often spin (a loop over garbage), and 59k cases at 250 ms each would take hours
+    const auto deadline = std::chrono::steady_clock::now() + (g_synth_mode ? kMaxSyntheticTime : kMaxIsolatedTime);
     for (std::uint64_t step = 0; ctx.pc != g_sentinel; ++step) {
         const Gate *gate = gate_at(ctx.pc);
         const bool replay_safe = allowed_in_case(gate);
@@ -422,6 +435,10 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (ctx.pc == entry.info.address) ctx.pc = return_address;
         return;
     }
+    if (g_synth_mode && !g_synthetic_call) {  // synthetic runs compare only the cases run_synthetic_cases makes
+        entry.original(rt, ctx);
+        return;
+    }
     const std::uint64_t call = entry.calls++;
     // GT_DECOMP_DENSE=0xADDR compares every call of that one function (up to the case budget), to
     // reach branches the spread-out samples miss.
@@ -429,7 +446,7 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const char *text = std::getenv("GT_DECOMP_DENSE");
         return text != nullptr ? static_cast<std::uint32_t>(std::strtoul(text, nullptr, 0)) : 0u;
     }();
-    const bool sampled = call < kFirstCases || call == entry.next_sample || entry.info.address == dense;
+    const bool sampled = g_synthetic_call || call < kFirstCases || call == entry.next_sample || entry.info.address == dense;
     if (sampled && call >= kFirstCases) entry.next_sample = next_sample_after(call);
     if (call + 1u == kFirstCases) entry.next_sample = next_sample_after(call);
     if (sampled && entry.compared + entry.skipped < g_cases && g_free_sentinels.empty()) ++g_unsampled_no_sentinel;
@@ -466,13 +483,29 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     {
         InCase in_case;
         PhaseScope recording(ImportPhase::Recording);
-        original_ran = run_original_isolated(rt, original_ctx, entry);
+        if (g_synthetic_call) {
+            try {
+                original_ran = run_original_isolated(rt, original_ctx, entry);
+            } catch (const GuestStopped &) {
+                throw;
+            } catch (const std::exception &error) {  // generated inputs: the original faulted, so nothing to compare
+                g_last_stop = std::string("faulted: ") + error.what();
+                original_ran = false;
+            }
+        } else {
+            original_ran = run_original_isolated(rt, original_ctx, entry);
+        }
         original_refused = kernel_isolation_broken();
     }
     if (!original_ran) {
         ++entry.skipped;
         if (entry.first_skip.empty()) entry.first_skip = "original: " + g_last_stop;
         if (g_last_stop.rfind("import stub", 0) == 0) ++g_skips_by_import[g_last_stop];
+        if (g_synthetic_call) {  // never continued live nor re-run: the entry state back, and the case is over
+            g_pages.restore_pristine();
+            restore_kernel_replay_state(allocator_before);
+            return;
+        }
         if (g_log.size() != 0u && !rt.stopped()) {
             // A recorded import already ran for real: don't run the call again. Continue live from where
             // the isolated run stopped — or, when the kernel refused an import, from just before it.
@@ -523,6 +556,11 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     // run wrote gets the original's bytes back (the entry bytes where only the decompiled run wrote).
     const auto keep_original_result = [&] {
         g_pages.disarm();
+        if (g_synthetic_call) {  // a synthetic case leaves nothing behind: the next one starts from the same state
+            g_pages.restore_pristine();
+            restore_kernel_replay_state(allocator_before);
+            return;
+        }
         for (const std::size_t page : g_pages.ever_written()) {
             std::size_t begin = 0, end = 0;
             g_pages.page_span(page, begin, end);
@@ -564,6 +602,12 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     } catch (const std::exception &error) {  // e.g. a guest memory access the original never made
         decompiled_fault = error.what();
         decompiled_ran = true;
+    }
+    if (g_synthetic_call && rt.stopped() && !rt.stop_reason().starts_with("Wall-clock")) {
+        // the original returned, the decompiled run stopped the runtime (a call to no function...): a difference
+        decompiled_fault = "runtime stopped: " + rt.stop_reason();
+        decompiled_ran = true;
+        rt.clear_stop();
     }
     g_pages.disarm();  // what the runs wrote is known; comparing and restoring write nothing tracked
     if (!decompiled_ran) {
@@ -661,6 +705,10 @@ void note_import() noexcept { ++g_imports; }
 void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned cases_per_function) {
     g_mode = mode;
     g_cases = cases_per_function;
+    if (const char *synth = std::getenv("GT_SYNTH"); synth != nullptr && mode == DecompMode::Diff) {
+        g_synth_mode = true;
+        g_cases = static_cast<unsigned>(std::strtoul(synth, nullptr, 10));
+    }
     if (mode == DecompMode::Off) return;
     {
         std::vector<std::pair<std::uint32_t, std::string>> registrations;
@@ -705,6 +753,165 @@ void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned c
     }
     std::cerr << "[decomp] mode=" << (mode == DecompMode::On ? "on" : "diff") << " functions=" << g_entries.size()
               << " cases/function=" << cases_per_function << "\n";
+}
+
+bool synthetic_mode() { return g_synth_mode; }
+
+void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &thread, std::uint64_t seed) {
+    if (!g_synth_mode) return;
+    SynthLayout layout;
+    layout.arena_bytes = 0x10000u;
+    layout.arena_base = (thread.gpr[29] & ~0xFFFFu) - 0x100000u;  // 1 MiB below the thread's stack
+    // Trivial real functions for the arena's tables, so a virtual call through an arena object lands on code that
+    // returns: `jr $ra` with a delay slot that sets v0 (`li v0, K` or `move v0, zero`). One that leaves v0 alone made
+    // its caller's v0 the jump target in the original and 0 in the decompiled run (call_guest does not load the
+    // target into v0): 9 of the first 20 synthetic mismatches.
+    // Every registered function is left out, installed or not, so the inputs do not depend on GT_DECOMP_ONLY.
+    std::set<std::uint32_t> registered;
+    for (const auto &function : decompiled_functions()) registered.insert(function.address);
+    constexpr std::uint32_t kTextBegin = 0x08804028u, kTextEnd = 0x08C7A7DCu;
+    for (std::uint32_t address = kTextBegin; address < kTextEnd && layout.leaf_functions.size() < 64u; address += 4u) {
+        const std::uint32_t slot = rt.memory().load32(address + 4u);
+        if (rt.memory().load32(address) == 0x03E00008u && ((slot & 0xFFFF0000u) == 0x24020000u || slot == 0x00001021u) &&
+            rt.function_at(address) != nullptr && !registered.contains(address))
+            layout.leaf_functions.push_back(address);
+    }
+    std::uint8_t *const arena = rt.memory().raw_pointer(layout.arena_base, layout.arena_bytes);
+    if (arena == nullptr) {
+        rt.stop("synthetic cases: the arena is not guest RAM");
+        return;
+    }
+    std::cerr << "[decomp] synthetic cases: " << g_cases << " per function, seed " << seed << ", arena "
+              << psprecomp::hex32(layout.arena_base) << ", " << layout.leaf_functions.size() << " trivial functions\n";
+    // Each function's cases run in a forked child (fork copies the emulator's state, copy-on-write): a case that loops
+    // inside one recompiled function (the dispatcher's bounds never see it), crashes the host or stops the runtime
+    // ends only that child. The parent keeps GT_SYNTH_JOBS children running and kills one after kChildSeconds.
+    const unsigned jobs = [] {
+        const char *text = std::getenv("GT_SYNTH_JOBS");
+        return text != nullptr ? std::max(1u, static_cast<unsigned>(std::strtoul(text, nullptr, 10))) : 6u;
+    }();
+    constexpr int kChildSeconds = 10;
+    struct Child {
+        Entry *entry;
+        int fd;
+        std::string output;
+        std::chrono::steady_clock::time_point started;
+    };
+    std::map<pid_t, Child> children;
+    unsigned done = 0u, hung = 0u;
+    const auto started = std::chrono::steady_clock::now();
+    const auto finish = [&](pid_t pid, Child &child, bool killed) {
+        close(child.fd);
+        int status = 0;
+        waitpid(pid, &status, 0);
+        Entry &entry = *child.entry;
+        std::istringstream in(child.output);
+        unsigned compared = 0, equal = 0, mismatched = 0, skipped = 0, informative = 0;
+        if (!killed && (in >> compared >> equal >> mismatched >> skipped >> informative)) {
+            entry.compared += compared;
+            entry.equal += equal;
+            entry.mismatched += mismatched;
+            entry.skipped += skipped;
+            entry.informative += informative;
+            entry.calls += compared + skipped;
+            std::string line;
+            std::getline(in, line);
+            std::getline(in, entry.first_mismatch);
+            std::getline(in, entry.first_skip);
+            while (std::getline(in, line))
+                if (!line.empty() && g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(line);
+        } else {
+            entry.skipped += g_cases;
+            entry.calls += g_cases;
+            if (entry.first_skip.empty())
+                entry.first_skip = killed ? "synthetic: hung (killed after " + std::to_string(kChildSeconds) + " s)"
+                                          : "synthetic: the case process ended without a report";
+            ++hung;
+        }
+        if (++done % 500u == 0u)
+            std::cerr << "[decomp] synthetic: " << done << " / " << g_entries.size() << " functions, "
+                      << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - started).count()
+                      << " s\n";
+    };
+    const auto poll_children = [&](int timeout_ms) {
+        std::vector<pollfd> fds;
+        std::vector<pid_t> pids;
+        for (auto &[pid, child] : children) {
+            fds.push_back({child.fd, POLLIN, 0});
+            pids.push_back(pid);
+        }
+        poll(fds.data(), fds.size(), timeout_ms);
+        for (std::size_t i = 0; i < fds.size(); ++i) {
+            Child &child = children.at(pids[i]);
+            bool ended = false;
+            if (fds[i].revents & (POLLIN | POLLHUP)) {
+                char buffer[4096];
+                const ssize_t n = read(child.fd, buffer, sizeof buffer);
+                if (n > 0) child.output.append(buffer, static_cast<std::size_t>(n));
+                else ended = true;
+            }
+            const bool late = std::chrono::steady_clock::now() - child.started > std::chrono::seconds(kChildSeconds);
+            if (late && !ended) kill(pids[i], SIGKILL);
+            if (ended || late) {
+                finish(pids[i], child, late && !ended);
+                children.erase(pids[i]);
+            }
+        }
+    };
+    std::cerr.flush();
+    for (auto &[address, entry] : g_entries) {
+        while (children.size() >= jobs) poll_children(100);
+        int pipe_fds[2];
+        if (pipe(pipe_fds) != 0) {
+            rt.stop("synthetic cases: pipe failed");
+            return;
+        }
+        const pid_t pid = fork();
+        if (pid == 0) {  // the child: this function's cases, its counters to the pipe, then _exit (no parent cleanup)
+            close(pipe_fds[0]);
+            g_mismatch_cases.clear();
+            for (unsigned index = 0; index < g_cases && !rt.stopped(); ++index) {
+                const SynthInputs inputs = make_synth_case(address, index, seed, layout);
+                std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
+                psprecomp::AllegrexContext ctx = thread;
+                for (unsigned r = 0; r < 8u; ++r) ctx.gpr[4u + r] = inputs.gpr[r];
+                for (unsigned r = 0; r < 8u; ++r) ctx.fpr[12u + r] = std::bit_cast<float>(inputs.fpr[r]);
+                ctx.gpr[29] = (thread.gpr[29] - 0x400u) & ~0xFu;  // a margin below the thread's live frame
+                ctx.gpr[31] = 0u;
+                ctx.pc = address;
+                g_synthetic_call = true;
+                try {
+                    trampoline_body(rt, ctx);
+                } catch (...) {
+                }
+                g_synthetic_call = false;
+                // a stop inside the original's run ends only that case (not comparable)
+                if (rt.stopped()) rt.clear_stop();
+            }
+            std::ostringstream out;
+            out << entry.compared << ' ' << entry.equal << ' ' << entry.mismatched << ' ' << entry.skipped << ' '
+                << entry.informative << '\n' << entry.first_mismatch << '\n' << entry.first_skip << '\n';
+            for (const std::string &mismatch_case : g_mismatch_cases) out << mismatch_case << '\n';
+            const std::string text = out.str();
+            for (std::size_t written = 0; written < text.size();) {
+                const ssize_t n = write(pipe_fds[1], text.data() + written, text.size() - written);
+                if (n <= 0) break;
+                written += static_cast<std::size_t>(n);
+            }
+            _exit(0);
+        }
+        close(pipe_fds[1]);
+        if (pid < 0) {
+            close(pipe_fds[0]);
+            rt.stop("synthetic cases: fork failed");
+            return;
+        }
+        children.emplace(pid, Child{&entry, pipe_fds[0], {}, std::chrono::steady_clock::now()});
+    }
+    while (!children.empty()) poll_children(100);
+    std::cerr << "[decomp] synthetic: " << done << " functions in "
+              << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - started).count()
+              << " s, " << hung << " hung or crashed\n";
 }
 
 int decomp_report() {

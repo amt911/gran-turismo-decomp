@@ -41,6 +41,12 @@ void note_import() noexcept;
 // HLE profile are registered. `cases_per_function` bounds the diff work per function.
 void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned cases_per_function);
 
+// Synthetic cases (docs/superpowers/specs/2026-10-25-synthetic-cases-design.md). GT_SYNTH=<cases per function> in diff
+// mode turns live sampling off; run_synthetic_cases then runs that many generated cases of every installed function on
+// copies of `thread` (a live thread's context), each restoring the RAM it wrote.
+bool synthetic_mode();
+void run_synthetic_cases(psprecomp::Runtime &runtime, const psprecomp::AllegrexContext &thread, std::uint64_t seed);
+
 // Prints the per-function report; returns 2 if any decompiled function differed from its original.
 int decomp_report();
 

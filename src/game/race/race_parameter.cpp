@@ -29,8 +29,9 @@ View<RaceParameter> data(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
     return *View<RaceParameterHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 
-// A flag's getter answers whether the signed byte is positive (`0 < (s8)value` in the original).
-std::uint32_t positive(std::int8_t value) { return value > 0 ? 1u : 0u; }
+// A flag's getter answers whether the byte is set: `sltu v0, zero, v0` on the sign-extended byte, so a negative byte
+// counts too (a "positive" test returned 0 for -1; synthetic cases found it, 2026-10-25 — the routes only store 0 / 1).
+std::uint32_t nonzero(std::int8_t value) { return value != 0 ? 1u : 0u; }
 // Big-endian halves read back signed: the original swaps the word and shifts it right arithmetically.
 std::uint32_t sign_extended(std::uint16_t value) {
     return static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(value)));
@@ -39,7 +40,7 @@ std::uint32_t sign_extended(std::int8_t value) { return static_cast<std::uint32_
 
 // racers_max as the race uses it: one more with a ghost, capped by unk_1A (0x088D5DA8).
 std::uint32_t effective_racers_max(const View<RaceParameter> &race) {
-    const std::uint32_t racers = race.racers_max() + positive(race.with_ghost());
+    const std::uint32_t racers = race.racers_max() + nonzero(race.with_ghost());
     const std::uint32_t cap = race.unk_1A();
     return cap < racers ? cap : racers;
 }
@@ -106,7 +107,7 @@ void set_over_entry_max(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx)
 // over_entry_max (one more with a ghost) when it reaches racers_max in an online race, else racers_max.
 void over_entry_max(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const View<RaceParameter> race = data(rt, ctx);
-    const std::uint32_t over = race.over_entry_max() + positive(race.with_ghost());
+    const std::uint32_t over = race.over_entry_max() + nonzero(race.with_ghost());
     const std::uint32_t racers = effective_racers_max(race);
     ctx.gpr[2] = over < racers || race.online_on() <= 0 ? racers : over;
 }
@@ -145,7 +146,7 @@ void rolling_player_grid(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
     void set_##name(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {                           \
         data(rt, ctx).name() = static_cast<std::int8_t>(ctx.gpr[5]);                                    \
     }                                                                                                     \
-    void name(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data(rt, ctx).name()); }
+    void name(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data(rt, ctx).name()); }
 GT_RACE_FLAG(auto_start_with_session)
 GT_RACE_FLAG(auto_end_session_with_finish)
 GT_RACE_FLAG(immediate_finish)

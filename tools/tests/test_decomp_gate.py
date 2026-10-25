@@ -573,3 +573,26 @@ def test_prepare_saves_refuses_another_or_missing_save(tmp_path, monkeypatch):
 def test_prepare_saves_needs_no_save_without_save_routes(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "ROUTES", {"fast": (("race", 200),), "full": (("race", 600),)})
     assert gate.prepare_saves("t1", tmp_path / "logs", "fast", tmp_path / "missing", tmp_path / "none.sha1") == []
+
+
+def test_synth_kind_runs_one_route_then_the_synthetic_cases():
+    """docs/superpowers/specs/2026-10-25-synthetic-cases-design.md: one route sets the scene, then GT_SYNTH makes the
+    cases. No GT_PAD_EXIT_AFTER: it would end the run before the synthetic phase starts."""
+    command = gate.route_shell(Path("build/gt_native"), "synth", "t1", Path("recomp/analysis"))
+    assert len(gate.ROUTES["synth"]) == 1
+    route = gate.ROUTES["synth"][0][0]
+    assert re.findall(r"config/pad_routes/(\w+)\.pad", command) == [route]
+    assert f"GT_SYNTH={gate.SYNTH_CASES} " in command and f"GT_SYNTH_SEED={gate.SYNTH_SEED} " in command
+    assert "--decomp diff" in command and "GT_PAD_EXIT_AFTER" not in command and "LCS_UNCAPPED=1 " in command
+    assert "recomp/analysis/gt_diff_t1_" + route + ".log" in command
+
+
+def test_route_lines_of_the_other_kinds_never_set_synthetic_cases():
+    for kind in ("fast", "full"):
+        assert "GT_SYNTH" not in gate.route_shell(Path("build/gt_native"), kind, "t1", Path("recomp/analysis"))
+
+
+def test_a_synthetic_report_reads_only_its_route():
+    """The synth run has one route; reading the full gate's list marked the others missing ("exit ?", 2026-10-25)."""
+    assert gate.report_routes("synth") == [route for route, _ in gate.ROUTES["synth"]]
+    assert gate.report_routes("fast") == gate.report_routes("full") == [route for route, _ in gate.ROUTES["full"]]

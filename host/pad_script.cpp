@@ -33,6 +33,7 @@ namespace {
 std::atomic<std::uint64_t> g_vblanks{0u};
 std::atomic<std::uint32_t> g_buttons{0u};
 std::atomic<std::uint64_t> g_pad_reads{0u};
+std::atomic<std::uint64_t> g_done_at{0u};  // the vblank the script finished at (0: not yet)
 
 struct Script {
     PadSequencer sequencer;
@@ -161,14 +162,19 @@ void pad_script_tick(psprecomp::Runtime &runtime) {
     }
     // GT_PAD_EXIT_AFTER=<vblanks>: the run ends that long after the script is done ("Runtime stopped: Pad script
     // done", an expected end like the wall-clock limit), so a route covers the same game whatever the machine's load.
+    if (state == PadSequencer::State::Done && s.done_at == 0u) {
+        s.done_at = now;
+        g_done_at.store(now, std::memory_order_relaxed);
+    }
     static const char *exit_after = std::getenv("GT_PAD_EXIT_AFTER");
     if (exit_after != nullptr && state == PadSequencer::State::Done) {
-        if (s.done_at == 0u) s.done_at = now;
         if (now >= s.done_at + std::strtoull(exit_after, nullptr, 10) && !runtime.stopped()) runtime.stop("Pad script done");
     }
 }
 
 void pad_script_note_seek(std::uint64_t offset) { seeks().emplace_back(g_vblanks.load(std::memory_order_relaxed), offset); }
+
+std::uint64_t pad_script_done_vblank() { return g_done_at.load(std::memory_order_relaxed); }
 
 std::uint64_t pad_script_vblanks() { return g_vblanks.load(std::memory_order_relaxed); }
 

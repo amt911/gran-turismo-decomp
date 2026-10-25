@@ -98,10 +98,11 @@ void toULong(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // the value; otherwise the result is left alone.
 void defined(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t result = ctx.gpr[4];
-    const std::uint32_t self = rt.memory().load32(ctx.gpr[5]);
     const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
     const std::uint32_t name = ctx.gpr[7];
-    if (argc != 1) return;
+    ctx.gpr[2] = 1u;  // the original's v0 on the early return (its compare constant)
+    if (argc != 1) return;  // before reading self, as the original (synthetic cases: a bad self faulted here only)
+    const std::uint32_t self = rt.memory().load32(ctx.gpr[5]);
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t is_defined = call_guest(rt, ctx, virtual_function(rt, self, kDefinedSlot), {self, name});
     return_bool(rt, ctx, result, frame.at(0u), is_defined);

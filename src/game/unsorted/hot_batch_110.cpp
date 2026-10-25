@@ -321,7 +321,10 @@ void func_088B1550(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t first = frame.at(0u);
     const std::uint32_t second = frame.at(0xCu);
     ctx.gpr[6] = first;
-    if (object == 0u) return;
+    if (object == 0u) {
+        ctx.gpr[2] = 0x08CC0000u;  // v0 keeps the `lui` of 0x08CC3030 (a caller-visible leftover; synthetic cases)
+        return;
+    }
     std::uint32_t mode = byte_u(rt, record + 0x14u);
     if (word(rt, record + 0xCu) == 0u) mode |= 0x10u;
     const std::uint32_t table = word(rt, object);
@@ -404,7 +407,10 @@ inline void release_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     const std::uint32_t rep = text - 0xCu;
     ctx.gpr[4] = text - 4u;
     ctx.gpr[5] = 0xFFFFFFFFu;
-    if (rep == empty) return;
+    if (rep == empty) {
+        ctx.gpr[2] = empty;  // the original compares the rep with v0 = the empty rep, which a Word caller returns (synthetic cases)
+        return;
+    }
     if (signed_of(call_set(rt, ctx, 0x08B60804u, {text - 4u, 0xFFFFFFFFu})) > 0) return;
     call_set(rt, ctx, release, {rep, frame_base});
 }
