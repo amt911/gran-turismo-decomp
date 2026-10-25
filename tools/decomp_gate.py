@@ -37,15 +37,17 @@ ROUTES = {
     "fast": (("race", 200), ("dealer", 100), ("garage", 103), ("buy", 110), ("options", 230),
              ("drift", 160), ("challenge", 140), ("dirt", 215), ("manual", 150),
              ("circuit", 200), ("challenge2", 200), ("trialmtn", 300),
-             ("save_trialmtn", 360), ("save_challenge", 200), ("save_drift", 250), ("save_dealer", 200)),
+             ("save_trialmtn", 360), ("save_challenge", 200), ("save_drift", 250), ("save_dealer", 200),
+             ("save_garage", 280)),
     # Each full route runs until its pad script is done (checked) with ~10 % to spare; they run in parallel, so the
     # race (600 s) sets the gate's length. Measured script ends (vblanks / 60, 2026-10-20): buy 194, options 409,
     # drift 293, challenge 253, dirt ~380, manual 280, circuit 302, challenge2 271; trialmtn 412 (2026-10-23); save_trialmtn 464,
-    # save_challenge 261, save_drift 347, save_dealer 273 (2026-10-24).
+    # save_challenge 261, save_drift 347, save_dealer 273 (2026-10-24); save_garage 371 (2026-10-25).
     "full": (("race", 600), ("dealer", 300), ("garage", 310), ("buy", 220), ("options", 470),
              ("drift", 330), ("challenge", 285), ("dirt", 420), ("manual", 315),
              ("circuit", 335), ("challenge2", 300), ("trialmtn", 455),
-             ("save_trialmtn", 515), ("save_challenge", 290), ("save_drift", 385), ("save_dealer", 300)),
+             ("save_trialmtn", 515), ("save_challenge", 290), ("save_drift", 385), ("save_dealer", 300),
+             ("save_garage", 410)),
 }
 # A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the
 # 11 parallel routes run slower than real time on a loaded machine and a wall-clock end cut their scripts short. The

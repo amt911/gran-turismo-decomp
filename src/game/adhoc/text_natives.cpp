@@ -27,6 +27,7 @@ constexpr std::uint32_t kCarParameterCore = 0x08854678u;
 constexpr std::uint32_t kCarParameterCarCode = 0x088A5EE0u;  // (engine object) -> 64-bit car code
 constexpr std::uint32_t kTunerName = 0x0883B7F8u;        // (argc, argv) -> const char *
 constexpr std::uint32_t kTunerFormat = 0x08C9C49Cu;      // "tuner_%s"
+constexpr std::uint32_t kTunerLabelFormat = 0x08C9C478u; // "%s"
 constexpr std::uint32_t kLanguageName = 0x08B49634u;     // (language) -> const char *
 constexpr std::uint32_t kCurrentLanguage = 0x08D69524u;
 constexpr std::uint32_t kSystemParamString = 0x08B2ED6Cu;  // thunk to sceUtilityGetSystemParamString(id, buf, size)
@@ -125,9 +126,21 @@ void MSpecDB_getTunerCode(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
     const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
     const std::uint32_t argv = ctx.gpr[6];
     if (argc <= 0) return;
+    GuestFrame frame(ctx, kLabelBytes);  // before the name call, as the original (after it, getTunerLabel differed in 6 of 6 cases)
     const std::uint32_t name = call_guest(rt, ctx, kTunerName, {static_cast<std::uint32_t>(argc), argv});
-    GuestFrame frame(ctx, kLabelBytes);
     (void)call_guest(rt, ctx, kSnprintf, {frame.at(0u), kLabelBytes, kTunerFormat, name});
+    return_c_string(rt, ctx, result, frame.at(0u));
+}
+
+// MSpecDB.getTunerLabel(tuner...) -> the tuner's name (formatted with "%s").
+void MSpecDB_getTunerLabel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[5]);
+    const std::uint32_t argv = ctx.gpr[6];
+    if (argc <= 0) return;
+    GuestFrame frame(ctx, kLabelBytes);  // before the name call, as the original (after it, getTunerLabel differed in 6 of 6 cases)
+    const std::uint32_t name = call_guest(rt, ctx, kTunerName, {static_cast<std::uint32_t>(argc), argv});
+    (void)call_guest(rt, ctx, kSnprintf, {frame.at(0u), kLabelBytes, kTunerLabelFormat, name});
     return_c_string(rt, ctx, result, frame.at(0u));
 }
 
@@ -199,6 +212,7 @@ GT_DECOMP(0x0883E534u, gt::adhoc::text::MSpecDB_getCourseLabel, gt::ReturnKind::
 GT_DECOMP(0x0883C1C8u, gt::adhoc::text::MSpecDB_getCarShortName, gt::ReturnKind::Void);
 GT_DECOMP(0x088557B4u, gt::adhoc::text::MCarParameter_getCarLabel, gt::ReturnKind::Void);
 GT_DECOMP(0x0883DE98u, gt::adhoc::text::MSpecDB_getTunerCode, gt::ReturnKind::Void);
+GT_DECOMP(0x0883DF78u, gt::adhoc::text::MSpecDB_getTunerLabel, gt::ReturnKind::Void);
 GT_DECOMP(0x08A3D61Cu, gt::adhoc::text::MLocale_getLanguage, gt::ReturnKind::Void);
 GT_DECOMP(0x08A2B928u, gt::adhoc::text::MSystemUtility_getNickname, gt::ReturnKind::Void);
 GT_DECOMP(0x08A2868Cu, gt::adhoc::text::MProductInformation_GetVersionBranch, gt::ReturnKind::Void);
