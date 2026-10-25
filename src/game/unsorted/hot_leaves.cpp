@@ -34277,9 +34277,10 @@ void func_08B22594(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08B219B0(this): vtable 0x08CD9518.
 void func_08B219B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { rt.memory().store32(ctx.gpr[4], 0x08CD9518u); }
 
-// func_08B212B4(i) -> the 16-byte entry i of the table at 0x08D68B50 (entries 0 and 1), 0 for any other index.
+// func_08B212B4(i) -> the 16-byte entry i of the table at 0x08D68B50 (entries 0 and 1), 0 for any other index — an
+// unsigned test (`sltiu`): a negative index is 0 too (a signed test returned an address; synthetic cases).
 void func_08B212B4(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
-    ctx.gpr[2] = static_cast<std::int32_t>(ctx.gpr[4]) < 2 ? 0x08D68B50u + (ctx.gpr[4] << 4) : 0u;
+    ctx.gpr[2] = ctx.gpr[4] < 2u ? 0x08D68B50u + (ctx.gpr[4] << 4) : 0u;
 }
 
 // func_08B20BE0(this, a, b, c): +0x0 = a, +0x4 = b, +0x8 = c.

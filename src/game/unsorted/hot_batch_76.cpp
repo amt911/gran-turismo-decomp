@@ -619,6 +619,33 @@ void func_08B9DE60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ha
 void func_08BB9718(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BB964Cu); }
 void func_08BB992C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BB9860u); }
 void func_08BBD0E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BBD034u); }
+// Batch 140 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_08B9D15C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9D090u); }
+void func_08B9D388(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9D2BCu); }
+void func_08B9D5B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9D4E8u); }
+void func_08B9D7E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9D714u); }
+void func_08B9DA24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9D958u); }
+void func_08B9DC50(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9DB84u); }
+void func_08B9E2D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9E208u); }
+void func_08B9E548(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9E47Cu); }
+void func_08B9E774(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9E6A8u); }
+void func_08B9E984(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08B9E8D4u); }
+void func_08BC4094(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC3FE4u); }
+void func_08BC420C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC415Cu); }
+void func_08BC4384(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC42D4u); }
+void func_08BC44FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC444Cu); }
+void func_08BC4674(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC45C4u); }
+void func_08BC47EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC473Cu); }
+void func_08BC4964(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC48B4u); }
+void func_08BC4ADC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC4A2Cu); }
+void func_08BC4C54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC4BA4u); }
+void func_08BC4DDC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC4D2Cu); }
+void func_08BC4F64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC4EB4u); }
+void func_08BC5178(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC50ACu); }
+void func_08BC5A08(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC593Cu); }
+void func_08BC5E74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC5DA8u); }
+void func_08BC60E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08BC6018u); }
+void func_08C4D23C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { handle_wrapper(rt, ctx, 0x08C4D18Cu); }
 
 // func_XXXXXXXX (guarded static object, constructor without a size): see guarded_static_plain (guard, object, source, constructor, vtable, registrar).
 void func_08B9FB40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_static_plain(rt, ctx, 0x08D754B0u, 0x08D75BACu, 0x08CA018Cu, 0x08B9FAFCu, 0x08CC0DA0u, 0x08B9D1F0u); }
@@ -707,3 +734,32 @@ HOT76(0x08BA2360u, func_08BA2360, Word);
 HOT76(0x08BBA1DCu, func_08BBA1DC, Word);
 HOT76(0x08BC52E0u, func_08BC52E0, Word);
 HOT76(0x08BCBD68u, func_08BCBD68, Word);
+
+// Batch 140 (2026-10-25): the rows above, verified by synthetic cases; a commented registration had no comparable
+// synthetic case (every one faulted in the original), so its row runs as the recompiled original.
+HOT76(0x08B9D15Cu, func_08B9D15C, Word);
+HOT76(0x08B9D388u, func_08B9D388, Word);
+HOT76(0x08B9D5B4u, func_08B9D5B4, Word);
+HOT76(0x08B9D7E0u, func_08B9D7E0, Word);
+HOT76(0x08B9DA24u, func_08B9DA24, Word);
+HOT76(0x08B9DC50u, func_08B9DC50, Word);
+HOT76(0x08B9E2D4u, func_08B9E2D4, Word);
+HOT76(0x08B9E548u, func_08B9E548, Word);
+HOT76(0x08B9E774u, func_08B9E774, Word);
+HOT76(0x08B9E984u, func_08B9E984, Word);
+HOT76(0x08BC4094u, func_08BC4094, Word);
+HOT76(0x08BC420Cu, func_08BC420C, Word);
+HOT76(0x08BC4384u, func_08BC4384, Word);
+HOT76(0x08BC44FCu, func_08BC44FC, Word);
+HOT76(0x08BC4674u, func_08BC4674, Word);
+HOT76(0x08BC47ECu, func_08BC47EC, Word);
+HOT76(0x08BC4964u, func_08BC4964, Word);
+HOT76(0x08BC4ADCu, func_08BC4ADC, Word);
+HOT76(0x08BC4C54u, func_08BC4C54, Word);
+// HOT76(0x08BC4DDCu, func_08BC4DDC, Word);  // compared equal but the synthetic sabotage was not detected: not verified
+HOT76(0x08BC4F64u, func_08BC4F64, Word);
+// HOT76(0x08BC5178u, func_08BC5178, Word);  // compared equal but the synthetic sabotage was not detected: not verified
+HOT76(0x08BC5A08u, func_08BC5A08, Word);
+HOT76(0x08BC5E74u, func_08BC5E74, Word);
+// HOT76(0x08BC60E4u, func_08BC60E4, Word);  // compared equal but the synthetic sabotage was not detected: not verified
+HOT76(0x08C4D23Cu, func_08C4D23C, Word);

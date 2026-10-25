@@ -109,7 +109,8 @@ void over_entry_max(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const View<RaceParameter> race = data(rt, ctx);
     const std::uint32_t over = race.over_entry_max() + nonzero(race.with_ghost());
     const std::uint32_t racers = effective_racers_max(race);
-    ctx.gpr[2] = over < racers || race.online_on() <= 0 ? racers : over;
+    // online_on as its getter answers it (nonzero): `<= 0` took a negative byte for offline (synthetic cases)
+    ctx.gpr[2] = over < racers || nonzero(race.online_on()) == 0 ? racers : over;
 }
 
 void set_course_layout_no(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {

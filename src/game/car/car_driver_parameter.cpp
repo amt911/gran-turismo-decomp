@@ -35,8 +35,9 @@ View<CarDriverParameterData> data_of(psprecomp::Runtime &rt, psprecomp::Allegrex
     return *View<CarDriverParameterHandle>(rt.memory(), ctx.gpr[4]).data();
 }
 
-// A flag's getter answers whether the signed byte is positive.
-std::uint32_t positive(std::int8_t value) { return value > 0 ? 1u : 0u; }
+// A flag's getter answers whether the byte is set: `sltu v0, zero, v0` on the sign-extended byte, so a negative byte
+// counts too (a "positive" test returned 0 for -1; synthetic cases found it, 2026-10-25).
+std::uint32_t nonzero(std::int8_t value) { return value != 0 ? 1u : 0u; }
 std::uint32_t sign_extended(std::int8_t value) { return static_cast<std::uint32_t>(static_cast<std::int32_t>(value)); }
 
 // A percentage as GT stores it: clamped to 0..100, plus one.
@@ -57,11 +58,11 @@ std::uint8_t skill(std::uint32_t value) {
 // --- Script attributes: one setter (a1 = value) and one getter (-> v0) each -------------------------
 
 void set_manual(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { data_of(rt, ctx).manual() = static_cast<std::int8_t>(ctx.gpr[5]); }
-void manual(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data_of(rt, ctx).manual()); }
+void manual(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data_of(rt, ctx).manual()); }
 void set_assist_tcs(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { data_of(rt, ctx).assist_tcs() = static_cast<std::int8_t>(ctx.gpr[5]); }
-void assist_tcs(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data_of(rt, ctx).assist_tcs()); }
+void assist_tcs(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data_of(rt, ctx).assist_tcs()); }
 void set_assist_asm(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { data_of(rt, ctx).assist_asm() = static_cast<std::int8_t>(ctx.gpr[5]); }
-void assist_asm(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data_of(rt, ctx).assist_asm()); }
+void assist_asm(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data_of(rt, ctx).assist_asm()); }
 void set_steering_assist_type(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     data_of(rt, ctx).steering_assist_type() = static_cast<std::int8_t>(ctx.gpr[5]);
 }
@@ -79,11 +80,11 @@ void active_brake_level(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx)
     ctx.gpr[2] = sign_extended(data_of(rt, ctx).active_brake_level());
 }
 void set_physics_pro(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { data_of(rt, ctx).physics_pro() = static_cast<std::int8_t>(ctx.gpr[5]); }
-void physics_pro(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data_of(rt, ctx).physics_pro()); }
+void physics_pro(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data_of(rt, ctx).physics_pro()); }
 void set_academy_flag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { data_of(rt, ctx).academy_flag() = static_cast<std::int8_t>(ctx.gpr[5]); }
-void academy_flag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data_of(rt, ctx).academy_flag()); }
+void academy_flag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data_of(rt, ctx).academy_flag()); }
 void set_assist_4was(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { data_of(rt, ctx).assist_4was() = static_cast<std::int8_t>(ctx.gpr[5]); }
-void assist_4was(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = positive(data_of(rt, ctx).assist_4was()); }
+void assist_4was(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = nonzero(data_of(rt, ctx).assist_4was()); }
 
 // type: the setter leaves the data address in v0 (the original's last load).
 void set_type(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
