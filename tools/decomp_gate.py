@@ -600,7 +600,7 @@ def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no c
         return 2
     subprocess.run(heavy(["bash", "-c", route_shell(Path("build/gt_native"), kind, tag, Path("recomp/analysis"))]),
                    env=env)
-    return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after)
+    return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after, kind=kind)
 
 
 def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) -> int:  # pragma: no cover - runs the game
@@ -628,10 +628,16 @@ def _probe_run(tag: str, symbols: Path, kind: str = "fast", scale: float = 1.0) 
     return status
 
 
-def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False) -> int:  # pragma: no cover - reads the run's files
+def report_routes(kind: str) -> list[str]:
+    """The routes whose logs a report reads: the synthetic run's own, else the full gate's (a superset of the fast's)."""
+    return [route for route, _ in ROUTES["synth" if kind == "synth" else "full"]]
+
+
+def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False,  # pragma: no cover - reads the run's files
+            kind: str = "full") -> int:
     reports = []
     status = 0
-    for route, _ in ROUTES["full"]:
+    for route in report_routes(kind):
         log = Path(f"recomp/analysis/gt_diff_{tag}_{route}.log")
         text = log.read_text(errors="replace") if log.exists() else ""
         exit_file = log.with_suffix(".exit")

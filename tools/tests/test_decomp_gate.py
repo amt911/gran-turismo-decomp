@@ -590,3 +590,9 @@ def test_synth_kind_runs_one_route_then_the_synthetic_cases():
 def test_route_lines_of_the_other_kinds_never_set_synthetic_cases():
     for kind in ("fast", "full"):
         assert "GT_SYNTH" not in gate.route_shell(Path("build/gt_native"), kind, "t1", Path("recomp/analysis"))
+
+
+def test_a_synthetic_report_reads_only_its_route():
+    """The synth run has one route; reading the full gate's list marked the others missing ("exit ?", 2026-10-25)."""
+    assert gate.report_routes("synth") == [route for route, _ in gate.ROUTES["synth"]]
+    assert gate.report_routes("fast") == gate.report_routes("full") == [route for route, _ in gate.ROUTES["full"]]
