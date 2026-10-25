@@ -47,6 +47,9 @@ def macro_rows(template: str, template_values: Sequence[int],
     if not match:
         return [], [f"not a one-line macro registration: {template.strip()}"]
     args = [a for a in match.group("args").split(",")[1:]] if match.group("args") else []
+    named = [a.strip() for a in args if _parse_literal(a) is None and a.strip() not in ("true", "false")]
+    if named:
+        return [], [f"{template.strip()} names a function: one C++ body with its own constants, not a family macro"]
     plan: list[int | None] = []  # per argument: the value position it comes from, or None for a constant
     for arg in args:
         literal = _parse_literal(arg)
@@ -59,9 +62,61 @@ def macro_rows(template: str, template_values: Sequence[int],
         if len(values) != len(template_values):
             problems.append(f"0x{address:08X}: {len(values)} values, the template has {len(template_values)}")
             continue
+        carried = {place for place in plan if place is not None}
+        differs = [i for i, (v, t) in enumerate(zip(values, template_values)) if i not in carried and v & _M != t & _M]
+        if differs:
+            problems.append(f"0x{address:08X}: differs from the template at value position {differs[0]}, which no argument "
+                            f"carries (its row would run the template's constant there)")
+            continue
         out = [_format_like(arg, values[place]) if place is not None else arg.strip() for arg, place in zip(args, plan)]
         rows.append(f"{match.group('macro')}(0x{address:08X}u{''.join(', ' + a for a in out)});")
     return rows, problems
+
+
+_WRAPPER = re.compile(r"^void func_(?P<entry>[0-9A-Fa-f]{8})\((?P<params>[^)]*)\)\s*\{\s*(?P<wrapper>\w+)\(rt, ctx"
+                      r"(?P<args>(?:,[^;]*)?)\);\s*\}\s*$")
+
+
+def wrapper_rows(template: str, registration: str, template_values: Sequence[int],
+                 members: Mapping[int, Sequence[int]]) -> tuple[list[str], list[str], list[str]]:
+    """The members' one-line wrapper rows and registrations, mapped like macro_rows from the template's own row."""
+    match = _WRAPPER.match(template.strip())
+    if not match:
+        return [], [], [f"not a one-line wrapper row: {template.strip()}"]
+    entry = match.group("entry").upper()
+    as_macro = f"W(0x{entry}u{match.group('args')});"
+    rows, problems = macro_rows(as_macro, template_values, members)
+    out_rows, out_regs = [], []
+    for row in rows:
+        address = row[2:12]  # "W(0xADDRESSu..."
+        member = address[2:].upper()
+        args = row[row.index("u", 3) + 1:-2]
+        out_rows.append(f"void func_{member}({match.group('params')}) {{ {match.group('wrapper')}(rt, ctx{args}); }}")
+        out_regs.append(registration.replace(f"0x{entry}u", f"0x{member}u").replace(f"func_{entry}", f"func_{member}"))
+    return out_rows, out_regs, problems
+
+
+def wrapper_template(source: str, entry: int) -> tuple[str, str]:
+    """The template's one-line wrapper row and its (active) registration line in `source`."""
+    name = f"func_{entry:08X}"
+    rows = [line.strip() for line in source.splitlines() if (m := _WRAPPER.match(line.strip())) and m.group("entry").upper() == f"{entry:08X}"]
+    regs = [line.strip() for line in source.splitlines()
+            if f"0x{entry:08X}u" in line and name in line and not line.strip().startswith(("//", "void "))]
+    if len(rows) != 1 or len(regs) != 1:
+        raise ValueError(f"{name}: {len(rows)} wrapper rows and {len(regs)} registrations")
+    return rows[0], regs[0]
+
+
+def pick_template(source: str, entry: int) -> tuple[str, str | tuple[str, str]]:
+    """("wrapper", (row, registration)) when `entry` has a one-line wrapper row, else ("macro", row) — a wrapper's own
+    registration (GT_DECOMP(0x...u, gt::...::func_..., ...)) must never be read as a macro row."""
+    try:
+        return "wrapper", wrapper_template(source, entry)
+    except ValueError:
+        row = template_row(source, entry)
+        if row is None:
+            raise ValueError(f"0x{entry:08X}: no wrapper row and no macro registration") from None
+        return "macro", row
 
 
 def template_row(source: str, entry: int) -> str | None:
@@ -83,10 +138,13 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - reads 
     parser.add_argument("--file", type=Path, required=True, help="the source that registers the template")
     args = parser.parse_args(argv)
     runtime = int(args.template, 16)
-    row = template_row(args.file.read_text(), runtime)
-    if row is None:
-        print(f"no active registration of 0x{runtime:08X} in {args.file}", file=sys.stderr)
+    try:
+        kind, found = pick_template(args.file.read_text(), runtime)
+    except ValueError as error:
+        print(f"{args.file}: {error}", file=sys.stderr)
         return 2
+    wrapper = found if kind == "wrapper" else None
+    row = found if kind == "macro" else None
     image = fm.TextImage.from_elf(Path("extracted/EBOOT.elf").read_bytes())
     sizes = load_functions(Path("recomp/analysis/functions.tsv"))
     inside, _ = split_inside(sizes, image.base, len(image.text))
@@ -95,12 +153,28 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - reads 
     code = {a: image.text[a - image.base:a - image.base + n] for a, n in scope.items()}
     template = runtime - LOAD_BASE
 
-    def values(address: int) -> list[int]:
+    def decoded(address: int) -> tuple[list[int], list]:
         words, relocs = image.function(address, sizes[address])
-        return [v.value for v in fm.member_values(words, address, relocs, image.segments)]
+        return words, fm.member_values(words, address, relocs, image.segments)
 
+    def values(address: int) -> list[int]:
+        return [v.value for v in decoded(address)[1]]
+
+    t_words = decoded(template)[0]
     members = fm.find_members(code, template, None, set(done_functions(Path("src"))))
-    rows, problems = macro_rows(row, values(template), {a + LOAD_BASE: values(a) for a in members})
+    member_values = {}
+    for address in members:
+        words, decoded_values = decoded(address)
+        left = fm.uncovered(t_words, words, decoded_values, template, address)
+        if left:  # a register or an offset differs that no value carries: not the template with other constants
+            print(f"!! 0x{address + LOAD_BASE:08X}: words {left} differ from the template with no value explaining them")
+            continue
+        member_values[address + LOAD_BASE] = [v.value for v in decoded_values]
+    if wrapper is not None:
+        rows, regs, problems = wrapper_rows(wrapper[0], wrapper[1], values(template), member_values)
+        rows = rows + [""] + regs
+    else:
+        rows, problems = macro_rows(row, values(template), member_values)
     for problem in problems:
         print(f"!! {problem}")
     print("\n".join(rows))

@@ -25845,6 +25845,88 @@ void func_089A6E24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08970758(this, visitor): the property +0xB4 (descriptor vtable 0x08CCDA08).
 void func_08970758(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDA08u, 180u); }
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_089707F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDA08u, 172u); }
+void func_08975E7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDA08u, 32u); }
+void func_0897609C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDA08u, 40u); }
+void func_0897613C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDE20u, 168u); }
+void func_08985878(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE178u, 228u); }
+void func_08985918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE178u, 204u); }
+void func_08994348(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 296u); }
+void func_089943E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 292u); }
+void func_08995B18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 292u); }
+void func_089992D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 292u); }
+void func_089995D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 296u); }
+void func_089A0158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 308u); }
+void func_089A0360(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 288u); }
+void func_089A0400(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 312u); }
+void func_089A2194(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 32u); }
+void func_089A23A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 36u); }
+void func_089A2444(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE700u, 168u); }
+void func_089A5EF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9D8u, 296u); }
+void func_089A6740(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 292u); }
+void func_089A6880(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9D8u, 300u); }
+void func_089B9D20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9A8u, 100u); }
+void func_089B9DC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9A8u, 100u); }
+void func_089C30F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 202u); }
+void func_089C3190(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 201u); }
+void func_089C3230(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 200u); }
+void func_089C32D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 203u); }
+void func_089C3370(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 160u); }
+void func_089C3410(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDA38u, 128u); }
+void func_089C34B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCDA38u, 144u); }
+void func_089C3550(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 196u); }
+void func_089CBC28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 296u); }
+void func_089CBCC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 288u); }
+void func_089CBD68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 292u); }
+void func_089CBE08(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 292u); }
+void func_089CBEA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 296u); }
+void func_089D3D5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 300u); }
+void func_089D4358(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 304u); }
+void func_089D4A20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 324u); }
+void func_089D4AC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 328u); }
+void func_089D4B60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 324u); }
+void func_089D4C00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 328u); }
+void func_089D8038(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 28u); }
+void func_089D9670(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 132u); }
+void func_089D99E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 136u); }
+void func_089DF118(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE190u, 368u); }
+void func_089DF258(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE190u, 400u); }
+void func_089EBED8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 300u); }
+void func_089EC278(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 304u); }
+void func_089EC3B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 308u); }
+void func_089EC598(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 320u); }
+void func_089EC638(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 324u); }
+void func_089F39D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 620u); }
+void func_089F70B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 153u); }
+void func_089F7158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 152u); }
+void func_089F71F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 148u); }
+void func_089F75E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 132u); }
+void func_089F7680(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 136u); }
+void func_089F7720(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 140u); }
+void func_089F77C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 144u); }
+void func_089F9194(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCFCB0u, 32u); }
+void func_089F93DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCFCB0u, 48u); }
+void func_089F947C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCFCC8u, 168u); }
+void func_089FECBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 296u); }
+void func_089FED5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 292u); }
+void func_08A00274(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9A8u, 120u); }
+void func_08A00314(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCFDC0u, 148u); }
+void func_08A06A7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE190u, 32u); }
+void func_08A06CD4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE190u, 64u); }
+void func_08A06D74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCFFA8u, 168u); }
+void func_08A0A2F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 288u); }
+void func_08A0A654(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE178u, 232u); }
+void func_08A0A86C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCE178u, 244u); }
+void func_08A1A0AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 22u); }
+void func_08A1A14C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 21u); }
+void func_08A1A1EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 20u); }
+void func_08A1A340(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 12u); }
+void func_08A1A3E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 8u); }
+void func_08A1A480(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD978u, 28u); }
+void func_08A1A520(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9D8u, 4u); }
+void func_08A1A5C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9C0u, 23u); }
+void func_08A1A660(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 0x08CCD9F0u, 24u); }
 
 // func_08930A9C(a, b, char *out, n): when func_08930A28 finds the entry, its name (func_08937D90 of the
 // table's +0x1F0 and the entry's +0x8) is copied to out (func_08B7C830, at most n).
@@ -26552,6 +26634,88 @@ GT_DECOMP(0x089AB77Cu, gt::game::func_089AB77C, gt::ReturnKind::Void);
 GT_DECOMP(0x089AB8A8u, gt::game::func_089AB8A8, gt::ReturnKind::Void);
 GT_DECOMP(0x089A6E24u, gt::game::func_089A6E24, gt::ReturnKind::Void);
 GT_DECOMP(0x08970758u, gt::game::func_08970758, gt::ReturnKind::Void);
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+// GT_DECOMP(0x089707F8u, gt::game::func_089707F8, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08975E7Cu, gt::game::func_08975E7C, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x0897609Cu, gt::game::func_0897609C, gt::ReturnKind::Void);
+GT_DECOMP(0x0897613Cu, gt::game::func_0897613C, gt::ReturnKind::Void);
+// GT_DECOMP(0x08985878u, gt::game::func_08985878, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08985918u, gt::game::func_08985918, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08994348u, gt::game::func_08994348, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089943E8u, gt::game::func_089943E8, gt::ReturnKind::Void);
+GT_DECOMP(0x08995B18u, gt::game::func_08995B18, gt::ReturnKind::Void);
+// GT_DECOMP(0x089992D0u, gt::game::func_089992D0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089995D4u, gt::game::func_089995D4, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089A0158u, gt::game::func_089A0158, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089A0360u, gt::game::func_089A0360, gt::ReturnKind::Void);
+// GT_DECOMP(0x089A0400u, gt::game::func_089A0400, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089A2194u, gt::game::func_089A2194, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089A23A4u, gt::game::func_089A23A4, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089A2444u, gt::game::func_089A2444, gt::ReturnKind::Void);
+GT_DECOMP(0x089A5EF4u, gt::game::func_089A5EF4, gt::ReturnKind::Void);
+// GT_DECOMP(0x089A6740u, gt::game::func_089A6740, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089A6880u, gt::game::func_089A6880, gt::ReturnKind::Void);
+// GT_DECOMP(0x089B9D20u, gt::game::func_089B9D20, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089B9DC0u, gt::game::func_089B9DC0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089C30F0u, gt::game::func_089C30F0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089C3190u, gt::game::func_089C3190, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089C3230u, gt::game::func_089C3230, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089C32D0u, gt::game::func_089C32D0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089C3370u, gt::game::func_089C3370, gt::ReturnKind::Void);
+// GT_DECOMP(0x089C3410u, gt::game::func_089C3410, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089C34B0u, gt::game::func_089C34B0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089C3550u, gt::game::func_089C3550, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089CBC28u, gt::game::func_089CBC28, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089CBCC8u, gt::game::func_089CBCC8, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089CBD68u, gt::game::func_089CBD68, gt::ReturnKind::Void);
+// GT_DECOMP(0x089CBE08u, gt::game::func_089CBE08, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089CBEA8u, gt::game::func_089CBEA8, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D3D5Cu, gt::game::func_089D3D5C, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D4358u, gt::game::func_089D4358, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D4A20u, gt::game::func_089D4A20, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D4AC0u, gt::game::func_089D4AC0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D4B60u, gt::game::func_089D4B60, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D4C00u, gt::game::func_089D4C00, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089D8038u, gt::game::func_089D8038, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089D9670u, gt::game::func_089D9670, gt::ReturnKind::Void);
+// GT_DECOMP(0x089D99E4u, gt::game::func_089D99E4, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089DF118u, gt::game::func_089DF118, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089DF258u, gt::game::func_089DF258, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089EBED8u, gt::game::func_089EBED8, gt::ReturnKind::Void);
+GT_DECOMP(0x089EC278u, gt::game::func_089EC278, gt::ReturnKind::Void);
+// GT_DECOMP(0x089EC3B8u, gt::game::func_089EC3B8, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089EC598u, gt::game::func_089EC598, gt::ReturnKind::Void);
+// GT_DECOMP(0x089EC638u, gt::game::func_089EC638, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089F39D0u, gt::game::func_089F39D0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089F70B8u, gt::game::func_089F70B8, gt::ReturnKind::Void);
+GT_DECOMP(0x089F7158u, gt::game::func_089F7158, gt::ReturnKind::Void);
+// GT_DECOMP(0x089F71F8u, gt::game::func_089F71F8, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089F75E0u, gt::game::func_089F75E0, gt::ReturnKind::Void);
+// GT_DECOMP(0x089F7680u, gt::game::func_089F7680, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089F7720u, gt::game::func_089F7720, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089F77C0u, gt::game::func_089F77C0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x089F9194u, gt::game::func_089F9194, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089F93DCu, gt::game::func_089F93DC, gt::ReturnKind::Void);
+GT_DECOMP(0x089F947Cu, gt::game::func_089F947C, gt::ReturnKind::Void);
+// GT_DECOMP(0x089FECBCu, gt::game::func_089FECBC, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089FED5Cu, gt::game::func_089FED5C, gt::ReturnKind::Void);
+GT_DECOMP(0x08A00274u, gt::game::func_08A00274, gt::ReturnKind::Void);
+// GT_DECOMP(0x08A00314u, gt::game::func_08A00314, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x08A06A7Cu, gt::game::func_08A06A7C, gt::ReturnKind::Void);
+// GT_DECOMP(0x08A06CD4u, gt::game::func_08A06CD4, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A06D74u, gt::game::func_08A06D74, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A0A2F8u, gt::game::func_08A0A2F8, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x08A0A654u, gt::game::func_08A0A654, gt::ReturnKind::Void);
+GT_DECOMP(0x08A0A86Cu, gt::game::func_08A0A86C, gt::ReturnKind::Void);
+// GT_DECOMP(0x08A1A0ACu, gt::game::func_08A1A0AC, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x08A1A14Cu, gt::game::func_08A1A14C, gt::ReturnKind::Void);
+GT_DECOMP(0x08A1A1ECu, gt::game::func_08A1A1EC, gt::ReturnKind::Void);
+// GT_DECOMP(0x08A1A340u, gt::game::func_08A1A340, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A1A3E0u, gt::game::func_08A1A3E0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A1A480u, gt::game::func_08A1A480, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A1A520u, gt::game::func_08A1A520, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A1A5C0u, gt::game::func_08A1A5C0, gt::ReturnKind::Void);  // no comparable synthetic case yet
+// GT_DECOMP(0x08A1A660u, gt::game::func_08A1A660, gt::ReturnKind::Void);  // no comparable synthetic case yet
 GT_DECOMP(0x08930A9Cu, gt::game::func_08930A9C, gt::ReturnKind::Void);
 GT_DECOMP(0x0883B848u, gt::game::func_0883B848, gt::ReturnKind::DoubleWord);
 GT_DECOMP(0x08A97CF8u, gt::game::func_08A97CF8, gt::ReturnKind::Void);

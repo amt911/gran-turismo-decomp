@@ -41,3 +41,57 @@ def test_the_template_row_is_found_in_a_source_by_its_entry():
     assert fr.template_row(source, 0x08805B88) is None  # commented out
     with pytest.raises(ValueError):
         fr.template_row("A(0x08808518u);\nB(0x08808518u);\n", 0x08808518)
+
+
+def test_a_wrapper_row_is_mapped_like_a_macro_row_and_gets_its_registration():
+    head = "void func_08970758(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) "
+    template = head + "{ visit_property(rt, ctx, 0x08CCDA08u, 180u); }"
+    registration = "GT_DECOMP(0x08970758u, gt::game::func_08970758, gt::ReturnKind::Void);"
+    rows, regs, problems = fr.wrapper_rows(template, registration, [180, 0x08CCDA08], {0x089707F8: [172, 0x08CCDA08]})
+    assert problems == []
+    assert rows == ["void func_089707F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) "
+                    "{ visit_property(rt, ctx, 0x08CCDA08u, 172u); }"]
+    assert regs == ["GT_DECOMP(0x089707F8u, gt::game::func_089707F8, gt::ReturnKind::Void);"]
+
+
+def test_a_wrapper_template_and_its_registration_are_found_in_a_source():
+    source = ("void func_08970758(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 1u); }\n"
+              "HOT9(0x08970758u, func_08970758, Void);\n")
+    row, registration = fr.wrapper_template(source, 0x08970758)
+    assert row.startswith("void func_08970758(") and registration == "HOT9(0x08970758u, func_08970758, Void);"
+
+
+def test_a_wrapper_row_wins_over_its_own_registration_read_as_a_macro():
+    """GT_DECOMP(0xADDRu, gt::game::func_ADDR, ...) looks like a macro row; taken as one, every member pointed at the
+    template's function (2026-10-25)."""
+    source = ("void func_08970758(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { visit_property(rt, ctx, 1u); }\n"
+              "GT_DECOMP(0x08970758u, gt::game::func_08970758, gt::ReturnKind::Void);\n")
+    kind, found = fr.pick_template(source, 0x08970758)
+    assert kind == "wrapper" and found[1].startswith("GT_DECOMP(")
+    kind, found = fr.pick_template("GT_DECOMP_EMPTY(0x08805B88u);\n", 0x08805B88)
+    assert kind == "macro" and found == "GT_DECOMP_EMPTY(0x08805B88u);"
+
+
+def test_a_registration_that_names_a_function_is_not_a_family_macro():
+    """HOT104(0x08BF3EA4u, func_08BF3EA4, Word) registers one C++ body with its own constants; copying it to the members
+    would run the template's constants at the members' addresses."""
+    rows, problems = fr.macro_rows("HOT104(0x08BF3EA4u, func_08BF3EA4, Word);", [1], {0x08B8C6BC: [2]})
+    assert rows == [] and "names a function" in problems[0]
+    rows, problems = fr.macro_rows("GT_DECOMP(0x08970758u, gt::game::func_08970758, gt::ReturnKind::Void);", [1],
+                                   {0x089707F8: [2]})
+    assert rows == [] and "names a function" in problems[0]
+
+
+def test_a_named_argument_other_than_true_or_false_is_a_function_too():
+    rows, problems = fr.macro_rows("RACE_OPERATOR(0x0885BC90u, set_with_ghost, Void);", [1], {0x0885C368: [2]})
+    assert rows == [] and "names a function" in problems[0]
+    rows, _ = fr.macro_rows("GT_DECOMP_CAST(0x0880881Cu, 0x08808524u, 0x08A76AA0u, false);", [0x08808524],
+                            {0x08809D10: [0x08809B28]})
+    assert rows == ["GT_DECOMP_CAST(0x08809D10u, 0x08809B28u, 0x08A76AA0u, false);"]
+
+
+def test_a_member_whose_value_no_argument_carries_differs_is_refused():
+    """A row passes only the template's arguments: a member that differs at a value position no argument uses would run
+    with the template's constant there (ptmf_tail_arg / clamp_step take no argument, 2026-10-25)."""
+    rows, problems = fr.macro_rows("M(0x08800000u, 0x10u);", [0x10, 0x99], {0x08800100: [0x20, 0x99], 0x08800200: [0x30, 0x77]})
+    assert rows == ["M(0x08800100u, 0x20u);"] and "0x08800200" in problems[0] and "position 1" in problems[0]
