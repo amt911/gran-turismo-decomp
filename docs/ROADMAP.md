@@ -1012,6 +1012,14 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lotes 138 y 139** (2026-10-25): los primeros lotes de código que ninguna ruta alcanza, verificados con casos
+      sintéticos. Son los demás miembros de familias de una sola forma cuya plantilla ya estaba decompilada: thunks,
+      funciones vacías, devolver cero, reenvíos, cabeceras de destructor, llamar-y-devolver (lote 138, 523) y las
+      familias con macro de registro (`AS_CLASS`, `CAST`, `DESTROY`, `DESTROY_MEMBER`, `MAKE`, `ASSIGN_MAKE`,
+      `STRIDE_WALK`, `GETTER`, `CONSTRUCT`, `SET_FIELD`; lote 139, 252). Las filas salen de las palabras de cada
+      miembro (`tools.family_members`, y `tools.family_rows` para colocar cada argumento como en la fila de la
+      plantilla). 244 miembros sin ningún caso sintético comparable quedan comentados. Sabotaje sintético: 775 de 775.
+      Corrigió `store_and_jump` (v0 = la tabla, como el original). Total: 8.143 funciones.
 - [x] **Casos sintéticos** (2026-10-25, spec `2026-10-25-synthetic-cases-design.md`): como las rutas ya casi no
       alcanzan código sin decompilar, la misma puerta recibe casos generados: al final de la ruta `dealer`, cada función
       instalada se llama con argumentos y una zona de memoria inventados (punteros entre sí, enteros pequeños, flotantes,
