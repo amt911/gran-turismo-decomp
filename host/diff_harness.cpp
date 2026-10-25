@@ -766,14 +766,14 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
     // returns: `jr $ra` with a delay slot that sets v0 (`li v0, K` or `move v0, zero`). One that leaves v0 alone made
     // its caller's v0 the jump target in the original and 0 in the decompiled run (call_guest does not load the
     // target into v0): 9 of the first 20 synthetic mismatches.
-    // Every registered function is left out, installed or not, so the inputs do not depend on GT_DECOMP_ONLY.
-    std::set<std::uint32_t> registered;
-    for (const auto &function : decompiled_functions()) registered.insert(function.address);
+    // Chosen from the code alone, decompiled or not, so the inputs depend neither on GT_DECOMP_ONLY nor on what later
+    // batches register (leaving the registered ones out changed every function's inputs with each batch). A decompiled
+    // one runs its decompiled version in the decompiled run, which its own cases already compare.
     constexpr std::uint32_t kTextBegin = 0x08804028u, kTextEnd = 0x08C7A7DCu;
     for (std::uint32_t address = kTextBegin; address < kTextEnd && layout.leaf_functions.size() < 64u; address += 4u) {
         const std::uint32_t slot = rt.memory().load32(address + 4u);
         if (rt.memory().load32(address) == 0x03E00008u && ((slot & 0xFFFF0000u) == 0x24020000u || slot == 0x00001021u) &&
-            rt.function_at(address) != nullptr && !registered.contains(address))
+            rt.function_at(address) != nullptr)
             layout.leaf_functions.push_back(address);
     }
     std::uint8_t *const arena = rt.memory().raw_pointer(layout.arena_base, layout.arena_bytes);

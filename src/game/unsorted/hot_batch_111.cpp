@@ -804,29 +804,30 @@ void func_08957B30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t config = word(rt, ctx.gpr[4] + 0xCu);
     const std::uint32_t state = word(rt, ctx.gpr[4] + 8u);
     const std::uint32_t mode = byte_u(rt, config + 0x140Fu);
-    const float level = float_at(rt, state + 0x6C4u);
+    // read in the modes that use it, as the original (synthetic cases: a bad state faulted here only)
+    const auto level = [&] { return float_at(rt, state + 0x6C4u); };
     GuestFrame frame(ctx, 0x10u);
     // v0 is left by the mode tests: 1 for modes 0, 1 and 6, 8 for the others (mode 8 then sets 1 unless it stores 2).
     ctx.gpr[2] = mode < 2u || mode == 6u ? 1u : 8u;
     switch (mode) {
     case 2u:
-        call_setf(rt, ctx, 0x08957AD4u, {}, {level});
+        call_setf(rt, ctx, 0x08957AD4u, {}, {level()});
         put_float(rt, state + 0x610u, ctx.fpr[0]);
         break;
     case 1u:
     case 6u:
-        if (float_at(rt, config + 0x1414u) <= level) {
+        if (float_at(rt, config + 0x1414u) <= level()) {
             put8(rt, state + 0x60Eu, 1u);
             put(rt, state + 0x610u, mode == 1u ? 0x3F800000u : 0x3E1D89D9u);
         }
         break;
     case 8u:
-        if (float_at(rt, config + 0x1414u) <= level) {
+        if (float_at(rt, config + 0x1414u) <= level()) {
             put8(rt, state + 0x60Eu, 2u);
             break;
         }
         ctx.gpr[2] = 1u;
-        if (float_at(rt, config + 0x1410u) <= level) {
+        if (float_at(rt, config + 0x1410u) <= level()) {
             put8(rt, state + 0x60Eu, 1u);
             put_float(rt, state + 0x610u, 1.0f);
         }
@@ -1209,7 +1210,10 @@ void func_0882AA38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t key = ctx.gpr[5];
     const std::uint32_t count = ctx.gpr[6];
     const std::uint32_t args = ctx.gpr[7];
-    if (signed_of(count) < 2) return;
+    if (signed_of(count) < 2) {
+        ctx.gpr[2] = 1u;  // the original's v0 there: its `slti v0, a2, 2` (synthetic cases)
+        return;
+    }
     GuestFrame frame(ctx, 0x30u);
     const auto slot = [&](std::uint32_t address) {
         const std::uint32_t object = word(rt, address);
