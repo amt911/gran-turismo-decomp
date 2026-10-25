@@ -441,6 +441,27 @@ void func_08B87774(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // +8 and +12); v0 = the new *p. Unsigned compares. Branches the routes do not take: see clamp_step.
 void func_08C4045C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
 void func_08C3FEB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_08C4015C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C4022C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C40294(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C402FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C40364(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C405D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C407B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C4089C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C40DEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C40E54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C40F3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C410DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C4123C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C412A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C4130C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C41374(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C414AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C415A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C4160C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
+void func_08C41674(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
 
 // func_08B522BC(p, a, b, c, d) -> *p after the update: 0 for a zero *p; else *p += one of a / c picked by the bounds b and d (a for the plain case
 // d == 0 && c == 0; unsigned compares).
@@ -523,6 +544,27 @@ HOT63(0x08C1FF70u, func_08C1FF70, Word);
 HOT63(0x08B87774u, func_08B87774, Word);
 HOT63(0x08C4045Cu, func_08C4045C, Word);
 HOT63(0x08C3FEB8u, func_08C3FEB8, Word);
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+HOT63(0x08C4015Cu, func_08C4015C, Word);
+HOT63(0x08C4022Cu, func_08C4022C, Word);
+HOT63(0x08C40294u, func_08C40294, Word);
+HOT63(0x08C402FCu, func_08C402FC, Word);
+HOT63(0x08C40364u, func_08C40364, Word);
+HOT63(0x08C405D4u, func_08C405D4, Word);
+HOT63(0x08C407B4u, func_08C407B4, Word);
+HOT63(0x08C4089Cu, func_08C4089C, Word);
+HOT63(0x08C40DECu, func_08C40DEC, Word);
+HOT63(0x08C40E54u, func_08C40E54, Word);
+HOT63(0x08C40F3Cu, func_08C40F3C, Word);
+HOT63(0x08C410DCu, func_08C410DC, Word);
+HOT63(0x08C4123Cu, func_08C4123C, Word);
+HOT63(0x08C412A4u, func_08C412A4, Word);
+// HOT63(0x08C4130Cu, func_08C4130C, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+// HOT63(0x08C41374u, func_08C41374, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+HOT63(0x08C414ACu, func_08C414AC, Word);
+// HOT63(0x08C415A4u, func_08C415A4, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+// HOT63(0x08C4160Cu, func_08C4160C, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+// HOT63(0x08C41674u, func_08C41674, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
 HOT63(0x08B522BCu, func_08B522BC, Word);
 HOT63(0x08BE5C0Cu, func_08BE5C0C, Word);
 HOT63(0x08BE593Cu, func_08BE593C, Word);

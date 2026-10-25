@@ -2443,3 +2443,21 @@ wrapper, or the wrapper takes other columns); the new rows outnumbered the old o
 the family / wrapper pairing is wrong — revert those rows. register_names and handle_wrapper paired cleanly.
 
 Found: 2026-10-25 · tools.family_members, src/game/unsorted/hot_batch_70/73/74/79.cpp (rows reverted)
+
+## Family rows that would have been wrong: three guards in tools.family_rows
+
+**Symptom.** Generating batch 141, `tools.family_rows` produced rows that looked fine and compiled: 81 rows that all
+registered the template's own C++ function at the members' addresses; RACE_OPERATOR / ORGANIZER rows copying the
+template's named function; and argument-less wrapper rows (`ptmf_tail_arg(rt, ctx)`) for members that differ from the
+template in a constant the row cannot carry.
+**Cause.** A registration that names a function (`GT_DECOMP(0x...u, gt::game::func_X, ...)`, `HOT104(.., func_X, ..)`,
+`RACE_OPERATOR(.., set_with_ghost, ..)`) is one C++ body with its own constants, not a family macro; and a row passes
+only the template's arguments, so any other value position where a member differs runs the template's value.
+**Fix / workaround.** The tool now (1) tries the template's wrapper row before its registration, (2) refuses a macro
+row with any argument that is not a literal or true/false, (3) refuses a member that differs from the template at a value
+position no argument carries, and (4) refuses a member whose words differ with no value explaining them
+(`family_members.uncovered`). Batch 139's merged rows were re-checked against (3): all pass. Also: filter generated
+rows against `src/` (definitions and commented registrations) before inserting them — a cleanup script that edited
+"from the batch marker on" deleted existing rows further down the file (caught by the build, reverted).
+
+Found: 2026-10-25 · tools/family_rows.py

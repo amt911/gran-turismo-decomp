@@ -1012,6 +1012,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 141** (2026-10-25): 121 miembros más de siete familias (`visit_property`, cadenas de llamadas y cinco
+      envoltorios de los lotes 63, 75, 78 y 79), generados con `tools.family_rows`, que ahora también hace filas de
+      envoltorio y rechaza tres casos que antes habrían dado filas falsas (FINDINGS). 252 filas: 136 comparadas sin
+      discrepancias, sabotaje 121 de 136; las demás quedan con el registro comentado. Total: 8.288 funciones.
 - [x] **Lote 140** (2026-10-25): 24 miembros más de dos familias de envoltorio (`register_names`, `handle_wrapper`),
       verificados con casos sintéticos (27 comparados, sabotaje 24 de 27: los 3 sin detectar quedan comentados). Cuatro
       familias más se revirtieron: su plantilla no era de la familia que usa ese envoltorio (FINDINGS). Los barridos

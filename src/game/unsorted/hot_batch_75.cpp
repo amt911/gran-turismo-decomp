@@ -238,6 +238,33 @@ void func_08B2EFF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ta
 
 // forward_add rows
 void func_0886924C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08869EF0u, 432u); }
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_0885F3C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x0896275Cu, 17596u); }
+void func_08869244(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08869E60u, 432u); }
+void func_0889117C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08890788u, 8u); }
+void func_0889118C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08890554u, 8u); }
+void func_0889DD64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08899D60u, 40u); }
+void func_088A3710(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x088A5E5Cu, 8u); }
+void func_088A3978(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x088A8420u, 792u); }
+void func_088A3980(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x088A7C6Cu, 792u); }
+void func_088F187C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x088F1588u, 20u); }
+void func_08916AB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x0890AFC0u, 4u); }
+void func_089272FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08925B68u, 8148u); }
+void func_08939F4C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B344E0u, 20u); }
+void func_08939F54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B3457Cu, 20u); }
+void func_08968F90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B855E0u, 204u); }
+void func_08977318(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B28C44u, 72u); }
+void func_0897D804(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x089C3CF0u, 20u); }
+void func_0897D80C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x089C3D4Cu, 20u); }
+void func_0897E6A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B855E0u, 480u); }
+void func_089B5828(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B2080Cu, 312u); }
+void func_089F0B28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B0B87Cu, 12u); }
+void func_089FCA70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B855E0u, 100u); }
+void func_08A36DE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B487B8u, 20u); }
+void func_08A6C5C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B855E0u, 20u); }
+void func_08A89F54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B855E0u, 20u); }
+void func_08BBFF7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08BBFE68u, 152u); }
+void func_08C53F84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B61664u, 36u); }
 void func_089272EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08925B70u, 8148u); }
 void func_089F0AF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B0B8CCu, 12u); }
 void func_08B52CDC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_add(rt, ctx, 0x08B54760u, 32u); }
@@ -265,6 +292,43 @@ void func_08AC3308(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { lo
 
 // store_vtable rows
 void func_08884B0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CBF428u); }
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_0880BEE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CBCDC0u); }
+void func_08865EE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CBF5D8u); }
+void func_08925AE4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC6078u); }
+void func_08925B48(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC6078u); }
+void func_08925FF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC60B8u); }
+void func_08929CB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC62F8u); }
+void func_08929D88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC6318u); }
+void func_08929DD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC6318u); }
+void func_08929DE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC6318u); }
+void func_08929DF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC6318u); }
+void func_08AB8888(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD5EC0u); }
+void func_08AB94E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD5F48u); }
+void func_08AB9E30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD5FB8u); }
+void func_08ABB390(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD6140u); }
+void func_08ABBCD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD61C0u); }
+void func_08ABC75C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD6248u); }
+void func_08ABF6C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD6420u); }
+void func_08AC2680(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD6628u); }
+void func_08AD7DF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD6FC8u); }
+void func_08AF6434(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD7348u); }
+void func_08B08420(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD79F8u); }
+void func_08B0C1D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD7B50u); }
+void func_08B0CEB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD7B98u); }
+void func_08B1E0EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9360u); }
+void func_08B1E11C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9370u); }
+void func_08B21928(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9518u); }
+void func_08B219C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9518u); }
+void func_08B219D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9518u); }
+void func_08B24D3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9630u); }
+void func_08B27270(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9660u); }
+void func_08B2B0A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CDA6C0u); }
+void func_08B5C280(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CDAE78u); }
+void func_08B6258C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CDBF58u); }
+void func_08B640F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CDC070u); }
+void func_08B89CF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CBE300u); }
+void func_08C1B490(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD1E70u); }
 void func_088F897C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CC3EC8u); }
 void func_08B1FD74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_vtable_return(rt, ctx, 0x08CD9498u); }
 
@@ -331,6 +395,33 @@ HOT75(0x08B34B24u, func_08B34B24, Word);
 HOT75(0x08B34880u, func_08B34880, Word);
 HOT75(0x08B34B1Cu, func_08B34B1C, Word);
 HOT75(0x0886924Cu, func_0886924C, Word);
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+// HOT75(0x0885F3C0u, func_0885F3C0, Word);  // no comparable synthetic case yet
+// HOT75(0x08869244u, func_08869244, Word);  // no comparable synthetic case yet
+HOT75(0x0889117Cu, func_0889117C, Word);
+HOT75(0x0889118Cu, func_0889118C, Word);
+// HOT75(0x0889DD64u, func_0889DD64, Word);  // no comparable synthetic case yet
+// HOT75(0x088A3710u, func_088A3710, Word);  // no comparable synthetic case yet
+// HOT75(0x088A3978u, func_088A3978, Word);  // no comparable synthetic case yet
+HOT75(0x088A3980u, func_088A3980, Word);
+HOT75(0x088F187Cu, func_088F187C, Word);
+// HOT75(0x08916AB8u, func_08916AB8, Word);  // no comparable synthetic case yet
+HOT75(0x089272FCu, func_089272FC, Word);
+HOT75(0x08939F4Cu, func_08939F4C, Word);
+HOT75(0x08939F54u, func_08939F54, Word);
+HOT75(0x08968F90u, func_08968F90, Word);
+// HOT75(0x08977318u, func_08977318, Word);  // no comparable synthetic case yet
+HOT75(0x0897D804u, func_0897D804, Word);
+HOT75(0x0897D80Cu, func_0897D80C, Word);
+HOT75(0x0897E6A4u, func_0897E6A4, Word);
+HOT75(0x089B5828u, func_089B5828, Word);
+// HOT75(0x089F0B28u, func_089F0B28, Word);  // no comparable synthetic case yet
+// HOT75(0x089FCA70u, func_089FCA70, Word);  // no comparable synthetic case yet
+HOT75(0x08A36DE0u, func_08A36DE0, Word);
+HOT75(0x08A6C5C8u, func_08A6C5C8, Word);
+HOT75(0x08A89F54u, func_08A89F54, Word);
+// HOT75(0x08BBFF7Cu, func_08BBFF7C, Word);  // no comparable synthetic case yet
+HOT75(0x08C53F84u, func_08C53F84, Word);
 HOT75(0x089272ECu, func_089272EC, Word);
 HOT75(0x08B52CDCu, func_08B52CDC, Word);
 HOT75(0x08C45D7Cu, func_08C45D7C, Word);
@@ -338,6 +429,43 @@ HOT75(0x08B34DB0u, func_08B34DB0, Word);
 HOT75(0x08875090u, func_08875090, Word);
 HOT75(0x088750ACu, func_088750AC, Word);
 HOT75(0x08884B0Cu, func_08884B0C, Word);
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+HOT75(0x0880BEE8u, func_0880BEE8, Word);
+HOT75(0x08865EE4u, func_08865EE4, Word);
+HOT75(0x08925AE4u, func_08925AE4, Word);
+HOT75(0x08925B48u, func_08925B48, Word);
+HOT75(0x08925FF8u, func_08925FF8, Word);
+HOT75(0x08929CB0u, func_08929CB0, Word);
+HOT75(0x08929D88u, func_08929D88, Word);
+HOT75(0x08929DD0u, func_08929DD0, Word);
+HOT75(0x08929DE0u, func_08929DE0, Word);
+HOT75(0x08929DF0u, func_08929DF0, Word);
+HOT75(0x08AB8888u, func_08AB8888, Word);
+HOT75(0x08AB94E4u, func_08AB94E4, Word);
+HOT75(0x08AB9E30u, func_08AB9E30, Word);
+HOT75(0x08ABB390u, func_08ABB390, Word);
+HOT75(0x08ABBCD8u, func_08ABBCD8, Word);
+HOT75(0x08ABC75Cu, func_08ABC75C, Word);
+HOT75(0x08ABF6C0u, func_08ABF6C0, Word);
+HOT75(0x08AC2680u, func_08AC2680, Word);
+HOT75(0x08AD7DF8u, func_08AD7DF8, Word);
+HOT75(0x08AF6434u, func_08AF6434, Word);
+HOT75(0x08B08420u, func_08B08420, Word);
+HOT75(0x08B0C1D8u, func_08B0C1D8, Word);
+HOT75(0x08B0CEB4u, func_08B0CEB4, Word);
+HOT75(0x08B1E0ECu, func_08B1E0EC, Word);
+HOT75(0x08B1E11Cu, func_08B1E11C, Word);
+HOT75(0x08B21928u, func_08B21928, Word);
+HOT75(0x08B219C0u, func_08B219C0, Word);
+HOT75(0x08B219D0u, func_08B219D0, Word);
+HOT75(0x08B24D3Cu, func_08B24D3C, Word);
+HOT75(0x08B27270u, func_08B27270, Word);
+// HOT75(0x08B2B0A8u, func_08B2B0A8, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+// HOT75(0x08B5C280u, func_08B5C280, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+// HOT75(0x08B6258Cu, func_08B6258C, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+HOT75(0x08B640F4u, func_08B640F4, Word);
+// HOT75(0x08B89CF0u, func_08B89CF0, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
+HOT75(0x08C1B490u, func_08C1B490, Word);
 HOT75(0x088F897Cu, func_088F897C, Word);
 HOT75(0x08B1FD74u, func_08B1FD74, Word);
 HOT75(0x08932A38u, func_08932A38, Word);

@@ -580,6 +580,33 @@ void shared_callback(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_XXXXXXXX (ptmf chain fill): see ptmf_chain_fill.
 void func_08BF833C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF7C30u); }
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+void func_08B8CA4C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BEE5E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BEE6AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BE9040u); }
+void func_08BF22DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BE9040u); }
+void func_08BF29AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BF3C94(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF3BD0u); }
+void func_08BF4578(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BFAE80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF3BD0u); }
+void func_08BFD9C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BFE104(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BFF174(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08BFF2CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08C00298(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08C055B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BE9040u); }
+void func_08C13EC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BE9040u); }
+void func_08C1D7F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08C1E78C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08C2671C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
+void func_08C26AC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF3BD0u); }
+void func_08C37078(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF3BD0u); }
+void func_08C39F94(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08C31598u); }
+void func_08C3A410(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF3BD0u); }
+void func_08C3A4DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08C31490u); }
+void func_08C3A5A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08C314D8u); }
+void func_08C3A744(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BE9040u); }
+void func_08C3A810(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08C31550u); }
 void func_08BFBE18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08B8C564u); }
 void func_08C1E150(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_chain_fill(rt, ctx, 0x08BF3BD0u); }
 
@@ -669,6 +696,33 @@ void func_08BE0EB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { sh
 
 #define HOT79(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_79::name, gt::ReturnKind::kind)
 HOT79(0x08BF833Cu, func_08BF833C, Word);
+// Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
+// HOT79(0x08B8CA4Cu, func_08B8CA4C, Word);  // no comparable synthetic case yet
+// HOT79(0x08BEE5E0u, func_08BEE5E0, Word);  // no comparable synthetic case yet
+// HOT79(0x08BEE6ACu, func_08BEE6AC, Word);  // no comparable synthetic case yet
+HOT79(0x08BF22DCu, func_08BF22DC, Word);
+// HOT79(0x08BF29ACu, func_08BF29AC, Word);  // no comparable synthetic case yet
+// HOT79(0x08BF3C94u, func_08BF3C94, Word);  // no comparable synthetic case yet
+HOT79(0x08BF4578u, func_08BF4578, Word);
+// HOT79(0x08BFAE80u, func_08BFAE80, Word);  // no comparable synthetic case yet
+// HOT79(0x08BFD9C0u, func_08BFD9C0, Word);  // no comparable synthetic case yet
+// HOT79(0x08BFE104u, func_08BFE104, Word);  // no comparable synthetic case yet
+HOT79(0x08BFF174u, func_08BFF174, Word);
+// HOT79(0x08BFF2CCu, func_08BFF2CC, Word);  // no comparable synthetic case yet
+// HOT79(0x08C00298u, func_08C00298, Word);  // no comparable synthetic case yet
+// HOT79(0x08C055B0u, func_08C055B0, Word);  // no comparable synthetic case yet
+HOT79(0x08C13EC0u, func_08C13EC0, Word);
+// HOT79(0x08C1D7F8u, func_08C1D7F8, Word);  // no comparable synthetic case yet
+// HOT79(0x08C1E78Cu, func_08C1E78C, Word);  // no comparable synthetic case yet
+// HOT79(0x08C2671Cu, func_08C2671C, Word);  // no comparable synthetic case yet
+// HOT79(0x08C26AC0u, func_08C26AC0, Word);  // no comparable synthetic case yet
+// HOT79(0x08C37078u, func_08C37078, Word);  // no comparable synthetic case yet
+// HOT79(0x08C39F94u, func_08C39F94, Word);  // no comparable synthetic case yet
+HOT79(0x08C3A410u, func_08C3A410, Word);
+// HOT79(0x08C3A4DCu, func_08C3A4DC, Word);  // no comparable synthetic case yet
+// HOT79(0x08C3A5A8u, func_08C3A5A8, Word);  // no comparable synthetic case yet
+// HOT79(0x08C3A744u, func_08C3A744, Word);  // no comparable synthetic case yet
+// HOT79(0x08C3A810u, func_08C3A810, Word);  // no comparable synthetic case yet
 HOT79(0x08BFBE18u, func_08BFBE18, Word);
 HOT79(0x08C1E150u, func_08C1E150, Word);
 HOT79(0x08BF8574u, func_08BF8574, Word);
