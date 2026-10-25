@@ -2401,9 +2401,10 @@ comparable cases, 20 with mismatches, although every one of them passes the rout
   in the original and 0 in the C++ (`call_guest` does not load the target into v0) — the arena now only uses
   `jr ra; li v0, K`. The arena also must not depend on which functions are installed (GT_DECOMP_ONLY), or a
   single-function rerun sees other inputs.
-**Fix / workaround.** All of the above fixed; 6 mismatches stay open (`func_08B212B4`, `func_08AFD484`,
-`func_08AD1990`, `func_08C18650`, `func_08C416DC`, `func_089687D8`): not explained yet (one may be the time bound — the
-decompiled loops have none). Also: a case can loop inside one recompiled function where the dispatcher's step / time
+**Fix / workaround.** All of the above fixed. Still open with the tool's default 8 cases (`tools.decomp_gate synth`:
+4736 functions compared, 10 mismatched): `func_0882AA38`, `func_08945664`, `func_08957B30`, `func_089687D8`,
+`func_08968850`, `func_0896B4D4`, `func_08AD1990`, `func_08AFD484`, `func_08B212B4`, `func_08C18650` (and
+`func_08C416DC` with 4 cases): not explained yet — one may be the time bound (the decompiled loops have none). Also: a case can loop inside one recompiled function where the dispatcher's step / time
 bounds never run, and a stop inside a case stopped the whole sweep — hence one forked child per function, killed
 after 10 s.
 
