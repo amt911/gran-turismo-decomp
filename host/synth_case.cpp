@@ -1,0 +1,80 @@
+// Synthetic-case input generator: see synth_case.hpp.
+//
+// The arena is cut in 1 KiB blocks; with trivial functions given, every eighth block is a "table" (a vtable stand-in)
+// holding only those functions, and some arena pointers aim at a table's start, so an object whose first word is such a
+// pointer makes a virtual call land on real code. The other words are arena pointers, small integers, zero, -1, common
+// floats and random words kept out of the code range (a random word there would be a call target the case never meant).
+#include "synth_case.hpp"
+
+namespace gt {
+namespace {
+
+constexpr std::uint32_t kBlockWords = 256u;
+constexpr std::uint32_t kTableEvery = 8u;
+constexpr std::uint32_t kCodeBegin = 0x08804000u, kCodeEnd = 0x08D00000u;
+constexpr std::uint32_t kFloats[] = {0x00000000u, 0x3F800000u, 0xBF800000u, 0x3F000000u,
+                                     0x40000000u, 0x42C80000u, 0x3A83126Fu, 0x447A0000u};  // 0, ±1, 0.5, 2, 100, 0.001, 1000
+
+struct Random {
+    std::uint64_t state;
+    std::uint32_t next() {  // splitmix64
+        std::uint64_t z = (state += 0x9E3779B97F4A7C15ull);
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+        return static_cast<std::uint32_t>((z ^ (z >> 31)) >> 16);
+    }
+    std::uint32_t below(std::uint32_t n) { return next() % n; }
+};
+
+std::uint32_t outside_code(std::uint32_t word) {
+    return word >= kCodeBegin && word < kCodeEnd ? word ^ 0x40000000u : word;
+}
+
+struct Arena {
+    const SynthLayout &layout;
+    std::uint32_t words() const { return layout.arena_bytes / 4u; }
+    bool has_tables() const { return !layout.leaf_functions.empty() && words() >= kBlockWords * kTableEvery; }
+    bool is_table(std::uint32_t word_index) const { return has_tables() && (word_index / kBlockWords) % kTableEvery == kTableEvery - 1u; }
+    std::uint32_t pointer(Random &random) const {
+        if (has_tables() && random.below(100u) < 15u) {
+            const std::uint32_t tables = words() / (kBlockWords * kTableEvery);
+            const std::uint32_t table = random.below(tables);
+            return layout.arena_base + 4u * ((table * kTableEvery + kTableEvery - 1u) * kBlockWords);
+        }
+        return layout.arena_base + 4u * random.below(words());
+    }
+};
+
+} // namespace
+
+SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout) {
+    Random random{seed * 0x100000001B3ull ^ (static_cast<std::uint64_t>(function) << 20) ^ index};
+    const Arena arena{layout};
+    SynthInputs inputs;
+    inputs.arena.resize(arena.words());
+    for (std::uint32_t i = 0; i < arena.words(); ++i) {
+        if (arena.is_table(i)) {
+            inputs.arena[i] = layout.leaf_functions[random.below(static_cast<std::uint32_t>(layout.leaf_functions.size()))];
+            continue;
+        }
+        const std::uint32_t pick = random.below(100u);
+        inputs.arena[i] = pick < 40u ? arena.pointer(random)
+                          : pick < 65u ? random.below(17u)
+                          : pick < 75u ? 0u
+                          : pick < 80u ? 0xFFFFFFFFu
+                          : pick < 90u ? kFloats[random.below(8u)]
+                                       : outside_code(random.next() << 16 | random.next());
+    }
+    for (std::uint32_t &reg : inputs.gpr) {
+        const std::uint32_t pick = random.below(100u);
+        reg = pick < 50u ? arena.pointer(random)
+              : pick < 70u ? random.below(17u)
+              : pick < 80u ? 0u
+              : pick < 85u ? 0xFFFFFFFFu
+                           : outside_code(random.next() << 16 | random.next());
+    }
+    for (std::uint32_t &reg : inputs.fpr) reg = kFloats[random.below(8u)];
+    return inputs;
+}
+
+} // namespace gt

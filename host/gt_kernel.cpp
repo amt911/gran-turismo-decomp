@@ -22,6 +22,7 @@
 #include "frame_dump.hpp"
 #include "frame_log.hpp"
 #include "kirk_slot_keys.hpp"
+#include "diff_harness.hpp"
 #include "pad_script.hpp"
 #include "psp_savedata_crypto.hpp"
 #include "vblank_pacer.hpp"
@@ -4358,6 +4359,22 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             if (count > 64u || !rt.memory().contains(destination, static_cast<std::size_t>(count) * sample_size)) {
                 ctx.set_gpr(2, 0x80000103u);
                 return;
+            }
+            // GT_SYNTH: GT_SYNTH_AFTER vblanks (default 300) after the pad script is done, this thread's pad read runs the
+            // synthetic cases on a copy of its context, then the run ends (diff_harness.hpp).
+            if (gt::synthetic_mode()) {
+                static const std::uint64_t after = [] {
+                    const char *text = std::getenv("GT_SYNTH_AFTER");
+                    return text != nullptr ? std::strtoull(text, nullptr, 10) : 300ull;
+                }();
+                const std::uint64_t done = gt::pad_script_done_vblank();
+                if (done != 0u && gt::pad_script_vblanks() >= done + after && !rt.stopped()) {
+                    const char *seed = std::getenv("GT_SYNTH_SEED");
+                    gt::run_synthetic_cases(rt, ctx, seed != nullptr ? std::strtoull(seed, nullptr, 10) : 1ull);
+                    rt.stop("Synthetic cases done");
+                    ctx.set_gpr(2, 0u);
+                    return;
+                }
             }
             const HostInputState host = display_window_input();
             const std::uint32_t buttons = host.buttons | gt::scripted_buttons();  // + GT_PAD

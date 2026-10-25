@@ -50,6 +50,13 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
 - **The gate is shown failing once per function**: sabotage the return value or a write, run
   `--decomp diff`, see `mismatched` > 0 and exit code 2, restore.
 - The boot check is green with the function swapped in.
+- **Functions no route reaches: synthetic cases** (spec `2026-10-25-synthetic-cases-design.md`).
+  `tools.decomp_gate synth TAG [--only ...]` runs the `dealer` route, then generated cases of every installed function
+  (arguments and a 64 KiB arena of pointers, small ints, floats and trivial real functions) through the same harness,
+  each function in a forked child (a hang or crash ends only it). A function is **verified by synthetic cases** with
+  ≥ 1 equal case, 0 mismatches and `tools.decomp_gate sabotage --synth` pinned on it. That is weaker than a route case
+  (the inputs are not the game's) and is counted apart. An original that faults is "not comparable"; a decompiled run
+  that faults or stops where the original returned is a mismatch: it read or called what the original did not.
 - The code compiles cleanly with the host compiler at the project's warning level — no new warnings.
 
 ## Working in batches — how the hot-leaf PRs are made

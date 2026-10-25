@@ -380,7 +380,8 @@ Detail and the incidents behind each one: [lessons](docs/agents/lessons.md).
   the big steps (recomp 3.8 GB, a gcc build) must not overlap, or throttling stalls the gates.
 - **More test routes beat more code** for verified coverage: a function no route calls can't be verified.
 - **Verified** = reached (compared > 0, or nested in > 0 equal cases of a decompiled caller) with 0
-  mismatches in the fast or full gate + its sabotage pinned on it by `tools.decomp_gate sabotage`.
+  mismatches in the fast or full gate + its sabotage pinned on it by `tools.decomp_gate sabotage`. Code no route reaches:
+  **verified by synthetic cases** (`tools.decomp_gate synth`, `sabotage --synth`), counted apart — decomp workflow.
 - **No silent "last one wins"**: one address, one registration (refused at startup otherwise).
 - **Tooling in the repo, tested** — never only in scratch (a reboot wiped it once).
 - **One checkout per agent**; **no stacked PRs** (the upper one merges into the lower branch, not main);

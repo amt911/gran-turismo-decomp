@@ -100,6 +100,7 @@ add_library(gt_host_objs OBJECT
     host/psp_savedata_crypto.cpp
     host/main.cpp
     host/diff_harness.cpp
+    host/synth_case.cpp
     host/import_replay.cpp
     host/diff_compare.cpp
     host/probes.cpp
@@ -271,6 +272,9 @@ add_test(NAME internal_resolution COMMAND internal_resolution_tests)
 add_executable(pgf_tests host/tests/pgf_test.cpp host/pgf.cpp)
 target_include_directories(pgf_tests PRIVATE host)
 add_test(NAME pgf COMMAND pgf_tests)
+add_executable(synth_case_tests host/tests/synth_case_test.cpp host/synth_case.cpp)
+target_include_directories(synth_case_tests PRIVATE host)
+add_test(NAME synth_case COMMAND synth_case_tests)
 add_executable(pad_sequence_tests host/tests/pad_sequence_test.cpp host/pad_sequence.cpp)
 target_include_directories(pad_sequence_tests PRIVATE host)
 add_test(NAME pad_sequence COMMAND pad_sequence_tests)

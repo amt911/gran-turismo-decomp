@@ -263,11 +263,17 @@ std::uint32_t lower_bound(psprecomp::Runtime &rt, std::uint32_t tree, std::uint3
 }
 // lower_bound(*key) for func_08BFE7D0, func_08C25AF4, func_08C1D250, func_08BF9104, func_08C009CC (unsigned keys).
 void tree_lower_bound(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    // an empty tree is end() without reading the key, as the original (synthetic cases: a bad key pointer faulted here only)
+    if (word(rt, ctx.gpr[4] + 8u) == 0u) {
+        ctx.gpr[2] = ctx.gpr[4] + 4u;
+        return;
+    }
     ctx.gpr[2] = lower_bound(rt, ctx.gpr[4], word(rt, ctx.gpr[5]), false);
 }
 // find(*key): the lower bound when the key is not less than its node's, else end().
 std::uint32_t find(psprecomp::Runtime &rt, std::uint32_t tree, std::uint32_t key_address, bool is_signed) {
     const std::uint32_t end = tree + 4u;
+    if (word(rt, tree + 8u) == 0u) return end;  // empty: the original never reads the key
     const std::uint32_t key = word(rt, key_address);
     const std::uint32_t candidate = lower_bound(rt, tree, key, is_signed);
     if (candidate == end) return end;

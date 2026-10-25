@@ -1,0 +1,12 @@
+diff --git a/include/psprecomp/runtime.hpp b/include/psprecomp/runtime.hpp
+--- a/include/psprecomp/runtime.hpp
++++ b/include/psprecomp/runtime.hpp
+@@ -106,6 +106,8 @@
+ 
+     void run(std::uint32_t entry, std::uint64_t max_dispatches = 10'000'000u);
+     void stop(std::string reason);
++    // GT patch 0057: the diff harness's synthetic cases undo a stop one case caused and go on with the next.
++    void clear_stop() noexcept { stopped_ = false; stop_reason_.clear(); }
+     [[nodiscard]] bool stopped() const noexcept;
+     [[nodiscard]] const std::string &stop_reason() const noexcept;
+ 

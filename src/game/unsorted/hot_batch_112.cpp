@@ -106,7 +106,10 @@ inline void release_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &c
     const std::uint32_t rep = text - 0xCu;
     ctx.gpr[4] = text - 4u;
     ctx.gpr[5] = 0xFFFFFFFFu;
-    if (rep == empty) return;
+    if (rep == empty) {
+        ctx.gpr[2] = empty;  // the original compares the rep with v0 = the empty rep, which a Word caller returns (synthetic cases)
+        return;
+    }
     if (signed_of(call_set(rt, ctx, 0x08B60804u, {text - 4u, 0xFFFFFFFFu})) > 0) return;
     call_set(rt, ctx, release, {rep, frame_base});
 }
