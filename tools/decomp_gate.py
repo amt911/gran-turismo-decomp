@@ -783,6 +783,7 @@ def exit_on_sigterm() -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wiring
+    global SYNTH_CASES  # --cases sets it; route_shell reads it
     exit_on_sigterm()
     parser = argparse.ArgumentParser(prog="tools.decomp_gate", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -803,6 +804,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
                                                          "full routes reach)")
     sab.add_argument("--synth", action="store_true", help="run the sabotaged build on synthetic cases (functions no "
                                                           "route reaches)")
+    sab.add_argument("--cases", type=int, default=SYNTH_CASES, help="--synth: cases per function")
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
@@ -817,6 +819,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
                                           "(docs/superpowers/specs/2026-10-25-synthetic-cases-design.md)")
     synth.add_argument("tag")
     synth.add_argument("--only", help="the functions to install (default: every registered one)")
+    synth.add_argument("--cases", type=int, default=SYNTH_CASES, help=f"cases per function (default {SYNTH_CASES})")
     rep = sub.add_parser("report")
     rep.add_argument("tag")
     args = parser.parse_args(argv)
@@ -824,6 +827,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
         return _run_gate("fast", args.tag, parse_only(args.only))
     if args.command == "full":
         return _run_gate("full", args.tag, None, raise_floor_after=args.raise_floor)
+    if getattr(args, "cases", None):
+        SYNTH_CASES = args.cases  # route_shell reads it
     if args.command == "synth":
         return _run_gate("synth", args.tag, parse_only(args.only) if args.only else None)
     if args.command == "probe":

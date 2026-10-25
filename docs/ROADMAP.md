@@ -1012,6 +1012,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 142** (2026-10-26): las primeras familias sin ningún miembro decompilado: se decompila la plantilla a mano
+      como envoltorio con parámetros (`make_native_method`, el registro de un método nativo de Adhoc; `reset_list`;
+      `reset_member`; `tag`) y el resto sale de `tools.family_rows`. 100 funciones verificadas con casos sintéticos
+      (64 casos por función: con 8, el registro de nativos casi nunca daba un caso comparable; `synth --cases N`).
+      Las que no tienen caso comparable o cuyo sabotaje no se detecta quedan comentadas. Total: 8.388 funciones.
 - [x] **Lote 141** (2026-10-25): 121 miembros más de siete familias (`visit_property`, cadenas de llamadas y cinco
       envoltorios de los lotes 63, 75, 78 y 79), generados con `tools.family_rows`, que ahora también hace filas de
       envoltorio y rechaza tres casos que antes habrían dado filas falsas (FINDINGS). 252 filas: 136 comparadas sin

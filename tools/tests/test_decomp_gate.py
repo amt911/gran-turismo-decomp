@@ -596,3 +596,8 @@ def test_a_synthetic_report_reads_only_its_route():
     """The synth run has one route; reading the full gate's list marked the others missing ("exit ?", 2026-10-25)."""
     assert gate.report_routes("synth") == [route for route, _ in gate.ROUTES["synth"]]
     assert gate.report_routes("fast") == gate.report_routes("full") == [route for route, _ in gate.ROUTES["full"]]
+
+
+def test_the_synthetic_case_count_is_the_one_route_shell_uses(monkeypatch):
+    monkeypatch.setattr(gate, "SYNTH_CASES", 64)
+    assert "GT_SYNTH=64 " in gate.route_shell(Path("build/gt_native"), "synth", "t1", Path("recomp/analysis"))
