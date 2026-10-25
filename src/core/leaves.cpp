@@ -173,3 +173,22 @@ GT_DECOMP_RETURN_PAIR(0x08C45F30u);
 // Batch 137: same five instructions as 0x08C45F58.
 GT_DECOMP_RETURN_PAIR(0x08C46034u);
 GT_DECOMP_RETURN_PAIR(0x08C46048u);
+
+// Batch 139 (2026-10-25): the rest of these families, which no route reaches — verified by synthetic cases
+// (tools.decomp_gate synth); rows from tools.family_rows (each argument mapped from the template's own row). A commented row had no
+// comparable synthetic case (every one faulted in the original), so nothing verifies it yet.
+GT_DECOMP_SET_FIELD(0x088350E4u, 120);
+GT_DECOMP_SET_FIELD(0x0885D478u, 40);
+GT_DECOMP_SET_FIELD(0x0887BEF4u, 20);
+GT_DECOMP_SET_FIELD(0x088E77A4u, 16);
+GT_DECOMP_SET_FIELD(0x089EDA28u, 612);
+GT_DECOMP_SET_FIELD(0x08A340CCu, 28);
+GT_DECOMP_SET_FIELD(0x08A340D4u, 32);
+GT_DECOMP_SET_FIELD(0x08A5F504u, 20);
+GT_DECOMP_SET_FIELD(0x08A855D8u, 20);
+GT_DECOMP_SET_FIELD(0x08AC2204u, 4);
+GT_DECOMP_SET_FIELD(0x08AC220Cu, 24);
+GT_DECOMP_SET_FIELD(0x08AC2214u, 28);
+GT_DECOMP_SET_FIELD(0x08AC26D4u, 0);
+GT_DECOMP_SET_FIELD(0x08B096A4u, 36);
+GT_DECOMP_SET_FIELD(0x08B72A1Cu, 1232);
