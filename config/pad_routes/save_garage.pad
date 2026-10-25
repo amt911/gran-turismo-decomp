@@ -1,0 +1,11 @@
+# Save route — the Garage with the user's finished save (game_files/UCES01245-GAMEDAT, checked against config/savedata.sha1,
+# copied fresh per run by tools.decomp_gate; spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md): its car list
+# (1cd6db80) in all four views of the dropdown, a car added to the favourites and one car's view with its specifications.
+# Main menu as the other save routes (three LEFTs to Single Player), then DOWN to the records / garage menu (1cf24800).
+# In the car list UP reaches the view dropdown (Latest 100 Acquired, Recent 100 Driven, From Favourites, By Manufacturer;
+# it opens on the current view); TRIANGLE on a car asks to add it to the favourites (cursor on Yes); CIRCLE is back.
+# In a car's view DOWN reaches the Specifications button. Presses 300 apart and held 12 (lost under load otherwise).
+3300:START,
+WAIT:seek=0x2458a6c0,2000:LEFT:12,2250:LEFT:12,2500:LEFT:12,2700:DOWN:12,2950:CROSS,
+WAIT:seek=0x1cf24800,667:CROSS,
+WAIT:seek=0x1cd6db80,684:UP:12,1000:CROSS:12,1300:UP:12,1500:UP:12,1700:UP:12,1900:CROSS:12,2700:DOWN:12,3000:TRIANGLE:12,3400:CROSS:12,4200:UP:12,4400:UP:12,4700:CROSS:12,5000:DOWN:12,5200:DOWN:12,5500:CROSS:12,6300:CROSS:12,7300:DOWN:12,7600:CROSS:12,8400:CROSS:12,9000:CIRCLE:12,9800:UP:12,10100:CROSS:12,10400:UP:12,10700:CROSS:12,11500:UP:12,11800:CROSS:12,12100:DOWN:12,12300:DOWN:12,12600:CROSS:12,13400:RIGHT:12,13700:CROSS:12

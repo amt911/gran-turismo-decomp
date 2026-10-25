@@ -17,6 +17,7 @@
 #include "../adhoc/natives.hpp"
 
 #include <cstdint>
+#include <optional>
 
 namespace gt::game::car_collection {
 namespace {
@@ -61,10 +62,11 @@ void func_0881A8F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // getFlg: bit t1 of the high nibble of the record's byte (t0 + 2).
 void get_flg(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t offset = ctx.gpr[8], bit = ctx.gpr[9];  // t0 / t1, kept across the call as the original does
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t record = call_guest(rt, ctx, 0x0881A840u, {ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
-    const std::uint32_t flags = rt.memory().load8(record + ctx.gpr[8] + 2u) >> 4;
-    ctx.gpr[2] = (flags >> (ctx.gpr[9] & 31u)) & 1u;
+    const std::uint32_t flags = rt.memory().load8(record + offset + 2u) >> 4;
+    ctx.gpr[2] = (flags >> (bit & 31u)) & 1u;
 }
 
 // getFavoriteSize: the number of favourite slots.
@@ -113,6 +115,7 @@ void func_0881AC84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = call_guest(rt, ctx, 0x0881AA94u, {self, self + 452u, ctx.gpr[6], ctx.gpr[7]});
 }
 
+void func_0881ACA0(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = (ctx.gpr[5] << 2) + ctx.gpr[4] + 0x34u; }
 void func_0881ACB0(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = (ctx.gpr[5] << 2) + ctx.gpr[4] + 0x1C4u; }
 
 // func_0881AA44(this) -> 34 * the word +0x0 + 48 + func_0881AA18(this).
@@ -225,6 +228,48 @@ void MCarCollection_getCarCount(psprecomp::Runtime &rt, psprecomp::AllegrexConte
     return_int(rt, ctx, result, count);
 }
 
+// The natives that hand back a list holder: core = the collection's engine object, then `list(out, core[, extra])`
+// fills a holder on the stack that becomes *result.
+void return_list(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t result, std::uint32_t list,
+                 std::uint32_t core, std::optional<std::uint32_t> extra = std::nullopt) {
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t out = frame.at(0u);
+    if (extra) (void)call_guest(rt, ctx, list, {out, core, *extra});
+    else (void)call_guest(rt, ctx, list, {out, core});
+    if (result != out) (void)call_guest(rt, ctx, kHolderResetFunction, {result, rt.memory().load32(out)});
+    destroy(rt, ctx, out);
+}
+
+// getRecentlyRodeCars() -> the recently driven cars (func_0881D994).
+void MCarCollection_getRecentlyRodeCars(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarCollection, kCarCollectionCore);
+    return_list(rt, ctx, result, 0x0881D994u, core);
+}
+
+// getMyCarTypeCountEachMaker() -> the owned car types per maker (func_0881C89C(out, core, 1)).
+void MCarCollection_getMyCarTypeCountEachMaker(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarCollection, kCarCollectionCore);
+    return_list(rt, ctx, result, 0x0881C89Cu, core, 1u);
+}
+
+// listupFavorite([flag]) -> the favourites (func_0881DD34(out, core, flag)); flag = argv[0].toBool(), 1 without
+// arguments. A null argument is reported (0x08C98EFC) and used anyway.
+void MCarCollection_listupFavorite(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t result = ctx.gpr[4];
+    const auto argc = static_cast<std::int32_t>(ctx.gpr[6]);
+    const std::uint32_t argv = ctx.gpr[7];
+    const std::uint32_t core = self_core(rt, ctx, kSelfAsCarCollection, kCarCollectionCore);
+    std::uint32_t flag = 1u;
+    if (argc > 0) {
+        const std::uint32_t argument = rt.memory().load32(argv);
+        if (argument == 0u) (void)call_guest(rt, ctx, 0x08A5BB7Cu, {0x08C98EFCu});
+        flag = call_guest(rt, ctx, virtual_function(rt, argument, kToBoolSlot), {argument});
+    }
+    return_list(rt, ctx, result, 0x0881DD34u, core, flag);
+}
+
 } // namespace gt::game::car_collection
 
 namespace car_collection_registrations {
@@ -245,12 +290,18 @@ CAR_COLLECTION(0x0881AEA4u, has_favorite, Word);
 // subsystem was installed, 0 mismatches, sabotage pinned on each.
 CAR_COLLECTION(0x0881A840u, func_0881A840, Word);
 CAR_COLLECTION(0x0881A8F0u, func_0881A8F0, Word);
+// Batch 137: reached by the save_garage route (its four car-list views).
+CAR_COLLECTION(0x0881D7ACu, MCarCollection_getOneCarMax, Void);
+CAR_COLLECTION(0x0881DAD8u, MCarCollection_getRecentlyRodeCars, Void);
+CAR_COLLECTION(0x0881EFB8u, MCarCollection_getMyCarTypeCountEachMaker, Void);
+CAR_COLLECTION(0x0881EBE0u, MCarCollection_listupFavorite, Void);
 // Not registered: compared 0 in every fast, dense and full run (the pad routes never call them on their own,
 // directly or through a decompiled caller), so nothing could verify them; they run as the recompiled originals.
+// func_0881ACA0, get_flg and getMyCarTypeCount stayed at 0 with save_garage too (2026-10-25).
 // CAR_COLLECTION(0x0881A9CCu, get_flg, Word);
 // CAR_COLLECTION(0x0881AF28u, get_favorite_size, Word);
 // CAR_COLLECTION(0x0881AF30u, get_car_count_favorite, Word);
-// CAR_COLLECTION(0x0881D7ACu, MCarCollection_getOneCarMax, Void);
+// CAR_COLLECTION(0x0881ACA0u, func_0881ACA0, Word);
 // CAR_COLLECTION(0x0881D87Cu, MCarCollection_getMyCarTypeCount, Void);
 // CAR_COLLECTION(0x0881ECECu, MCarCollection_getFavoriteSize, Void);
 // CAR_COLLECTION(0x0881ED80u, MCarCollection_getCarCountFavorite, Void);

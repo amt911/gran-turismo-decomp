@@ -2367,3 +2367,20 @@ paths its routes drive — a route with other cars, tracks or modes is how such 
 "the gate only proves the paths it runs").
 
 Found: 2026-10-24 · src/game/unsorted/hot_batch_123.cpp (func_0895C394)
+
+## Every gate route stalled (exit 124, empty logs) with nothing else running: tmpfs files charged to the slice
+
+**Symptom.** Three fast gates in a row: every route exit 124, logs empty or stopped at `[decomp] mode=diff`; the orphaned
+routes sat in state R at ~50 % CPU, one thread, 70-300 MB, far past `--max-seconds`. One route alone ran fine; six in
+parallel stalled, with any function set installed (even one that had passed that morning). The other session's load was
+a red herring (it was pinned to six cores and the stall stayed).
+**Cause.** `gt-heavy.slice` had 4.1 GB charged while idle: `memory.stat` said `shmem 4106944512`. Frame dumps
+(`GT_FRAME_DUMP`) and save copies written to `/tmp` (tmpfs) by runs inside the slice stay charged to it as shmem, and with
+`MemorySwapMax=0` they cannot be reclaimed. Six routes on top crossed `MemoryHigh`, and a throttled route makes no
+progress.
+**Fix / workaround.** Delete exploration frames when done, and check
+`grep -E '^(shmem|file) ' /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/gt.slice/gt-heavy.slice/memory.stat`
+before blaming code or load: idle, shmem should be near zero. Write large dumps to a disk directory (`recomp/analysis/`),
+not tmpfs.
+
+Found: 2026-10-25 · gt-heavy.slice, GT_FRAME_DUMP

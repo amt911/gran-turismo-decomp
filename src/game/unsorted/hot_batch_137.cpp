@@ -33,8 +33,15 @@ void func_08B4D080(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.fpr[3] = std::bit_cast<float>(y);
 }
 
+// func_089310A0(0, a0, a1, a2) (a tail jump; its result is returned).
+void func_0893119C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t a0 = ctx.gpr[4], a1 = ctx.gpr[5], a2 = ctx.gpr[6];
+    ctx.gpr[2] = call_guest(rt, ctx, 0x089310A0u, {0u, a0, a1, a2});
+}
+
 } // namespace hot_batch_137
 } // namespace gt::game
 
 #define HOT137(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_137::name, gt::ReturnKind::kind)
 HOT137(0x08B4D080u, func_08B4D080, Void);
+HOT137(0x0893119Cu, func_0893119C, Word);

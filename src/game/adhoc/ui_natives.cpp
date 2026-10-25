@@ -57,7 +57,6 @@ constexpr std::uint32_t kRenderContextClosePage = 0x089AFC78u; // (render contex
 constexpr std::uint32_t kIconBoxSetItemCount = 0x089E8848u;    // (icon box *, columns, rows)
 constexpr std::uint32_t kIconBoxSetItemTemplate = 0x089E6050u; // (icon box *, render context *, template *)
 constexpr std::uint32_t kIconBoxSetItemWidget = 0x089E778Cu;   // (icon box *, index, render context *, widget holder *)
-constexpr std::uint32_t kToIntSlot = 15u;                      // value->toInt()
 constexpr std::uint32_t kReportNull = 0x08A5BB7Cu;             // (message): what the originals do with a null pointer
 constexpr std::uint32_t kListBoxSetItemTemplate = 0x089CDC0Cu; // (list box *, render context *, template *)
 constexpr std::uint32_t kCompositeClearChildren = 0x089B8BA0u; // (child list *): the composite's +0xE8

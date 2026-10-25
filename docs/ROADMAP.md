@@ -1012,6 +1012,16 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 137 y ruta `save_garage`** (2026-10-25): con el lote 136 las 16 rutas ya no alcanzaban nada de juego sin
+      decompilar (solo el `longjmp` del SDK, la entrada del módulo y la de un hilo). Lo que falta se alcanza con rutas
+      nuevas: `save_garage` recorre el garaje de la partida en sus cuatro vistas (últimos 100, últimos conducidos,
+      favoritos, por marca), añade un coche a favoritos y abre la ficha y las especificaciones de otro. Entran 9 funciones:
+      `MIconBox.setItemWidget`, `MCarCollection.getRecentlyRodeCars` / `getMyCarTypeCountEachMaker` / `listupFavorite` /
+      `getOneCarMax`, `MSpecDB.getTunerLabel` y tres hojas. `getTunerLabel` difería en 6 de 6 casos hasta reservar su
+      búfer antes de la llamada que da el nombre, como el original (corregido también en `getTunerCode`). Sabotaje 10 de
+      10. Puerta completa: 17 rutas, 7.368 funciones, 5.711 comparadas (+30), 0 discrepancias; suelo subido a 5.711.
+      Pendiente para una ruta de repeticiones: en las pruebas, el menú de pausa en carrera no movió el cursor con la
+      cruceta (CROSS sí respondía); sin explicar todavía (¿lee el stick analógico?).
 - [x] **Rutas desde una partida guardada** (2026-10-24, spec `2026-10-23-savedata-routes-design.md`): el HLE de
       `sceUtilitySavedata` descifra las partidas reales de PSP como el firmware (modo 5, con la clave que pasa el juego;
       `tools/savedata.py` es la referencia, `host/psp_savedata_crypto` la versión C++ sobre libcrypto). La partida del
