@@ -396,16 +396,16 @@ HOT75(0x08B34880u, func_08B34880, Word);
 HOT75(0x08B34B1Cu, func_08B34B1C, Word);
 HOT75(0x0886924Cu, func_0886924C, Word);
 // Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
-// HOT75(0x0885F3C0u, func_0885F3C0, Word);  // no comparable synthetic case yet
-// HOT75(0x08869244u, func_08869244, Word);  // no comparable synthetic case yet
+HOT75(0x0885F3C0u, func_0885F3C0, Word);
+HOT75(0x08869244u, func_08869244, Word);
 HOT75(0x0889117Cu, func_0889117C, Word);
 HOT75(0x0889118Cu, func_0889118C, Word);
-// HOT75(0x0889DD64u, func_0889DD64, Word);  // no comparable synthetic case yet
+HOT75(0x0889DD64u, func_0889DD64, Word);
 // HOT75(0x088A3710u, func_088A3710, Word);  // no comparable synthetic case yet
-// HOT75(0x088A3978u, func_088A3978, Word);  // no comparable synthetic case yet
+HOT75(0x088A3978u, func_088A3978, Word);
 HOT75(0x088A3980u, func_088A3980, Word);
 HOT75(0x088F187Cu, func_088F187C, Word);
-// HOT75(0x08916AB8u, func_08916AB8, Word);  // no comparable synthetic case yet
+HOT75(0x08916AB8u, func_08916AB8, Word);
 HOT75(0x089272FCu, func_089272FC, Word);
 HOT75(0x08939F4Cu, func_08939F4C, Word);
 HOT75(0x08939F54u, func_08939F54, Word);
@@ -415,8 +415,8 @@ HOT75(0x0897D804u, func_0897D804, Word);
 HOT75(0x0897D80Cu, func_0897D80C, Word);
 HOT75(0x0897E6A4u, func_0897E6A4, Word);
 HOT75(0x089B5828u, func_089B5828, Word);
-// HOT75(0x089F0B28u, func_089F0B28, Word);  // no comparable synthetic case yet
-// HOT75(0x089FCA70u, func_089FCA70, Word);  // no comparable synthetic case yet
+HOT75(0x089F0B28u, func_089F0B28, Word);
+HOT75(0x089FCA70u, func_089FCA70, Word);
 HOT75(0x08A36DE0u, func_08A36DE0, Word);
 HOT75(0x08A6C5C8u, func_08A6C5C8, Word);
 HOT75(0x08A89F54u, func_08A89F54, Word);

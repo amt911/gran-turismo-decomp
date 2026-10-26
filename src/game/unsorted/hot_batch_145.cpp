@@ -47,7 +47,9 @@ void pair_virtual(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::
     ctx.gpr[3] = a1;
     ctx.gpr[10] = a0;
     ctx.gpr[12] = b1;
-    call_set(rt, ctx, word(rt, table + slot), {self, frame.at(0x10u), frame.at(8u)});
+    const std::uint32_t target = word(rt, table + slot);
+    ctx.gpr[2] = target;  // `lw v0, slot(t3); jalr v0`: an empty virtual returns its own address (live objects)
+    call_set(rt, ctx, target, {self, frame.at(0x10u), frame.at(8u)});
 }
 
 // destroy_and_delete(this) with the member's vtable, member destructor and its offset, and the next destructor:
@@ -162,22 +164,22 @@ void func_08C5AFB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { fa
 } // namespace gt::game
 
 #define HOT145(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_145::name, gt::ReturnKind::kind)
-// HOT145(0x08C59774u, func_08C59774, Word);  // no comparable synthetic case yet
+HOT145(0x08C59774u, func_08C59774, Word);
 HOT145(0x08A1A9D8u, func_08A1A9D8, Word);
 HOT145(0x08B9D000u, func_08B9D000, Word);
 HOT145(0x08C5AB68u, func_08C5AB68, Word);
 // HOT145(0x08C597CCu, func_08C597CC, Word);  // no comparable synthetic case yet
-// HOT145(0x08C59824u, func_08C59824, Word);  // no comparable synthetic case yet
-// HOT145(0x08C5987Cu, func_08C5987C, Word);  // no comparable synthetic case yet
+HOT145(0x08C59824u, func_08C59824, Word);
+HOT145(0x08C5987Cu, func_08C5987C, Word);
 HOT145(0x08C598D4u, func_08C598D4, Word);
-// HOT145(0x08C5992Cu, func_08C5992C, Word);  // no comparable synthetic case yet
-// HOT145(0x08C59984u, func_08C59984, Word);  // no comparable synthetic case yet
-// HOT145(0x08C599DCu, func_08C599DC, Word);  // no comparable synthetic case yet
-// HOT145(0x08C59A34u, func_08C59A34, Word);  // no comparable synthetic case yet
-// HOT145(0x08C59A8Cu, func_08C59A8C, Word);  // no comparable synthetic case yet
-// HOT145(0x08C59AE4u, func_08C59AE4, Word);  // no comparable synthetic case yet
-// HOT145(0x08C5A378u, func_08C5A378, Word);  // no comparable synthetic case yet
-// HOT145(0x08C5A3D0u, func_08C5A3D0, Word);  // no comparable synthetic case yet
+HOT145(0x08C5992Cu, func_08C5992C, Word);
+HOT145(0x08C59984u, func_08C59984, Word);
+HOT145(0x08C599DCu, func_08C599DC, Word);
+HOT145(0x08C59A34u, func_08C59A34, Word);
+HOT145(0x08C59A8Cu, func_08C59A8C, Word);
+HOT145(0x08C59AE4u, func_08C59AE4, Word);
+HOT145(0x08C5A378u, func_08C5A378, Word);
+HOT145(0x08C5A3D0u, func_08C5A3D0, Word);
 HOT145(0x08C5A428u, func_08C5A428, Word);
 HOT145(0x08C5A480u, func_08C5A480, Word);
 HOT145(0x08C5A4D8u, func_08C5A4D8, Word);
@@ -192,7 +194,7 @@ HOT145(0x08B32F9Cu, func_08B32F9C, Word);
 HOT145(0x08C1B50Cu, func_08C1B50C, Word);
 HOT145(0x08C3D680u, func_08C3D680, Word);
 // HOT145(0x08C3D818u, func_08C3D818, Word);  // no comparable synthetic case yet
-// HOT145(0x08C3D988u, func_08C3D988, Word);  // no comparable synthetic case yet
+HOT145(0x08C3D988u, func_08C3D988, Word);
 HOT145(0x08B9DEF4u, func_08B9DEF4, Word);
 HOT145(0x08B9EA18u, func_08B9EA18, Word);
 HOT145(0x08BC40E8u, func_08BC40E8, Word);
@@ -207,12 +209,12 @@ HOT145(0x08C4D290u, func_08C4D290, Word);
 HOT145(0x08C5ABC4u, func_08C5ABC4, Word);
 HOT145(0x08C5AC20u, func_08C5AC20, Word);
 // HOT145(0x08C5AC7Cu, func_08C5AC7C, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
-// HOT145(0x08C5ACD8u, func_08C5ACD8, Word);  // no comparable synthetic case yet
-// HOT145(0x08C5AD34u, func_08C5AD34, Word);  // no comparable synthetic case yet
+HOT145(0x08C5ACD8u, func_08C5ACD8, Word);
+HOT145(0x08C5AD34u, func_08C5AD34, Word);
 // HOT145(0x08C5AD90u, func_08C5AD90, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
 // HOT145(0x08C5ADECu, func_08C5ADEC, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
-// HOT145(0x08C5AE48u, func_08C5AE48, Word);  // no comparable synthetic case yet
+HOT145(0x08C5AE48u, func_08C5AE48, Word);
 HOT145(0x08C5AEA4u, func_08C5AEA4, Word);
-// HOT145(0x08C5AF00u, func_08C5AF00, Word);  // no comparable synthetic case yet
+HOT145(0x08C5AF00u, func_08C5AF00, Word);
 HOT145(0x08C5AF5Cu, func_08C5AF5C, Word);
 HOT145(0x08C5AFB8u, func_08C5AFB8, Word);

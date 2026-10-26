@@ -2476,3 +2476,16 @@ func_08A0A398, MProductInformation.GetParentalLevel (0x08A27F20), func_08A52824,
 depends on the route's timing; two sweeps on the same build found the same 5993.
 
 Found: 2026-10-26 · host/diff_harness.cpp, host/synth_case.cpp
+
+## synth_batch read a run that never started as "everything compared"
+
+**Symptom.** Re-enabling old commented rows, `tools.synth_batch` reported "275 of 275 compared", then every sabotage
+"0/N detected", and commented the whole batch as undetected.
+**Cause.** Two of the addresses were commented in other files too (old batches); re-enabled together they were
+registered twice, so gt_native refused to start: an empty report has no "compared 0" lines, which the tool took as
+"none never compared", and the sabotaged builds failed the same way.
+**Fix / workaround.** The tool stops without editing when the run did not finish ("Synthetic cases done" and a
+per-function report) or a sabotage printed no summary, and it never counts a function with a mismatching case as
+verified. Re-enable only addresses that appear once in `src/`.
+
+Found: 2026-10-26 · tools/synth_batch.py
