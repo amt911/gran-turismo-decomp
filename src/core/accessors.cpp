@@ -318,3 +318,95 @@ GT_DECOMP_FORWARD(0x08B09974u, 0x00000000u, 0x08B09354u);
 GT_DECOMP_FORWARD(0x08B61664u, 0x00000000u, 0x08B7831Cu);
 GT_DECOMP_FORWARD(0x08B61974u, 0x00000000u, 0x08B7807Cu);
 GT_DECOMP_FORWARD(0x08C6F55Cu, 0x00000020u, 0x08B7807Cu);
+
+// Batch 151: more members of the 0x08817A54 family (tools.family_rows), verified by synthetic cases.
+GT_DECOMP_FIELD(0x08838DC4u, 20);
+GT_DECOMP_FIELD(0x0884177Cu, 20);
+GT_DECOMP_FIELD(0x08843404u, 20);
+GT_DECOMP_FIELD(0x08846EC8u, 20);
+GT_DECOMP_FIELD(0x0884D448u, 20);
+GT_DECOMP_FIELD(0x0888F550u, 0);
+GT_DECOMP_FIELD(0x088940E4u, 0);
+GT_DECOMP_FIELD(0x08896FB0u, 0);
+GT_DECOMP_FIELD(0x088DAF88u, 1488);
+GT_DECOMP_FIELD(0x088EEEB0u, 0);
+GT_DECOMP_FIELD(0x08907D5Cu, 44);
+GT_DECOMP_FIELD(0x089302D0u, 8);
+GT_DECOMP_FIELD(0x08965D98u, 80);
+GT_DECOMP_FIELD(0x08A1C0F4u, 20);
+GT_DECOMP_FIELD(0x08A2D1B8u, 20);
+GT_DECOMP_FIELD(0x08A3A310u, 28);
+GT_DECOMP_FIELD(0x08AB3DF0u, 24);
+GT_DECOMP_FIELD(0x08AC242Cu, 24);
+GT_DECOMP_FIELD(0x08AC2434u, 28);
+GT_DECOMP_FIELD(0x08ACA3B0u, 544);
+GT_DECOMP_FIELD(0x08AECF9Cu, 8348);
+GT_DECOMP_FIELD(0x08B09530u, 36);
+GT_DECOMP_FIELD(0x08B1BE38u, 44);
+GT_DECOMP_FIELD(0x08B1BE40u, 48);
+GT_DECOMP_FIELD(0x08B1BE48u, 120);
+GT_DECOMP_FIELD(0x08B1BE58u, 124);
+GT_DECOMP_FIELD(0x08B3EBF4u, 40);
+GT_DECOMP_FIELD(0x08B726FCu, 1248);
+GT_DECOMP_FIELD(0x08B72A14u, 1232);
+GT_DECOMP_FIELD(0x08B72A24u, 1236);
+GT_DECOMP_FIELD(0x08BAC1D0u, 0);
+
+// Batch 151: more members of the 0x0885E314 family (tools.family_rows), verified by synthetic cases.
+// GT_DECOMP_FORWARD(0x0885C0D4u, 4, 0x08864A74u);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x0885F428u, 0, 0x0885F3FCu);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x0886B2E0u, 4, 0x08B1FDB0u);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x08891560u, 0, 0x088910E4u);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x08ACC0ECu, 0, 0x08ACBC10u);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x08ACC6B4u, 0, 0x08ACC640u);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x08B19FECu, 0, 0x08B19FB0u);  // no comparable synthetic case yet
+// GT_DECOMP_FORWARD(0x08B1A0B4u, 0, 0x08B1A088u);  // no comparable synthetic case yet
+
+// Batch 151: more members of the 0x0885C2B4 family (tools.family_rows), verified by synthetic cases.
+GT_DECOMP_DEREF(0x0885BD24u, 52);
+GT_DECOMP_DEREF(0x0885BD30u, 48);
+GT_DECOMP_DEREF(0x0885BEA4u, 128);
+GT_DECOMP_DEREF(0x0885BEC8u, 132);
+GT_DECOMP_DEREF(0x0885BF50u, 136);
+GT_DECOMP_DEREF(0x0885C0DCu, 16);
+GT_DECOMP_DEREF(0x0885EDECu, 1452);
+GT_DECOMP_DEREF(0x0888EB74u, 464);
+GT_DECOMP_DEREF(0x0888EB90u, 0);
+GT_DECOMP_DEREF(0x088A5D0Cu, 1220);
+GT_DECOMP_DEREF(0x088E48A4u, 512);
+GT_DECOMP_DEREF(0x08AC2690u, 0);
+GT_DECOMP_DEREF(0x08B08A88u, 4);
+GT_DECOMP_DEREF(0x08B08A94u, 0);
+GT_DECOMP_DEREF(0x08B099C8u, 180);
+
+// Batch 151: more members of the 0x0888EB9C family (tools.family_rows), verified by synthetic cases.
+GT_DECOMP_FIELD_PLUS(0x0885C398u, 0, static_cast<std::uint32_t>(284));
+GT_DECOMP_FIELD_PLUS(0x0885C3A4u, 0, static_cast<std::uint32_t>(172));
+GT_DECOMP_FIELD_PLUS(0x0885C3B0u, 0, static_cast<std::uint32_t>(200));
+GT_DECOMP_FIELD_PLUS(0x0885C3BCu, 0, static_cast<std::uint32_t>(228));
+GT_DECOMP_FIELD_PLUS(0x0885E710u, 0, static_cast<std::uint32_t>(1484));
+GT_DECOMP_FIELD_PLUS(0x0885EE4Cu, 0, static_cast<std::uint32_t>(1536));
+GT_DECOMP_FIELD_PLUS(0x0886B31Cu, 4, static_cast<std::uint32_t>(524));
+GT_DECOMP_FIELD_PLUS(0x0888EBBCu, 0, static_cast<std::uint32_t>(392));
+GT_DECOMP_FIELD_PLUS(0x0888EBC8u, 0, static_cast<std::uint32_t>(400));
+GT_DECOMP_FIELD_PLUS(0x0888EBD4u, 0, static_cast<std::uint32_t>(408));
+GT_DECOMP_FIELD_PLUS(0x08891644u, 0, static_cast<std::uint32_t>(20));
+GT_DECOMP_FIELD_PLUS(0x08894140u, 0, static_cast<std::uint32_t>(20));
+GT_DECOMP_FIELD_PLUS(0x08894170u, 0, static_cast<std::uint32_t>(28));
+GT_DECOMP_FIELD_PLUS(0x088970E0u, 0, static_cast<std::uint32_t>(168));
+GT_DECOMP_FIELD_PLUS(0x089551B0u, 4, static_cast<std::uint32_t>(2176));
+GT_DECOMP_FIELD_PLUS(0x08B08AC0u, 0, static_cast<std::uint32_t>(228));
+
+// Batch 151: more members of the 0x088A42A8 family (tools.family_rows), verified by synthetic cases.
+GT_DECOMP_DEREF_FLOAT(0x0885F07Cu, 0, static_cast<std::uint32_t>(16320));
+GT_DECOMP_DEREF_FLOAT(0x08947B98u, 8, static_cast<std::uint32_t>(1912));
+GT_DECOMP_DEREF_FLOAT(0x089559C4u, 8, static_cast<std::uint32_t>(1276));
+GT_DECOMP_DEREF_FLOAT(0x08AB8744u, 0, static_cast<std::uint32_t>(600));
+GT_DECOMP_DEREF_FLOAT(0x08AB8790u, 0, static_cast<std::uint32_t>(592));
+GT_DECOMP_DEREF_FLOAT(0x08AB87A8u, 0, static_cast<std::uint32_t>(596));
+GT_DECOMP_DEREF_FLOAT(0x08AB87ECu, 0, static_cast<std::uint32_t>(648));
+GT_DECOMP_DEREF_FLOAT(0x08AB8804u, 0, static_cast<std::uint32_t>(644));
+GT_DECOMP_DEREF_FLOAT(0x08AB881Cu, 0, static_cast<std::uint32_t>(652));
+GT_DECOMP_DEREF_FLOAT(0x08AB8834u, 0, static_cast<std::uint32_t>(656));
+GT_DECOMP_DEREF_FLOAT(0x08AB884Cu, 0, static_cast<std::uint32_t>(664));
+GT_DECOMP_DEREF_FLOAT(0x08AD1D2Cu, 668, static_cast<std::uint32_t>(0));

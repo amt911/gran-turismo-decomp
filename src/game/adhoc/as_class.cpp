@@ -408,3 +408,69 @@ GT_DECOMP_CAST(0x08AB2CD4u, 0x08AB2AB0u, 0x08A76AA0u, false);
 // GT_DECOMP_CAST(0x08AB3EB4u, 0x08AB3D54u, 0x08A76AA0u, false);  // no comparable synthetic case yet
 GT_DECOMP_CAST(0x08AB56F8u, 0x08AB5460u, 0x08A76AA0u, false);
 GT_DECOMP_CAST(0x08AB6130u, 0x08AB5E5Cu, 0x08A76AA0u, false);
+
+// Batch 151: more members of the 0x0880881C family (tools.family_rows), verified by synthetic cases.
+// GT_DECOMP_CAST(0x0880EFB4u, 0x0880DB84u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08835334u, 0x088350ACu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08835B2Cu, 0x08835940u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x088434FCu, 0x088433FCu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x089BA138u, 0x089B9E9Cu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x089C218Cu, 0x089C16F4u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x089F240Cu, 0x089F1724u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x089F5574u, 0x089F5478u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x089F6AE8u, 0x089F60F0u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x089F7DB0u, 0x089F789Cu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A0817Cu, 0x08A06E50u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A1B4C4u, 0x08A1B318u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A23BE0u, 0x08A2397Cu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A2D22Cu, 0x08A2D114u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A324ECu, 0x08A32270u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A36E58u, 0x08A36D38u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A390E4u, 0x08A38A38u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A3CCCCu, 0x08A3CB74u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A3F320u, 0x08A3ED6Cu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A7028Cu, 0x08A701C4u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A71D64u, 0x08A719B8u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A87274u, 0x08A86D8Cu, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A93B7Cu, 0x08A93690u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08AB3EB4u, 0x08AB3D54u, 0x08A76AA0u, false);  // no comparable synthetic case yet
+
+// Batch 151: more members of the 0x088088C8 family (tools.family_rows), verified by synthetic cases.
+// GT_DECOMP_AS_CLASS(0x0880AD24u, 0x08969190u, 0x0880AC18u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x088354ACu, 0x08A0FD20u, 0x08835334u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x088418B4u, 0x08A76AB4u, 0x08841808u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08858830u, 0x08A76AB4u, 0x08858784u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08999AD4u, 0x089FC5D0u, 0x08999A28u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x089C2238u, 0x08A0FD20u, 0x089C218Cu);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x089D57ACu, 0x089D5E8Cu, 0x089D55E4u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A05104u, 0x089D8A60u, 0x08A05058u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A12150u, 0x08A76AB4u, 0x08A120A4u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A1C370u, 0x08A76AB4u, 0x08A1C264u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A21818u, 0x08A76AB4u, 0x08A2176Cu);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A23C8Cu, 0x08A76AB4u, 0x08A23BE0u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A2D338u, 0x08A76AB4u, 0x08A2D22Cu);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A33604u, 0x08A76AB4u, 0x08A33558u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A3D8B0u, 0x08A76AB4u, 0x08A3D804u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A3F5E4u, 0x08A76AB4u, 0x08A3F094u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A3F684u, 0x08A76AB4u, 0x08A3F1ACu);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A3F76Cu, 0x08A76AB4u, 0x08A3F320u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A5DCF8u, 0x08A76AB4u, 0x08A5DC48u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A68F54u, 0x08A7026Cu, 0x08A68EA8u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A89AA0u, 0x08A76AB4u, 0x08A899F4u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08A8AE70u, 0x08A76AB4u, 0x08A8ADC0u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08AB2D80u, 0x08A70EC8u, 0x08AB2CD4u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08AB3FC0u, 0x08A76AB4u, 0x08AB3EB4u);  // no comparable synthetic case yet
+// GT_DECOMP_AS_CLASS(0x08AB57A4u, 0x08A7026Cu, 0x08AB56F8u);  // no comparable synthetic case yet
+
+// Batch 151: more members of the 0x08A6C360 family (tools.family_rows), verified by synthetic cases.
+GT_DECOMP_CAST(0x08A5DC48u, 0x08A5D718u, 0x08AA2330u, true);
+GT_DECOMP_CAST(0x08A5F800u, 0x08A5F380u, 0x08AA2420u, true);
+GT_DECOMP_CAST(0x08A69A0Cu, 0x08A69590u, 0x08AA2178u, true);
+// GT_DECOMP_CAST(0x08A730D8u, 0x08A72CC0u, 0x08AA257Cu, true);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A82EC0u, 0x08A82A68u, 0x08AA23A8u, true);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08A87C28u, 0x08A87690u, 0x08AA22BCu, true);  // no comparable synthetic case yet
+GT_DECOMP_CAST(0x08A8ADC0u, 0x08A8A800u, 0x08AA2244u, true);
+GT_DECOMP_CAST(0x08A95E4Cu, 0x08A95A34u, 0x08AA2664u, true);
+GT_DECOMP_CAST(0x08A977E4u, 0x08A97344u, 0x08AA26D8u, true);
+// GT_DECOMP_CAST(0x08AAFFB8u, 0x08AAFB80u, 0x08AA2508u, true);  // no comparable synthetic case yet
+// GT_DECOMP_CAST(0x08AB173Cu, 0x08AB1304u, 0x08AA25F0u, true);  // no comparable synthetic case yet
