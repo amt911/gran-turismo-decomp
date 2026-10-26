@@ -551,6 +551,68 @@ void func_08BA81B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 void func_08BA9878(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { reserve_pairs(rt, ctx, 0x08CA0730u, 0x08BA9338u, 0x08B8E594u); }
 void func_08C4A8F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { reserve_pairs(rt, ctx, 0x08CB4AECu, 0x08C49EC8u, 0x08C49EB8u); }
 
+// Batch 157: more members of the guarded_zero family (tools.family_rows), verified by synthetic cases.
+void func_08B9C130(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D757B8u, 0x08D7586Cu, 0xFFFF936Cu); }
+void func_08B9C194(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D757B8u, 0x08D7586Cu, 0xFFFF936Cu); }
+void func_08B9C25C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D757C0u, 0x08D7583Cu, 0xFFFF933Cu); }
+void func_08B9C2C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75768u, 0x08D75830u, 0xFFFF9330u); }
+void func_08B9C324(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75768u, 0x08D75830u, 0xFFFF9330u); }
+void func_08B9C388(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75770u, 0x08D75824u, 0xFFFF9324u); }
+void func_08B9C3EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75770u, 0x08D75824u, 0xFFFF9324u); }
+void func_08B9C450(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75778u, 0x08D75818u, 0xFFFF9318u); }
+void func_08B9C4B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75778u, 0x08D75818u, 0xFFFF9318u); }
+void func_08B9C518(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75780u, 0x08D7580Cu, 0xFFFF930Cu); }
+void func_08B9C57C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75780u, 0x08D7580Cu, 0xFFFF930Cu); }
+void func_08B9C5E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D757C8u, 0x08D757E8u, 0xFFFF92E8u); }
+void func_08B9C644(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D757C8u, 0x08D757E8u, 0xFFFF92E8u); }
+void func_08B9C6A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75790u, 0x08D757F4u, 0xFFFF92F4u); }
+void func_08B9C70C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75790u, 0x08D757F4u, 0xFFFF92F4u); }
+void func_08B9C770(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75798u, 0x08D757DCu, 0xFFFF92DCu); }
+void func_08B9C8D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75798u, 0x08D757DCu, 0xFFFF92DCu); }
+void func_08B9C938(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75708u, 0x08D75800u, 0xFFFF9300u); }
+void func_08B9C99C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75708u, 0x08D75800u, 0xFFFF9300u); }
+void func_08B9CA00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75788u, 0x08D75848u, 0xFFFF9348u); }
+void func_08B9CA64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75788u, 0x08D75848u, 0xFFFF9348u); }
+void func_08B9CAC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75758u, 0x08D75860u, 0xFFFF9360u); }
+void func_08B9CB2C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75758u, 0x08D75860u, 0xFFFF9360u); }
+void func_08B9CB90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75760u, 0x08D75854u, 0xFFFF9354u); }
+void func_08B9CBF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75760u, 0x08D75854u, 0xFFFF9354u); }
+void func_08BB9DE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76050u, 0x08D76084u, 0xFFFF9B84u); }
+void func_08BBA010(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76048u, 0x08D76078u, 0xFFFF9B78u); }
+void func_08BBDA38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76380u, 0x08D76394u, 0xFFFF9E94u); }
+void func_08BBDA9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76358u, 0x08D763D0u, 0xFFFF9ED0u); }
+void func_08BBDB00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76358u, 0x08D763D0u, 0xFFFF9ED0u); }
+void func_08BBDB64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76348u, 0x08D763E8u, 0xFFFF9EE8u); }
+void func_08BBDBC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76348u, 0x08D763E8u, 0xFFFF9EE8u); }
+void func_08BBDC2C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76338u, 0x08D76400u, 0xFFFF9F00u); }
+void func_08BBDC90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76338u, 0x08D76400u, 0xFFFF9F00u); }
+void func_08BBDCF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76350u, 0x08D763DCu, 0xFFFF9EDCu); }
+void func_08BBDD58(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76350u, 0x08D763DCu, 0xFFFF9EDCu); }
+void func_08BBDDBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762B8u, 0x08D76424u, 0xFFFF9F24u); }
+void func_08BBDE20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762B8u, 0x08D76424u, 0xFFFF9F24u); }
+void func_08BBDE84(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76370u, 0x08D763ACu, 0xFFFF9EACu); }
+void func_08BBDEE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76370u, 0x08D763ACu, 0xFFFF9EACu); }
+void func_08BBDF4C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76360u, 0x08D763C4u, 0xFFFF9EC4u); }
+void func_08BBDFB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76360u, 0x08D763C4u, 0xFFFF9EC4u); }
+void func_08BBE014(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76368u, 0x08D763B8u, 0xFFFF9EB8u); }
+void func_08BBE078(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76368u, 0x08D763B8u, 0xFFFF9EB8u); }
+void func_08BBE0DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76378u, 0x08D763A0u, 0xFFFF9EA0u); }
+void func_08BBE140(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76378u, 0x08D763A0u, 0xFFFF9EA0u); }
+void func_08BBE1A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762D8u, 0x08D76388u, 0xFFFF9E88u); }
+void func_08BBE208(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762D8u, 0x08D76388u, 0xFFFF9E88u); }
+void func_08BBE26C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762D0u, 0x08D7640Cu, 0xFFFF9F0Cu); }
+void func_08BBE3D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76340u, 0x08D763F4u, 0xFFFF9EF4u); }
+void func_08BBE434(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D76340u, 0x08D763F4u, 0xFFFF9EF4u); }
+void func_08BBE498(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762B0u, 0x08D76430u, 0xFFFF9F30u); }
+void func_08BBE4FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762B0u, 0x08D76430u, 0xFFFF9F30u); }
+void func_08BBE560(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762C8u, 0x08D76418u, 0xFFFF9F18u); }
+void func_08BBE5C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762C8u, 0x08D76418u, 0xFFFF9F18u); }
+void func_08BBE628(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762C0u, 0x08D7643Cu, 0xFFFF9F3Cu); }
+void func_08BBE68C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D762C0u, 0x08D7643Cu, 0xFFFF9F3Cu); }
+void func_08C4CF18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D75290u, 0x08D75878u, 0xFFFF9378u); }
+void func_08C4CF7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D77378u, 0x08D77380u, 0xFFFFAE80u); }
+void func_08C4CFE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { guarded_zero(rt, ctx, 0x08D77378u, 0x08D77380u, 0xFFFFAE80u); }
+
 } // namespace hot_batch_78
 } // namespace gt::game
 
@@ -639,3 +701,63 @@ HOT78(0x08C4A3B8u, func_08C4A3B8, Word);
 HOT78(0x08BA81B4u, func_08BA81B4, Word);
 HOT78(0x08BA9878u, func_08BA9878, Word);
 HOT78(0x08C4A8F8u, func_08C4A8F8, Word);
+HOT78(0x08B9C130u, func_08B9C130, Word);
+HOT78(0x08B9C194u, func_08B9C194, Word);
+HOT78(0x08B9C25Cu, func_08B9C25C, Word);
+HOT78(0x08B9C2C0u, func_08B9C2C0, Word);
+HOT78(0x08B9C324u, func_08B9C324, Word);
+HOT78(0x08B9C388u, func_08B9C388, Word);
+HOT78(0x08B9C3ECu, func_08B9C3EC, Word);
+HOT78(0x08B9C450u, func_08B9C450, Word);
+HOT78(0x08B9C4B4u, func_08B9C4B4, Word);
+HOT78(0x08B9C518u, func_08B9C518, Word);
+HOT78(0x08B9C57Cu, func_08B9C57C, Word);
+HOT78(0x08B9C5E0u, func_08B9C5E0, Word);
+HOT78(0x08B9C644u, func_08B9C644, Word);
+HOT78(0x08B9C6A8u, func_08B9C6A8, Word);
+HOT78(0x08B9C70Cu, func_08B9C70C, Word);
+HOT78(0x08B9C770u, func_08B9C770, Word);
+HOT78(0x08B9C8D4u, func_08B9C8D4, Word);
+HOT78(0x08B9C938u, func_08B9C938, Word);
+HOT78(0x08B9C99Cu, func_08B9C99C, Word);
+HOT78(0x08B9CA00u, func_08B9CA00, Word);
+HOT78(0x08B9CA64u, func_08B9CA64, Word);
+HOT78(0x08B9CAC8u, func_08B9CAC8, Word);
+HOT78(0x08B9CB2Cu, func_08B9CB2C, Word);
+HOT78(0x08B9CB90u, func_08B9CB90, Word);
+HOT78(0x08B9CBF4u, func_08B9CBF4, Word);
+HOT78(0x08BB9DE8u, func_08BB9DE8, Word);
+HOT78(0x08BBA010u, func_08BBA010, Word);
+HOT78(0x08BBDA38u, func_08BBDA38, Word);
+HOT78(0x08BBDA9Cu, func_08BBDA9C, Word);
+HOT78(0x08BBDB00u, func_08BBDB00, Word);
+HOT78(0x08BBDB64u, func_08BBDB64, Word);
+HOT78(0x08BBDBC8u, func_08BBDBC8, Word);
+HOT78(0x08BBDC2Cu, func_08BBDC2C, Word);
+HOT78(0x08BBDC90u, func_08BBDC90, Word);
+HOT78(0x08BBDCF4u, func_08BBDCF4, Word);
+HOT78(0x08BBDD58u, func_08BBDD58, Word);
+HOT78(0x08BBDDBCu, func_08BBDDBC, Word);
+HOT78(0x08BBDE20u, func_08BBDE20, Word);
+HOT78(0x08BBDE84u, func_08BBDE84, Word);
+HOT78(0x08BBDEE8u, func_08BBDEE8, Word);
+HOT78(0x08BBDF4Cu, func_08BBDF4C, Word);
+HOT78(0x08BBDFB0u, func_08BBDFB0, Word);
+HOT78(0x08BBE014u, func_08BBE014, Word);
+HOT78(0x08BBE078u, func_08BBE078, Word);
+HOT78(0x08BBE0DCu, func_08BBE0DC, Word);
+HOT78(0x08BBE140u, func_08BBE140, Word);
+HOT78(0x08BBE1A4u, func_08BBE1A4, Word);
+HOT78(0x08BBE208u, func_08BBE208, Word);
+HOT78(0x08BBE26Cu, func_08BBE26C, Word);
+HOT78(0x08BBE3D0u, func_08BBE3D0, Word);
+HOT78(0x08BBE434u, func_08BBE434, Word);
+HOT78(0x08BBE498u, func_08BBE498, Word);
+HOT78(0x08BBE4FCu, func_08BBE4FC, Word);
+HOT78(0x08BBE560u, func_08BBE560, Word);
+HOT78(0x08BBE5C4u, func_08BBE5C4, Word);
+HOT78(0x08BBE628u, func_08BBE628, Word);
+HOT78(0x08BBE68Cu, func_08BBE68C, Word);
+HOT78(0x08C4CF18u, func_08C4CF18, Word);
+HOT78(0x08C4CF7Cu, func_08C4CF7C, Word);
+HOT78(0x08C4CFE0u, func_08C4CFE0, Word);
