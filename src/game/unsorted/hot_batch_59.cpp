@@ -337,20 +337,20 @@ void func_08C31AA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08B887E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t o = ctx.gpr[4];
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, word(rt, word(rt, o) + 276u), {o}) != 0u ? 1u : 0u;
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, o) + 276u), {o}) != 0u ? 1u : 0u;
 }
 // func_08B851D0 / func_08B87514(o, p) -> o: the virtual +0x9C of p, called with (o, p).
 void virtual_of_second(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t o = ctx.gpr[4], p = ctx.gpr[5];
     GuestFrame frame(ctx, 0x10u);
-    (void)call_guest(rt, ctx, word(rt, word(rt, p) + 156u), {o, p});
+    (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, p) + 156u), {o, p});
     ctx.gpr[2] = o;
 }
 // func_088A8E08(o): the virtual +0x64 of the object at o + 8.
 void func_088A8E08(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t inner = word(rt, ctx.gpr[4] + 8u);
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, word(rt, word(rt, inner) + 100u), {inner});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, inner) + 100u), {inner});
 }
 // func_08B34DC0() -> whether the import 0x08C7AC58() answers nonzero.
 void func_08B34DC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {

@@ -373,8 +373,8 @@ void func_08A7BFD0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], a1 = ctx.gpr[5], a2 = ctx.gpr[6];
     GuestFrame frame(ctx, 0x20u);
     (void)call_guest(rt, ctx, 0x08A5D438u, {frame.at(0u)});
-    (void)call_guest(rt, ctx, word(rt, word(rt, self) + 0x10Cu), {self, frame.at(0u), a2});
-    (void)call_guest(rt, ctx, word(rt, word(rt, self) + 0x114u), {self, a1, frame.at(0u)});
+    (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, self) + 0x10Cu), {self, frame.at(0u), a2});
+    (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, self) + 0x114u), {self, a1, frame.at(0u)});
     const std::uint32_t first = word(rt, frame.at(0u));
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
     ctx.gpr[2] = first != 0u ? 1u : 0u;

@@ -247,7 +247,7 @@ void func_08B6EE4C(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
 void func_08C09520(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, word(rt, word(rt, self) + 32u), {self}) != 0u ? 1u : 0u;
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, self) + 32u), {self}) != 0u ? 1u : 0u;
 }
 // func_08C19BEC(this) -> the virtual +0x8 of the object at +0x14 (its result), or 0 without one.
 void func_08C19BEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -255,7 +255,7 @@ void func_08C19BEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     if (object == 0u) return;
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, word(rt, word(rt, object) + 8u), {object});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 8u), {object});
 }
 
 // --- Interrupt-guarded counters and the kernel error test (the imports are the SDK's suspend/resume interrupts) ---

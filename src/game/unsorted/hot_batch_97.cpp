@@ -1186,7 +1186,7 @@ void func_08883B7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = word(rt, self + 0xCu);
     const std::uint32_t e = word(rt, ctx.gpr[2] + 0x4Cu);
     if (e == 0u) return;
-    const GuestResult scale = call_guest(rt, ctx, word(rt, word(rt, other) + 0x1Cu), {other}, {});
+    const GuestResult scale = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, other) + 0x1Cu), {other}, {});
     take(ctx, scale);
     float f20 = scale.f0;
     f20 = psp_mul(f20, call_setf(rt, ctx, 0x0886B0F8u, {word(rt, self + 8u)}, {}).f0);

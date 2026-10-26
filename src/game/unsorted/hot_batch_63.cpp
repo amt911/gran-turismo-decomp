@@ -235,7 +235,7 @@ void func_08C3EACC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (current != word(rt, begin_slot)) {
             do {
                 const std::uint32_t object = word(rt, current - 8u);
-                (void)call_guest(rt, ctx, word(rt, word(rt, object)), {object, x});
+                (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object)), {object, x});
                 current = word(rt, end_slot) - 8u;
                 put(rt, end_slot, current);
             } while (word(rt, begin_slot) != current);
@@ -256,7 +256,7 @@ void func_088A964C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     if (child == 0u) return;
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, word(rt, word(rt, child) + 32u), {child, ctx.gpr[5]});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, child) + 32u), {child, ctx.gpr[5]});
 }
 
 // func_08BDADF8(this): v0 = 0, or vtable[8] of the child this[5] called on it (a1 passed on) when it is set.
@@ -266,7 +266,7 @@ void func_08BDADF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     if (child == 0u) return;
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, word(rt, word(rt, child) + 8u), {child, ctx.gpr[5]});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, child) + 8u), {child, ctx.gpr[5]});
 }
 
 // func_089BB1E8(this): the flag word +96 loses bit 8 and gains bit 9; then, when func_089BAF28(this) answers nonzero, func_089BAF40(this, this[22] + 4)
@@ -407,7 +407,7 @@ void func_08C21B34(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         holder = call_guest(rt, ctx, 0x08A6159Cu, {key, 2u});
         const std::uint32_t object = word(rt, holder + 4u);
         if (object == 0u) (void)call_guest(rt, ctx, 0x08A5BB7Cu, {0x08CB0284u});
-        (void)call_guest(rt, ctx, word(rt, word(rt, object) + 196u), {object, holder});
+        (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 196u), {object, holder});
     }
     tail_call(ctx, 0x08A61E3Cu, {key, holder});
 }
