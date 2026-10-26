@@ -125,3 +125,9 @@ def test_a_cast_literal_is_a_value_and_keeps_its_cast():
     rows, problems = fr.macro_rows("GT_DECOMP_DEREF_FLOAT(0x088A42A8u, 484, static_cast<std::uint32_t>(1048));",
                                    [484, 1048], {0x0885F07C: [12, 16]})
     assert rows == ["GT_DECOMP_DEREF_FLOAT(0x0885F07Cu, 12, static_cast<std::uint32_t>(16));"] and problems == []
+
+
+def test_a_negative_value_is_written_as_its_32_bit_word():
+    # guarded_zero's third argument is a sign-extended 16-bit offset (0xFFFF933C): a member's -0x6C94 is 0xFFFF936C.
+    rows, problems = fr.macro_rows("GT_DECOMP_X(0x08B9C1F8u, 0xFFFF933Cu);", [-0x6CC4], {0x08B9C130: [-0x6C94]})
+    assert rows == ["GT_DECOMP_X(0x08B9C130u, 0xFFFF936Cu);"] and problems == []

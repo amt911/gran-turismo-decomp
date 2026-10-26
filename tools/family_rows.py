@@ -35,7 +35,7 @@ def _parse_literal(text: str) -> int | None:
 
 
 def _format_like(model: str, value: int) -> str:
-    model = model.strip()
+    model, value = model.strip(), value & _M  # a sign-extended immediate is the word the guest sees
     cast = _CAST.fullmatch(model)
     if cast:  # a cast around a number keeps its cast
         return f"{cast.group('head')}{_format_like(cast.group('body'), value)})"
