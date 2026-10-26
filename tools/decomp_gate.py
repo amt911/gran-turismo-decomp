@@ -53,7 +53,21 @@ ROUTES = {
 # Synthetic cases (docs/superpowers/specs/2026-10-25-synthetic-cases-design.md): one short route sets the scene, then
 # gt_native runs SYNTH_CASES generated cases of every installed function and ends ("Synthetic cases done"). The wall
 # clock is only a cap: the route takes ~100 s, all 7368 functions' cases a few minutes more.
-ROUTES["synth"] = (("dealer", 1500),)
+SYNTH_EXTRA = 1200  # the synthetic phase after the route's own length (all installed functions, a few minutes)
+
+
+def synth_routes(route: str | None) -> tuple[tuple[str, int], ...]:
+    """The synthetic gate's route: `route` (GT_SYNTH_ROUTE; default dealer) for its full-gate length plus SYNTH_EXTRA.
+    Script natives need the scene of a route that reaches their objects (after dealer, the race objects their holders
+    reach do not exist and the original faults)."""
+    name = route or "dealer"
+    lengths = dict(ROUTES["full"])
+    if name not in lengths:
+        raise ValueError(f"no full route named {name!r}")
+    return ((name, lengths[name] + SYNTH_EXTRA),)
+
+
+ROUTES["synth"] = synth_routes(os.environ.get("GT_SYNTH_ROUTE"))
 SYNTH_CASES = 8
 SYNTH_SEED = 1
 # A full route ends this many vblanks after its pad script is done (GT_PAD_EXIT_AFTER), not on the wall clock: the

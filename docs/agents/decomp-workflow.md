@@ -57,6 +57,9 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   ≥ 1 equal case, 0 mismatches and `tools.decomp_gate sabotage --synth` pinned on it. That is weaker than a route case
   (the inputs are not the game's) and is counted apart. An original that faults is "not comparable"; a decompiled run
   that faults or stops where the original returned is a mismatch: it read or called what the original did not.
+  `GT_SYNTH_ROUTE=<full route>` sets the scene with another route (its full-gate length + 1200 s): script natives whose
+  holders reach race objects fault in the original after `dealer` and compare after `race` (FINDINGS). A batch
+  verified that way is re-checked in its verdict with the same variable (both synthetic runs, `dealer` and `race`).
 - The code compiles cleanly with the host compiler at the project's warning level — no new warnings.
 
 ## Working in batches — how the hot-leaf PRs are made

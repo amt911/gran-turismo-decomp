@@ -88,6 +88,11 @@ def _comment(addresses: set[str], reason: str) -> int:  # pragma: no cover - edi
     return total
 
 
+def synth_log(tag: str, routes) -> Path:
+    """The report of the synthetic gate: the log of its one route (dealer, or GT_SYNTH_ROUTE's)."""
+    return Path(f"recomp/analysis/gt_diff_{tag}_{routes[0][0]}.log")
+
+
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - runs the gates
     parser = argparse.ArgumentParser(prog="tools.synth_batch", description=__doc__.splitlines()[0])
     parser.add_argument("tag")
@@ -98,7 +103,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - runs t
     # each run takes the CPU lock on its own (a hold stays under 30 min; the whole batch may not)
     gate = ["tools/cpu_lock.sh", f"synth batch {args.tag}", "timeout", "1800", sys.executable, "-m", "tools.decomp_gate"]
     subprocess.run(gate + ["synth", args.tag, "--cases", str(args.cases), "--only", ",".join(sorted(batch))])
-    log = Path(f"recomp/analysis/gt_diff_{args.tag}_dealer.log")
+    from tools.decomp_gate import ROUTES
+    log = synth_log(args.tag, ROUTES["synth"])
     report = log.read_text(errors="replace") if log.exists() else ""
     if not report_ok(report):
         print(f"the synthetic run did not finish ({log}): nothing edited")

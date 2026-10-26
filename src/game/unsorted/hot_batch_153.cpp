@@ -188,7 +188,7 @@ void func_08AB4CEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vi
 // HOT153(0x08979A20u, func_08979A20, Word);  // no comparable synthetic case yet
 HOT153(0x08A527A8u, func_08A527A8, Word);
 HOT153(0x088214CCu, func_088214CC, Word);
-// HOT153(0x08A789D8u, func_08A789D8, Word);  // no comparable synthetic case yet
+HOT153(0x08A789D8u, func_08A789D8, Word);
 HOT153(0x0886B08Cu, func_0886B08C, Word);
 HOT153(0x0886B0A4u, func_0886B0A4, Word);
 HOT153(0x0886B0C8u, func_0886B0C8, Word);
