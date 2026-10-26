@@ -1012,6 +1012,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 144** (2026-10-26): tres familias más con plantilla nueva (`handle_from`, `name_reset`,
+      `release_and_destroy`), ya con `tools.synth_batch`: 73 filas, 63 verificadas (sabotaje 63 de 63), 10 sin caso
+      comparable. 6 miembros con otro desplazamiento quedan fuera: `family_rows` los rechaza. Total: 8.486 funciones.
 - [x] **Lote 143** (2026-10-26): cuatro familias más, tres con plantilla nueva (`tag_header`, `tag_and_construct`,
       `adjust_and_jump`, el thunk que ajusta `this` por la base virtual) y la de devolver el primer argumento. 56 filas:
       41 comparadas sin discrepancias, sabotaje 35 de 41. Total: 8.423 funciones.
