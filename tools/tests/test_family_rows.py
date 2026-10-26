@@ -110,3 +110,11 @@ def test_an_ambiguous_argument_no_member_varies_at_is_the_same_everywhere():
 def test_an_argument_two_varying_positions_could_carry_is_still_refused():
     rows, problems = fr.macro_rows("M(0x08800000u, 8u);", [8, 8], {0x08800100: [4, 12]})
     assert rows == [] and "ambiguous" in problems[0]
+
+
+def test_positions_that_always_agree_are_one_argument():
+    """copy_range's stride is two addiu immediates (source and destination advance together)."""
+    rows, problems = fr.macro_rows("M(0x08800000u, 4u);", [4, 4, 7], {0x08800100: [8, 8, 7], 0x08800200: [0xC, 0xC, 7]})
+    assert problems == [] and rows == ["M(0x08800100u, 8u);", "M(0x08800200u, 12u);"]
+    rows, problems = fr.macro_rows("M(0x08800000u, 4u);", [4, 4, 7], {0x08800100: [8, 0xC, 7]})
+    assert rows == [] and "ambiguous" in problems[0]

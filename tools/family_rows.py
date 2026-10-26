@@ -50,24 +50,27 @@ def macro_rows(template: str, template_values: Sequence[int],
     named = [a.strip() for a in args if _parse_literal(a) is None and a.strip() not in ("true", "false")]
     if named:
         return [], [f"{template.strip()} names a function: one C++ body with its own constants, not a family macro"]
-    plan: list[int | None] = []  # per argument: the value position it comes from, or None for a constant
+    plan: list[int | None] = []
+    also: list[int] = []  # per argument: the value position it comes from, or None for a constant
     for arg in args:
         literal = _parse_literal(arg)
         places = [] if literal is None else [i for i, v in enumerate(template_values) if v & _M == literal]
         if len(places) > 1:  # the one place where members differ carries it; none differing: any place is the same
             varying = [i for i in places if any(len(v) == len(template_values) and v[i] & _M != literal
                                                 for v in members.values())]
-            if len(varying) > 1:
+            agree = all(len({v[i] & _M for i in varying}) == 1 for v in members.values() if len(v) == len(template_values))
+            if len(varying) > 1 and not agree:
                 return [], [f"argument {arg.strip()} is ambiguous: the template has it at positions {places}, "
                             f"and members differ at {varying}"]
             places = varying or places[:1]
         plan.append(places[0] if places else None)
+        also.extend(places[1:])  # agreeing positions of the same argument: carried by it too
     rows, problems = [], []
     for address, values in sorted(members.items()):
         if len(values) != len(template_values):
             problems.append(f"0x{address:08X}: {len(values)} values, the template has {len(template_values)}")
             continue
-        carried = {place for place in plan if place is not None}
+        carried = {place for place in plan if place is not None} | set(also)
         differs = [i for i, (v, t) in enumerate(zip(values, template_values)) if i not in carried and v & _M != t & _M]
         if differs:
             problems.append(f"0x{address:08X}: differs from the template at value position {differs[0]}, which no argument "
