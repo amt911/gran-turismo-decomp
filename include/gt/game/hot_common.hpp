@@ -28,6 +28,11 @@ inline std::uint32_t call_indirect(psprecomp::Runtime &rt, psprecomp::AllegrexCo
     ctx.gpr[2] = target;
     return call_guest(rt, ctx, target, arguments);
 }
+inline GuestResult call_indirect(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t target,
+                                 std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> floats) {
+    ctx.gpr[2] = target;
+    return call_guest(rt, ctx, target, arguments, floats);
+}
 inline constexpr std::uint32_t kGuFlags = kGuState + 0x6Cu;
 inline constexpr std::uint32_t kGuListPointer = kGuState + 0x5Cu;
 // Command blocks the library's helpers take in a0.

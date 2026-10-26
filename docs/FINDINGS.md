@@ -2472,7 +2472,10 @@ which a Word function then returns; `call_guest` does not load the target into v
 **Fix / workaround.** `gt::game::hot::call_indirect` (include/gt/game/hot_common.hpp) loads v0 = target before the call;
 used in func_088A3718, func_088FBB70, func_08A0F514 and func_08AD5ED8. Still open (edge paths, route-verified code):
 func_08896780, func_0889E01C, func_089170E0, func_0893D9AC, func_08972594, func_08972938, func_089D7DB8,
-func_08A0A398, MProductInformation.GetParentalLevel (0x08A27F20), func_08A52824, func_08BD2D00. The set of live objects
+func_08A0A398, MProductInformation.GetParentalLevel (0x08A27F20), func_08BD2D00. Later (batch 147) the 181 inline
+virtual calls `call_guest(rt, ctx, word(rt, word(rt, ...) + SLOT), ...)` in functions whose asm has only `jalr v0`
+became `call_indirect` (103 sites in functions with another jalr register left alone), which also fixed
+func_08965CE8 and func_08A52824. The set of live objects
 depends on the route's timing; two sweeps on the same build found the same 5993.
 
 Found: 2026-10-26 · host/diff_harness.cpp, host/synth_case.cpp
