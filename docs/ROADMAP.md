@@ -1012,6 +1012,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lotes 153-154** (2026-10-26): `deref_word` (dos desplazamientos), `held_object_call`, `virtual_on_second`,
+      `name_assign`, `virtual_name_assign`, `ptmf_chain` (un puntero a método cuyo resultado recibe otro, en llamada de
+      cola) y `guarded_init` (inicialización de un estático con guarda): 107 filas, 71 verificadas. Total: 9.245 funciones.
 - [x] **Lote 152** (2026-10-26): diez familias cuya plantilla es una función con nombre (de RaceOperator, del
       organizador y de CarDriverParameter), escritas como envoltorios con parámetros (`deref_byte`, `deref_store_byte`,
       `deref_signed_byte`, `deref_byte_set`, `deref_swapped`, `deref_store_swapped`, `deref_plus_tail`,
