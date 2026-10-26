@@ -109,7 +109,8 @@ def test_route_commands_are_capped_and_parallel():
     command = gate.route_shell(Path("build/gt_native"), "fast", "t1", Path("recomp/analysis"))
     assert all(route in command for route in ("race", "dealer", "garage", "buy", "options")) and "wait" in command
     assert "--max-seconds 200" in command and "--decomp diff" in command
-    assert "options.pad" in command and "--max-seconds 230" in command and "GT_PAD_EXIT_AFTER" not in command
+    assert "options.pad" in command and f"--max-seconds {dict(gate.ROUTES['fast'])['options']}" in command
+    assert "GT_PAD_EXIT_AFTER" not in command
 
 
 def test_full_routes_end_after_their_script_not_on_the_wall_clock():
@@ -365,7 +366,8 @@ def test_probe_shell_runs_every_fast_route_uncapped_with_the_decomp_off_and_the_
     command = gate.probe_shell(Path("build/gt_native"), "t1", Path("/s/syms.txt"), Path("recomp/analysis"))
     assert command.count("--decomp off") == len(gate.ROUTES["fast"]) and command.endswith(" wait")
     assert "GT_PROBE_SYMBOLS=/s/syms.txt" in command and "LCS_UNCAPPED=1" in command
-    assert "--max-seconds 230" in command and "--max-seconds 200" in command
+    fast = dict(gate.ROUTES["fast"])
+    assert f"--max-seconds {fast['options']}" in command and f"--max-seconds {fast['race']}" in command
     assert "recomp/analysis/probe_t1_options.log" in command and "--decomp diff" not in command
 
 
