@@ -1903,6 +1903,9 @@ void func_08AF8EB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, frame.at(0u), limit);
     const std::uint32_t index = word(rt, frame.at(0x10u));
     const std::uint32_t chosen = signed_of(index) < signed_of(limit) ? index : limit;
+    // v0 is that comparison when no part runs (the loop's own `slt` leaves 0 when it ends); v1 the slot min() read.
+    ctx.gpr[2] = signed_of(index) < signed_of(limit) ? 1u : 0u;
+    ctx.gpr[3] = ctx.gpr[2] != 0u ? frame.at(0x10u) : frame.at(0u);
     for (std::uint32_t part = 0u; signed_of(part) < signed_of(half_u(rt, self + 0x14u)); ++part) {
         const std::uint32_t array = word(rt, self + 0xA8u);
         std::uint32_t target = array + (part << 5);
@@ -1913,6 +1916,7 @@ void func_08AF8EB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t animation = word(rt, self + 0x48u);
         if (animation != 0u && half_u(rt, animation + 0x14u) != 0u) extra = word(rt, animation + 0x18u);
         call_set(rt, ctx, 0x08B537ACu, {target, palette, value, 0x1Cu, extra, 0x98u});
+        ctx.gpr[2] = 0u;
     }
 }
 

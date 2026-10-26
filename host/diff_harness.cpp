@@ -44,6 +44,8 @@ std::vector<DecompiledFunction> &decompiled_functions() {
 namespace {
 
 constexpr std::uint32_t kRamBase = 0x08000000u;
+constexpr std::uint32_t kVramBase = 0x04000000u;  // physical VRAM, 2 MiB (its mirrors map onto it)
+constexpr std::size_t kVramSize = 0x200000u;
 constexpr std::uint32_t kRamSize = 32u * 1024u * 1024u;
 // Return addresses planted for isolated runs, outside guest memory: the run ends when the original
 // returns to its case's one. Each case takes one from a pool, because a case that continues live
@@ -473,6 +475,14 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ~PagesEnd() { g_pages.end(); }
     } pages_end;
     const KernelReplayState allocator_before = save_kernel_replay_state();
+    // A synthetic pointer can land in VRAM (a float's bits, 0x447A0000, is an uncached VRAM mirror): the dirty-page
+    // tracker covers RAM only, so a synthetic case keeps VRAM's entry bytes and puts them back around each run.
+    std::uint8_t *const vram = g_synthetic_call ? rt.memory().raw_pointer(kVramBase, kVramSize) : nullptr;
+    static std::vector<std::uint8_t> vram_entry, vram_original;
+    if (vram != nullptr) vram_entry.assign(vram, vram + kVramSize);
+    const auto restore_vram = [&] {
+        if (vram != nullptr) std::memcpy(vram, vram_entry.data(), kVramSize);
+    };
 
     psprecomp::AllegrexContext original_ctx = entry_ctx;
     bool original_ran;
@@ -502,6 +512,7 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (entry.first_skip.empty()) entry.first_skip = "original: " + g_last_stop;
         if (g_last_stop.rfind("import stub", 0) == 0) ++g_skips_by_import[g_last_stop];
         if (g_synthetic_call) {  // never continued live nor re-run: the entry state back, and the case is over
+            restore_vram();
             g_pages.restore_pristine();
             restore_kernel_replay_state(allocator_before);
             return;
@@ -536,6 +547,10 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     original_ctx.gpr[31] = entry_ctx.gpr[31];
     const EndState original = end_state(original_ctx, {}, entry_ctx.gpr[29]);
+    if (vram != nullptr) {
+        vram_original.assign(vram, vram + kVramSize);
+        restore_vram();
+    }
     const KernelReplayState allocator_original = save_kernel_replay_state();
     // The pages the original wrote, as it left them.
     constexpr std::size_t kPage = DirtyPages::kPageSize;
@@ -557,6 +572,7 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const auto keep_original_result = [&] {
         g_pages.disarm();
         if (g_synthetic_call) {  // a synthetic case leaves nothing behind: the next one starts from the same state
+            restore_vram();
             g_pages.restore_pristine();
             restore_kernel_replay_state(allocator_before);
             return;
@@ -639,6 +655,10 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                       : !decompiled_fault.empty() ? std::optional<std::string>("decompiled run faulted: " + decompiled_fault)
                                                   : first_difference(original, decompiled, entry.info.returns);
     if (!difference) difference = first_page_difference(written, kPage, original.ignore_begin, original.ignore_end);
+    if (!difference && vram != nullptr) {
+        const PageImages whole[] = {{kVramBase, vram_original.data(), vram}};
+        difference = first_page_difference(whole, kVramSize, 0u, 0u);
+    }
     if (!difference && save_kernel_replay_state() != allocator_original)
         difference = "kernel state differs (memory blocks or thread priorities)";
     if (difference) {

@@ -17472,9 +17472,10 @@ std::int32_t trunc_word(float value) {
 // Reads a property through visitor's virtual +0x8 into a local — the inverse of visit_property: a stack
 // descriptor {vtable, empty name, -1, &value} whose name is released afterwards. Returns the value (a byte
 // for `byte_value`, else a word).
-std::uint32_t read_property(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t vtable, bool byte_value) {
+std::uint32_t read_property(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t vtable, bool byte_value,
+                            std::uint32_t frame_bytes = 0x30u) {
     const std::uint32_t visitor = ctx.gpr[5];
-    GuestFrame frame(ctx, 0x30u);
+    GuestFrame frame(ctx, frame_bytes);  // the original's: the visitor can keep the descriptor's address
     const std::uint32_t descriptor = frame.at(byte_value ? 4u : 8u);
     const std::uint32_t value = frame.at(byte_value ? 1u : 4u);
     rt.memory().store32(descriptor + 0x4u, kEmptyString);
@@ -20305,7 +20306,7 @@ void func_08B0DF38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_089BE32C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t visitor = ctx.gpr[5];
-    const std::uint32_t value = read_property(rt, ctx, kByteProperty, true);
+    const std::uint32_t value = read_property(rt, ctx, kByteProperty, true, 0x40u);
     rt.memory().store32(self + 96u, (word(rt, self + 96u) & ~4u) | ((value & 1u) << 2));
     if (value != 0u) rt.memory().store8(visitor + 44u, 1u);
 }
