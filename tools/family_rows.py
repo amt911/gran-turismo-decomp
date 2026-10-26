@@ -49,6 +49,19 @@ def _format_like(model: str, value: int) -> str:
     return f"{value}{suffix}"
 
 
+_WRITTEN = re.compile(r"^(?:void func_([0-9A-Fa-f]{8})\(|(?://\s*)?[A-Z_][A-Z0-9_]*\((0x[0-9A-Fa-f]{8})u)", re.MULTILINE)
+
+
+def written_elsewhere(texts) -> set[int]:
+    """Runtime addresses that already have a body (`void func_XXXXXXXX(`) or a registration row, live or commented, in
+    the given sources: a family row for one of them would be a second body (batch 158), so it is re-enabled instead."""
+    found = set()
+    for text in texts:
+        for body, row in _WRITTEN.findall(text):
+            found.add(int(body, 16) if body else int(row, 16))
+    return found
+
+
 def macro_rows(template: str, template_values: Sequence[int],
                members: Mapping[int, Sequence[int]]) -> tuple[list[str], list[str]]:
     """The members' rows of `template` (a registration line), or the problems that stop them."""
@@ -179,8 +192,12 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - reads 
 
     t_words = decoded(template)[0]
     members = fm.find_members(code, template, None, set(done_functions(Path("src"))))
+    written = written_elsewhere(p.read_text() for p in sorted(Path("src").rglob("*.cpp")))
     member_values = {}
     for address in members:
+        if address + LOAD_BASE in written:
+            print(f"!! 0x{address + LOAD_BASE:08X}: already written in src/ (a commented row): re-enable that one instead")
+            continue
         words, decoded_values = decoded(address)
         left = fm.uncovered(t_words, words, decoded_values, template, address)
         if left:  # a register or an offset differs that no value carries: not the template with other constants

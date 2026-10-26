@@ -378,6 +378,25 @@ void func_08A04254(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { as
 void func_08A1CA40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { assign_make(rt, ctx, 0x08A1C9F0u); }
 
 } // namespace
+// Batch 158: more members of the load_then_call family (tools.family_rows), verified by synthetic cases.
+void func_08838E28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08838DA8u, 0x00000014u); }
+void func_08838E68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08838E4Cu, 0x00000014u); }
+void func_0885E170(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x088D9CCCu, 0x000005ACu); }
+void func_088750C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08876850u, 0x00000000u); }
+void func_088750E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08875CD0u, 0x00000000u); }
+void func_08891798(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08891710u, 0x00000000u); }
+void func_08891838(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x088917B4u, 0x00000000u); }
+void func_08892084(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08891F04u, 0x00000000u); }
+void func_088CE8F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x088DA0BCu, 0x00000004u); }
+void func_088E4B48(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x088ECB1Cu, 0x00000000u); }
+void func_08A4CDD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08A506B8u, 0x00000078u); }
+void func_08A85658(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08B71CE0u, 0x00000014u); }
+void func_08AC3324(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08AC322Cu, 0x00000000u); }
+void func_08AC4050(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08AC3FD4u, 0x00000000u); }
+void func_08AC416C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08AC406Cu, 0x00000000u); }
+void func_08ACBBF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08ACBBA8u, 0x00000000u); }
+void func_08ACC624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08ACC5DCu, 0x00000000u); }
+void func_08B166DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08B23E50u, 0x000000A4u); }
 } // namespace hot_batch_75
 } // namespace gt::game
 
@@ -509,3 +528,21 @@ HOT75(0x08A4D2F8u, func_08A4D2F8, Word);
 // HOT75(0x08A12E38u, func_08A12E38, Word);
 // func_08B77BF4 is compared but the tool's contract audit flags it: three original callers read v1 after the call and the ReturnKind leaves v1 uncompared.
 // HOT75(0x08B77BF4u, func_08B77BF4, Word);
+HOT75(0x08838E28u, func_08838E28, Word);
+HOT75(0x08838E68u, func_08838E68, Word);
+HOT75(0x0885E170u, func_0885E170, Word);
+// HOT75(0x088750C8u, func_088750C8, Word);  // no comparable synthetic case yet
+// HOT75(0x088750E4u, func_088750E4, Word);  // no comparable synthetic case yet
+HOT75(0x08891798u, func_08891798, Word);
+HOT75(0x08891838u, func_08891838, Word);
+// HOT75(0x08892084u, func_08892084, Word);  // no comparable synthetic case yet
+HOT75(0x088CE8F0u, func_088CE8F0, Word);
+HOT75(0x088E4B48u, func_088E4B48, Word);
+HOT75(0x08A4CDD8u, func_08A4CDD8, Word);
+HOT75(0x08A85658u, func_08A85658, Word);
+HOT75(0x08AC3324u, func_08AC3324, Word);
+HOT75(0x08AC4050u, func_08AC4050, Word);
+HOT75(0x08AC416Cu, func_08AC416C, Word);
+// HOT75(0x08ACBBF4u, func_08ACBBF4, Word);  // no comparable synthetic case yet
+// HOT75(0x08ACC624u, func_08ACC624, Word);  // no comparable synthetic case yet
+HOT75(0x08B166DCu, func_08B166DC, Word);

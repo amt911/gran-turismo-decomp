@@ -1199,6 +1199,16 @@ void func_08C32D1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
 }
 
+// Batch 158: more members of the 0x08AA91F8 family (tools.family_rows), verified by synthetic cases.
+void func_08AA8F88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C313ACu); }
+void func_08AA9028(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C3139Cu); }
+void func_08AA90B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C3138Cu); }
+void func_08AA9158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C3137Cu); }
+void func_08AA9318(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C31334u); }
+void func_08AA93A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C31324u); }
+void func_08AA9438(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C24C48u); }
+void func_08AA94C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C3130Cu); }
+void func_08AA9558(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C312FCu); }
 } // namespace hot_batch_135
 } // namespace gt::game
 
@@ -1262,3 +1272,12 @@ HOT135(0x08A1FA54u, func_08A1FA54, Void);
 HOT135(0x0889A57Cu, func_0889A57C, Word);
 HOT135(0x088584A0u, func_088584A0, Word);
 HOT135(0x08C32D1Cu, func_08C32D1C, Word);
+// HOT135(0x08AA8F88u, func_08AA8F88, Void);  // no comparable synthetic case yet
+// HOT135(0x08AA9028u, func_08AA9028, Void);  // no comparable synthetic case yet
+// HOT135(0x08AA90B8u, func_08AA90B8, Void);  // no comparable synthetic case yet
+// HOT135(0x08AA9158u, func_08AA9158, Void);  // no comparable synthetic case yet
+HOT135(0x08AA9318u, func_08AA9318, Void);
+// HOT135(0x08AA93A8u, func_08AA93A8, Void);  // no comparable synthetic case yet
+// HOT135(0x08AA9438u, func_08AA9438, Void);  // no comparable synthetic case yet
+HOT135(0x08AA94C8u, func_08AA94C8, Void);
+// HOT135(0x08AA9558u, func_08AA9558, Void);  // no comparable synthetic case yet
