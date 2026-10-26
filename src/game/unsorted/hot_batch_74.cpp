@@ -459,6 +459,17 @@ void func_08C413DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { cl
 void func_08C41934(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
 void func_08C41A04(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clamp_step(rt, ctx); }
 
+// Batch 160: more members of the 0x0882EB50 family (tools.family_rows), verified by synthetic cases.
+void func_08849408(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D5AA8u, 0x088D5D88u); }
+void func_08849628(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D5948u, 0x088D5938u); }
+void func_08849738(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D5A8Cu, 0x088D5DF8u); }
+void func_08849A7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D5968u, 0x088D5D44u); }
+void func_08849E5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D4C90u, 0x088D4C84u); }
+void func_0884AA0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D4DFCu, 0x088D4DF0u); }
+void func_0884AB1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D5A34u, 0x088D5910u); }
+void func_0884AC2C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x08847008u, 0x08C9CBBCu, 0x08846E50u, 0x08C9CB80u, 0x088D4FB4u, 0x088D4FA8u); }
+void func_08850574(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x088547C4u, 0x08C9D3BCu, 0x08854678u, 0x08C9D394u, 0x088A5D30u, 0x088A5D24u); }
+void func_088565D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { target_setting_row(rt, ctx, 0x088547C4u, 0x08C9E188u, 0x08854678u, 0x08C9E14Cu, 0x088A5974u, 0x088A746Cu); }
 } // namespace hot_batch_74
 } // namespace gt::game
 
@@ -522,3 +533,13 @@ HOT74(0x08BE5C58u, func_08BE5C58, Word);
 // HOT74(0x08C413DCu, func_08C413DC, Word);
 // HOT74(0x08C41934u, func_08C41934, Word);
 // HOT74(0x08C41A04u, func_08C41A04, Word);
+// HOT74(0x08849408u, func_08849408, Void);  // no comparable synthetic case yet
+// HOT74(0x08849628u, func_08849628, Void);  // no comparable synthetic case yet
+// HOT74(0x08849738u, func_08849738, Void);  // no comparable synthetic case yet
+// HOT74(0x08849A7Cu, func_08849A7C, Void);  // no comparable synthetic case yet
+// HOT74(0x08849E5Cu, func_08849E5C, Void);  // no comparable synthetic case yet
+// HOT74(0x0884AA0Cu, func_0884AA0C, Void);  // no comparable synthetic case yet
+// HOT74(0x0884AB1Cu, func_0884AB1C, Void);  // no comparable synthetic case yet
+// HOT74(0x0884AC2Cu, func_0884AC2C, Void);  // no comparable synthetic case yet
+// HOT74(0x08850574u, func_08850574, Void);  // no comparable synthetic case yet
+// HOT74(0x088565D8u, func_088565D8, Void);  // no comparable synthetic case yet

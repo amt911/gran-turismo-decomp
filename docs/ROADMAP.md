@@ -1012,6 +1012,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lotes 160-161** (2026-10-26): más miembros de ocho familias ya escritas (lotes 67, 74, 75, 77, 99, 135 y
+      `hot_leaves`) y `bound_node` (el nodo de llamada enlazada del lote 104, 67 miembros): 175 filas, 43 verificadas.
+      Casi todos son nativos de scripts grandes que con entradas inventadas no dan casos comparables. Total: 9.645
+      funciones.
 - [x] **Lote 159** (2026-10-26): siete familias pequeñas con plantilla con nombre (`held_chain`, `call_with_ref`,
       `offset_call`, `copy_words`, `field_virtual_tail`, `constant_tail`, `member_assign`): 95 filas, 74 verificadas.
       Total: 9.602 funciones.

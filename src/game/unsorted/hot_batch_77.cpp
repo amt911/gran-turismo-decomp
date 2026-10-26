@@ -458,6 +458,16 @@ void func_0893628C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 void func_089362D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { record_call(rt, ctx, 0x00000018u); }
 void func_08936324(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { record_call(rt, ctx, 0x00000004u); }
 
+// Batch 160: more members of the 0x08BEB08C family (tools.family_rows), verified by synthetic cases.
+void func_08B8CDC4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08BF02D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08BFC5C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08C00610(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08C076C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08C08958(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08C0BECC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08C10644(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
+void func_08C1344C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ptmf_call_float(rt, ctx, 0x00000028u, 0x00000024u); }
 } // namespace hot_batch_77
 } // namespace gt::game
 
@@ -526,3 +536,12 @@ HOT77(0x08C2859Cu, func_08C2859C, Word);
 HOT77(0x0893628Cu, func_0893628C, Word);
 HOT77(0x089362D8u, func_089362D8, Word);
 HOT77(0x08936324u, func_08936324, Word);
+// HOT77(0x08B8CDC4u, func_08B8CDC4, Word);  // no comparable synthetic case yet
+// HOT77(0x08BF02D4u, func_08BF02D4, Word);  // no comparable synthetic case yet
+// HOT77(0x08BFC5C4u, func_08BFC5C4, Word);  // no comparable synthetic case yet
+// HOT77(0x08C00610u, func_08C00610, Word);  // no comparable synthetic case yet
+// HOT77(0x08C076C8u, func_08C076C8, Word);  // no comparable synthetic case yet
+// HOT77(0x08C08958u, func_08C08958, Word);  // no comparable synthetic case yet
+// HOT77(0x08C0BECCu, func_08C0BECC, Word);  // no comparable synthetic case yet
+// HOT77(0x08C10644u, func_08C10644, Word);  // no comparable synthetic case yet
+// HOT77(0x08C1344Cu, func_08C1344C, Word);  // no comparable synthetic case yet
