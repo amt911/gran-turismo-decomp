@@ -1012,6 +1012,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 152** (2026-10-26): diez familias cuya plantilla es una función con nombre (de RaceOperator, del
+      organizador y de CarDriverParameter), escritas como envoltorios con parámetros (`deref_byte`, `deref_store_byte`,
+      `deref_signed_byte`, `deref_byte_set`, `deref_swapped`, `deref_store_swapped`, `deref_plus_tail`,
+      `deref_field_tail`, `deref_field_call`, `held_member_call`): 134 filas, 119 verificadas. Total: 9.174 funciones.
 - [x] **Lote 151** (2026-10-26): más miembros de familias ya escritas en `src/core` (getters de campo, de float y de
       byte, `deref`, `field_plus`, `deref_float`, `call_return_self`, `clear_byte`) y de los casts de `as_class`:
       208 filas, 112 verificadas; los thunks, forwarders y destructores no tienen caso comparable (sus destinos fallan
