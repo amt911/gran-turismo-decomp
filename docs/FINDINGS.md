@@ -2461,3 +2461,18 @@ rows against `src/` (definitions and commented registrations) before inserting t
 "from the batch marker on" deleted existing rows further down the file (caught by the build, reverted).
 
 Found: 2026-10-25 · tools/family_rows.py
+
+## Live objects as synthetic inputs: +182 compared functions, an empty virtual's v0, and new open mismatches
+
+**Symptom.** With pointer inputs drawn from the game's own objects (spec addendum 2026-10-26), the full synthetic sweep
+compared 5993 functions instead of 5811, and 15 mismatches appeared in route-verified code.
+**Cause.** Real objects reach paths the invented arena never did. Four were one pattern: a virtual call
+(`lw v0, slot(vt); jalr v0`) into an empty virtual (`jr ra; nop`, e.g. 0x08C1F880) leaves v0 = its own address,
+which a Word function then returns; `call_guest` does not load the target into v0.
+**Fix / workaround.** `gt::game::hot::call_indirect` (include/gt/game/hot_common.hpp) loads v0 = target before the call;
+used in func_088A3718, func_088FBB70, func_08A0F514 and func_08AD5ED8. Still open (edge paths, route-verified code):
+func_08896780, func_0889E01C, func_089170E0, func_0893D9AC, func_08972594, func_08972938, func_089D7DB8,
+func_08A0A398, MProductInformation.GetParentalLevel (0x08A27F20), func_08A52824, func_08BD2D00. The set of live objects
+depends on the route's timing; two sweeps on the same build found the same 5993.
+
+Found: 2026-10-26 · host/diff_harness.cpp, host/synth_case.cpp

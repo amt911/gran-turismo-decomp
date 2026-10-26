@@ -35,7 +35,11 @@ struct Arena {
     std::uint32_t words() const { return layout.arena_bytes / 4u; }
     bool has_tables() const { return !layout.leaf_functions.empty() && words() >= kBlockWords * kTableEvery; }
     bool is_table(std::uint32_t word_index) const { return has_tables() && (word_index / kBlockWords) % kTableEvery == kTableEvery - 1u; }
-    std::uint32_t pointer(Random &random) const {
+    // `live_share` percent of the picks are one of the game's objects when there are any (no draw is spent otherwise,
+    // so the inputs without live objects stay what they were).
+    std::uint32_t pointer(Random &random, std::uint32_t live_share = 0u) const {
+        if (!layout.live_objects.empty() && live_share != 0u && random.below(100u) < live_share)
+            return layout.live_objects[random.below(static_cast<std::uint32_t>(layout.live_objects.size()))];
         if (has_tables() && random.below(100u) < 15u) {
             const std::uint32_t tables = words() / (kBlockWords * kTableEvery);
             const std::uint32_t table = random.below(tables);
@@ -58,7 +62,7 @@ SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_
             continue;
         }
         const std::uint32_t pick = random.below(100u);
-        inputs.arena[i] = pick < 40u ? arena.pointer(random)
+        inputs.arena[i] = pick < 40u ? arena.pointer(random, 20u)
                           : pick < 65u ? random.below(17u)
                           : pick < 75u ? 0u
                           : pick < 80u ? 0xFFFFFFFFu
@@ -67,7 +71,7 @@ SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_
     }
     for (std::uint32_t &reg : inputs.gpr) {
         const std::uint32_t pick = random.below(100u);
-        reg = pick < 50u ? arena.pointer(random)
+        reg = pick < 50u ? arena.pointer(random, 50u)
               : pick < 70u ? random.below(17u)
               : pick < 80u ? 0u
               : pick < 85u ? 0xFFFFFFFFu

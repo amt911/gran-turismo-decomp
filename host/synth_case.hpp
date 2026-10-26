@@ -12,6 +12,7 @@ struct SynthLayout {
     std::uint32_t arena_base{};
     std::uint32_t arena_bytes{};
     std::vector<std::uint32_t> leaf_functions;  // trivial real functions a virtual call may land on
+    std::vector<std::uint32_t> live_objects;    // the game's objects (first word a vtable), for pointer inputs
 };
 
 struct SynthInputs {

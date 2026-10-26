@@ -58,5 +58,26 @@ int main() {
     no_leaves.leaf_functions.clear();
     const gt::SynthInputs d = gt::make_synth_case(0x08900000u, 0u, 7u, no_leaves);
     check(d.arena.size() == layout.arena_bytes / 4u, "no functions given: still an arena");
+    {  // live objects: some pointer inputs are the game's own objects, exactly as given, and none without any
+        gt::SynthLayout live = layout;
+        live.live_objects = {0x09100000u, 0x09100040u, 0x09200010u};
+        unsigned registers = 0u, words = 0u;
+        for (unsigned index = 0u; index < 64u; ++index) {
+            const gt::SynthInputs inputs = gt::make_synth_case(0x08912340u, index, 1u, live);
+            for (const std::uint32_t value : inputs.gpr)
+                if (value == 0x09100000u || value == 0x09100040u || value == 0x09200010u) ++registers;
+            for (const std::uint32_t word : inputs.arena)
+                if (word == 0x09100000u || word == 0x09100040u || word == 0x09200010u) ++words;
+            const gt::SynthInputs again = gt::make_synth_case(0x08912340u, index, 1u, live);
+            check(inputs.gpr == again.gpr && inputs.arena == again.arena, "live objects: still deterministic");
+        }
+        check(registers > 32u, "argument registers are often live objects");
+        check(words > 100u, "arena words are sometimes live objects");
+        unsigned without = 0u;
+        for (unsigned index = 0u; index < 64u; ++index)
+            for (const std::uint32_t value : gt::make_synth_case(0x08912340u, index, 1u, layout).gpr)
+                if (value == 0x09100000u || value == 0x09100040u || value == 0x09200010u) ++without;
+        check(without == 0u, "no live objects given: none used");
+    }
     return failures == 0 ? 0 : 1;
 }
