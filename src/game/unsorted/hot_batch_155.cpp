@@ -222,10 +222,10 @@ HOT155(0x08C5B5ECu, func_08C5B5EC, Word);
 HOT155(0x08C5B674u, func_08C5B674, Word);
 // HOT155(0x08AA3568u, func_08AA3568, Word);  // no comparable synthetic case yet
 HOT155(0x08AA3660u, func_08AA3660, Word);
-// HOT155(0x08AA36DCu, func_08AA36DC, Word);  // no comparable synthetic case yet
+HOT155(0x08AA36DCu, func_08AA36DC, Word);
 // HOT155(0x08AA3758u, func_08AA3758, Word);  // no comparable synthetic case yet
 // HOT155(0x08AA37D4u, func_08AA37D4, Word);  // no comparable synthetic case yet
-// HOT155(0x08AA3C5Cu, func_08AA3C5C, Word);  // no comparable synthetic case yet
+HOT155(0x08AA3C5Cu, func_08AA3C5C, Word);
 // HOT155(0x08AA3CD8u, func_08AA3CD8, Word);  // no comparable synthetic case yet
 HOT155(0x08AA3D54u, func_08AA3D54, Word);
 // HOT155(0x08AA3DD0u, func_08AA3DD0, Word);  // no comparable synthetic case yet

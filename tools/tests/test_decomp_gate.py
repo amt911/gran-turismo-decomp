@@ -616,3 +616,15 @@ def test_a_synthetic_report_reads_only_its_route():
 def test_the_synthetic_case_count_is_the_one_route_shell_uses(monkeypatch):
     monkeypatch.setattr(gate, "SYNTH_CASES", 64)
     assert "GT_SYNTH=64 " in gate.route_shell(Path("build/gt_native"), "synth", "t1", Path("recomp/analysis"))
+
+
+@pytest.mark.parametrize("route, seconds", [(None, 1500), ("dealer", 1500), ("race", 1800)])
+def test_the_synthetic_phase_follows_the_route_gt_synth_route_names(route, seconds):
+    """Script natives fault in the original after the dealer route: the race objects their holders reach do not exist
+    yet. GT_SYNTH_ROUTE picks the route that sets the scene; its run is the full gate's length plus SYNTH_EXTRA."""
+    assert gate.synth_routes(route) == ((route or "dealer", seconds),)
+
+
+def test_an_unknown_synthetic_route_is_refused():
+    with pytest.raises(ValueError, match="no full route"):
+        gate.synth_routes("nowhere")

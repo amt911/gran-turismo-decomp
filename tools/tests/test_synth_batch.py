@@ -1,5 +1,6 @@
 """tools.synth_batch: the bookkeeping of a synthetic-cases batch."""
 
+from pathlib import Path
 from tools import synth_batch as sb
 
 
@@ -53,3 +54,8 @@ def test_a_run_that_reported_nothing_is_not_a_run_where_everything_compared():
 def test_a_sabotage_run_that_did_not_build_detects_nothing_and_says_so():
     assert sb.sabotage_ran("sabotage round 1: 2 sabotaged, 2 pinned\nsabotage: 2/2 detected; undetected: []\n")
     assert not sb.sabotage_ran("sabotage: the sabotaged build did not run\n")
+
+
+def test_the_report_is_read_from_the_route_the_synthetic_gate_ran():
+    # GT_SYNTH_ROUTE=race wrote gt_diff_<tag>_race.log; reading the dealer one found nothing and edited nothing.
+    assert sb.synth_log("brace2", (("race", 1800),)) == Path("recomp/analysis/gt_diff_brace2_race.log")

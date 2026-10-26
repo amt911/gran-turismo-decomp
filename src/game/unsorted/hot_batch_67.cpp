@@ -319,7 +319,7 @@ HOT67(0x08C4CCB4u, func_08C4CCB4, Word);
 // HOT67(0x08BF6664u, func_08BF6664, Word);  // no comparable synthetic case yet
 // HOT67(0x08BFDA8Cu, func_08BFDA8C, Word);  // no comparable synthetic case yet
 // HOT67(0x08BFF398u, func_08BFF398, Word);  // no comparable synthetic case yet
-// HOT67(0x08C00364u, func_08C00364, Word);  // no comparable synthetic case yet
+HOT67(0x08C00364u, func_08C00364, Word);
 // HOT67(0x08C0567Cu, func_08C0567C, Word);  // no comparable synthetic case yet
 // HOT67(0x08C05BCCu, func_08C05BCC, Word);  // no comparable synthetic case yet
 // HOT67(0x08C07970u, func_08C07970, Word);  // no comparable synthetic case yet

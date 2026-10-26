@@ -2509,3 +2509,19 @@ another session holds CPUs 0-5, run gates as `taskset -c 6-23 .venv/bin/python -
 routes and about 22 min per full gate.
 
 Found: 2026-10-26 · tools/decomp_gate.py
+
+## Script natives "not comparable" after the dealer route: their objects only exist in a race
+
+**Symptom.** Of 431 family rows commented as "no comparable synthetic case yet", the synthetic run after `dealer`
+compared 1. Every case of the others was "not comparable". The first reason logged was always
+`original: faulted: Guest memory access outside PSP RAM/EDRAM at 0x00000014`.
+
+**Cause.** These natives read their game object through a holder (a getter of the race operator, the organizer or a
+car parameter). After the `dealer` route those objects do not exist yet, so the holder is null and the original reads
+`0x14`. The generated inputs cannot help, because the null comes from game state, not from the arguments.
+
+**Fix / workaround.** `GT_SYNTH_ROUTE=race` sets the scene with the race route instead (`tools.decomp_gate.synth_routes`;
+`synth_batch` reads the log of whichever route ran). The same 431 rows compared 49, all equal, sabotage 49/49, and those
+49 are re-enabled. The rest still fault, or reach objects of other scenes.
+
+Found: 2026-10-26 · tools/decomp_gate.py, tools/synth_batch.py

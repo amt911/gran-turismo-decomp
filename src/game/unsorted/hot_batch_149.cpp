@@ -165,10 +165,10 @@ HOT149(0x08A8AAB0u, func_08A8AAB0, Word);
 HOT149(0x08A8AB18u, func_08A8AB18, Word);
 HOT149(0x08A8AB38u, func_08A8AB38, Word);
 HOT149(0x08A8AB58u, func_08A8AB58, Word);
-// HOT149(0x08899E88u, func_08899E88, Float);  // no comparable synthetic case yet
+HOT149(0x08899E88u, func_08899E88, Float);
 HOT149(0x08899EC8u, func_08899EC8, Float);
 HOT149(0x08899F00u, func_08899F00, Float);
-// HOT149(0x08899F38u, func_08899F38, Float);  // no comparable synthetic case yet
+HOT149(0x08899F38u, func_08899F38, Float);
 // HOT149(0x08899F70u, func_08899F70, Float);  // no comparable synthetic case yet
 HOT149(0x08899FE4u, func_08899FE4, Float);
 // HOT149(0x0889A01Cu, func_0889A01C, Float);  // no comparable synthetic case yet

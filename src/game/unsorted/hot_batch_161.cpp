@@ -140,55 +140,55 @@ void func_08C36E64(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { bo
 } // namespace gt::game
 
 #define HOT161(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_161::name, gt::ReturnKind::kind)
-// HOT161(0x08B8C6BCu, func_08B8C6BC, Word);  // no comparable synthetic case yet
+HOT161(0x08B8C6BCu, func_08B8C6BC, Word);
 // HOT161(0x08B8C838u, func_08B8C838, Word);  // no comparable synthetic case yet
-// HOT161(0x08BEA0C8u, func_08BEA0C8, Word);  // no comparable synthetic case yet
+HOT161(0x08BEA0C8u, func_08BEA0C8, Word);
 // HOT161(0x08BEA244u, func_08BEA244, Word);  // no comparable synthetic case yet
 // HOT161(0x08BEA3C0u, func_08BEA3C0, Word);  // no comparable synthetic case yet
 // HOT161(0x08BEA53Cu, func_08BEA53C, Word);  // no comparable synthetic case yet
 // HOT161(0x08BEA858u, func_08BEA858, Word);  // no comparable synthetic case yet
-// HOT161(0x08BEAA6Cu, func_08BEAA6C, Word);  // no comparable synthetic case yet
+HOT161(0x08BEAA6Cu, func_08BEAA6C, Word);
 HOT161(0x08BEE27Cu, func_08BEE27C, Word);
 HOT161(0x08BEFF44u, func_08BEFF44, Word);
 // HOT161(0x08BF00C0u, func_08BF00C0, Word);  // no comparable synthetic case yet
 HOT161(0x08BF1B9Cu, func_08BF1B9C, Word);
 HOT161(0x08BF1D18u, func_08BF1D18, Word);
 HOT161(0x08BF1E94u, func_08BF1E94, Word);
-// HOT161(0x08BF2010u, func_08BF2010, Word);  // no comparable synthetic case yet
+HOT161(0x08BF2010u, func_08BF2010, Word);
 // HOT161(0x08BF3848u, func_08BF3848, Word);  // no comparable synthetic case yet
 HOT161(0x08BF43B0u, func_08BF43B0, Word);
 HOT161(0x08BF5CF0u, func_08BF5CF0, Word);
 // HOT161(0x08BF5E6Cu, func_08BF5E6C, Word);  // no comparable synthetic case yet
 // HOT161(0x08BF5FE8u, func_08BF5FE8, Word);  // no comparable synthetic case yet
-// HOT161(0x08BF7F60u, func_08BF7F60, Word);  // no comparable synthetic case yet
+HOT161(0x08BF7F60u, func_08BF7F60, Word);
 HOT161(0x08BF80DCu, func_08BF80DC, Word);
 HOT161(0x08BFAF4Cu, func_08BFAF4C, Word);
 HOT161(0x08BFB0C8u, func_08BFB0C8, Word);
 HOT161(0x08BFB244u, func_08BFB244, Word);
-// HOT161(0x08BFB3C0u, func_08BFB3C0, Word);  // no comparable synthetic case yet
+HOT161(0x08BFB3C0u, func_08BFB3C0, Word);
 // HOT161(0x08BFD5E4u, func_08BFD5E4, Word);  // no comparable synthetic case yet
 // HOT161(0x08BFD760u, func_08BFD760, Word);  // no comparable synthetic case yet
 HOT161(0x08BFEE30u, func_08BFEE30, Word);
 // HOT161(0x08BFEFACu, func_08BFEFAC, Word);  // no comparable synthetic case yet
 HOT161(0x08BFFF08u, func_08BFFF08, Word);
 // HOT161(0x08C00084u, func_08C00084, Word);  // no comparable synthetic case yet
-// HOT161(0x08C02DC0u, func_08C02DC0, Word);  // no comparable synthetic case yet
+HOT161(0x08C02DC0u, func_08C02DC0, Word);
 HOT161(0x08C02F3Cu, func_08C02F3C, Word);
 // HOT161(0x08C030B8u, func_08C030B8, Word);  // no comparable synthetic case yet
 HOT161(0x08C03608u, func_08C03608, Word);
 HOT161(0x08C04964u, func_08C04964, Word);
-// HOT161(0x08C04AE0u, func_08C04AE0, Word);  // no comparable synthetic case yet
+HOT161(0x08C04AE0u, func_08C04AE0, Word);
 // HOT161(0x08C04C5Cu, func_08C04C5C, Word);  // no comparable synthetic case yet
-// HOT161(0x08C04DD8u, func_08C04DD8, Word);  // no comparable synthetic case yet
+HOT161(0x08C04DD8u, func_08C04DD8, Word);
 // HOT161(0x08C05038u, func_08C05038, Word);  // no comparable synthetic case yet
-// HOT161(0x08C06AC0u, func_08C06AC0, Word);  // no comparable synthetic case yet
+HOT161(0x08C06AC0u, func_08C06AC0, Word);
 // HOT161(0x08C06C3Cu, func_08C06C3C, Word);  // no comparable synthetic case yet
 HOT161(0x08C06DB8u, func_08C06DB8, Word);
 // HOT161(0x08C08198u, func_08C08198, Word);  // no comparable synthetic case yet
 // HOT161(0x08C08314u, func_08C08314, Word);  // no comparable synthetic case yet
 // HOT161(0x08C08490u, func_08C08490, Word);  // no comparable synthetic case yet
 HOT161(0x08C09964u, func_08C09964, Word);
-// HOT161(0x08C09AE0u, func_08C09AE0, Word);  // no comparable synthetic case yet
+HOT161(0x08C09AE0u, func_08C09AE0, Word);
 // HOT161(0x08C09C5Cu, func_08C09C5C, Word);  // no comparable synthetic case yet
 // HOT161(0x08C0B6BCu, func_08C0B6BC, Word);  // no comparable synthetic case yet
 HOT161(0x08C0B838u, func_08C0B838, Word);
@@ -201,8 +201,8 @@ HOT161(0x08C1296Cu, func_08C1296C, Word);
 // HOT161(0x08C14B28u, func_08C14B28, Word);  // no comparable synthetic case yet
 HOT161(0x08C14CA4u, func_08C14CA4, Word);
 HOT161(0x08C14E20u, func_08C14E20, Word);
-// HOT161(0x08C1DB8Cu, func_08C1DB8C, Word);  // no comparable synthetic case yet
-// HOT161(0x08C1E9A0u, func_08C1E9A0, Word);  // no comparable synthetic case yet
+HOT161(0x08C1DB8Cu, func_08C1DB8C, Word);
+HOT161(0x08C1E9A0u, func_08C1E9A0, Word);
 // HOT161(0x08C29EE4u, func_08C29EE4, Word);  // no comparable synthetic case yet
 HOT161(0x08C2CA48u, func_08C2CA48, Word);
 // HOT161(0x08C36CE8u, func_08C36CE8, Word);  // no comparable synthetic case yet

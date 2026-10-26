@@ -1012,6 +1012,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 162** (2026-10-26): casos sintéticos tras la carrera (`GT_SYNTH_ROUTE=race`). Tras el concesionario los
+      nativos de script no tenían sus objetos de carrera y el original fallaba. De 431 filas comentadas, 49 comparan
+      ahora y quedan verificadas. Total: 9.694 funciones.
 - [x] **Lotes 160-161** (2026-10-26): más miembros de ocho familias ya escritas (lotes 67, 74, 75, 77, 99, 135 y
       `hot_leaves`) y `bound_node` (el nodo de llamada enlazada del lote 104, 67 miembros): 175 filas, 43 verificadas.
       Casi todos son nativos de scripts grandes que con entradas inventadas no dan casos comparables. Total: 9.645
