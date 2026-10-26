@@ -2472,7 +2472,8 @@ which a Word function then returns; `call_guest` does not load the target into v
 **Fix / workaround.** `gt::game::hot::call_indirect` (include/gt/game/hot_common.hpp) loads v0 = target before the call;
 used in func_088A3718, func_088FBB70, func_08A0F514 and func_08AD5ED8. Still open (edge paths, route-verified code):
 func_08896780, func_0889E01C, func_089170E0, func_0893D9AC, func_08972594, func_08972938, func_089D7DB8,
-func_08A0A398, MProductInformation.GetParentalLevel (0x08A27F20), func_08BD2D00. Later (batch 147) the 181 inline
+func_08A0A398, MProductInformation.GetParentalLevel (0x08A27F20), func_08BD2D00 (the last three, and two of the race
+route, were VRAM false positives: see "A synthetic pointer into VRAM" below). Later (batch 147) the 181 inline
 virtual calls `call_guest(rt, ctx, word(rt, word(rt, ...) + SLOT), ...)` in functions whose asm has only `jalr v0`
 became `call_indirect` (103 sites in functions with another jalr register left alone), which also fixed
 func_08965CE8 and func_08A52824. The set of live objects
@@ -2525,3 +2526,32 @@ car parameter). After the `dealer` route those objects do not exist yet, so the 
 49 are re-enabled. The rest still fault, or reach objects of other scenes.
 
 Found: 2026-10-26 · tools/decomp_gate.py, tools/synth_batch.py
+
+## A synthetic pointer into VRAM: the decompiled run saw the original's VRAM writes
+
+**Symptom.** In the first full synthetic run after the race route (PR #318), `func_08BED8C8`'s old string count came out
+one lower in the decompiled run (`0x42EE6C33` / `0x42EE6C32`) and `func_08AD1A3C` left `vfpu[12]` different. Both were
+repeatable. Two guesses failed: the function's own logic, and the saved-register slots of its frame.
+
+**Cause.** A probe printed the string pointer: `0x447A0000`, the bits of the float 1000.0 found in a live object, which
+is an uncached mirror of VRAM. The dirty-page tracker (`host/dirty_pages.hpp`) covers RAM only, so the original's
+`__exchange_and_add` on VRAM was never restored, and the decompiled run started from the decremented count.
+
+**Fix / workaround.** A synthetic case keeps VRAM's entry bytes (2 MiB), restores them after the original's run and at
+the end, and compares VRAM after the decompiled run (`host/diff_harness.cpp`). A sabotage that only writes `0x44012345`
+in the decompiled run is reported as `RAM at 0x04012345`. The synthetic runs take 126 s after `dealer` (was 111 s) and
+140 s after `race` (was 114 s). The fix also cleared three long-open mismatches of the dealer run (`func_08896780`,
+`func_08A27F20`, `func_08BD2D00`). Still open: 7 after `dealer` (0889E01C, 089170E0, 0893D9AC, 08972594, 08972938,
+089D7DB8, 08A0A398) and 3 after `race` (089170E0, 0893D9AC, 08A0A398).
+
+Found: 2026-10-26 · host/diff_harness.cpp
+
+## Race-scene inputs found two real bugs in route-verified functions
+
+- `func_08AF8EB4` left v0 unset. The asm returns its `slt`: `index < limit` when no part runs, and 0 after the loop.
+- `func_089BE32C` read its byte property through `read_property` with a 0x30-byte frame, where the original uses 0x40.
+  The visitor stores the descriptor's address, so its memory differed by 0x10 (`64` / `74`). `read_property` now takes
+  the frame size. The 72 other functions on it, direct callers and family rows, were checked against their prologues
+  and all use 0x30.
+
+Found: 2026-10-26 · src/game/unsorted/hot_batch_111.cpp, src/game/unsorted/hot_leaves.cpp
