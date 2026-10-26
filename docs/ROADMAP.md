@@ -1012,6 +1012,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 149** (2026-10-26): seis familias pequeñas más (`held_call`, `fields_call`, `virtual_float`,
+      `forward_field`, `virtual_pass`, `byte_at`): 45 filas, 31 verificadas. Total: 8.913 funciones.
 - [x] **Lote 148** (2026-10-26): cuatro familias más (`element_at`, `fill_handles`, `destroy_range`, `copy_range`):
       42 filas, 35 verificadas. `family_rows` acepta un argumento que ocupa varias posiciones que siempre coinciden
       (el paso de origen y destino de una copia). Total: 8.882 funciones.
