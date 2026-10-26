@@ -1209,6 +1209,22 @@ void func_08AA93A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { fo
 void func_08AA9438(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C24C48u); }
 void func_08AA94C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C3130Cu); }
 void func_08AA9558(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { forward_checked(rt, ctx, 0x08C312FCu); }
+// Batch 160: more members of the 0x08851864 family (tools.family_rows), verified by synthetic cases.
+void func_08851968(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x134u, false); }
+void func_08851A6C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x136u, false); }
+void func_08852EBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x108u, false); }
+void func_08852FC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x10Au, false); }
+void func_088530C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x10Cu, false); }
+void func_088531C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x10Eu, false); }
+void func_088532CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x110u, false); }
+void func_088533D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x112u, false); }
+void func_088534D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x114u, false); }
+void func_088535D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x116u, false); }
+void func_088536DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x118u, false); }
+void func_088537E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x11Au, false); }
+void func_088538E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x11Cu, false); }
+void func_088539E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x11Eu, false); }
+void func_08853AEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { half_field_native(rt, ctx, 0x120u, false); }
 } // namespace hot_batch_135
 } // namespace gt::game
 
@@ -1281,3 +1297,18 @@ HOT135(0x08AA9318u, func_08AA9318, Void);
 // HOT135(0x08AA9438u, func_08AA9438, Void);  // no comparable synthetic case yet
 HOT135(0x08AA94C8u, func_08AA94C8, Void);
 // HOT135(0x08AA9558u, func_08AA9558, Void);  // no comparable synthetic case yet
+// HOT135(0x08851968u, func_08851968, Void);  // no comparable synthetic case yet
+// HOT135(0x08851A6Cu, func_08851A6C, Void);  // no comparable synthetic case yet
+// HOT135(0x08852EBCu, func_08852EBC, Void);  // no comparable synthetic case yet
+// HOT135(0x08852FC0u, func_08852FC0, Void);  // no comparable synthetic case yet
+// HOT135(0x088530C4u, func_088530C4, Void);  // no comparable synthetic case yet
+// HOT135(0x088531C8u, func_088531C8, Void);  // no comparable synthetic case yet
+// HOT135(0x088532CCu, func_088532CC, Void);  // no comparable synthetic case yet
+// HOT135(0x088533D0u, func_088533D0, Void);  // no comparable synthetic case yet
+// HOT135(0x088534D4u, func_088534D4, Void);  // no comparable synthetic case yet
+// HOT135(0x088535D8u, func_088535D8, Void);  // no comparable synthetic case yet
+// HOT135(0x088536DCu, func_088536DC, Void);  // no comparable synthetic case yet
+// HOT135(0x088537E0u, func_088537E0, Void);  // no comparable synthetic case yet
+// HOT135(0x088538E4u, func_088538E4, Void);  // no comparable synthetic case yet
+// HOT135(0x088539E8u, func_088539E8, Void);  // no comparable synthetic case yet
+// HOT135(0x08853AECu, func_08853AEC, Void);  // no comparable synthetic case yet

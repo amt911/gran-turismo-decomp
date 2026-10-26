@@ -40544,3 +40544,51 @@ GT_DECOMP(0x08ABDB5Cu, gt::game::func_08ABDB5C, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABDBA0u, gt::game::func_08ABDBA0, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABDBE4u, gt::game::func_08ABDBE4, gt::ReturnKind::Word);
 GT_DECOMP(0x08ABDE0Cu, gt::game::func_08ABDE0C, gt::ReturnKind::Word);
+
+// Batch 160: more members of the 0x08A64624 family (tools.family_rows), verified by synthetic cases.
+namespace gt::game {
+void func_08A648D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A64898u); }
+void func_08A64CC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A64CA4u); }
+void func_08A65CAC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A65C84u); }
+void func_08A65D74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A65D4Cu); }
+void func_08A65E3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A65E14u); }
+void func_08A66300(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A662D8u); }
+void func_08A66478(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A66450u); }
+void func_08A66C60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 20u, 0x08A66C34u); }
+void func_08A67740(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A67718u); }
+void func_08A67ABC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A67A94u); }
+void func_08A6857C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_object(rt, ctx, 12u, 0x08A68554u); }
+} // namespace gt::game
+GT_DECOMP(0x08A648D0u, gt::game::func_08A648D0, gt::ReturnKind::Word);
+GT_DECOMP(0x08A64CC8u, gt::game::func_08A64CC8, gt::ReturnKind::Word);
+GT_DECOMP(0x08A65CACu, gt::game::func_08A65CAC, gt::ReturnKind::Word);
+GT_DECOMP(0x08A65D74u, gt::game::func_08A65D74, gt::ReturnKind::Word);
+GT_DECOMP(0x08A65E3Cu, gt::game::func_08A65E3C, gt::ReturnKind::Word);
+GT_DECOMP(0x08A66300u, gt::game::func_08A66300, gt::ReturnKind::Word);
+GT_DECOMP(0x08A66478u, gt::game::func_08A66478, gt::ReturnKind::Word);
+// GT_DECOMP(0x08A66C60u, gt::game::func_08A66C60, gt::ReturnKind::Word);  // no comparable synthetic case yet
+GT_DECOMP(0x08A67740u, gt::game::func_08A67740, gt::ReturnKind::Word);
+GT_DECOMP(0x08A67ABCu, gt::game::func_08A67ABC, gt::ReturnKind::Word);
+GT_DECOMP(0x08A6857Cu, gt::game::func_08A6857C, gt::ReturnKind::Word);
+
+// Batch 160: more members of the 0x089D80D8 family (tools.family_rows), verified by synthetic cases.
+namespace gt::game {
+void func_0897FCEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x0897E6A4u); }
+void func_089994E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089962B8u); }
+void func_089D3DFC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089CD344u); }
+void func_089D9850(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089D86E8u); }
+void func_089E36F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089E04F8u); }
+void func_089E37E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089E05C8u); }
+void func_089E38D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089E04F8u); }
+void func_089E39CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089E05C8u); }
+void func_089FD498(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089FCA70u); }
+} // namespace gt::game
+GT_DECOMP(0x0897FCECu, gt::game::func_0897FCEC, gt::ReturnKind::Void);
+GT_DECOMP(0x089994E0u, gt::game::func_089994E0, gt::ReturnKind::Void);
+GT_DECOMP(0x089D3DFCu, gt::game::func_089D3DFC, gt::ReturnKind::Void);
+// GT_DECOMP(0x089D9850u, gt::game::func_089D9850, gt::ReturnKind::Void);  // no comparable synthetic case yet
+GT_DECOMP(0x089E36F0u, gt::game::func_089E36F0, gt::ReturnKind::Void);
+GT_DECOMP(0x089E37E4u, gt::game::func_089E37E4, gt::ReturnKind::Void);
+GT_DECOMP(0x089E38D8u, gt::game::func_089E38D8, gt::ReturnKind::Void);
+GT_DECOMP(0x089E39CCu, gt::game::func_089E39CC, gt::ReturnKind::Void);
+GT_DECOMP(0x089FD498u, gt::game::func_089FD498, gt::ReturnKind::Void);

@@ -397,6 +397,37 @@ void func_08AC416C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { lo
 void func_08ACBBF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08ACBBA8u, 0x00000000u); }
 void func_08ACC624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08ACC5DCu, 0x00000000u); }
 void func_08B166DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { load_then_call(rt, ctx, 0x08B23E50u, 0x000000A4u); }
+// Batch 160: more members of the 0x0881ECEC family (tools.family_rows), verified by synthetic cases.
+void func_0882F370(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088297A8u, 0x08C9A2F8u, 0x088294D0u, 0x0885FCA4u, 0x08A97A6Cu); }
+void func_0882F52C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088297A8u, 0x08C9A2F8u, 0x088294D0u, 0x0885E9B8u, 0x08A97A6Cu); }
+void func_0882F674(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088297A8u, 0x08C9A2F8u, 0x088294D0u, 0x0885EA5Cu, 0x08A97A6Cu); }
+void func_0882FCF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088297A8u, 0x08C9A2F8u, 0x088294D0u, 0x0885EBDCu, 0x08A97A6Cu); }
+void func_0882FD88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088297A8u, 0x08C9A2F8u, 0x088294D0u, 0x0885EBFCu, 0x08A97A6Cu); }
+void func_08833AFC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088297A8u, 0x08C9A2F8u, 0x088294D0u, 0x08862A90u, 0x08A97A6Cu); }
+void func_08839204(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x08931784u, 0x08A85B1Cu); }
+void func_08839298(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x0893205Cu, 0x08A85B1Cu); }
+void func_08839440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x08931790u, 0x08A85B1Cu); }
+void func_088394D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x0893170Cu, 0x08A85B1Cu); }
+void func_08839568(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x089318B8u, 0x08A85B1Cu); }
+void func_088395FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x089318C4u, 0x08A85B1Cu); }
+void func_088398D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08838FBCu, 0x08C9BBF8u, 0x08838DC4u, 0x089316DCu, 0x08A85B1Cu); }
+void func_08841C70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088418B4u, 0x08C9C584u, 0x0884177Cu, 0x0888EB90u, 0x08A5FA8Cu); }
+void func_088421FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088418B4u, 0x08C9C584u, 0x0884177Cu, 0x0888EBBCu, 0x08848DB8u); }
+void func_08842290(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088418B4u, 0x08C9C584u, 0x0884177Cu, 0x0888EBC8u, 0x0884642Cu); }
+void func_08842324(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088418B4u, 0x08C9C584u, 0x0884177Cu, 0x0888EBD4u, 0x08845694u); }
+void func_08844C88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088447E8u, 0x08C9C948u, 0x08844634u, 0x08893D14u, 0x08A85B1Cu); }
+void func_0884DD14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x0884D660u, 0x08C9D198u, 0x0884D3D8u, 0x0889779Cu, 0x08A85B1Cu); }
+void func_088556D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088547C4u, 0x08C9E188u, 0x08854678u, 0x088A6028u, 0x08A85B1Cu); }
+void func_088564B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088547C4u, 0x08C9E188u, 0x08854678u, 0x088A6144u, 0x08A85B1Cu); }
+void func_08856544(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088547C4u, 0x08C9E188u, 0x08854678u, 0x088A5984u, 0x08A85B1Cu); }
+void func_088574F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088547C4u, 0x08C9E188u, 0x08854678u, 0x088A5804u, 0x08A85B1Cu); }
+void func_08857704(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x088547C4u, 0x08C9E188u, 0x08854678u, 0x088A7618u, 0x08A85B1Cu); }
+void func_08A1B7B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B390u, 0x08A85B1Cu); }
+void func_08A1B8DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B3A0u, 0x08A85B1Cu); }
+void func_08A1B970(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B3A8u, 0x08A85B1Cu); }
+void func_08A1BA04(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B3B0u, 0x08A85B1Cu); }
+void func_08A1BC30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1B570u, 0x08CAA104u, 0x08A1B3CCu, 0x08A1B3C4u, 0x08A85B1Cu); }
+void func_08A1C408(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { holder_core_getter(rt, ctx, 0x08A1C370u, 0x08CAA224u, 0x08A1C0F4u, 0x08A1C11Cu, 0x08A85B1Cu); }
 } // namespace hot_batch_75
 } // namespace gt::game
 
@@ -546,3 +577,33 @@ HOT75(0x08AC416Cu, func_08AC416C, Word);
 // HOT75(0x08ACBBF4u, func_08ACBBF4, Word);  // no comparable synthetic case yet
 // HOT75(0x08ACC624u, func_08ACC624, Word);  // no comparable synthetic case yet
 HOT75(0x08B166DCu, func_08B166DC, Word);
+// HOT75(0x0882F370u, func_0882F370, Word);  // no comparable synthetic case yet
+// HOT75(0x0882F52Cu, func_0882F52C, Word);  // no comparable synthetic case yet
+// HOT75(0x0882F674u, func_0882F674, Word);  // no comparable synthetic case yet
+// HOT75(0x0882FCF4u, func_0882FCF4, Word);  // no comparable synthetic case yet
+// HOT75(0x0882FD88u, func_0882FD88, Word);  // no comparable synthetic case yet
+// HOT75(0x08833AFCu, func_08833AFC, Word);  // no comparable synthetic case yet
+// HOT75(0x08839204u, func_08839204, Word);  // no comparable synthetic case yet
+// HOT75(0x08839298u, func_08839298, Word);  // no comparable synthetic case yet
+// HOT75(0x08839440u, func_08839440, Word);  // no comparable synthetic case yet
+// HOT75(0x088394D4u, func_088394D4, Word);  // no comparable synthetic case yet
+// HOT75(0x08839568u, func_08839568, Word);  // no comparable synthetic case yet
+// HOT75(0x088395FCu, func_088395FC, Word);  // no comparable synthetic case yet
+// HOT75(0x088398D4u, func_088398D4, Word);  // no comparable synthetic case yet
+// HOT75(0x08841C70u, func_08841C70, Word);  // no comparable synthetic case yet
+// HOT75(0x088421FCu, func_088421FC, Word);  // no comparable synthetic case yet
+// HOT75(0x08842290u, func_08842290, Word);  // no comparable synthetic case yet
+// HOT75(0x08842324u, func_08842324, Word);  // no comparable synthetic case yet
+// HOT75(0x08844C88u, func_08844C88, Word);  // no comparable synthetic case yet
+// HOT75(0x0884DD14u, func_0884DD14, Word);  // no comparable synthetic case yet
+// HOT75(0x088556D8u, func_088556D8, Word);  // no comparable synthetic case yet
+// HOT75(0x088564B0u, func_088564B0, Word);  // no comparable synthetic case yet
+// HOT75(0x08856544u, func_08856544, Word);  // no comparable synthetic case yet
+// HOT75(0x088574F0u, func_088574F0, Word);  // no comparable synthetic case yet
+// HOT75(0x08857704u, func_08857704, Word);  // no comparable synthetic case yet
+// HOT75(0x08A1B7B4u, func_08A1B7B4, Word);  // no comparable synthetic case yet
+// HOT75(0x08A1B8DCu, func_08A1B8DC, Word);  // no comparable synthetic case yet
+// HOT75(0x08A1B970u, func_08A1B970, Word);  // no comparable synthetic case yet
+// HOT75(0x08A1BA04u, func_08A1BA04, Word);  // no comparable synthetic case yet
+// HOT75(0x08A1BC30u, func_08A1BC30, Word);  // no comparable synthetic case yet
+// HOT75(0x08A1C408u, func_08A1C408, Word);  // no comparable synthetic case yet

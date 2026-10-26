@@ -241,6 +241,22 @@ void func_08BBD4A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { st
 void func_08C4CC3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_object_linked(rt, ctx, 0x08D77368u, 0x08D7738Cu, 0x08C93168u); }
 void func_08C4CCB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { static_object_linked(rt, ctx, 0x08D77360u, 0x08D77398u, 0x08C93168u); }
 
+// Batch 160: more members of the 0x08BEB334 family (tools.family_rows), verified by synthetic cases.
+void func_08B8CB18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08BEB5E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08BE9068u); }
+void func_08BF2A78(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08BF3D60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08BF3BF8u); }
+void func_08BF41D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08BF6664(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08BFDA8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08BFF398(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08C00364(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08C0567C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08BE9068u); }
+void func_08C05BCC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08C07970(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08C0A460(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08C1E858(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08B8C590u); }
+void func_08C37144(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { getter_then_setter_value(rt, ctx, 40u, 0x08BF3BF8u); }
 } // namespace hot_batch_67
 } // namespace gt::game
 
@@ -295,3 +311,18 @@ HOT67(0x08BBD42Cu, func_08BBD42C, Word);
 HOT67(0x08BBD4A4u, func_08BBD4A4, Word);
 HOT67(0x08C4CC3Cu, func_08C4CC3C, Word);
 HOT67(0x08C4CCB4u, func_08C4CCB4, Word);
+// HOT67(0x08B8CB18u, func_08B8CB18, Word);  // no comparable synthetic case yet
+// HOT67(0x08BEB5E0u, func_08BEB5E0, Word);  // no comparable synthetic case yet
+// HOT67(0x08BF2A78u, func_08BF2A78, Word);  // no comparable synthetic case yet
+// HOT67(0x08BF3D60u, func_08BF3D60, Word);  // no comparable synthetic case yet
+// HOT67(0x08BF41D0u, func_08BF41D0, Word);  // no comparable synthetic case yet
+// HOT67(0x08BF6664u, func_08BF6664, Word);  // no comparable synthetic case yet
+// HOT67(0x08BFDA8Cu, func_08BFDA8C, Word);  // no comparable synthetic case yet
+// HOT67(0x08BFF398u, func_08BFF398, Word);  // no comparable synthetic case yet
+// HOT67(0x08C00364u, func_08C00364, Word);  // no comparable synthetic case yet
+// HOT67(0x08C0567Cu, func_08C0567C, Word);  // no comparable synthetic case yet
+// HOT67(0x08C05BCCu, func_08C05BCC, Word);  // no comparable synthetic case yet
+// HOT67(0x08C07970u, func_08C07970, Word);  // no comparable synthetic case yet
+// HOT67(0x08C0A460u, func_08C0A460, Word);  // no comparable synthetic case yet
+// HOT67(0x08C1E858u, func_08C1E858, Word);  // no comparable synthetic case yet
+// HOT67(0x08C37144u, func_08C37144, Word);  // no comparable synthetic case yet
