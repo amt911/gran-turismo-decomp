@@ -1012,6 +1012,10 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 157** (2026-10-26): dos familias grandes, `guarded_zero` (60 miembros más de una plantilla del lote 78) y
+      `register_object` (un objeto con su vtable que se entrega a un registro, 63): 123 filas, las 123 verificadas.
+      `family_rows` escribe bien los valores negativos (antes salía `0x-0006C94u`) y los enteros con signo (`-1`, no
+      `4294967295`). Total: 9.442 funciones.
 - [x] **Lotes 155-156** (2026-10-26): `field_into_frame`, `slot_present`, `float_name_assign`, `named_member_refresh`
       (un `std::string` COW en la pila entregado a un virtual y liberado) y dos familias de propiedades de script
       (`managed_byte_property`, `flagged_byte_property`: leen o escriben un byte del objeto según el modo): 103 filas,

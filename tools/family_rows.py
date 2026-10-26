@@ -35,7 +35,7 @@ def _parse_literal(text: str) -> int | None:
 
 
 def _format_like(model: str, value: int) -> str:
-    model = model.strip()
+    model, value = model.strip(), value & _M  # a sign-extended immediate is the word the guest sees
     cast = _CAST.fullmatch(model)
     if cast:  # a cast around a number keeps its cast
         return f"{cast.group('head')}{_format_like(cast.group('body'), value)})"
@@ -44,6 +44,8 @@ def _format_like(model: str, value: int) -> str:
     if body.lower().startswith("0x"):
         digits = len(body) - 2
         return f"0x{value:0{digits}X}{suffix}" if digits == 8 else f"0x{value:X}{suffix}"
+    if not suffix and value & 0x80000000:  # a plain decimal is an int argument: -1, not 4294967295 (narrowing)
+        return str(value - (1 << 32))
     return f"{value}{suffix}"
 
 
