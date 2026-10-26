@@ -125,17 +125,17 @@ HOT143(0x08A64FC4u, func_08A64FC4, Word);
 HOT143(0x08A6651Cu, func_08A6651C, Word);
 HOT143(0x08A6696Cu, func_08A6696C, Word);
 // HOT143(0x08A66AD0u, func_08A66AD0, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
-// HOT143(0x08A66C34u, func_08A66C34, Word);  // no comparable synthetic case yet
+HOT143(0x08A66C34u, func_08A66C34, Word);
 // HOT143(0x08A66F3Cu, func_08A66F3C, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
 // HOT143(0x08A67244u, func_08A67244, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
 // HOT143(0x08A67454u, func_08A67454, Word);  // compared equal, but the synthetic sabotage went undetected: not verified
 HOT143(0x08A675B8u, func_08A675B8, Word);
 HOT143(0x08A67C54u, func_08A67C54, Word);
-// HOT143(0x08C55470u, func_08C55470, Word);  // no comparable synthetic case yet
+HOT143(0x08C55470u, func_08C55470, Word);
 // HOT143(0x08C55D38u, func_08C55D38, Word);  // no comparable synthetic case yet
-// HOT143(0x08C55D74u, func_08C55D74, Word);  // no comparable synthetic case yet
-// HOT143(0x08C709A4u, func_08C709A4, Word);  // no comparable synthetic case yet
-// HOT143(0x08C709DCu, func_08C709DC, Word);  // no comparable synthetic case yet
+HOT143(0x08C55D74u, func_08C55D74, Word);
+HOT143(0x08C709A4u, func_08C709A4, Word);
+HOT143(0x08C709DCu, func_08C709DC, Word);
 // HOT143(0x08C78724u, func_08C78724, Word);  // no comparable synthetic case yet
 // HOT143(0x08C79814u, func_08C79814, Word);  // no comparable synthetic case yet
 // HOT143(0x08C798E8u, func_08C798E8, Word);  // no comparable synthetic case yet

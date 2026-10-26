@@ -70,17 +70,17 @@ GT_DECOMP_CALL_RETURN_SELF(0x08A76BF8u, 0x08A76AA0u);
 GT_DECOMP_CALL_RETURN_SELF(0x08A76C30u, 0x08A76AA0u);
 GT_DECOMP_CALL_RETURN_SELF(0x08A76C60u, 0x08A76AA0u);
 GT_DECOMP_CALL_RETURN_SELF(0x08A76D70u, 0x08A76AA0u);
-// GT_DECOMP_CALL_RETURN_SELF(0x08AAB710u, 0x08B89054u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08AAB710u, 0x08B89054u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08BEFE08u, 0x08A03ED8u);  // no comparable synthetic case yet
-// GT_DECOMP_CALL_RETURN_SELF(0x08BF7C08u, 0x08A0FD80u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08BF7C08u, 0x08A0FD80u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C0C3C4u, 0x089FA424u);  // no comparable synthetic case yet
 GT_DECOMP_CALL_RETURN_SELF(0x08C3141Cu, 0x08AA2CD0u);
 GT_DECOMP_CALL_RETURN_SELF(0x08C3144Cu, 0x08AA2C50u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C3150Cu, 0x08AA1FE8u);  // compared equal, but the synthetic sabotage went undetected: not verified
 // GT_DECOMP_CALL_RETURN_SELF(0x08C317CCu, 0x08AA8F88u);  // no comparable synthetic case yet
-// GT_DECOMP_CALL_RETURN_SELF(0x08C317F4u, 0x08AA8FD0u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08C317F4u, 0x08AA8FD0u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31850u, 0x08AA9028u);  // no comparable synthetic case yet
-// GT_DECOMP_CALL_RETURN_SELF(0x08C31878u, 0x08AA9070u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08C31878u, 0x08AA9070u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C318D0u, 0x08AA90B8u);  // no comparable synthetic case yet
 // GT_DECOMP_CALL_RETURN_SELF(0x08C318F8u, 0x08AA9100u);  // no comparable synthetic case yet
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31954u, 0x08AA9158u);  // no comparable synthetic case yet
@@ -89,9 +89,9 @@ GT_DECOMP_CALL_RETURN_SELF(0x08C3197Cu, 0x08AA91A0u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31A58u, 0x08AA9288u);  // no comparable synthetic case yet
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31A80u, 0x08AA92D0u);  // no comparable synthetic case yet
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31AD8u, 0x08AA9318u);  // no comparable synthetic case yet
-// GT_DECOMP_CALL_RETURN_SELF(0x08C31B5Cu, 0x08AA93A8u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08C31B5Cu, 0x08AA93A8u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31BE0u, 0x08AA9438u);  // no comparable synthetic case yet
-// GT_DECOMP_CALL_RETURN_SELF(0x08C31C64u, 0x08AA94C8u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08C31C64u, 0x08AA94C8u);
 // GT_DECOMP_CALL_RETURN_SELF(0x08C31CE8u, 0x08AA9558u);  // no comparable synthetic case yet
 // GT_DECOMP_CALL_RETURN_SELF(0x08C32AACu, 0x08AA99DCu);  // no comparable synthetic case yet
 // GT_DECOMP_CALL_RETURN_SELF(0x08C32AD4u, 0x08AA9B68u);  // no comparable synthetic case yet

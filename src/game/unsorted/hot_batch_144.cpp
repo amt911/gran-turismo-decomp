@@ -183,7 +183,7 @@ HOT144(0x08BA11F4u, func_08BA11F4, Word);
 HOT144(0x08BA1354u, func_08BA1354, Word);
 HOT144(0x08BA2AF4u, func_08BA2AF4, Word);
 HOT144(0x08BB9D24u, func_08BB9D24, Word);
-// HOT144(0x08BB9F4Cu, func_08BB9F4C, Word);  // no comparable synthetic case yet
+HOT144(0x08BB9F4Cu, func_08BB9F4C, Word);
 HOT144(0x08BC21B4u, func_08BC21B4, Word);
 HOT144(0x08BCA018u, func_08BCA018, Word);
 HOT144(0x08BCA178u, func_08BCA178, Word);
@@ -224,19 +224,19 @@ HOT144(0x08C0F4E4u, func_08C0F4E4, Word);
 HOT144(0x08C11B58u, func_08C11B58, Word);
 HOT144(0x08C11C30u, func_08C11C30, Word);
 HOT144(0x08C13CB0u, func_08C13CB0, Word);
-// HOT144(0x0881C318u, func_0881C318, Word);  // no comparable synthetic case yet
+HOT144(0x0881C318u, func_0881C318, Word);
 HOT144(0x0883909Cu, func_0883909C, Word);
 HOT144(0x08841A00u, func_08841A00, Word);
 HOT144(0x08843B00u, func_08843B00, Word);
-// HOT144(0x08844BB8u, func_08844BB8, Word);  // no comparable synthetic case yet
-// HOT144(0x08845AD8u, func_08845AD8, Word);  // no comparable synthetic case yet
-// HOT144(0x08847A68u, func_08847A68, Word);  // no comparable synthetic case yet
+HOT144(0x08844BB8u, func_08844BB8, Word);
+HOT144(0x08845AD8u, func_08845AD8, Word);
+HOT144(0x08847A68u, func_08847A68, Word);
 HOT144(0x0884DC44u, func_0884DC44, Word);
 HOT144(0x08854DE4u, func_08854DE4, Word);
 HOT144(0x088589F4u, func_088589F4, Word);
 HOT144(0x08A1B650u, func_08A1B650, Word);
-// HOT144(0x08A1C4FCu, func_08A1C4FC, Word);  // no comparable synthetic case yet
-// HOT144(0x08A1D658u, func_08A1D658, Word);  // no comparable synthetic case yet
-// HOT144(0x08A2D540u, func_08A2D540, Word);  // no comparable synthetic case yet
-// HOT144(0x08A319B8u, func_08A319B8, Word);  // no comparable synthetic case yet
-// HOT144(0x08A378C8u, func_08A378C8, Word);  // no comparable synthetic case yet
+HOT144(0x08A1C4FCu, func_08A1C4FC, Word);
+HOT144(0x08A1D658u, func_08A1D658, Word);
+HOT144(0x08A2D540u, func_08A2D540, Word);
+HOT144(0x08A319B8u, func_08A319B8, Word);
+HOT144(0x08A378C8u, func_08A378C8, Word);

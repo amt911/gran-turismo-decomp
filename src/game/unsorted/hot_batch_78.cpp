@@ -585,23 +585,23 @@ HOT78(0x08C148D0u, func_08C148D0, Word);
 HOT78(0x08BEBD58u, func_08BEBD58, Word);
 // Batch 141 (2026-10-25): the rest of this family, which no route reaches — verified by synthetic cases.
 HOT78(0x08BEBA90u, func_08BEBA90, Word);
-// HOT78(0x08BEFD54u, func_08BEFD54, Word);  // no comparable synthetic case yet
-// HOT78(0x08BF2F18u, func_08BF2F18, Word);  // no comparable synthetic case yet
+HOT78(0x08BEFD54u, func_08BEFD54, Word);
+HOT78(0x08BF2F18u, func_08BF2F18, Word);
 HOT78(0x08BF34C0u, func_08BF34C0, Word);
 HOT78(0x08BF3B14u, func_08BF3B14, Word);
 HOT78(0x08BF5B70u, func_08BF5B70, Word);
 HOT78(0x08BF7B00u, func_08BF7B00, Word);
 HOT78(0x08BF86E8u, func_08BF86E8, Word);
-// HOT78(0x08BFC460u, func_08BFC460, Word);  // no comparable synthetic case yet
+HOT78(0x08BFC460u, func_08BFC460, Word);
 HOT78(0x08BFD460u, func_08BFD460, Word);
-// HOT78(0x08BFE724u, func_08BFE724, Word);  // no comparable synthetic case yet
-// HOT78(0x08C03A90u, func_08C03A90, Word);  // no comparable synthetic case yet
+HOT78(0x08BFE724u, func_08BFE724, Word);
+HOT78(0x08C03A90u, func_08C03A90, Word);
 HOT78(0x08C04648u, func_08C04648, Word);
 HOT78(0x08C0606Cu, func_08C0606C, Word);
 // HOT78(0x08C064C8u, func_08C064C8, Word);  // no comparable synthetic case yet
 HOT78(0x08C08BD4u, func_08C08BD4, Word);
 HOT78(0x08C08ED4u, func_08C08ED4, Word);
-// HOT78(0x08C097CCu, func_08C097CC, Word);  // no comparable synthetic case yet
+HOT78(0x08C097CCu, func_08C097CC, Word);
 HOT78(0x08C0EF94u, func_08C0EF94, Word);
 HOT78(0x08C0F638u, func_08C0F638, Word);
 HOT78(0x08C132E8u, func_08C132E8, Word);
@@ -609,7 +609,7 @@ HOT78(0x08C1572Cu, func_08C1572C, Word);
 HOT78(0x08C15A84u, func_08C15A84, Word);
 HOT78(0x08C29B8Cu, func_08C29B8C, Word);
 HOT78(0x08C2C928u, func_08C2C928, Word);
-// HOT78(0x08C36BD4u, func_08C36BD4, Word);  // no comparable synthetic case yet
+HOT78(0x08C36BD4u, func_08C36BD4, Word);
 HOT78(0x08BEC040u, func_08BEC040, Word);
 HOT78(0x08C120E8u, func_08C120E8, Word);
 HOT78(0x08B8850Cu, func_08B8850C, Word);

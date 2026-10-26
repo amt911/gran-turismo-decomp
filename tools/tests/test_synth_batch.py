@@ -33,3 +33,23 @@ def test_the_undetected_are_read_from_a_sabotage_summary():
     out = "sabotage round 1: 3 sabotaged, 1 pinned\nsabotage: 1/3 detected; undetected: ['0x08A65128', '0x08A66AD0']\n"
     assert sb.undetected(out) == {"0x08A65128", "0x08A66AD0"}
     assert sb.undetected("sabotage: 2/2 detected; undetected: []\n") == set()
+
+
+def test_the_mismatched_are_read_from_a_report_and_never_count_as_verified():
+    log = ("[decomp] gt::x::f @0x08C59AE4: compared 9, equal 6, mismatched 3, not comparable 55 (calls 64\n"
+           "[decomp] gt::x::g @0x08C59B40: compared 9, equal 9, mismatched 0, not comparable 55 (calls 64\n")
+    assert sb.mismatched(log) == {"0x08C59AE4"}
+
+
+def test_a_run_that_reported_nothing_is_not_a_run_where_everything_compared():
+    """A build that failed (duplicate registrations) left an empty report: it was read as "all compared", every
+    sabotage then failed to build and the whole batch was commented as undetected (2026-10-26)."""
+    assert not sb.report_ok("")
+    assert not sb.report_ok("Loaded extracted/EBOOT.elf\ngt_native error: decompiled functions: 0x08A12E38 is registered twice\n")
+    assert sb.report_ok("Runtime stopped: Synthetic cases done\n[decomp] gt::x::f @0x08800000: compared 1, equal 1, "
+                        "mismatched 0, not comparable 0 (calls 1\n")
+
+
+def test_a_sabotage_run_that_did_not_build_detects_nothing_and_says_so():
+    assert sb.sabotage_ran("sabotage round 1: 2 sabotaged, 2 pinned\nsabotage: 2/2 detected; undetected: []\n")
+    assert not sb.sabotage_ran("sabotage: the sabotaged build did not run\n")
