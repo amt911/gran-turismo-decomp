@@ -25,13 +25,20 @@ _ROW = re.compile(r"^(?P<macro>[A-Z_][A-Z0-9_]*)\((?P<entry>0x[0-9A-Fa-f]{8})u(?
 _M = 0xFFFFFFFF
 
 
+_CAST = re.compile(r"(?P<head>static_cast<std::u?int32_t>\()(?P<body>[^()]*)\)")
+
+
 def _parse_literal(text: str) -> int | None:
-    match = re.fullmatch(r"(0x[0-9A-Fa-f]+|\d+)u?", text.strip())
+    cast = _CAST.fullmatch(text.strip())
+    match = re.fullmatch(r"(0x[0-9A-Fa-f]+|\d+)u?", cast.group("body") if cast else text.strip())
     return int(match.group(1), 0) & _M if match else None
 
 
 def _format_like(model: str, value: int) -> str:
     model = model.strip()
+    cast = _CAST.fullmatch(model)
+    if cast:  # a cast around a number keeps its cast
+        return f"{cast.group('head')}{_format_like(cast.group('body'), value)})"
     suffix = "u" if model.endswith("u") else ""
     body = model[:-1] if suffix else model
     if body.lower().startswith("0x"):

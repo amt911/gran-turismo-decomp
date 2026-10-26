@@ -118,3 +118,10 @@ def test_positions_that_always_agree_are_one_argument():
     assert problems == [] and rows == ["M(0x08800100u, 8u);", "M(0x08800200u, 12u);"]
     rows, problems = fr.macro_rows("M(0x08800000u, 4u);", [4, 4, 7], {0x08800100: [8, 0xC, 7]})
     assert rows == [] and "ambiguous" in problems[0]
+
+
+def test_a_cast_literal_is_a_value_and_keeps_its_cast():
+    # GT_DECOMP_DEREF_FLOAT(entry, offset, static_cast<std::uint32_t>(k)): the cast wraps a plain number.
+    rows, problems = fr.macro_rows("GT_DECOMP_DEREF_FLOAT(0x088A42A8u, 484, static_cast<std::uint32_t>(1048));",
+                                   [484, 1048], {0x0885F07C: [12, 16]})
+    assert rows == ["GT_DECOMP_DEREF_FLOAT(0x0885F07Cu, 12, static_cast<std::uint32_t>(16));"] and problems == []
