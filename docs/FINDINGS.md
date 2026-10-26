@@ -2492,3 +2492,20 @@ per-function report) or a sabotage printed no summary, and it never counts a fun
 verified. Re-enable only addresses that appear once in `src/`.
 
 Found: 2026-10-26 · tools/synth_batch.py
+
+## Six routes on the cores another session leaves free: full gates lost seeks
+
+**Symptom.** On 2026-10-26 four full gates in a row each lost one to five real-time routes to `exit 97`. Each time a
+pad `WAIT seek=…` timed out after 12000 vblanks: `save_drift`, `save_trialmtn`, `options`, `challenge2`. Run on their own
+right after, the same routes finished with 0 mismatches.
+
+**Cause.** The engine-sim session's mutation and profiling jobs are pinned to CPUs 0-5, so 18 cores were left.
+`MAX_PARALLEL_ROUTES` was a fixed 6, and six routes at ~3 cores each filled all 18. The check
+"routes × 3 ≤ 0.8 × cores" counted `os.cpu_count()` (24), not the cores the gate could actually use.
+
+**Fix / workaround.** `tools.decomp_gate` now counts the process's CPU affinity: `MACHINE_CORES` is
+`len(os.sched_getaffinity(0))`, and `max_parallel_routes(cores)` keeps a fifth of those cores free, up to 6 routes. While
+another session holds CPUs 0-5, run gates as `taskset -c 6-23 .venv/bin/python -m tools.decomp_gate …`. That gives 4
+routes and about 22 min per full gate.
+
+Found: 2026-10-26 · tools/decomp_gate.py

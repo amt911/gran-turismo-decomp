@@ -1012,6 +1012,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 151** (2026-10-26): más miembros de familias ya escritas en `src/core` (getters de campo, de float y de
+      byte, `deref`, `field_plus`, `deref_float`, `call_return_self`, `clear_byte`) y de los casts de `as_class`:
+      208 filas, 112 verificadas; los thunks, forwarders y destructores no tienen caso comparable (sus destinos fallan
+      con entradas aleatorias en el original) y quedan comentados. `family_rows` lee argumentos
+      `static_cast<std::uint32_t>(N)`. Total: 9.055 funciones.
 - [x] **Lote 150** (2026-10-26): seis familias pequeñas más (`store_half`, `call_with_zero`, `fill_halves`,
       `build_then_apply`, `choose_tail`, `reset_then_base`): 31 filas, 30 verificadas. Total: 8.943 funciones.
 - [x] **Lote 149** (2026-10-26): seis familias pequeñas más (`held_call`, `fields_call`, `virtual_float`,

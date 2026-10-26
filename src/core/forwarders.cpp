@@ -307,3 +307,13 @@ GT_DECOMP_CALL_RETURN(0x08C31474u, 0x08AA2964u);
 // GT_DECOMP_CALL_RETURN(0x08C314BCu, 0x08AA29A8u);  // no comparable synthetic case yet
 GT_DECOMP_CALL_RETURN(0x08C31534u, 0x08AA2A74u);
 GT_DECOMP_CALL_RETURN(0x08C3157Cu, 0x08AA2AB8u);
+
+// Batch 151: more members of the 0x08838DA8 family (tools.family_rows), verified by synthetic cases.
+// GT_DECOMP_CALL_RETURN(0x08B14708u, 0x08B144F0u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN(0x08B52A48u, 0x08B52A48u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN(0x08B52D24u, 0x08B52A48u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN(0x08C314BCu, 0x08AA29A8u);  // no comparable synthetic case yet
+
+// Batch 151: more members of the 0x0887BEB0 family (tools.family_rows), verified by synthetic cases.
+// GT_DECOMP_STORE_JUMP(0x08ACFFC4u, 0x08CD6B88u, 0x08AC0194u);  // no comparable synthetic case yet
+// GT_DECOMP_STORE_JUMP(0x08AD414Cu, 0x08CD6DA8u, 0x08AD4430u);  // no comparable synthetic case yet

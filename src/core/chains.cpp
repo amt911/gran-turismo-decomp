@@ -106,3 +106,27 @@ GT_DECOMP_CALL_RETURN_SELF(0x08BF7BE0u, 0x08A76ABCu);
 GT_DECOMP_CALL_RETURN_SELF(0x08C34248u, 0x08AAACF4u);
 
 GT_DECOMP_CALL_THEN(0x08B556A0u, 0x08B55630u, 0x08B55678u);
+
+// Batch 151: more members of the 0x089641F4 family (tools.family_rows), verified by synthetic cases.
+GT_DECOMP_CALL_RETURN_SELF(0x08A526C0u, 0x08A76AA0u);
+GT_DECOMP_CALL_RETURN_SELF(0x08A526F0u, 0x08A76AA0u);
+GT_DECOMP_CALL_RETURN_SELF(0x08A52780u, 0x08A76AA0u);
+GT_DECOMP_CALL_RETURN_SELF(0x08A76B88u, 0x08A76AA0u);
+GT_DECOMP_CALL_RETURN_SELF(0x08A76BC8u, 0x08A76AA0u);
+// GT_DECOMP_CALL_RETURN_SELF(0x08BEFE08u, 0x08A03ED8u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C0C3C4u, 0x089FA424u);  // no comparable synthetic case yet
+GT_DECOMP_CALL_RETURN_SELF(0x08C3150Cu, 0x08AA1FE8u);
+// GT_DECOMP_CALL_RETURN_SELF(0x08C317CCu, 0x08AA8F88u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31850u, 0x08AA9028u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C318D0u, 0x08AA90B8u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C318F8u, 0x08AA9100u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31954u, 0x08AA9158u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C319D8u, 0x08AA91F8u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31A58u, 0x08AA9288u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31A80u, 0x08AA92D0u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31AD8u, 0x08AA9318u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31BE0u, 0x08AA9438u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C31CE8u, 0x08AA9558u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C32AACu, 0x08AA99DCu);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C32AD4u, 0x08AA9B68u);  // no comparable synthetic case yet
+// GT_DECOMP_CALL_RETURN_SELF(0x08C33F1Cu, 0x08AA9D34u);  // no comparable synthetic case yet

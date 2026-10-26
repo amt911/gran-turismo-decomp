@@ -69,9 +69,20 @@ SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
                 "CPUWeight=10000")
 SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
+# A route keeps ~3 cores busy (game, GE worker, audio); the cap leaves a fifth of the cores the gate may use free so
+# routes keep pace. Those cores are the process's CPU affinity, not the machine's: another session's jobs pinned to
+# CPUs 0-5 left 18, which six routes filled, and full gates lost seeks (2026-10-26) - run gates under `taskset`.
+ROUTE_CORES = 3
+MACHINE_CORES = len(os.sched_getaffinity(0)) or 1
+
+
 # A real-time route peaks at ~0.5 GB (506 MB measured 2026-10-21); eleven at once passed MemoryHigh and the throttled
 # routes stalled (options timed out three full gates running). The full gate keeps this many alive, longest first.
-MAX_PARALLEL_ROUTES = 6
+def max_parallel_routes(cores: int) -> int:
+    return max(1, min(6, int(0.8 * cores) // ROUTE_CORES))
+
+
+MAX_PARALLEL_ROUTES = max_parallel_routes(MACHINE_CORES)
 # Routes named save_* start from the user's finished save (spec docs/superpowers/specs/2026-10-23-savedata-routes-design.md):
 # each gets a fresh copy, checked by hash like the ISO; the original is never written. The save is the user's data and
 # stays in game_files/ (gitignored).
@@ -112,9 +123,6 @@ def prepare_saves(tag: str, logs: Path, kind: str, save: Path = SAVE_DIR, hashes
 
 def _save_env(logs: Path, run: str, route: str) -> str:
     return f"GT_SAVEDATA_DIR={save_dir_for(logs, run, route)} " if route.startswith(SAVE_PREFIX) else ""
-# A route keeps ~3 cores busy (game, GE worker, audio); the cap leaves a fifth of the machine free so routes keep pace.
-ROUTE_CORES = 3
-MACHINE_CORES = os.cpu_count() or 1
 BUILD_JOBS = 8  # ~1.7 GB peak (0.86 GB measured at -j4), well inside the slice
 
 _LINE = re.compile(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -140,6 +141,18 @@ def test_route_cap_leaves_cpu_headroom():
     """A real-time route keeps ~3 cores busy (game, GE worker and audio threads: 2.6-3.1 measured in `top`, 2026-10-22);
     eight of them filled all 24 cores and finals lost a route to a missed seek (FINDINGS)."""
     assert gate.MAX_PARALLEL_ROUTES * gate.ROUTE_CORES <= 0.8 * gate.MACHINE_CORES
+
+
+@pytest.mark.parametrize("cores, routes", [(24, 6), (18, 4), (12, 3), (4, 1), (1, 1)])
+def test_route_cap_follows_the_cores_the_gate_may_use(cores, routes):
+    """Another session's jobs pinned to CPUs 0-5 left the gate 18 cores, which six routes filled to the last one; two to
+    five routes per full gate then lost a seek (2026-10-26). The cap counts the gate's own CPU affinity."""
+    assert gate.max_parallel_routes(cores) == routes
+
+
+def test_machine_cores_are_the_cores_this_process_may_run_on():
+    assert gate.MACHINE_CORES == len(os.sched_getaffinity(0))
+    assert gate.MAX_PARALLEL_ROUTES == gate.max_parallel_routes(gate.MACHINE_CORES)
 
 
 @pytest.mark.parametrize("kind", ["full", "fast"])

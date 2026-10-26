@@ -570,3 +570,15 @@ GT_DECOMP_THUNK(0x08C52354u, 0x08B1FD24u);
 GT_DECOMP_THUNK(0x08C524C4u, 0x08B1FD24u);
 GT_DECOMP_THUNK(0x08C7030Cu, 0x08C70238u);
 GT_DECOMP_THUNK(0x08C74884u, 0x08B64654u);
+
+// Batch 151: more members of the 0x088057A8 family (tools.family_rows), verified by synthetic cases.
+// GT_DECOMP_THUNK(0x088057A0u, 0x08A4D37Cu);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08887F0Cu, 0x088877DCu);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08A3D710u, 0x08B0B8CCu);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08AD096Cu, 0x08B2E9F8u);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08B2E2B8u, 0x08C7A988u);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08B3027Cu, 0x08B301C4u);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08B35444u, 0x08C7A928u);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08C31504u, 0x08AA29ECu);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08C4FD3Cu, 0x08C4FC50u);  // no comparable synthetic case yet
+// GT_DECOMP_THUNK(0x08C501D8u, 0x08C50034u);  // no comparable synthetic case yet
