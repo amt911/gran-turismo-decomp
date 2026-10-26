@@ -5,6 +5,7 @@
 #include "gt/vfpu.hpp"
 #include "decomp_registry.hpp"
 #include "guest_call.hpp"
+#include "gt/game/hot_common.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -2748,7 +2749,7 @@ void func_0890AF20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_088FBB70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t object = call_guest(rt, ctx, word(rt, word(rt, self) + 0x30u), {self});
+    const std::uint32_t object = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, self) + 0x30u), {self});
     ctx.gpr[2] = (object != 0u && word(rt, object + 0x18u) != 0u) ? object + 0x3Cu : 0u;
 }
 
@@ -3713,7 +3714,7 @@ void func_08A0F514(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t holds;
     {
         GuestFrame frame(ctx, 0x10u);
-        holds = call_guest(rt, ctx, word(rt, word(rt, self) + 0x1ACu), {self});
+        holds = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, self) + 0x1ACu), {self});
     }
     ctx.gpr[2] = holds;
     if (holds != 0u) tail_call(ctx, word(rt, word(rt, self) + 0x1B8u), {self});
@@ -6372,7 +6373,7 @@ void func_08AD5ED8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t result = 0u;
     if (object != 0u) {
         GuestFrame frame(ctx, 0x10u);
-        result = call_guest(rt, ctx, word(rt, word(rt, object) + 0x30u), {object, x});
+        result = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 0x30u), {object, x});
     }
     ctx.gpr[2] = result;
 }
@@ -8644,7 +8645,7 @@ void func_088A3718(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t result;
     {
         GuestFrame frame(ctx, 0x10u);
-        result = call_guest(rt, ctx, word(rt, word(rt, self) + 0x30u), {self, 0u});
+        result = gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, self) + 0x30u), {self, 0u});
     }
     rt.memory().store8(self + 0x59u, 1u);
     ctx.gpr[2] = result;

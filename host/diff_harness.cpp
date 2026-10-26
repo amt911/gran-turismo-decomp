@@ -776,13 +776,36 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             rt.function_at(address) != nullptr)
             layout.leaf_functions.push_back(address);
     }
+    // Live objects (spec addendum 2026-10-26): heap words that point to RAM whose first word is a vtable (an address in
+    // .rodata / .data whose first word is a function), distinct and sorted, at most 4096 evenly spaced.
+    {
+        constexpr std::uint32_t kHeapBegin = 0x08D80000u, kDataBegin = 0x08C7A7DCu, kDataEnd = 0x08DA0000u;
+        const auto is_object = [&](std::uint32_t address) {
+            if (address < kHeapBegin || address >= layout.arena_base || (address & 3u) != 0u) return false;
+            const std::uint32_t table = rt.memory().load32(address);
+            if (table < kDataBegin || table >= kDataEnd || (table & 3u) != 0u) return false;
+            const std::uint32_t first = rt.memory().load32(table);
+            return first >= kTextBegin && first < kTextEnd && rt.function_at(first) != nullptr;
+        };
+        std::set<std::uint32_t> found;
+        for (std::uint32_t address = kHeapBegin; address < layout.arena_base; address += 4u) {
+            const std::uint32_t value = rt.memory().load32(address);
+            if (is_object(value)) found.insert(value);
+        }
+        std::vector<std::uint32_t> all(found.begin(), found.end());
+        constexpr std::size_t kMaxLive = 4096u;
+        if (all.size() <= kMaxLive) layout.live_objects = all;
+        else
+            for (std::size_t i = 0; i < kMaxLive; ++i) layout.live_objects.push_back(all[i * all.size() / kMaxLive]);
+    }
     std::uint8_t *const arena = rt.memory().raw_pointer(layout.arena_base, layout.arena_bytes);
     if (arena == nullptr) {
         rt.stop("synthetic cases: the arena is not guest RAM");
         return;
     }
     std::cerr << "[decomp] synthetic cases: " << g_cases << " per function, seed " << seed << ", arena "
-              << psprecomp::hex32(layout.arena_base) << ", " << layout.leaf_functions.size() << " trivial functions\n";
+              << psprecomp::hex32(layout.arena_base) << ", " << layout.leaf_functions.size() << " trivial functions, "
+              << layout.live_objects.size() << " live objects\n";
     // Each function's cases run in a forked child (fork copies the emulator's state, copy-on-write): a case that loops
     // inside one recompiled function (the dispatcher's bounds never see it), crashes the host or stops the runtime
     // ends only that child. The parent keeps GT_SYNTH_JOBS children running and kills one after kChildSeconds.

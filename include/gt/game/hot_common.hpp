@@ -2,6 +2,7 @@
 // multiply, plus the addresses of the graphics library's state (.bss) that the display-list writers touch.
 #pragma once
 
+#include "guest_call.hpp"
 #include "psprecomp/runtime.hpp"
 
 #include <bit>
@@ -9,6 +10,7 @@
 #include <cstdint>
 #ifdef GT_HOT_COVERAGE
 #include <cstdio>
+#include <initializer_list>
 #include <map>
 #include <string>
 #endif
@@ -17,6 +19,15 @@ namespace gt::game::hot {
 
 // The graphics library's state block: flag word +0x6C, display-list write pointer +0x5C.
 inline constexpr std::uint32_t kGuState = 0x08D6CE00u;
+
+// A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address, which one that never writes v0
+// (an empty virtual, `jr ra; nop`) returns — the caller then sees its target, not the v0 it had (synthetic cases with
+// live objects, 2026-10-26).
+inline std::uint32_t call_indirect(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t target,
+                                   std::initializer_list<std::uint32_t> arguments) {
+    ctx.gpr[2] = target;
+    return call_guest(rt, ctx, target, arguments);
+}
 inline constexpr std::uint32_t kGuFlags = kGuState + 0x6Cu;
 inline constexpr std::uint32_t kGuListPointer = kGuState + 0x5Cu;
 // Command blocks the library's helpers take in a0.

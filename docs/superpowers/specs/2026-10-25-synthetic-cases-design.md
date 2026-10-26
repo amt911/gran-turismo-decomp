@@ -66,3 +66,17 @@ report. `tools.decomp_gate sabotage TAG --synth ...` runs the sabotage over synt
 - The harness path is proven end to end: a known-good function compares equal, the same function sabotaged mismatches
   (and `sabotage --synth` pins it).
 - `tools.decomp_gate` changes are TDD in pytest (command lines, report parsing), coverage ≥ 80 %.
+
+## Addendum 2026-10-26: live objects as inputs
+
+The first batches showed the limit of an invented arena: functions that work on the game's objects (Adhoc values,
+class instances with vtables) rarely get a comparable case — their originals fault on the first virtual call or field
+chain. So pointer inputs also come from the game's own memory:
+
+- At the start of the synthetic phase the harness collects **live objects**: words in the heap that point to a RAM
+  address whose first word is a vtable (an address in `.rodata`/`.data` whose first word is a function in `.text`).
+  Distinct, sorted, at most 4096 (evenly spaced when more).
+- A pointer input (an argument register or an arena word) is a live object part of the time; the rest stays as before.
+- Every case still restores what it wrote; objects are read and written by both runs from the same state.
+- Caveat: the route's state at that moment depends on timing, so the set of live objects (and which functions get a
+  comparable case) can vary between runs. A case still compares like for like; the sabotage still has to be detected.
