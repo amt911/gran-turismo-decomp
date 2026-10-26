@@ -43,6 +43,24 @@ def never_compared(report: str) -> set[str]:
     return {address for address, compared in _REPORT.findall(report) if compared == "0"}
 
 
+_MISMATCHED = re.compile(r"@(0x[0-9A-F]{8}): compared \d+, equal \d+, mismatched (\d+),")
+
+
+def mismatched(report: str) -> set[str]:
+    """The functions a gate report lists with a mismatching case: never verified, whatever their sabotage does."""
+    return {address for address, count in _MISMATCHED.findall(report) if count != "0"}
+
+
+def report_ok(report: str) -> bool:
+    """The synthetic run finished and printed its per-function report (a failed build or a refused start prints neither)."""
+    return "Synthetic cases done" in report and _REPORT.search(report) is not None
+
+
+def sabotage_ran(sabotage_output: str) -> bool:
+    """The sabotage printed its summary (it did not stop on a build that failed)."""
+    return _UNDETECTED.search(sabotage_output) is not None
+
+
 def undetected(sabotage_output: str) -> set[str]:
     """The functions a sabotage run left undetected."""
     found: set[str] = set()
@@ -80,19 +98,30 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - runs t
     # each run takes the CPU lock on its own (a hold stays under 30 min; the whole batch may not)
     gate = ["tools/cpu_lock.sh", f"synth batch {args.tag}", "timeout", "1800", sys.executable, "-m", "tools.decomp_gate"]
     subprocess.run(gate + ["synth", args.tag, "--cases", str(args.cases), "--only", ",".join(sorted(batch))])
-    report = Path(f"recomp/analysis/gt_diff_{args.tag}_dealer.log").read_text(errors="replace")
+    log = Path(f"recomp/analysis/gt_diff_{args.tag}_dealer.log")
+    report = log.read_text(errors="replace") if log.exists() else ""
+    if not report_ok(report):
+        print(f"the synthetic run did not finish ({log}): nothing edited")
+        return 2
     never = never_compared(report) & batch
     print(f"synthetic: {len(batch) - len(never)} of {len(batch)} compared; "
           f"{_comment(never, 'no comparable synthetic case yet')} registrations commented")
-    kept = batch - never
+    differ = mismatched(report) & batch
+    if differ:
+        print(f"MISMATCHED (commented, to fix): {' '.join(sorted(differ))}")
+        _comment(differ, "a synthetic case mismatched: to fix")
+    kept = batch - never - differ
     missed: set[str] = set()
     for path, addresses in _files_of(kept).items():
         run = subprocess.run(gate + ["sabotage", f"{args.tag}x", "--synth", "--cases", str(args.cases), "--file", str(path),
                                      "--only", ",".join(sorted(addresses))], capture_output=True, text=True)
+        if not sabotage_ran(run.stdout):
+            print(f"{path}: the sabotage did not run: stopping, nothing more edited")
+            return 2
         missed |= undetected(run.stdout)
         print(f"{path}: {''.join(l for l in run.stdout.splitlines(keepends=True) if l.startswith('sabotage:')).strip()}")
     _comment(missed, "compared equal, but the synthetic sabotage went undetected: not verified")
-    print(f"verified: {len(kept) - len(missed)} of {len(batch)}")
+    print(f"verified: {len(kept) - len(missed)} of {len(batch)} ({len(differ)} mismatched)")
     return 0
 
 
