@@ -1012,6 +1012,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 148** (2026-10-26): cuatro familias más (`element_at`, `fill_handles`, `destroy_range`, `copy_range`):
+      42 filas, 35 verificadas. `family_rows` acepta un argumento que ocupa varias posiciones que siempre coinciden
+      (el paso de origen y destino de una copia). Total: 8.882 funciones.
+- [x] **Lote 147** (2026-10-26): las 181 llamadas virtuales en línea de funciones cuyo asm solo usa `jalr $v0` pasan
+      a `call_indirect` (un virtual vacío devuelve su propia dirección en el original).
 - [x] **Lote 146** (2026-10-26): con los objetos vivos como entradas sintéticas (#304) se reactivan las filas de los
       lotes 138-145 que no tenían caso comparable: 332 verificadas (sabotaje 332 de 332). `pair_virtual` deja v0 como el
       original ante un virtual vacío, y `tools.synth_batch` ya no da por buena una fila con discrepancia ni una ejecución
