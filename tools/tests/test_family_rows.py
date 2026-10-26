@@ -137,3 +137,14 @@ def test_a_plain_decimal_argument_is_written_signed():
     # GT_DECOMP_CONST(entry, k) brace-initialises a std::int32_t: -1 must not come out as 4294967295 (narrowing).
     rows, problems = fr.macro_rows("GT_DECOMP_CONST(0x088666E8u, 1);", [1], {0x0886B2C4: [0xFFFFFFFF]})
     assert rows == ["GT_DECOMP_CONST(0x0886B2C4u, -1);"] and problems == []
+
+
+def test_members_already_written_in_the_tree_are_found_even_when_commented():
+    # Batch 158 re-generated rows for 0x08AC3308 / 0x0885EF5C, whose bodies already sat in older batches with their
+    # registrations commented: a second body in another namespace, and two notes for one address.
+    texts = ["void func_08AC3308(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { f(rt, ctx); }\n"
+             "// HOT75(0x08AC3308u, func_08AC3308, Word);\n",
+             "// GT_DECOMP(0x0885EF5Cu, gt::game::func_0885EF5C, gt::ReturnKind::Word);\n"
+             "// GT_DECOMP_FIELD(0x08817A00u, 20);\n"
+             "    (void)call_guest(rt, ctx, 0x08B9F91Cu, {o});\n"]
+    assert fr.written_elsewhere(texts) == {0x08AC3308, 0x0885EF5C, 0x08817A00}
