@@ -18,9 +18,9 @@ def test_an_argument_no_value_explains_is_a_constant_of_the_family():
     assert rows == ["GT_DECOMP_AS_CLASS(0x08900000u, 0x08A76AB4u, 0x08901234u);"]
 
 
-def test_a_value_that_sits_at_two_places_of_the_template_is_ambiguous():
+def test_a_value_at_two_places_of_the_template_is_carried_by_the_one_members_change():
     rows, problems = fr.macro_rows("M(0x08800000u, 0x10u);", [0x10, 0x10], {0x08800100: [0x10, 0x20]})
-    assert rows == [] and "ambiguous" in problems[0]
+    assert rows == ["M(0x08800100u, 0x20u);"] and problems == []
 
 
 def test_a_member_with_other_values_than_the_template_is_refused():
@@ -95,3 +95,18 @@ def test_a_member_whose_value_no_argument_carries_differs_is_refused():
     with the template's constant there (ptmf_tail_arg / clamp_step take no argument, 2026-10-25)."""
     rows, problems = fr.macro_rows("M(0x08800000u, 0x10u);", [0x10, 0x99], {0x08800100: [0x20, 0x99], 0x08800200: [0x30, 0x77]})
     assert rows == ["M(0x08800100u, 0x20u);"] and "0x08800200" in problems[0] and "position 1" in problems[0]
+
+
+def test_an_ambiguous_argument_takes_the_one_position_that_varies():
+    rows, problems = fr.macro_rows("M(0x08800000u, 8u);", [8, 9, 8], {0x08800100: [8, 9, 0xC], 0x08800200: [8, 9, 0x10]})
+    assert problems == [] and rows == ["M(0x08800100u, 12u);", "M(0x08800200u, 16u);"]
+
+
+def test_an_ambiguous_argument_no_member_varies_at_is_the_same_everywhere():
+    rows, problems = fr.macro_rows("M(0x08800000u, 8u);", [8, 8], {0x08800100: [8, 8]})
+    assert problems == [] and rows == ["M(0x08800100u, 8u);"]
+
+
+def test_an_argument_two_varying_positions_could_carry_is_still_refused():
+    rows, problems = fr.macro_rows("M(0x08800000u, 8u);", [8, 8], {0x08800100: [4, 12]})
+    assert rows == [] and "ambiguous" in problems[0]

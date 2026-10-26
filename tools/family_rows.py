@@ -54,8 +54,13 @@ def macro_rows(template: str, template_values: Sequence[int],
     for arg in args:
         literal = _parse_literal(arg)
         places = [] if literal is None else [i for i, v in enumerate(template_values) if v & _M == literal]
-        if len(places) > 1:
-            return [], [f"argument {arg.strip()} is ambiguous: the template has it at positions {places}"]
+        if len(places) > 1:  # the one place where members differ carries it; none differing: any place is the same
+            varying = [i for i in places if any(len(v) == len(template_values) and v[i] & _M != literal
+                                                for v in members.values())]
+            if len(varying) > 1:
+                return [], [f"argument {arg.strip()} is ambiguous: the template has it at positions {places}, "
+                            f"and members differ at {varying}"]
+            places = varying or places[:1]
         plan.append(places[0] if places else None)
     rows, problems = [], []
     for address, values in sorted(members.items()):
