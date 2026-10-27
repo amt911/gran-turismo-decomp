@@ -2634,3 +2634,15 @@ calls it through `jalr v0`. That converted 25 more sites in `hot_leaves.cpp`, pl
 rule is this entry.
 
 Found: 2026-10-28 · src/game/unsorted/hot_leaves.cpp
+
+## `div` by zero does not trap on Allegrex: hi = the dividend, lo = -1 or 1
+
+**Symptom.** `func_08944388` (batch 178) mismatched in synthetic cases; it divides by an argument that random inputs
+set to 0.
+**Cause.** The batch's `divide` helper assumed callers had ruled out a zero divisor. On Allegrex (and in the
+recompiler's codegen, `codegen_main.cpp`) `div x, 0` leaves `hi = x` and `lo = x >= 0 ? 0xFFFFFFFF : 1`; the caller
+then read `hi`.
+**Fix / workaround.** `divide` handles a zero divisor the same way (batch 178 on). A function that guards its own
+`div` with `break` (a trap) still returns early in the decompiled code.
+
+Found: 2026-10-28 · src/game/unsorted/hot_batch_178.cpp
