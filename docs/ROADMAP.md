@@ -1012,6 +1012,11 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 168** (2026-10-27): funciones sueltas de cuatro instrucciones escritas a mano (getters, setters, pruebas,
+      ayudantes de float y llamadas de cola): 96 filas, 91 verificadas. **Se pasan las 10.000 funciones**: 10.068.
+- [x] **Lotes 166-167** (2026-10-27): funciones sueltas de dos y tres instrucciones escritas a mano una a una
+      (llamadas de cola que preparan un argumento, getters, setters y pruebas de bandera): 123 filas, 113 verificadas.
+      Total: 9.977 funciones.
 - [x] **Lote 165** (2026-10-27): catorce envoltorios pequeños más (direcciones de globales, llamadas de cola con
       argumentos intercambiados o leídos de campos, borrados de dos a cuatro palabras, almacenes y banderas): 67 filas,
       las 67 verificadas. Total: 9.864 funciones.

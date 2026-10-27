@@ -2610,3 +2610,14 @@ Found: 2026-10-27 · src/game/unsorted/hot_leaves.cpp, src/game/unsorted/hot_bat
     (an import replay).
 
 Found: 2026-10-27 · src/game/unsorted/hot_batch_92.cpp..98, 109
+
+## The synthetic sabotage needs each body's literal signature
+
+**Symptom.** Batch 167's first `synth_batch` reported sabotage 0/81 and commented the whole file as undetected, though
+every function compared equal.
+**Cause.** The file declared its bodies as `void func_X(R) {` with `#define R psprecomp::Runtime &rt, ...`. The
+sabotage finds a body by its written signature, so it found none to flip.
+**Fix / workaround.** Write each body's signature in full (no macro). A sabotage reported as `0/N` for a whole file is
+a parse miss, not N weak checks.
+
+Found: 2026-10-27 · src/game/unsorted/hot_batch_167.cpp
