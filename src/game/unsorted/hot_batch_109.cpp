@@ -1263,6 +1263,8 @@ void func_08A0A398(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t text = word(rt, frame.at(8u));
     put(rt, frame.at(4u), 0x08CCD990u);
     const std::uint32_t rep = text - 0xCu;
+    ctx.gpr[2] = 0x08CCD990u;  // the base vtable just stored: v0 on the early return
+    ctx.gpr[3] = text;
     ctx.gpr[4] = text - 4u;
     ctx.gpr[5] = 0xFFFFFFFFu;
     if (rep == kEmpty) return;

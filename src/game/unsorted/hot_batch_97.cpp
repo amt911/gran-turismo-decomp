@@ -56,6 +56,11 @@ inline std::uint32_t call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     }
     return call_keep(rt, ctx, address, arguments);
 }
+// A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address (call_indirect's rule).
+inline std::uint32_t call_set_v0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t address, std::initializer_list<std::uint32_t> arguments) {
+    ctx.gpr[2] = address;
+    return call_set(rt, ctx, address, arguments);
+}
 // A virtual call: the slot at `offset` of the object's vtable (the word at object[0]).
 inline std::uint32_t slot_of(psprecomp::Runtime &rt, std::uint32_t object, std::uint32_t offset) { return word(rt, word(rt, object) + offset); }
 // The HI of the MIPS signed `div` (what `mfhi` reads): the remainder; a zero divisor leaves the dividend (the recompiler's rule), INT_MIN / -1 leaves 0.
@@ -936,7 +941,7 @@ void func_089ABBB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ctx.gpr[2] = cursor;  // the delay slot of the loop branch: v0 = s0 = end
         return;
     }
-    (void)call_set(rt, ctx, slot_of(rt, self, 0x118u), {self, frame.at(0u), 0u});
+    (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x118u), {self, frame.at(0u), 0u});
     cursor = word(rt, list);
     const std::uint32_t last = word(rt, self + 0x130u);
     if (cursor == last) return;
@@ -948,7 +953,7 @@ void func_089ABBB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[2] = word(rt, child + 0xE4u) & 0x100u;  // lw v0, 0xE4(v0); andi v0, v0, 0x100
             if (ctx.gpr[2] != 0u) {
                 (void)call_set(rt, ctx, 0x08969B98u, {child, frame.at(0x10u), frame.at(0x14u), frame.at(0x18u), frame.at(0x1Cu)});
-                (void)call_set(rt, ctx, slot_of(rt, self, 0x118u), {self, frame.at(0x10u), 1u});
+                (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x118u), {self, frame.at(0x10u), 1u});
             }
         }
     } while (cursor != last);
@@ -1019,7 +1024,7 @@ void func_0896A540(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_set(rt, ctx, 0x0896A4E0u, {self});
     std::uint32_t child = word(rt, self + 0x90u);
     while (child != 0u) {
-        (void)call_set(rt, ctx, slot_of(rt, child, 0x12Cu), {child});
+        (void)call_set_v0(rt, ctx, slot_of(rt, child, 0x12Cu), {child});
         child = word(rt, child + 0x54u);
     }
 }
@@ -1071,7 +1076,7 @@ void func_08928A80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t object = call_set(rt, ctx, 0x0892778Cu, {self, k});
         const std::uint32_t current = call_set(rt, ctx, 0x08927120u, {self});
         if (current != object) {
-            if (call_set(rt, ctx, slot_of(rt, object, 0x34u), {object}) != 1u) continue;
+            if (call_set_v0(rt, ctx, slot_of(rt, object, 0x34u), {object}) != 1u) continue;
         }
         const std::uint32_t target = call_set(rt, ctx, 0x0892778Cu, {self, k});
         (void)call_set(rt, ctx, 0x08926AE0u, {target, a, b, word(rt, self + 0x1FB0u)});
@@ -1102,7 +1107,7 @@ void func_08928A80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (signed_of(index) >= 0) {
             const std::uint32_t o = call_set(rt, ctx, 0x088DCD90u, {a, index});
             if (o != 0u) {
-                const std::uint32_t floats = call_set(rt, ctx, slot_of(rt, o, 0x38u), {o});
+                const std::uint32_t floats = call_set_v0(rt, ctx, slot_of(rt, o, 0x38u), {o});
                 put(rt, self + 0x20E4u, word(rt, floats));
                 put(rt, self + 0x20E4u + 4u, word(rt, floats + 4u));
                 put(rt, self + 0x20E4u + 8u, word(rt, floats + 8u));
@@ -1207,7 +1212,7 @@ void func_08883B7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // func_089BEF60(self, other): func_08B344E0(self + 0x2B0) ... func_08B3457C(self + 0x2B0). With t = self[0x264]: when t is null or the virtual slot 0x18 of t (t) answers 0 only func_089E0E68(self, other) runs. Otherwise slot 0x2C and slot 0x34 of the object self[0x264] run (each time re-read; a null one calls func_08A5BB7C(0x08CA5EA4) first and still reads its table from address 0), func_089BEA78(self, sp, sp + 4, sp + 8, sp + 0xC), the float of slot 0x38 (f20) and the float of slot 0x3C (f4); other[0x118] = 1 and the record sp[0x10 .. 0x2C] = (0, 0, f20, f4, x, y, x + w, y + h) with (x, y, w, h) = sp[0 .. 0xC]; slot 0x114 of other (other), func_089A932C(other, sp + 0x20, sp + 0x10), slot 0x114 again, func_089A8C24(other) and slot 0x30 of self[0x264]. (The two empty countdown loops the compiler left between the calls and the stores do nothing.)
-// Branches the compared cases do not take (from `tools.decomp_gate coverage` of the fast gate, read against the asm by hand and by an independent read-only review, branch targets and delay slots included): `if (!simple) simple = call_set(rt, ctx, slot_of(rt, t, 0x18u), {t}) == 0u;`; `if (simple) {`; `if (s0 == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08CA5EA4u});`.
+// Branches the compared cases do not take (from `tools.decomp_gate coverage` of the fast gate, read against the asm by hand and by an independent read-only review, branch targets and delay slots included): `if (!simple) simple = call_set_v0(rt, ctx, slot_of(rt, t, 0x18u), {t}) == 0u;`; `if (simple) {`; `if (s0 == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08CA5EA4u});`.
 void func_089BEF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], other = ctx.gpr[5];
     GuestFrame frame(ctx, 0x60u);
@@ -1215,7 +1220,7 @@ void func_089BEF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_set(rt, ctx, 0x08B344E0u, {lock});
     const std::uint32_t t = word(rt, self + 0x264u);
     bool simple = t == 0u;
-    if (!simple) simple = call_set(rt, ctx, slot_of(rt, t, 0x18u), {t}) == 0u;
+    if (!simple) simple = call_set_v0(rt, ctx, slot_of(rt, t, 0x18u), {t}) == 0u;
     if (simple) {
         (void)call_set(rt, ctx, 0x089E0E68u, {self, other});
         (void)call_set(rt, ctx, 0x08B3457Cu, {lock});
@@ -1227,9 +1232,9 @@ void func_089BEF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return s0;
     };
     std::uint32_t s0 = current();
-    (void)call_set(rt, ctx, slot_of(rt, s0, 0x2Cu), {s0});
+    (void)call_set_v0(rt, ctx, slot_of(rt, s0, 0x2Cu), {s0});
     s0 = current();
-    (void)call_set(rt, ctx, slot_of(rt, s0, 0x34u), {s0});
+    (void)call_set_v0(rt, ctx, slot_of(rt, s0, 0x34u), {s0});
     (void)call_set(rt, ctx, 0x089BEA78u, {self, frame.at(0u), frame.at(4u), frame.at(8u), frame.at(0xCu)});
     s0 = word(rt, self + 0x264u);
     const GuestResult first = [&]() {
@@ -1258,10 +1263,10 @@ void func_089BEF60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, frame.at(0x14u), 0u);
     (void)call_set(rt, ctx, word(rt, table + 0x114u), {other});
     (void)call_set(rt, ctx, 0x089A932Cu, {other, frame.at(0x20u), frame.at(0x10u)});
-    (void)call_set(rt, ctx, slot_of(rt, other, 0x114u), {other});
+    (void)call_set_v0(rt, ctx, slot_of(rt, other, 0x114u), {other});
     (void)call_set(rt, ctx, 0x089A8C24u, {other});
     s0 = current();
-    (void)call_set(rt, ctx, slot_of(rt, s0, 0x30u), {s0});
+    (void)call_set_v0(rt, ctx, slot_of(rt, s0, 0x30u), {s0});
     (void)call_set(rt, ctx, 0x08B3457Cu, {lock});
 }
 

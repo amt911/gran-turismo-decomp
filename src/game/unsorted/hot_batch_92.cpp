@@ -105,6 +105,11 @@ inline std::uint32_t call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     }
     return call_keep(rt, ctx, address, arguments);
 }
+// A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address (call_indirect's rule).
+inline std::uint32_t call_set_v0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t address, std::initializer_list<std::uint32_t> arguments) {
+    ctx.gpr[2] = address;
+    return call_set(rt, ctx, address, arguments);
+}
 inline std::uint32_t sext8(std::uint32_t value) { return static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(value))); }
 // lwl / lwr pair at `address` + 3 / + 0: the little-endian word that starts at an unaligned address; swl / swr at + 3 / + 0 store one.
 inline std::uint32_t word_unaligned(psprecomp::Runtime &rt, std::uint32_t address) {
@@ -586,7 +591,7 @@ void func_08ADE8C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                 std::uint32_t result = 0u, flag = 0u;
                 const auto call_vtable = [&](std::uint32_t offset) {
                     ctx.gpr[3] = word(rt, s0);
-                    return call_set(rt, ctx, slot_of(rt, s0, offset), {s0});
+                    return call_set_v0(rt, ctx, slot_of(rt, s0, offset), {s0});
                 };
                 if (state < 7u) {
                     bool vcall = false, replay = false;
@@ -1126,7 +1131,7 @@ void func_089064D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     base = word(rt, self);
     ctx.gpr[16] = base + 0x1Cu;  // the delay slot of the jalr
     ctx.gpr[17] = base + 0x28u;
-    const std::uint32_t answer = call_set(rt, ctx, slot_of(rt, object, 0x5Cu), {object});
+    const std::uint32_t answer = call_set_v0(rt, ctx, slot_of(rt, object, 0x5Cu), {object});
     const std::uint32_t a1 = word(rt, self);
     const std::uint32_t inverted = ((answer >> 7) & 1u) ^ 1u;
     ctx.gpr[4] = inverted;
@@ -1292,7 +1297,7 @@ void func_08A1F174(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                 ctx.gpr[3] = word(rt, object);
                 ctx.gpr[4] = object;
                 ctx.gpr[5] = 0u;  // the delay slot of the jalr
-                return call_set(rt, ctx, slot_of(rt, object, 0xDCu), {object, 0u});
+                return call_set_v0(rt, ctx, slot_of(rt, object, 0xDCu), {object, 0u});
             };
             const std::uint32_t q = virtual_call(p4);
             ctx.gpr[18] = p8;  // the delay slot of the beqz
@@ -1342,7 +1347,7 @@ void func_08A1F174(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ctx.gpr[16] = object;
         if (object == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C9A2B4u});
         ctx.gpr[3] = word(rt, object);
-        const std::uint32_t answer = call_set(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
+        const std::uint32_t answer = call_set_v0(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
         ctx.gpr[reg] = answer != 0u ? 1u : 0u;
     };
     flag_of(1u, 23u);
@@ -1443,7 +1448,7 @@ void func_0883C7EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[16] = object;
             if (object == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C9BD48u});
             ctx.gpr[3] = word(rt, object);
-            const std::uint32_t answer = call_set(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
+            const std::uint32_t answer = call_set_v0(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
             format_with_name = (answer != 0u);
         }
         ctx.gpr[18] = buffer;
@@ -1502,7 +1507,7 @@ void func_0883CB34(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[16] = object;
             if (object == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C9BD48u});
             ctx.gpr[3] = word(rt, object);
-            const std::uint32_t answer = call_set(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
+            const std::uint32_t answer = call_set_v0(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
             ctx.gpr[16] = frame.at(4u);  // the delay slot of the bne
             if (answer == 1u) {
                 const std::uint32_t name = call_set(rt, ctx, 0x08B48CB8u, {0x08D6950Cu});
@@ -1552,7 +1557,7 @@ void func_0883D494(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[16] = object;
             if (object == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C9BD48u});
             ctx.gpr[3] = word(rt, object);
-            const std::uint32_t answer = call_set(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
+            const std::uint32_t answer = call_set_v0(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
             ctx.gpr[18] = buffer;  // the delay slot of the bnez
             if (answer == 0u) {
                 ctx.gpr[5] = 0x08C9C48Cu;
@@ -2700,7 +2705,7 @@ void func_08809E90(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ctx.gpr[16] = s0;
         if (s0 == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08C981FCu});
         ctx.gpr[3] = word(rt, s0);
-        second = call_set(rt, ctx, slot_of(rt, s0, 0x3Cu), {s0});
+        second = call_set_v0(rt, ctx, slot_of(rt, s0, 0x3Cu), {s0});
         ctx.gpr[3] = second;
     }
     const std::uint32_t target = ctx.gpr[21];
@@ -2966,17 +2971,17 @@ void func_08898AB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ctx.gpr[16] = word(rt, out + 4u);  // the delay slot of the beqz
         if (object != 0u) {
             ctx.gpr[3] = word(rt, object);
-            (void)call_set(rt, ctx, slot_of(rt, object, 0x30u), {object});
+            (void)call_set_v0(rt, ctx, slot_of(rt, object, 0x30u), {object});
             ctx.gpr[16] = word(rt, out + 4u);
         }
         const std::uint32_t held = ctx.gpr[16];
         ctx.gpr[3] = held + 4u;  // the delay slot of the beqz
         if (held != 0u) {
             if (atomic_decrement(rt, ctx, held + 4u) == 1u) {
-                (void)call_set(rt, ctx, slot_of(rt, held, 8u), {held});
+                (void)call_set_v0(rt, ctx, slot_of(rt, held, 8u), {held});
                 ctx.gpr[3] = held + 8u;
                 if (atomic_decrement(rt, ctx, held + 8u) == 1u) {
-                    (void)call_set(rt, ctx, slot_of(rt, held, 0xCu), {held});
+                    (void)call_set_v0(rt, ctx, slot_of(rt, held, 0xCu), {held});
                     ctx.gpr[18] += second ? 1u : 0u;
                 } else {
                     ctx.gpr[18] += second ? 1u : 0u;  // the delay slot of the bnel (taken)
@@ -2996,10 +3001,10 @@ void func_08898AB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ctx.gpr[4] = out;
         ctx.gpr[5] = self;
         ctx.gpr[6] = i;  // the delay slot of the jalr
-        (void)call_set(rt, ctx, slot_of(rt, self, 0x28u), {out, self, i});
+        (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x28u), {out, self, i});
         release(false);
         ctx.gpr[6] = i;  // the delay slot of the jalr
-        (void)call_set(rt, ctx, slot_of(rt, self, 0x30u), {out, self, i});
+        (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x30u), {out, self, i});
         release(true);
         ctx.gpr[4] = word(rt, self + 0u);  // the delay slot of the bnel (taken) or the last loaded word
     }
@@ -3021,7 +3026,7 @@ void func_088A2074(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         ctx.gpr[4] = old;
         if (old != 0u) {
             ctx.gpr[3] = word(rt, old);
-            (void)call_set(rt, ctx, slot_of(rt, old, 4u), {old});
+            (void)call_set_v0(rt, ctx, slot_of(rt, old, 4u), {old});
         }
     };
     std::uint32_t a0;
@@ -3099,7 +3104,7 @@ void func_088D31B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[17] = object;
     const auto call_slot = [&](std::uint32_t offset, std::uint32_t flag) {
         ctx.gpr[3] = word(rt, object);
-        (void)call_set(rt, ctx, slot_of(rt, object, offset), {object, flag});
+        (void)call_set_v0(rt, ctx, slot_of(rt, object, offset), {object, flag});
     };
     if (kind == 1u) {
         call_slot(0x10u, 0u);
@@ -3166,7 +3171,7 @@ void func_08898918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[3] = word(rt, holder);
             ctx.gpr[2] = slot_of(rt, holder, 0xCu);
             ctx.gpr[5] = record;  // the delay slot of the jalr
-            (void)call_set(rt, ctx, slot_of(rt, holder, 0xCu), {holder, record});
+            (void)call_set_v0(rt, ctx, slot_of(rt, holder, 0xCu), {holder, record});
         }
     }
     (void)skip;
@@ -3180,7 +3185,7 @@ void func_08898918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t q = word(rt, self + 0x38u);
         const std::uint32_t selector = q != 0u ? q + 8u : 0u;  // the movz in the delay slot of the jalr
         ctx.gpr[3] = q;
-        (void)call_set(rt, ctx, slot_of(rt, object, 0x10u), {object, selector});
+        (void)call_set_v0(rt, ctx, slot_of(rt, object, 0x10u), {object, selector});
         ctx.gpr[2] = 1u;
     }
     put(rt, record + 0x10u, 1u);
@@ -3201,7 +3206,7 @@ void func_08898918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     const std::uint32_t owner = word(rt, self + 0x40u);
     ctx.gpr[5] = record;  // the delay slot of the jalr
-    (void)call_set(rt, ctx, slot_of(rt, owner, 8u), {owner, record});
+    (void)call_set_v0(rt, ctx, slot_of(rt, owner, 8u), {owner, record});
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -3362,7 +3367,7 @@ void func_088F03E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[19] = p4;
     ctx.gpr[18] = self;
     ctx.gpr[16] = dest;  // the delay slot of the jalr
-    const std::uint32_t count = call_set(rt, ctx, slot_of(rt, self, 0x40u), {self});
+    const std::uint32_t count = call_set_v0(rt, ctx, slot_of(rt, self, 0x40u), {self});
     (void)call_set(rt, ctx, 0x08B36018u, {dest, 0u, count});
     const std::uint32_t table = word(rt, slot);
     const std::uint32_t head = word(rt, table + 4u);
@@ -3589,11 +3594,11 @@ void func_0890B62C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (counted != 0u) {
         if (atomic_decrement(rt, ctx, counted + 4u) == 1u) {
             ctx.gpr[2] = 1u;
-            (void)call_set(rt, ctx, slot_of(rt, counted, 8u), {counted});
+            (void)call_set_v0(rt, ctx, slot_of(rt, counted, 8u), {counted});
             ctx.gpr[3] = counted + 8u;
             if (atomic_decrement(rt, ctx, counted + 8u) == 1u) {
                 ctx.gpr[2] = 1u;
-                (void)call_set(rt, ctx, slot_of(rt, counted, 0xCu), {counted});
+                (void)call_set_v0(rt, ctx, slot_of(rt, counted, 0xCu), {counted});
             }
         }
     }
@@ -3606,7 +3611,7 @@ void func_0890B62C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (object != 0u) {
             ctx.gpr[3] = word(rt, object);
             ctx.gpr[5] = word(rt, self + offset);  // the delay slot of the jalr
-            (void)call_set(rt, ctx, slot_of(rt, object, 0u), {object, word(rt, self + offset)});
+            (void)call_set_v0(rt, ctx, slot_of(rt, object, 0u), {object, word(rt, self + offset)});
             put(rt, pair + 4u, 0u);
             put(rt, self + offset, 0u);
         }
@@ -3615,7 +3620,7 @@ void func_0890B62C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[4] = object;
     if (object == 0u) return;
     ctx.gpr[5] = word(rt, self);  // the delay slot of the jalr
-    (void)call_set(rt, ctx, slot_of(rt, object, 0u), {object, word(rt, self)});
+    (void)call_set_v0(rt, ctx, slot_of(rt, object, 0u), {object, word(rt, self)});
     put(rt, self, 0u);
     put(rt, self + 4u, 0u);
 }
@@ -3778,7 +3783,7 @@ void func_08BD4118(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[3] = third + 8u;
             if (atomic_decrement(rt, ctx, third + 8u) == 1u) {
                 ctx.gpr[2] = 1u;
-                (void)call_set(rt, ctx, slot_of(rt, third, 0xCu), {third});
+                (void)call_set_v0(rt, ctx, slot_of(rt, third, 0xCu), {third});
             }
         }
         ctx.gpr[2] = 0x08CC3000u;
@@ -4090,7 +4095,7 @@ void func_08B0E358(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             put(rt, self + 0xA8u, 1u);
             ctx.gpr[3] = word(rt, self);
             ctx.gpr[4] = self;  // the delay slot of the jalr
-            (void)call_set(rt, ctx, slot_of(rt, self, 0x20u), {self});
+            (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x20u), {self});
             (void)call_set(rt, ctx, 0x08B0E31Cu, {self});
         };
         if (mode == 1u || mode == 2u) {
@@ -4113,7 +4118,7 @@ void func_08B0E358(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[4] = self;
             ctx.gpr[20] = 1u;  // the delay slot of the jalr
             ran = 1u;
-            (void)call_set(rt, ctx, slot_of(rt, self, 0x20u), {self});
+            (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x20u), {self});
         } else {
             ctx.gpr[20] = 0u;  // the delay slot of the bnel (taken)
         }
@@ -4149,7 +4154,7 @@ void func_08B0E358(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t object = word(rt, pointer);
         ctx.gpr[17] = object;
         if (object == 0u) (void)call_set(rt, ctx, 0x08A5BB7Cu, {0x08CA39E8u});
-        const std::uint32_t answer = call_set(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
+        const std::uint32_t answer = call_set_v0(rt, ctx, slot_of(rt, object, 0x3Cu), {object});
         ctx.gpr[18] = answer;  // the delay slot of the bltz
         const auto holder = [&]() {
             const std::uint32_t h = word(rt, p8);
@@ -4379,10 +4384,10 @@ void func_089C80DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                 const std::uint32_t next = word(rt, s0 + 0x54u);  // the delay slot of the first jalr
                 ctx.gpr[3] = word(rt, s0);
                 ctx.gpr[18] = next;
-                const std::uint32_t a = call_set(rt, ctx, slot_of(rt, s0, 0x178u), {s0});
+                const std::uint32_t a = call_set_v0(rt, ctx, slot_of(rt, s0, 0x178u), {s0});
                 ctx.gpr[17] = a;
                 ctx.gpr[3] = word(rt, s0);
-                const std::uint32_t b = call_set(rt, ctx, slot_of(rt, s0, 0x16Cu), {s0});
+                const std::uint32_t b = call_set_v0(rt, ctx, slot_of(rt, s0, 0x16Cu), {s0});
                 ctx.gpr[16] = b;  // the delay slot of the beqz
                 if (a != 0u) {
                     const std::uint32_t holder = word(rt, p8);
