@@ -57,14 +57,16 @@ SYNTH_EXTRA = 1200  # the synthetic phase after the route's own length (all inst
 
 
 def synth_routes(route: str | None) -> tuple[tuple[str, int], ...]:
-    """The synthetic gate's route: `route` (GT_SYNTH_ROUTE; default dealer) for its full-gate length plus SYNTH_EXTRA.
+    """The synthetic gate's routes: `route` (GT_SYNTH_ROUTE, comma-separated; default dealer), each for its full-gate
+    length plus SYNTH_EXTRA (side by side, like a full gate's routes).
     Script natives need the scene of a route that reaches their objects (after dealer, the race objects their holders
     reach do not exist and the original faults)."""
-    name = route or "dealer"
     lengths = dict(ROUTES["full"])
-    if name not in lengths:
-        raise ValueError(f"no full route named {name!r}")
-    return ((name, lengths[name] + SYNTH_EXTRA),)
+    names = [name.strip() for name in (route or "dealer").split(",") if name.strip()]
+    for name in names:
+        if name not in lengths:
+            raise ValueError(f"no full route named {name!r}")
+    return tuple((name, lengths[name] + SYNTH_EXTRA) for name in names)
 
 
 ROUTES["synth"] = synth_routes(os.environ.get("GT_SYNTH_ROUTE"))
@@ -374,7 +376,7 @@ def route_shell(binary: Path, kind: str, tag: str, logs: Path) -> str:
         parts.append(f"while [ $(jobs -rp | wc -l) -ge {MAX_PARALLEL_ROUTES} ]; do wait -n; done;")
         log = logs / f"gt_diff_{tag}_{route}"
         if kind == "synth":  # the synthetic phase ends the run; no GT_PAD_EXIT_AFTER, which would end it first
-            parts.append(f'( GT_SYNTH={SYNTH_CASES} GT_SYNTH_SEED={SYNTH_SEED} LCS_UNCAPPED=1 GT_PAD_LOG=1 '
+            parts.append(f'( {_save_env(logs, tag, route)}GT_SYNTH={SYNTH_CASES} GT_SYNTH_SEED={SYNTH_SEED} LCS_UNCAPPED=1 GT_PAD_LOG=1 '
                          f'GT_PAD="$(grep -v \'^#\' config/pad_routes/{route}.pad)" timeout {seconds + 120} {binary} '
                          f"--max-seconds {seconds} --decomp diff > {log}.log 2>&1; echo $? > {log}.exit ) &")
             continue

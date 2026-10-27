@@ -146,7 +146,7 @@ void func_08C792B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { by
 #define HOT149(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_149::name, gt::ReturnKind::kind)
 // HOT149(0x08A3CDB8u, func_08A3CDB8, Word);  // no comparable synthetic case yet
 HOT149(0x08891098u, func_08891098, Word);
-// HOT149(0x08899E50u, func_08899E50, Float);  // no comparable synthetic case yet
+// HOT149(0x08899E50u, func_08899E50, Float);  // compared equal, but the synthetic sabotage went undetected: not verified
 HOT149(0x089B5E10u, func_089B5E10, Word);
 HOT149(0x08C58904u, func_08C58904, Word);
 HOT149(0x08C79184u, func_08C79184, Word);
@@ -169,9 +169,9 @@ HOT149(0x08899E88u, func_08899E88, Float);
 HOT149(0x08899EC8u, func_08899EC8, Float);
 HOT149(0x08899F00u, func_08899F00, Float);
 HOT149(0x08899F38u, func_08899F38, Float);
-// HOT149(0x08899F70u, func_08899F70, Float);  // no comparable synthetic case yet
+HOT149(0x08899F70u, func_08899F70, Float);
 HOT149(0x08899FE4u, func_08899FE4, Float);
-// HOT149(0x0889A01Cu, func_0889A01C, Float);  // no comparable synthetic case yet
+// HOT149(0x0889A01Cu, func_0889A01C, Float);  // compared equal, but the synthetic sabotage went undetected: not verified
 HOT149(0x08A1B388u, func_08A1B388, Word);
 HOT149(0x08A1B390u, func_08A1B390, Word);
 HOT149(0x08A1B398u, func_08A1B398, Word);

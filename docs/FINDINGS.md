@@ -2523,7 +2523,9 @@ car parameter). After the `dealer` route those objects do not exist yet, so the 
 
 **Fix / workaround.** `GT_SYNTH_ROUTE=race` sets the scene with the race route instead (`tools.decomp_gate.synth_routes`;
 `synth_batch` reads the log of whichever route ran). The same 431 rows compared 49, all equal, sabotage 49/49, and those
-49 are re-enabled. The rest still fault, or reach objects of other scenes.
+49 are re-enabled. The rest still fault, or reach objects of other scenes. Four more routes (2026-10-27) verified 36 more
+of the remaining 382: `save_garage` 16, `circuit` 10, `buy` 6, `options` 4. A synthetic run after a `save_*` route needs
+the route's save copy, as in a full gate (`route_shell` gave it none: exit 97).
 
 Found: 2026-10-26 · tools/decomp_gate.py, tools/synth_batch.py
 

@@ -628,3 +628,16 @@ def test_the_synthetic_phase_follows_the_route_gt_synth_route_names(route, secon
 def test_an_unknown_synthetic_route_is_refused():
     with pytest.raises(ValueError, match="no full route"):
         gate.synth_routes("nowhere")
+
+
+def test_a_synthetic_run_after_a_save_route_gets_its_save(monkeypatch):
+    # GT_SYNTH_ROUTE=save_garage ran without GT_SAVEDATA_DIR: the route's pad script waited for a load that never
+    # came and the run ended with exit 97 (2026-10-27).
+    monkeypatch.setitem(gate.ROUTES, "synth", gate.synth_routes("save_garage"))
+    line = gate.route_shell(Path("build/gt_native"), "synth", "t1", Path("recomp/analysis"))
+    assert "GT_SAVEDATA_DIR=recomp/analysis/savedata_t1_save_garage" in line
+
+
+def test_several_synthetic_routes_run_side_by_side():
+    # The verdict re-checks every function a synthetic route verified: dealer, race and four more (2026-10-27).
+    assert gate.synth_routes("dealer,race") == (("dealer", 1500), ("race", 1800))

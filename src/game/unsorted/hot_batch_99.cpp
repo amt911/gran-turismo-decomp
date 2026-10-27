@@ -1950,11 +1950,11 @@ HOT99(0x08AA1D7Cu, func_08AA1D7C, Word);
 HOT99(0x0886AAA4u, func_0886AAA4, Word);
 HOT99(0x08C053E8u, func_08C053E8, Word);
 // HOT99(0x08B948FCu, func_08B948FC, DoubleWord);  // no comparable synthetic case yet
-// HOT99(0x08BAF940u, func_08BAF940, DoubleWord);  // no comparable synthetic case yet
+HOT99(0x08BAF940u, func_08BAF940, DoubleWord);
 // HOT99(0x08BF6F58u, func_08BF6F58, DoubleWord);  // no comparable synthetic case yet
-// HOT99(0x08BF754Cu, func_08BF754C, DoubleWord);  // no comparable synthetic case yet
+HOT99(0x08BF754Cu, func_08BF754C, DoubleWord);
 // HOT99(0x08C01800u, func_08C01800, DoubleWord);  // no comparable synthetic case yet
-// HOT99(0x08C2FD7Cu, func_08C2FD7C, DoubleWord);  // no comparable synthetic case yet
+HOT99(0x08C2FD7Cu, func_08C2FD7C, DoubleWord);
 // HOT99(0x08C334A0u, func_08C334A0, DoubleWord);  // no comparable synthetic case yet
 // HOT99(0x08C33AE8u, func_08C33AE8, DoubleWord);  // no comparable synthetic case yet
 // HOT99(0x08C4EB54u, func_08C4EB54, DoubleWord);  // no comparable synthetic case yet

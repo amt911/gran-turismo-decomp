@@ -101,7 +101,7 @@ void func_08C7A710(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ad
 #define HOT143(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_143::name, gt::ReturnKind::kind)
 HOT143(0x08A64D64u, func_08A64D64, Word);
 // HOT143(0x08A64E60u, func_08A64E60, Word);  // no comparable synthetic case yet
-// HOT143(0x08C553FCu, func_08C553FC, Word);  // no comparable synthetic case yet
+HOT143(0x08C553FCu, func_08C553FC, Word);
 HOT143(0x08A65560u, func_08A65560, Word);
 HOT143(0x08A6603Cu, func_08A6603C, Word);
 HOT143(0x08A660ECu, func_08A660EC, Word);
