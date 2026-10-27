@@ -127,11 +127,15 @@ inline float unsigned_to_float(std::uint32_t value) {
 inline std::uint32_t high_word(std::uint32_t value, std::uint32_t magic) {
     return static_cast<std::uint32_t>((static_cast<std::int64_t>(signed_of(value)) * signed_of(magic)) >> 32);
 }
+// `sra t, product, 31; subu v, v, t`: the sign word (0 or -1) is subtracted, so a negative quotient gets +1 (truncation
+// toward zero). It was subtracted as a 0 / 1 bit, 2 off for every negative product (synthetic cases, 2026-10-27).
 inline std::uint32_t signed_percent(std::uint32_t product) {
-    return static_cast<std::uint32_t>(signed_of(high_word(product, 0x51EB851Fu)) >> 5) - (product >> 31);
+    return static_cast<std::uint32_t>(signed_of(high_word(product, 0x51EB851Fu)) >> 5) -
+           static_cast<std::uint32_t>(signed_of(product) >> 31);
 }
 inline std::uint32_t signed_permille(std::uint32_t product) {
-    return static_cast<std::uint32_t>(signed_of(high_word(product, 0x10624DD3u)) >> 6) - (product >> 31);
+    return static_cast<std::uint32_t>(signed_of(high_word(product, 0x10624DD3u)) >> 6) -
+           static_cast<std::uint32_t>(signed_of(product) >> 31);
 }
 inline std::uint32_t unsigned_percent(std::uint32_t product) { return high_word(product, 0x51EB851Fu) >> 5; }
 

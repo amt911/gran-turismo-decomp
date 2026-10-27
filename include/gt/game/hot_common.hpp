@@ -23,15 +23,25 @@ inline constexpr std::uint32_t kGuState = 0x08D6CE00u;
 // A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address, which one that never writes v0
 // (an empty virtual, `jr ra; nop`) returns — the caller then sees its target, not the v0 it had (synthetic cases with
 // live objects, 2026-10-26).
+// Afterwards v0 / v1 / f0 are the callee's, as after the `jalr`: leaving v0 = the target made a caller that returns its
+// v0 untouched answer the target's address (func_08AB9EF0, func_08ABC844, 2026-10-27).
 inline std::uint32_t call_indirect(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t target,
                                    std::initializer_list<std::uint32_t> arguments) {
     ctx.gpr[2] = target;
-    return call_guest(rt, ctx, target, arguments);
+    const GuestResult result = call_guest(rt, ctx, target, arguments, {});
+    ctx.gpr[2] = result.v0;
+    ctx.gpr[3] = result.v1;
+    ctx.fpr[0] = result.f0;
+    return result.v0;
 }
 inline GuestResult call_indirect(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t target,
                                  std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> floats) {
     ctx.gpr[2] = target;
-    return call_guest(rt, ctx, target, arguments, floats);
+    const GuestResult result = call_guest(rt, ctx, target, arguments, floats);
+    ctx.gpr[2] = result.v0;
+    ctx.gpr[3] = result.v1;
+    ctx.fpr[0] = result.f0;
+    return result;
 }
 inline constexpr std::uint32_t kGuFlags = kGuState + 0x6Cu;
 inline constexpr std::uint32_t kGuListPointer = kGuState + 0x5Cu;

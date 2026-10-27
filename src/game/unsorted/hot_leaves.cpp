@@ -15589,7 +15589,12 @@ void visit_property(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std
         rt.memory().store32(frame.at(12u), 0xFFFFFFFFu);
         rt.memory().store32(frame.at(4u), vtable);
         rt.memory().store32(frame.at(16u), self + offset);
-        (void)call_guest(rt, ctx, word(rt, word(rt, visitor) + 0x8u), {visitor, frame.at(4u)});
+        // `addiu a2, a0, offset; lw a3, 0(a1); lw v0, 8(a3); jalr v0` (all 119 users): the visitor's slot runs with
+        // a2 = the field, a3 = its own vtable, v1 = -1 and v0 = itself.
+        ctx.gpr[6] = self + offset;
+        ctx.gpr[7] = word(rt, visitor);
+        ctx.gpr[3] = 0xFFFFFFFFu;
+        (void)gt::game::hot::call_indirect(rt, ctx, word(rt, ctx.gpr[7] + 0x8u), {visitor, frame.at(4u)});
         name = word(rt, frame.at(8u));
         rt.memory().store32(frame.at(4u), kPropertyBase);
     }
@@ -17482,7 +17487,11 @@ std::uint32_t read_property(psprecomp::Runtime &rt, psprecomp::AllegrexContext &
     rt.memory().store32(descriptor + 0x8u, 0xFFFFFFFFu);
     rt.memory().store32(descriptor + 0xCu, value);
     rt.memory().store32(descriptor, vtable);
-    (void)call_guest(rt, ctx, word(rt, word(rt, visitor) + 0x8u), {visitor, descriptor});
+    // `lw a2, 0(a1); lw v0, 8(a2); jalr v0`: the visitor's slot runs with a2 = its own vtable and v0 = itself (every
+    // one of the 73 users has that prologue).
+    ctx.gpr[6] = word(rt, visitor);
+    ctx.gpr[3] = value;
+    (void)gt::game::hot::call_indirect(rt, ctx, word(rt, ctx.gpr[6] + 0x8u), {visitor, descriptor});
     rt.memory().store32(descriptor, kPropertyBase);
     release_string(rt, ctx, word(rt, descriptor + 0x4u));
     return byte_value ? rt.memory().load8(value) : word(rt, value);
@@ -19644,6 +19653,7 @@ void read_vec4_then(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std
     rt.memory().store32(descriptor, 0x08CCDA20u);
     for (std::uint32_t at = 0; at < 16u; at += 4u) rt.memory().store32(value + at, 0u);
     rt.memory().store32(descriptor + 0xCu, value);
+    ctx.gpr[3] = word(rt, visitor);  // `lw v1, 0(a1); lw v0, 8(v1); jalr v0`
     (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, visitor) + 0x8u), {visitor, descriptor});
     rt.memory().store32(descriptor, kPropertyBase);
     release_string(rt, ctx, word(rt, descriptor + 0x4u));
@@ -20885,6 +20895,9 @@ void read_color_into(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
     for (const std::uint32_t at : {12u, 8u, 4u}) rt.memory().store32(value + at, one);
     rt.memory().store32(value + 16u, 0xFFFFFFFFu);
     rt.memory().store32(descriptor + 0xCu, value);
+    ctx.gpr[3] = self;  // `move v1, a0; li a2, -1; lw a3, 0(a1); lw v0, 8(a3); jalr v0`
+    ctx.gpr[6] = 0xFFFFFFFFu;
+    ctx.gpr[7] = word(rt, visitor);
     (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, visitor) + 0x8u), {visitor, descriptor});
     rt.memory().store32(descriptor, kPropertyBase);
     release_string(rt, ctx, word(rt, descriptor + 0x4u));
@@ -22101,23 +22114,31 @@ namespace {
 
 // Reads a string property into the local string at `text` (set empty first: the visitor assigns to it)
 // through the stack descriptor {0x08CCD9D8, empty name, -1, &text} at `descriptor`, whose name is released.
-void visit_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t text, std::uint32_t descriptor) {
+void visit_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t text, std::uint32_t descriptor,
+                  bool vtable_in_a3 = false) {
     const std::uint32_t visitor = ctx.gpr[5];
     rt.memory().store32(descriptor + 0x8u, 0xFFFFFFFFu);
     rt.memory().store32(descriptor + 0x4u, kEmptyString);
     rt.memory().store32(text, kEmptyString);
     rt.memory().store32(descriptor, 0x08CCD9D8u);
     rt.memory().store32(descriptor + 0xCu, text);
+    if (vtable_in_a3) {  // func_089A5F94, func_089BE0AC: a2 = the empty string, `lw a3, 0(a1); lw v0, 8(a3); jalr v0`
+        ctx.gpr[6] = kEmptyString;
+        ctx.gpr[7] = word(rt, visitor);
+    } else {
+        ctx.gpr[3] = kEmptyString;  // `lw a2, 0(a1); lw v0, 8(a2); jalr v0`, v1 the empty string
+        ctx.gpr[6] = word(rt, visitor);
+    }
     (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, visitor) + 0x8u), {visitor, descriptor});
     rt.memory().store32(descriptor, kPropertyBase);
     release_string(rt, ctx, word(rt, descriptor + 0x4u));
 }
 
 // A string property (visit_string) handed to `apply(this, &string)`, then released.
-void read_string_then(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t apply) {
+void read_string_then(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t apply, bool vtable_in_a3 = false) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x40u);
-    visit_string(rt, ctx, frame.at(4u), frame.at(8u));
+    visit_string(rt, ctx, frame.at(4u), frame.at(8u), vtable_in_a3);
     ctx.gpr[2] = call_guest(rt, ctx, apply, {self, frame.at(4u)});
     release_string(rt, ctx, word(rt, frame.at(4u)));
 }
@@ -22394,7 +22415,7 @@ void func_089208A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // (func_089D7580), func_08A10D9C (func_08A0F938), func_08A10CA8 (func_08A0F800), func_089D81CC
 // (func_089D7530), func_089E46C0 (func_089E008C), func_08A0AB1C (func_08A07468).
 void func_089BE0AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    read_string_then(rt, ctx, word(rt, word(rt, ctx.gpr[4]) + 0x108u));
+    read_string_then(rt, ctx, word(rt, word(rt, ctx.gpr[4]) + 0x108u), true);
 }
 void func_089D80D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x089D7580u); }
 void func_08A10D9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { read_string_then(rt, ctx, 0x08A0F938u); }
@@ -23713,7 +23734,7 @@ void func_0898D070(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 void func_089A5F94(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x40u);
-    visit_string(rt, ctx, frame.at(4u), frame.at(16u));
+    visit_string(rt, ctx, frame.at(4u), frame.at(16u), true);
     (void)call_guest(rt, ctx, 0x08B20920u, {frame.at(8u), 0x08C8C55Cu});
     const std::uint32_t found = call_guest(rt, ctx, 0x08B20A54u, {frame.at(8u), word(rt, frame.at(4u)), 0u});
     rt.memory().store32(self + 288u, found);
@@ -26953,7 +26974,7 @@ void func_088A42BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x60u);
     if (word(rt, self + 24u) == 0u) {
         (void)call_guest(rt, ctx, 0x08B4E648u, {frame.at(0u)});
-        (void)call_guest(rt, ctx, method_of(rt, self, 48u), {self, frame.at(0u)});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 48u), {self, frame.at(0u)});
         for (std::uint32_t at = 696u; at <= 724u; at += 4u) rt.memory().store32(self + at, 0u);
         return;
     }
@@ -27158,7 +27179,7 @@ void func_08956EF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x30u);
     const auto notify = [&](std::uint32_t contact) {
         if (const std::uint32_t listener = word(rt, car + 20u); listener != 0u)
-            (void)call_guest(rt, ctx, method_of(rt, listener, 8u), {listener, contact});
+            (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, listener, 8u), {listener, contact});
     };
     if (call_guest(rt, ctx, 0x0894CCB8u, {self}) != 0u && call_guest(rt, ctx, 0x089557BCu, {self}) != 0u) {
         const std::uint32_t contact = call_guest(rt, ctx, 0x0893C780u, {self, 0u});
@@ -27332,14 +27353,14 @@ void func_08987A9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t token = call_guest(rt, ctx, 0x08987A74u, {parser, text});
     if (token == 256u) {
         (void)call_guest(rt, ctx, 0x08B855E0u, {node + 4u, text});
-        (void)call_guest(rt, ctx, method_of(rt, node, 8u), {node, parser});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, node, 8u), {node, parser});
     } else if (token == 91u) {
         (void)call_guest(rt, ctx, 0x08987A74u, {parser, text});
         const std::uint32_t count = call_guest(rt, ctx, 0x08B77BFCu, {word(rt, text)});
         (void)call_guest(rt, ctx, 0x08987A74u, {parser, text});
         (void)call_guest(rt, ctx, 0x08987A74u, {parser, text});
         rt.memory().store32(node + 8u, count);
-        (void)call_guest(rt, ctx, method_of(rt, node, 8u), {node, parser});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, node, 8u), {node, parser});
         (void)call_guest(rt, ctx, 0x0898682Cu, {parser, 1u});
     } else if (token == 125u) {
         rt.memory().store32(parser + 52u, 259u);
@@ -27423,7 +27444,7 @@ void func_08921E24(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t before = rt.memory().load8(self + 12u);
     rt.memory().store8(self + 12u, 0u);
     (void)call_guest(rt, ctx, 0x08B4E648u, {camera + 256u});
-    if (call_guest(rt, ctx, method_of(rt, view, 8u), {view, 2u}) != 0u || call_guest(rt, ctx, method_of(rt, view, 8u), {view, 4u}) != 0u) {
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, view, 8u), {view, 2u}) != 0u || gt::game::hot::call_indirect(rt, ctx, method_of(rt, view, 8u), {view, 4u}) != 0u) {
         const std::uint32_t car = word(rt, self + 8u);
         const std::uint32_t kind = word(rt, car + 508u);
         if (kind == 7u) {
@@ -27452,7 +27473,8 @@ void func_088C7474(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     if (source == 0u) return;
     GuestFrame frame(ctx, 0x30u);
-    if (call_guest(rt, ctx, method_of(rt, source, 8u), {source}) == 0u) return;
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 8u), {source}) == 0u) return;
+    ctx.gpr[2] = 0u;  // the answer is v1 (`move v0, v1` at the end): 0 on the early exits below
     std::uint32_t flags = word(rt, request);
     if (flags == 0u) return;
     if ((flags & 32u) != 0u) rt.memory().store32(request + 80u, 1u);
@@ -27493,7 +27515,7 @@ void func_089E0620(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     const std::uint32_t texture = word(rt, self + 528u);
     if (texture == 0u) return;
-    if (call_guest(rt, ctx, method_of(rt, texture, 40u), {texture}) == 0u) return;
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, texture, 40u), {texture}) == 0u) return;
     if (word(rt, self + 552u) == 0u) return;
     std::uint32_t current = word(rt, self + 528u);
     const std::uint32_t sized = current;
@@ -27608,10 +27630,10 @@ void func_08920A38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         GuestFrame frame(ctx, 0x20u);
         const std::uint32_t view = call_guest(rt, ctx, 0x089260ECu, {word(rt, self + 8u)});
         float bank = kHalfPi;
-        if (call_guest(rt, ctx, method_of(rt, view, 8u), {view, 8u}) == 0u) bank = 0.0f;
-        if (call_guest(rt, ctx, method_of(rt, view, 8u), {view, 16u}) != 0u) bank = std::bit_cast<float>(0xBFC90FDBu);
-        const float a = call_guest(rt, ctx, method_of(rt, view, 16u), {view}, {}).f0;
-        const float b = call_guest(rt, ctx, method_of(rt, view, 20u), {view}, {}).f0;
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, view, 8u), {view, 8u}) == 0u) bank = 0.0f;
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, view, 8u), {view, 16u}) != 0u) bank = std::bit_cast<float>(0xBFC90FDBu);
+        const float a = gt::game::hot::call_indirect(rt, ctx, method_of(rt, view, 16u), {view}, {}).f0;
+        const float b = gt::game::hot::call_indirect(rt, ctx, method_of(rt, view, 20u), {view}, {}).f0;
         const float target = call_guest(rt, ctx, 0x089202A0u, {view}, {a, std::bit_cast<float>(0xBFC8EF16u), bank, b}).f0;
         if (target != 0.0f) rt.memory().store8(word(rt, self + 8u) + 589u, 1u);
         roll = target;
@@ -27818,8 +27840,8 @@ void func_08AD665C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             for (auto i = static_cast<std::int32_t>(call_guest(rt, ctx, 0x08B2A868u, {set, 0u})); i >= 0;
                  i = static_cast<std::int32_t>(call_guest(rt, ctx, 0x08B2A868u, {set, static_cast<std::uint32_t>(i) + 1u}))) {
                 const std::uint32_t voice = call_guest(rt, ctx, 0x08C3DCC4u, {self + 8u, static_cast<std::uint32_t>(i)});
-                if (with_volume) (void)call_guest(rt, ctx, method_of(rt, voice, offset), {voice}, {scaled});
-                else (void)call_guest(rt, ctx, method_of(rt, voice, offset), {voice});
+                if (with_volume) (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, voice, offset), {voice}, {scaled});
+                else (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, voice, offset), {voice});
             }
         };
         each(stopping, 28u, false, 0.0f);
@@ -27851,10 +27873,10 @@ void func_088F24E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t list = owner + word(rt, owner + 44u) * 1032u + 48u;
         walk_commands(rt, ctx, list, [&](std::uint32_t kind, std::uint32_t i) {
             if (kind == 1u) {
-                const std::uint32_t entry = call_guest(rt, ctx, method_of(rt, list, 20u), {list, i});
+                const std::uint32_t entry = gt::game::hot::call_indirect(rt, ctx, method_of(rt, list, 20u), {list, i});
                 (void)call_guest(rt, ctx, 0x088F1AC4u, {word(rt, renderer)}, {float_at(rt, entry)});
             } else if (kind == 0u) {
-                const std::uint32_t entry = call_guest(rt, ctx, method_of(rt, list, 20u), {list, i});
+                const std::uint32_t entry = gt::game::hot::call_indirect(rt, ctx, method_of(rt, list, 20u), {list, i});
                 (void)call_guest(rt, ctx, 0x088F20E4u, {word(rt, renderer), entry}, {float_at(rt, settings + 28u)});
             } else if (kind == 2u) {
                 (void)call_guest(rt, ctx, 0x088F5BD8u, {word(rt, renderer) + 2116u});
@@ -27876,14 +27898,14 @@ void func_088F2824(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (source == 0u) return;
     {
         GuestFrame frame(ctx, 0x20u);
-        if (call_guest(rt, ctx, method_of(rt, source, 104u), {source}) == 0u) return;
-        if (call_guest(rt, ctx, method_of(rt, source, 108u), {source}) == 0u) return;
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 104u), {source}) == 0u) return;
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 108u), {source}) == 0u) return;
         (void)call_guest(rt, ctx, 0x088F469Cu, {word(rt, renderer), word(rt, settings + 12u)});
-        if (call_guest(rt, ctx, method_of(rt, source, 48u), {source}) != 0u) {
-            const std::uint32_t list = call_guest(rt, ctx, method_of(rt, source, 48u), {source});
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 48u), {source}) != 0u) {
+            const std::uint32_t list = gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 48u), {source});
             walk_commands(rt, ctx, list, [&](std::uint32_t kind, std::uint32_t i) {
                 if (kind == 0u) {
-                    const std::uint32_t entry = call_guest(rt, ctx, method_of(rt, list, 20u), {list, i});
+                    const std::uint32_t entry = gt::game::hot::call_indirect(rt, ctx, method_of(rt, list, 20u), {list, i});
                     (void)call_guest(rt, ctx, 0x088F4160u, {word(rt, renderer), entry, rt.memory().load16(entry)});
                 } else if (kind == 2u) {
                     (void)call_guest(rt, ctx, 0x088F2BE8u, {word(rt, renderer)});
@@ -27904,7 +27926,7 @@ void func_0888A0F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t a = ctx.gpr[5], object = ctx.gpr[6], b = ctx.gpr[7];
     {
         GuestFrame frame(ctx, 0xA0u);
-        if (call_guest(rt, ctx, method_of(rt, object, 120u), {object, a}) != 0u) {
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 120u), {object, a}) != 0u) {
             const std::uint32_t origin = 0x08C89A74u;
             const std::uint32_t position = word(rt, self);
             rt.memory().store32(frame.at(20u), 0u);
@@ -27936,17 +27958,17 @@ void func_08916EFC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08916A3Cu, {self, a, b, list});
     if (list == 0u) return;
     rt.memory().store8(self + 24u, 0u);
-    const auto groups = static_cast<std::int32_t>(call_guest(rt, ctx, method_of(rt, list, 8u), {list}));
+    const auto groups = static_cast<std::int32_t>(gt::game::hot::call_indirect(rt, ctx, method_of(rt, list, 8u), {list}));
     rt.memory().store32(frame.at(0u), static_cast<std::uint32_t>(groups));
     if (groups <= 0) return;
     for (std::uint32_t g = 0u; g != word(rt, frame.at(0u)); ++g) {
-        const std::uint32_t group = call_guest(rt, ctx, method_of(rt, list, 12u), {list, g, 0u});
-        const auto count = static_cast<std::int32_t>(call_guest(rt, ctx, method_of(rt, group, 8u), {group}));
+        const std::uint32_t group = gt::game::hot::call_indirect(rt, ctx, method_of(rt, list, 12u), {list, g, 0u});
+        const auto count = static_cast<std::int32_t>(gt::game::hot::call_indirect(rt, ctx, method_of(rt, group, 8u), {group}));
         if (count <= 0) continue;
         for (std::int32_t i = 0; i != count; ++i) {
             const auto index = static_cast<std::uint32_t>(i);
-            const std::uint32_t key = call_guest(rt, ctx, method_of(rt, group, 12u), {group, index});
-            const std::uint32_t value = call_guest(rt, ctx, method_of(rt, group, 16u), {group, index});
+            const std::uint32_t key = gt::game::hot::call_indirect(rt, ctx, method_of(rt, group, 12u), {group, index});
+            const std::uint32_t value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, group, 16u), {group, index});
             const std::uint32_t node = call_guest(rt, ctx, 0x08916C58u, {self, key});
             if (node == 0u) continue;
             (void)call_guest(rt, ctx, 0x08916D48u,
@@ -28377,12 +28399,12 @@ void func_0883E7CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     };
     if (call_guest(rt, ctx, 0x08A76F20u, {object, call_guest(rt, ctx, 0x08A6BF34u, {holder})}) != 0u) {
         const std::uint32_t named = held();
-        (void)call_guest(rt, ctx, method_of(rt, named, 12u), {frame.at(12u), named});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, named, 12u), {frame.at(12u), named});
         deliver(call_guest(rt, ctx, 0x08931014u, {word(rt, frame.at(12u))}, {}), 4u);
         release_string(rt, ctx, word(rt, frame.at(12u)));
     } else {
         const std::uint32_t other = held();
-        deliver(call_guest(rt, ctx, method_of(rt, other, 80u), {other}, {}), 8u);
+        deliver(gt::game::hot::call_indirect(rt, ctx, method_of(rt, other, 80u), {other}, {}), 8u);
     }
 }
 
@@ -28595,7 +28617,7 @@ void func_0897F54C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     null_check(rt, ctx, editor, 0x08CA3400u);
     const std::uint32_t held = word(rt, holder);
     null_check(rt, ctx, held, 0x08CA3390u);
-    (void)call_guest(rt, ctx, method_of(rt, held, 12u), {frame.at(4u), held});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 12u), {frame.at(4u), held});
     (void)call_guest(rt, ctx, 0x0897F1D8u, {editor, frame.at(4u)});
     release_string(rt, ctx, word(rt, frame.at(4u)));
     ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(8u)});
@@ -28705,7 +28727,7 @@ void func_0899E9A8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         null_check(rt, ctx, options, 0x08CA496Cu);
         const std::uint32_t held = word(rt, holder);
         null_check(rt, ctx, held, 0x08CA485Cu);
-        (void)call_guest(rt, ctx, 0x0899D06Cu, {options}, {call_guest(rt, ctx, method_of(rt, held, 84u), {held}, {}).f0});
+        (void)call_guest(rt, ctx, 0x0899D06Cu, {options}, {gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 84u), {held}, {}).f0});
         ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(12u)});
     }
 }
@@ -28880,11 +28902,11 @@ void func_088C7734(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0xFFFFFFFFu;
     if (kind != 1u && kind != 6u) return;
     GuestFrame frame(ctx, 0x10u);
-    if (kind == 1u && call_guest(rt, ctx, method_of(rt, self, 24u), {self, 6u}) != 0u) {
+    if (kind == 1u && gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 24u), {self, 6u}) != 0u) {
         ctx.gpr[2] = 6u;
         return;
     }
-    if (call_guest(rt, ctx, method_of(rt, self, 24u), {self, 2u}) != 0u) ctx.gpr[2] = 2u;
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 24u), {self, 2u}) != 0u) ctx.gpr[2] = 2u;
 }
 
 // func_088A7B3C(holder *out, const handle *source, bool pooled): out = a new 1240-byte race object (pooled:
@@ -28986,7 +29008,7 @@ void func_08ABC608(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, holder);
     if (object == 0u) return;
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, method_of(rt, object, 28u), {object, holder, ctx.gpr[5]});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 28u), {object, holder, ctx.gpr[5]});
 }
 
 // func_08ABC2B8(x) -> the first non-zero answer of the registered handlers (list at 0x08D7718C, object
@@ -28996,7 +29018,7 @@ void func_08ABC2B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
     for (std::uint32_t node = word(rt, 0x08D7718Cu); node != 0u; node = word(rt, node)) {
         const std::uint32_t handler = word(rt, node + 4u);
-        if (const std::uint32_t answer = call_guest(rt, ctx, method_of(rt, handler, 24u), {handler, x}); answer != 0u) {
+        if (const std::uint32_t answer = gt::game::hot::call_indirect(rt, ctx, method_of(rt, handler, 24u), {handler, x}); answer != 0u) {
             ctx.gpr[2] = answer;
             return;
         }
@@ -29029,7 +29051,7 @@ void func_08A8836C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const float mine = float_at(rt, self + 20u);
     GuestFrame frame(ctx, 0x30u);
     null_check(rt, ctx, held, 0x08CB195Cu);
-    const float theirs = call_guest(rt, ctx, method_of(rt, held, 84u), {held}, {}).f0;
+    const float theirs = gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 84u), {held}, {}).f0;
     (void)call_guest(rt, ctx, 0x08A87EECu, {frame.at(0u)}, {call_guest(rt, ctx, 0x08B67720u, {}, {mine, theirs}).f0});
     if (out != frame.at(0u)) (void)call_guest(rt, ctx, kAssignSmart, {out, word(rt, frame.at(0u))});
     ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(0u)});
@@ -29076,7 +29098,7 @@ void func_08A51F5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         storage = word(rt, owner + 12u);
     }
     if (const std::uint32_t held = word(rt, holder); held != 0u) {
-        const GuestResult value = call_guest(rt, ctx, method_of(rt, held, 80u), {held}, {});
+        const GuestResult value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 80u), {held}, {});
         rt.memory().store32(storage, value.v0);
         rt.memory().store32(storage + 4u, value.v1);
     }
@@ -29334,7 +29356,7 @@ void func_08ABB984(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
     for (std::uint32_t node = word(rt, 0x08D77188u); node != 0u; node = word(rt, node)) {
         const std::uint32_t handler = word(rt, node + 4u);
-        (void)call_guest(rt, ctx, method_of(rt, handler, 36u), {handler, a, b});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, handler, 36u), {handler, a, b});
     }
 }
 
@@ -29835,7 +29857,7 @@ void func_0895900C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (word(rt, self + 28u) == 0u) return;
     (void)call_guest(rt, ctx, 0x0895A0D8u, {car, frame.at(0u), call_guest(rt, ctx, 0x08958D40u, {self})});
     const std::uint32_t listener = word(rt, self + 28u);
-    ctx.gpr[2] = call_guest(rt, ctx, method_of(rt, listener, 8u), {listener, i, frame.at(0u)});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, method_of(rt, listener, 8u), {listener, i, frame.at(0u)});
 }
 
 // func_08958B94(this, on): when func_089588F0 allows, the feedback byte +0x780 of the car (+0x8) = on.
@@ -30098,7 +30120,7 @@ void func_088E9054(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const float x = ctx.fpr[12];
     GuestFrame frame(ctx, 0x40u);
     const std::uint32_t object = word(rt, self + 12u);
-    const std::uint32_t colour = call_guest(rt, ctx, method_of(rt, object, 56u), {object, a, b, ctx.gpr[7]});
+    const std::uint32_t colour = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 56u), {object, a, b, ctx.gpr[7]});
     for (std::uint32_t k = 0u; k < 16u; k += 4u) rt.memory().store32(frame.at(k), word(rt, colour + k));
     ctx.gpr[2] = call_guest(rt, ctx, 0x088D1BD0u, {self + 48u, frame.at(0u), a, b, flag}, {x}).v0;
 }
@@ -30181,7 +30203,7 @@ void func_088A4498(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08B4F2E4u, {matrix}, {float_at(rt, angles)});
     (void)call_guest(rt, ctx, 0x08B4F3B0u, {matrix}, {float_at(rt, angles + 4u)});
     (void)call_guest(rt, ctx, 0x08B4F47Cu, {matrix}, {float_at(rt, angles + 8u)});
-    (void)call_guest(rt, ctx, method_of(rt, self, 48u), {self, matrix});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 48u), {self, matrix});
     ctx.gpr[2] = call_guest(rt, ctx, 0x088A3718u, {self});
 }
 
@@ -30353,7 +30375,7 @@ void func_08A45144(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // (with_call_target).
 void func_08A3B540(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     with_call_target(rt, ctx, [&](std::uint32_t target, std::uint32_t object) {
-        const std::uint32_t value = call_guest(rt, ctx, method_of(rt, object, 48u), {object}) & 0xFFu;
+        const std::uint32_t value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 48u), {object}) & 0xFFu;
         (void)call_guest(rt, ctx, 0x08A3A338u, {target, value});
     });
 }
@@ -30361,7 +30383,7 @@ void func_08A3B540(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_08A3B428(_, a, n, holder): func_08A3A330(target, the held object's float (virtual +0x54)).
 void func_08A3B428(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     with_call_target(rt, ctx, [&](std::uint32_t target, std::uint32_t object) {
-        const float value = call_guest(rt, ctx, method_of(rt, object, 84u), {object}, {}).f0;
+        const float value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 84u), {object}, {}).f0;
         (void)call_guest(rt, ctx, 0x08A3A330u, {target}, {value});
     });
 }
@@ -30423,7 +30445,7 @@ void func_089E4EF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t x = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
     (void)call_guest(rt, ctx, 0x0897006Cu, {self, ctx.gpr[5], x});
-    if (call_guest(rt, ctx, method_of(rt, x, 280u), {x}) == self) rt.memory().store32(self + 472u, 1u);
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, x, 280u), {x}) == self) rt.memory().store32(self + 472u, 1u);
     ctx.gpr[2] = 1u;
 }
 
@@ -30478,7 +30500,7 @@ void func_08985AB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     for (const std::uint32_t at : {12u, 8u, 4u}) store_float(rt, value + at, 1.0f);
     rt.memory().store32(value + 16u, 0xFFFFFFFFu);
     rt.memory().store32(descriptor + 12u, value);
-    (void)call_guest(rt, ctx, method_of(rt, visitor, 8u), {visitor, descriptor});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, visitor, 8u), {visitor, descriptor});
     rt.memory().store32(descriptor, kPropertyBase);
     release_string(rt, ctx, word(rt, descriptor + 4u));
     if (self + 128u != value) {
@@ -30639,7 +30661,7 @@ void func_08B2B760(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store32(self + 8u, b);
     rt.memory().store32(self + 12u, c);
     rt.memory().store32(self + 16u, 0u);
-    (void)call_guest(rt, ctx, method_of(rt, self, 8u), {self});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 8u), {self});
     ctx.gpr[2] = result;
 }
 
@@ -30719,10 +30741,10 @@ void func_08A850C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x20u);
     (void)call_guest(rt, ctx, 0x08A76AA0u, {frame.at(0u)});
     const std::uint32_t source = word(rt, self + 20u);
-    if (call_guest(rt, ctx, method_of(rt, source, 8u), {source}) != 0u) {
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 8u), {source}) != 0u) {
         const std::uint32_t again = word(rt, self + 20u);
-        (void)call_guest(rt, ctx, method_of(rt, again, 12u), {again});
-        (void)call_guest(rt, ctx, method_of(rt, self, 192u), {self, frame.at(0u)});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, again, 12u), {again});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 192u), {self, frame.at(0u)});
     }
     const std::uint32_t held = word(rt, holder);
     null_check(rt, ctx, held, 0x08CB1808u);
@@ -30784,7 +30806,7 @@ void func_08A35AA4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         null_check(rt, ctx, target, 0x08CACF04u);
         const std::uint32_t held = word(rt, holder);
         null_check(rt, ctx, held, 0x08CACEB8u);
-        store_float(rt, target + 36u, call_guest(rt, ctx, method_of(rt, held, 84u), {held}, {}).f0);
+        store_float(rt, target + 36u, gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 84u), {held}, {}).f0);
         ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(8u)});
         return;
     }
@@ -30860,7 +30882,7 @@ void func_089E49C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store32(descriptor + 12u, list);
     rt.memory().store32(descriptor, 0x08CCF778u);
     for (const std::uint32_t at : {0u, 4u, 8u}) rt.memory().store32(list + at, 0u);
-    (void)call_guest(rt, ctx, method_of(rt, visitor, 8u), {visitor, descriptor});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, visitor, 8u), {visitor, descriptor});
     rt.memory().store32(descriptor, kPropertyBase);
     release_string(rt, ctx, word(rt, descriptor + 4u));
     const std::uint32_t values = word(rt, list);
@@ -30954,7 +30976,7 @@ void func_088B4A70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     {
         GuestFrame frame(ctx, 0x10u);
         const std::uint32_t object = word(rt, self + 4u);
-        const std::uint32_t value = call_guest(rt, ctx, method_of(rt, object, 92u), {object, rt.memory().load8(self + 1020u)});
+        const std::uint32_t value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 92u), {object, rt.memory().load8(self + 1020u)});
         (void)call_guest(rt, ctx, 0x088BB3F0u, {self + 60u, x, value, self + 8u, word(rt, self + 24u), rt.memory().load8(self + 1020u)});
     }
     const std::uint32_t listener = word(rt, self + 56u);
@@ -31104,7 +31126,7 @@ void func_088571F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t list = call_guest(rt, ctx, 0x08854678u, {object});
     const std::uint32_t held = word(rt, holder);
     null_check(rt, ctx, held, 0x08C9E14Cu);
-    (void)call_guest(rt, ctx, 0x088A6F7Cu, {list, call_guest(rt, ctx, method_of(rt, held, 60u), {held})});
+    (void)call_guest(rt, ctx, 0x088A6F7Cu, {list, gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 60u), {held})});
     ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(0u)});
 }
 
@@ -31335,8 +31357,8 @@ void func_089D87E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const float total = ctx.fpr[12];
     if (!(0.0f <= total)) return;
     GuestFrame frame(ctx, 0x20u);
-    const auto count = [&] { return call_guest(rt, ctx, method_of(rt, self, 456u), {self}); };
-    const auto item = [&](std::uint32_t i) { return call_guest(rt, ctx, method_of(rt, self, 468u), {self, i}); };
+    const auto count = [&] { return gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 456u), {self}); };
+    const auto item = [&](std::uint32_t i) { return gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 468u), {self, i}); };
     const float current = float_at(rt, self + 156u);
     if (0.0f < current) {
         const float width = call_guest(rt, ctx, 0x089D83F4u, {self}, {}).f0;
@@ -31693,10 +31715,10 @@ void func_088E8EB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, self + 12u);
     if (object == 0u || rt.memory().load8(self + 16u) == 0u) return;
     GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, method_of(rt, object, 48u), {object, 0u});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 48u), {object, 0u});
     if (call_guest(rt, ctx, 0x088E85E8u, {self}) != 0u) {
         const std::uint32_t again = word(rt, self + 12u);
-        (void)call_guest(rt, ctx, method_of(rt, again, 216u), {again});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, again, 216u), {again});
     }
     (void)call_guest(rt, ctx, 0x088E8DE0u, {self, a, b, c, d});
     const auto follow = [&](std::uint32_t flag, std::uint32_t source, std::uint32_t on, std::uint32_t off) {
@@ -31705,7 +31727,7 @@ void func_088E8EB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const bool set = wanted != 0;
         rt.memory().store8(self + flag, set ? 1u : 0u);
         const std::uint32_t target = word(rt, self + 12u);
-        (void)call_guest(rt, ctx, method_of(rt, target, set ? on : off), {target});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, target, set ? on : off), {target});
     };
     if (word(rt, self + 740u) != 0u && word(rt, self + 28u) == 1u) {
         follow(23u, 53u, 92u, 96u);
@@ -31918,7 +31940,7 @@ void func_08A6E3D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const auto string_of = [&](std::uint32_t holder, std::uint32_t into) {
             const std::uint32_t object = word(rt, holder);
             null_check(rt, ctx, object, 0x08CB06B8u);
-            (void)call_guest(rt, ctx, method_of(rt, object, 12u), {into, object});
+            (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 12u), {into, object});
         };
         string_of(a, text);
         string_of(b, prefix);
@@ -32094,7 +32116,7 @@ void func_0898AF30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         null_check(rt, ctx, object, 0x08CA39F0u);
         null_check(rt, ctx, held, 0x08CA39E8u);
         const std::uint32_t text = frame.at(4u);
-        (void)call_guest(rt, ctx, method_of(rt, held, 12u), {text, held});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 12u), {text, held});
         (void)call_guest(rt, ctx, 0x0898952Cu, {object, text});
         release_string(rt, ctx, word(rt, text));
     } else {
@@ -32440,7 +32462,7 @@ void func_08A88488(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const float mine = float_at(rt, self + 0x14u);
     GuestFrame frame(ctx, 0x30u);
     null_check(rt, ctx, object, 0x08CB195Cu);
-    const float other = call_guest(rt, ctx, method_of(rt, object, 0x54u), {object}, {}).f0;
+    const float other = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 0x54u), {object}, {}).f0;
     (void)call_guest(rt, ctx, 0x08A97A6Cu, {frame.at(0u), mine == other ? 0u : 1u});
     if (out != frame.at(0u)) (void)call_guest(rt, ctx, kAssignSmart, {out, word(rt, frame.at(0u))});
     ctx.gpr[2] = call_guest(rt, ctx, kReleaseLocal, {frame.at(0u)});
@@ -32821,7 +32843,7 @@ void func_088E884C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     if (object == 0u || rt.memory().load8(self + 16u) != 0u || rt.memory().load8(self + 692u) == 0u) return;
     GuestFrame frame(ctx, 0x10u);
-    const std::uint32_t result = call_guest(rt, ctx, method_of(rt, object, 204u), {object, self + 688u, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    const std::uint32_t result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 204u), {object, self + 688u, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
     rt.memory().store8(self + 17u, result);
     ctx.gpr[2] = rt.memory().load8(self + 17u);
 }
@@ -32857,7 +32879,7 @@ void func_088B1500(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store32(message + 4u, 3u);
     rt.memory().store32(message, 0x08CC3070u);
     const std::uint32_t target = word(rt, self);
-    ctx.gpr[2] = call_guest(rt, ctx, method_of(rt, target, 48u), {target, word(rt, self + 4u), message});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, method_of(rt, target, 48u), {target, word(rt, self + 4u), message});
 }
 
 // func_088A9410(this) -> func_088A6C54 of +0x10, 0 without one.
@@ -33083,7 +33105,7 @@ void func_08A0F4D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t off = (ctx.gpr[5] & 0xFFu) ^ 1u;
     {
         GuestFrame frame(ctx, 0x10u);
-        (void)call_guest(rt, ctx, method_of(rt, self, 424u), {self, off});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 424u), {self, off});
     }
     tail_call(ctx, method_of(rt, self, 432u), {self, off});
 }
@@ -33325,7 +33347,7 @@ void func_08A7004C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t held = word(rt, ctx.gpr[5]);
     GuestFrame frame(ctx, 0x20u);
     null_check(rt, ctx, held, 0x08CB06B8u);
-    (void)call_guest(rt, ctx, method_of(rt, held, 12u), {frame.at(4u), held});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 12u), {frame.at(4u), held});
     (void)call_guest(rt, ctx, 0x08B855E0u, {self + 20u, frame.at(4u)});
     release_string(rt, ctx, word(rt, frame.at(4u)));
 }
@@ -33355,7 +33377,7 @@ void func_08B169FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t out = ctx.gpr[6], n = ctx.gpr[7];
     GuestFrame frame(ctx, 0x20u);
-    const std::uint32_t name = call_guest(rt, ctx, method_of(rt, self, 160u), {self, ctx.gpr[5], out, n});
+    const std::uint32_t name = gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 160u), {self, ctx.gpr[5], out, n});
     const std::uint32_t text = call_guest(rt, ctx, 0x08B17A98u, {name});
     std::uint32_t fits = 0u;
     if (call_guest(rt, ctx, 0x08B35F60u, {text}) < n) {
@@ -33376,7 +33398,7 @@ void func_089786D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (static_cast<std::int32_t>(n) > 0) {
         const std::uint32_t held = word(rt, holder);
         null_check(rt, ctx, held, 0x08CA2F84u);
-        value = call_guest(rt, ctx, method_of(rt, held, 60u), {held});
+        value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, held, 60u), {held});
     }
     (void)call_guest(rt, ctx, 0x08978000u, {frame.at(0u), a, n, holder});
     const std::uint32_t target = word(rt, frame.at(0u));
@@ -33755,7 +33777,7 @@ void func_08927440(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         GuestFrame frame(ctx, 0x20u);
         for (std::uint32_t k = 0u; k < 13u; ++k) {
             const std::uint32_t object = word(rt, self + 8048u + 4u * k);
-            (void)call_guest(rt, ctx, method_of(rt, object, 28u), {object});
+            (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 28u), {object});
         }
     }
     rt.memory().store32(self + 8112u, value);
@@ -34051,7 +34073,7 @@ void func_08ACB500(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08ACB4F8u, {self});
     const std::uint32_t object = word(rt, self + 4u);
     if (object == 0u) return;
-    (void)call_guest(rt, ctx, method_of(rt, object, 0u), {object, word(rt, self)});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 0u), {object, word(rt, self)});
     rt.memory().store32(self, 0u);
     rt.memory().store32(self + 4u, 0u);
 }
@@ -34060,7 +34082,7 @@ void func_08894028(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
     const std::uint32_t object = word(rt, self + 4u);
     if (object == 0u) return;
-    (void)call_guest(rt, ctx, method_of(rt, object, 0u), {object, word(rt, self)});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 0u), {object, word(rt, self)});
     rt.memory().store32(self, 0u);
     rt.memory().store32(self + 4u, 0u);
 }
@@ -34129,7 +34151,7 @@ void func_08ABBAE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[4]);
     if (object == 0u) return;
     GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[2] = call_guest(rt, ctx, method_of(rt, object, 24u), {object});
+    ctx.gpr[2] = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 24u), {object});
 }
 
 // func_08AB8B80(this): +0xC = 1.0, +0x0 = +0x4 = 0, +0x8 = 1.0.
@@ -34888,7 +34910,7 @@ void func_08B1A7A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
     for (std::uint32_t node = word(rt, 0x08D773D8u); node != 0u; node = word(rt, node)) {
         const std::uint32_t object = word(rt, node + 4u);
-        if (call_guest(rt, ctx, method_of(rt, object, 8u), {object}) == 0u) {
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 8u), {object}) == 0u) {
             ctx.gpr[2] = 0u;
             return;
         }
@@ -35274,7 +35296,7 @@ void func_08AC032C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     rt.memory().store32(frame.at(0u), ctx.gpr[6]);
     rt.memory().store32(frame.at(4u), ctx.gpr[7]);
     rt.memory().store32(self + 8u, call_guest(rt, ctx, 0x08B15F40u, {ctx.gpr[5], frame.at(0u), ctx.gpr[6], ctx.gpr[7]}));
-    (void)call_guest(rt, ctx, method_of(rt, self, 8u), {self, 1u});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 8u), {self, 1u});
     ctx.gpr[2] = word(rt, self + 8u) != 0u ? 1u : 0u;
 }
 
@@ -35462,7 +35484,7 @@ void func_08A9600C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[5]);
     GuestFrame frame(ctx, 0x10u);
     if (object == 0u) (void)call_guest(rt, ctx, 0x08A5BB7Cu, {0x08CB21E8u});
-    const std::uint32_t result = call_guest(rt, ctx, method_of(rt, object, 52u), {object});
+    const std::uint32_t result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 52u), {object});
     rt.memory().store8(self + 20u, result);
 }
 
@@ -35845,7 +35867,7 @@ void func_089CCA00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], other = ctx.gpr[6];
     GuestFrame frame(ctx, 0x10u);
     (void)call_guest(rt, ctx, 0x0897006Cu, {self, ctx.gpr[5], other, ctx.gpr[7]});
-    if (call_guest(rt, ctx, method_of(rt, other, 280u), {other}) == self) rt.memory().store32(self + 448u, 1u);
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, other, 280u), {other}) == self) rt.memory().store32(self + 448u, 1u);
     ctx.gpr[2] = 1u;
 }
 
@@ -36119,7 +36141,7 @@ void func_08927550(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
     (void)call_guest(rt, ctx, 0x08927148u, {self, a, b, ctx.gpr[7]});
     const std::uint32_t object = word(rt, self + 8100u);
-    (void)call_guest(rt, ctx, method_of(rt, object, 24u), {object, b});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 24u), {object, b});
     rt.memory().store8(self + 8133u, 1u);
 }
 
@@ -36204,7 +36226,7 @@ void func_0891C768(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], v = ctx.gpr[5];
     {
         GuestFrame frame(ctx, 0x10u);
-        (void)call_guest(rt, ctx, method_of(rt, self, 68u), {self, v});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 68u), {self, v});
     }
     rt.memory().store32(self + 560u, v);
     rt.memory().store32(self + 548u, 0xFFFFFFFFu);
@@ -36890,7 +36912,7 @@ void func_08893CC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08893C78u, {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
     const std::uint32_t object = word(rt, self + 4u);
     if (object == 0u) return;
-    (void)call_guest(rt, ctx, method_of(rt, object, 0u), {object, word(rt, self)});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 0u), {object, word(rt, self)});
     rt.memory().store32(self, 0u);
     rt.memory().store32(self + 4u, 0u);
 }
@@ -37509,7 +37531,7 @@ void func_088D1E14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08895F54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x10u);
-    if (call_guest(rt, ctx, method_of(rt, self, 36u), {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]}) == 0u) return;
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 36u), {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]}) == 0u) return;
     if (rt.memory().load8(self + 168u) == 0u)
         (void)call_guest(rt, ctx, 0x08895BFCu, {self + 112u});
     else
@@ -37554,7 +37576,7 @@ void func_08A563E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, x + 20u);
     GuestFrame frame(ctx, 0x10u);
     report_if_null(rt, ctx, object, 0x08CAF798u);
-    (void)call_guest(rt, ctx, method_of(rt, object, 332u), {self, object, x});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 332u), {self, object, x});
     ctx.gpr[2] = self;
 }
 void func_08A56450(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
@@ -37562,7 +37584,7 @@ void func_08A56450(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, x + 20u);
     GuestFrame frame(ctx, 0x10u);
     report_if_null(rt, ctx, object, 0x08CAF798u);
-    const std::uint32_t value = call_guest(rt, ctx, method_of(rt, object, 364u), {object, x});
+    const std::uint32_t value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 364u), {object, x});
     (void)call_guest(rt, ctx, 0x08A851CCu, {self, value});
     ctx.gpr[2] = self;
 }
@@ -37795,7 +37817,7 @@ void func_08AAC26C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     const std::uint32_t object = word(rt, b);
     if (object == 0u) return;
-    rt.memory().store8(target, call_guest(rt, ctx, method_of(rt, object, 68u), {object}));
+    rt.memory().store8(target, gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 68u), {object}));
 }
 
 // func_08AB9EF0(x) -> the first object (+0x0) of the chain (next at +0x8) at 0x08CFFA24 whose virtual +0x24 (object, x) is non-zero, else 0.
@@ -37805,7 +37827,7 @@ void func_08AB9EF0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     for (std::uint32_t node = word(rt, 0x08CFFA24u); node != 0u; node = word(rt, node + 8u)) {
         const std::uint32_t object = word(rt, node);
-        if (call_guest(rt, ctx, method_of(rt, object, 36u), {object, x}) != 0u) {
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 36u), {object, x}) != 0u) {
             ctx.gpr[2] = object;
             return;
         }
@@ -37819,7 +37841,7 @@ void func_08ABC844(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = 0u;
     for (std::uint32_t node = word(rt, 0x08D77190u); node != 0u; node = word(rt, node)) {
         const std::uint32_t object = word(rt, node + 4u);
-        const std::uint32_t result = call_guest(rt, ctx, method_of(rt, object, 16u), {object, x, y});
+        const std::uint32_t result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 16u), {object, x, y});
         if (result != 0u) {
             ctx.gpr[2] = result;
             return;
@@ -37997,7 +38019,7 @@ void func_089C5680(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08A12E38u, {frame.at(0u)});
     const std::uint32_t object = word(rt, frame.at(0u));
     report_if_null(rt, ctx, object, 0x08CA636Cu);
-    (void)call_guest(rt, ctx, method_of(rt, object, 28u), {object, x});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 28u), {object, x});
     (void)call_guest(rt, ctx, 0x089C160Cu, {self, frame.at(0u)});
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
     ctx.gpr[2] = self;
@@ -38098,7 +38120,7 @@ void func_08AB3690(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t index = word(rt, self + 44u);
     const std::uint32_t entry = word(rt, word(rt, self + 40u) + (index << 2));
     if (entry != 0u && static_cast<std::int32_t>(index) < static_cast<std::int32_t>(word(rt, self + 36u))) {
-        const GuestResult result = call_guest(rt, ctx, method_of(rt, entry, 64u), {entry}, {});
+        const GuestResult result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, entry, 64u), {entry}, {});
         index = word(rt, self + 44u);
         low = result.v0;
         high = result.v1;
@@ -38179,7 +38201,7 @@ void func_08A93704(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08A93DD4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x20u);
-    (void)call_guest(rt, ctx, method_of(rt, self, 284u), {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 284u), {self, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
     (void)call_guest(rt, ctx, 0x08A951B8u, {frame.at(0u), 0u});
     if (self + 32u != frame.at(0u)) (void)call_guest(rt, ctx, 0x08A5BAD8u, {self + 32u, word(rt, frame.at(0u))});
     if (self + 28u != self + 32u) (void)call_guest(rt, ctx, 0x08A5BAD8u, {self + 28u, word(rt, self + 32u)});
@@ -38215,7 +38237,7 @@ void func_08835C58(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     report_if_null(rt, ctx, holder_object, 0x08C9B7B8u);
     const std::uint32_t object = word(rt, x);
     report_if_null(rt, ctx, object, 0x08C9B798u);
-    const std::uint32_t result = call_guest(rt, ctx, method_of(rt, object, 48u), {object});
+    const std::uint32_t result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 48u), {object});
     rt.memory().store8(holder_object + 25u, result);
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
 }
@@ -38342,7 +38364,7 @@ void func_08A79420(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[5]);
     GuestFrame frame(ctx, 0x30u);
     report_if_null(rt, ctx, object, 0x08CB0E38u);
-    (void)call_guest(rt, ctx, method_of(rt, object, 176u), {frame.at(0u), object, a, b});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 176u), {frame.at(0u), object, a, b});
     assign_and_release(rt, ctx, self, frame.at(0u));
 }
 
@@ -38370,7 +38392,7 @@ void func_089271E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
     for (std::uint32_t k = 0u; k < 13u; ++k) {
         const std::uint32_t object = word(rt, self + 8048u + 4u * k);
-        (void)call_guest(rt, ctx, method_of(rt, object, 12u), {object});
+        (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 12u), {object});
         rt.memory().store32(word(rt, self + 8048u + 4u * k) + 480u, self);
     }
     rt.memory().store32(self + 4864u, 1u);
@@ -38419,7 +38441,7 @@ void func_089BF400(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t source = word(rt, x);
     report_if_null(rt, ctx, source, 0x08CA5E6Cu);
-    const std::uint32_t flag = call_guest(rt, ctx, method_of(rt, source, 60u), {source}) != 0u ? 1u : 0u;
+    const std::uint32_t flag = gt::game::hot::call_indirect(rt, ctx, method_of(rt, source, 60u), {source}) != 0u ? 1u : 0u;
     (void)call_guest(rt, ctx, 0x089BEE4Cu, {frame.at(0u), a});
     const std::uint32_t object = word(rt, frame.at(0u));
     report_if_null(rt, ctx, object, 0x08CA5EB4u);
@@ -38661,7 +38683,7 @@ void func_08A7DCD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_guest(rt, ctx, 0x08A5D438u, {local});
     (void)call_guest(rt, ctx, 0x08A7D710u, {frame.at(0u), self, local, b});
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
-    (void)call_guest(rt, ctx, method_of(rt, self, 276u), {self, a, local});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 276u), {self, a, local});
     const std::uint32_t value = word(rt, local);
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {local});
     ctx.gpr[2] = value != 0u ? 1u : 0u;
@@ -38717,7 +38739,7 @@ void func_08A25B9C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t object = word(rt, x);
     report_if_null(rt, ctx, object, 0x08CAAFBCu);
-    const float value = call_guest(rt, ctx, method_of(rt, object, 84u), {object}, {}).f0;
+    const float value = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 84u), {object}, {}).f0;
     const float scaled = call_guest(rt, ctx, 0x08B48F04u, {0x08D6950Cu}, {value}).f0 + 0.5f;
     (void)call_guest(rt, ctx, 0x08A85B1Cu, {frame.at(0u), static_cast<std::uint32_t>(trunc_word(scaled))});
     assign_and_release(rt, ctx, self, frame.at(0u));
@@ -38752,7 +38774,7 @@ void func_0880F2C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, x);
     report_if_null(rt, ctx, object, 0x08C986DCu);
     const std::uint32_t member = word(rt, holder_object + 232u);
-    const std::uint32_t result = call_guest(rt, ctx, method_of(rt, object, 60u), {object});
+    const std::uint32_t result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 60u), {object});
     const std::uint32_t target = word(rt, member + 4u);
     if (target != 0u) (void)call_guest(rt, ctx, 0x08893638u, {target, result});
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
@@ -38853,7 +38875,7 @@ void func_08A97C70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, x);
     GuestFrame frame(ctx, 0x20u);
     report_if_null(rt, ctx, object, 0x08CB2298u);
-    const std::uint32_t result = call_guest(rt, ctx, method_of(rt, object, 48u), {object});
+    const std::uint32_t result = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 48u), {object});
     (void)call_guest(rt, ctx, 0x08A97A6Cu, {frame.at(0u), (flag ^ result) < 1u ? 1u : 0u});
     assign_and_release(rt, ctx, out, frame.at(0u));
 }
@@ -39213,7 +39235,7 @@ void func_088DB8DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const std::uint32_t entry = word(rt, self + 192u) + 760u * static_cast<std::uint32_t>(i);
         if (call_guest(rt, ctx, 0x088E85E8u, {entry}) != 0u) {
             const std::uint32_t object = word(rt, self + 328u);
-            (void)call_guest(rt, ctx, method_of(rt, object, 56u), {object, static_cast<std::uint32_t>(i)});
+            (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 56u), {object, static_cast<std::uint32_t>(i)});
         }
     }
 }
@@ -39506,7 +39528,7 @@ void func_088948F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t n = ctx.gpr[6];
     const std::uint32_t object = word(rt, ctx.gpr[4] + 84u);
     GuestFrame frame(ctx, 0x10u);
-    (void)call_guest(rt, ctx, method_of(rt, object, 76u), {object, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 76u), {object, ctx.gpr[5], ctx.gpr[6], ctx.gpr[7]});
     ctx.gpr[2] = n + call_guest(rt, ctx, 0x08898230u, {});
 }
 
@@ -39566,7 +39588,7 @@ void func_08ABB298(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         GuestFrame frame(ctx, 0x10u);
         for (std::uint32_t node = word(rt, 0x08D77184u); node != 0u; node = word(rt, node)) {
             const std::uint32_t object = word(rt, node + 4u);
-            (void)call_guest(rt, ctx, method_of(rt, object, 100u), {object});
+            (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 100u), {object});
         }
     }
     tail_call(ctx, 0x08ABA360u, {});
@@ -39646,7 +39668,7 @@ void func_088F553C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08968A40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x10u);
-    if (call_guest(rt, ctx, method_of(rt, self, 412u), {self}) == 0u) return;
+    if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 412u), {self}) == 0u) return;
     std::uint32_t child = word(rt, self + 244u);
     while (child != 0u) {
         (void)call_guest(rt, ctx, 0x08968A40u, {child});
@@ -39660,7 +39682,7 @@ void func_089BD608(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     std::uint32_t value;
     {
         GuestFrame frame(ctx, 0x10u);
-        if (call_guest(rt, ctx, method_of(rt, self, 388u), {self}) != 0u) {
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, self, 388u), {self}) != 0u) {
             ctx.gpr[2] = self;
             return;
         }
@@ -39982,7 +40004,7 @@ void func_0892074C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
     if (static_cast<std::int32_t>(index) < 30) {
-        if (call_guest(rt, ctx, method_of(rt, object, 196u), {object, index}) == 0u) return;
+        if (gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 196u), {object, index}) == 0u) return;
     }
     ctx.gpr[2] = call_guest(rt, ctx, 0x089200F4u, {self, index}) != 0u ? 1u : 0u;
 }
@@ -40048,7 +40070,7 @@ void func_08A2240C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (static_cast<std::int32_t>(n) > 0) {
         object = word(rt, x);
         report_if_null(rt, ctx, object, 0x08CAAA48u);
-        size = call_guest(rt, ctx, method_of(rt, object, 60u), {object});
+        size = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 60u), {object});
     }
     report_if_null(rt, ctx, object, 0x08CAAA84u);
     (void)call_guest(rt, ctx, 0x08AB86B0u, {object + 20u, size});
@@ -40065,7 +40087,7 @@ void func_089C5A28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if ((ctx.gpr[6] & 255u) != 0u) {
             const std::uint32_t object = word(rt, holder);
             report_if_null(rt, ctx, object, 0x08CA6378u);
-            (void)call_guest(rt, ctx, method_of(rt, object, 340u), {object, self});
+            (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 340u), {object, self});
         }
         (void)call_guest(rt, ctx, 0x089C4BB0u, {word(rt, holder)});
         target = word(rt, self + 60u);
@@ -40378,7 +40400,7 @@ void func_08A700F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = word(rt, ctx.gpr[6]);
     GuestFrame frame(ctx, 0x30u);
     report_if_null(rt, ctx, object, 0x08CB06B8u);
-    (void)call_guest(rt, ctx, method_of(rt, object, 12u), {frame.at(4u), object});
+    (void)gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 12u), {frame.at(4u), object});
     (void)call_guest(rt, ctx, 0x08A6D2D4u, {frame.at(8u), frame.at(4u)});
     (void)call_guest(rt, ctx, 0x08A76ABCu, {self, frame.at(8u)});
     (void)call_guest(rt, ctx, 0x08A5B9ECu, {frame.at(8u)});
@@ -40399,7 +40421,7 @@ void func_089C5D80(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (n == 2u) {
         object = word(rt, x + 4u);
         report_if_null(rt, ctx, object, 0x08CA6304u);
-        flag = call_guest(rt, ctx, method_of(rt, object, 48u), {object});
+        flag = gt::game::hot::call_indirect(rt, ctx, method_of(rt, object, 48u), {object});
     }
     report_if_null(rt, ctx, object, 0x08CA63A0u);
     (void)call_guest(rt, ctx, 0x089C5A28u, {object, frame.at(4u), flag});
