@@ -2592,3 +2592,21 @@ mismatching. Five came from register leftovers the original leaves for its calle
   commutative operation. That is a hypothesis, not yet measured.
 
 Found: 2026-10-27 · src/game/unsorted/hot_leaves.cpp, src/game/unsorted/hot_batch_133.cpp, include/gt/game/hot_common.hpp
+
+## The oldest synthetic mismatches: v0 the original leaves for a callee, and `jalr v0` in the batch 92-98 helpers
+
+- `func_08A0A398` returned the visitor's v0 on its early exit. The asm leaves the base vtable it just stored
+  (0x08CCD990) in v0.
+- `func_089170E0` returned 0 where the original returns 1. Its callee `func_08BDC338` (recompiled) returns without
+  writing v0 when the count is 0, so it hands back the caller's v0: the 1 the caller loaded for its `sb`. The decompiled
+  caller now loads it too.
+- In batches 92-98, `call_set(rt, ctx, slot_of(...))` runs a `jalr v0` virtual without v0 = the target. A new
+  `call_set_v0` does it at every site of a function whose asm calls only through `jalr v0` (the batch 147 rule), and
+  at `func_0889E01C`'s six `v0` sites (its slot 0x10 call goes through `jalr v1`). `release_counted` (batch 95) calls
+  its two virtuals through `call_indirect`.
+- **Still open:**
+  - After `dealer` / `race`: `func_0889E01C` (3 bytes at b+5) and `func_0893D9AC` (a NaN's sign: FF / 7F).
+  - After the other four routes, also: `088A657C` (stale stack words), `08BAE2B0` (NaN payload) and `08C18650`
+    (an import replay).
+
+Found: 2026-10-27 · src/game/unsorted/hot_batch_92.cpp..98, 109

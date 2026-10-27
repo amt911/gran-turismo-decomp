@@ -103,6 +103,11 @@ inline std::uint32_t call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     }
     return call_keep(rt, ctx, address, arguments);
 }
+// A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address (call_indirect's rule).
+inline std::uint32_t call_set_v0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t address, std::initializer_list<std::uint32_t> arguments) {
+    ctx.gpr[2] = address;
+    return call_set(rt, ctx, address, arguments);
+}
 inline std::uint32_t sext8(std::uint32_t value) { return static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(value))); }
 // lwl / lwr pair at `address` + 3 / + 0: the little-endian word that starts at an unaligned address; swl / swr at + 3 / + 0 store one.
 inline std::uint32_t word_unaligned(psprecomp::Runtime &rt, std::uint32_t address) {
@@ -1197,7 +1202,7 @@ void func_08896780(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
                 ++i;  // the delay slot of the beqz
                 if (asked != 0u) {
                     const std::uint32_t owner = word(rt, self + 0x60u);
-                    (void)call_set(rt, ctx, slot_of(rt, owner, 0xC4u), {owner, extra, entry});
+                    (void)call_set_v0(rt, ctx, slot_of(rt, owner, 0xC4u), {owner, extra, entry});
                 }
             }
         }
@@ -1276,8 +1281,8 @@ void func_088F1DA0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x40u);
     bool usable = false;
     if (source != 0u) {
-        usable = call_set(rt, ctx, slot_of(rt, source, 0x68u), {source}) != 0u;
-        if (usable) usable = call_set(rt, ctx, slot_of(rt, source, 0x6Cu), {source}) != 0u;
+        usable = call_set_v0(rt, ctx, slot_of(rt, source, 0x68u), {source}) != 0u;
+        if (usable) usable = call_set_v0(rt, ctx, slot_of(rt, source, 0x6Cu), {source}) != 0u;
     }
     if (!usable) {
         (void)call_set(rt, ctx, 0x088F1C98u, {self});
@@ -1288,20 +1293,20 @@ void func_088F1DA0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     (void)call_set(rt, ctx, 0x08B344E0u, {lock});
     const std::uint32_t index = 1u - word(rt, word(rt, self + 8u) + 0x2Cu);  // s2, the delay slot of the jalr
     const std::uint32_t buffer_offset = (index << 3) + (index << 10) + 0x30u;
-    const std::uint32_t answered = call_set(rt, ctx, slot_of(rt, source, 0x2Cu), {source});
+    const std::uint32_t answered = call_set_v0(rt, ctx, slot_of(rt, source, 0x2Cu), {source});
     if (answered != 0u) {
         const std::uint32_t buffer = word(rt, self + 8u) + buffer_offset;  // s3, the delay slot of the jalr
-        const std::uint32_t object = call_set(rt, ctx, slot_of(rt, source, 0x2Cu), {source});
-        const std::uint32_t length = call_set(rt, ctx, slot_of(rt, object, 8u), {object});
+        const std::uint32_t object = call_set_v0(rt, ctx, slot_of(rt, source, 0x2Cu), {source});
+        const std::uint32_t length = call_set_v0(rt, ctx, slot_of(rt, object, 8u), {object});
         const std::uint32_t count = word(rt, buffer + 0x404u);
         const std::uint32_t grown = count + ((length + 3u) >> 2);
         if (grown < 0x101u) {
-            const std::uint32_t bytes = call_set(rt, ctx, slot_of(rt, object, 0xCu), {object});
+            const std::uint32_t bytes = call_set_v0(rt, ctx, slot_of(rt, object, 0xCu), {object});
             (void)call_set(rt, ctx, 0x08B79A88u, {buffer + (word(rt, buffer + 0x404u) << 2) + 4u, bytes, length});
             put(rt, buffer + 0x404u, grown);
         }
     }
-    const std::uint32_t more = call_set(rt, ctx, slot_of(rt, source, 0x7Cu), {source});
+    const std::uint32_t more = call_set_v0(rt, ctx, slot_of(rt, source, 0x7Cu), {source});
     if (more == 0u) {
         const std::uint32_t b = word(rt, self + 8u) + buffer_offset;
         ctx.fpr[0] = std::bit_cast<float>(0x3C888889u);
@@ -1728,7 +1733,7 @@ void func_088B4AE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put(rt, frame.at(4u), second);
     put(rt, frame.at(8u), third);  // the delay slot of the beqz
     if (first != 0u && second != 0u && third != 0u) {
-        const std::uint32_t found = call_set(rt, ctx, slot_of(rt, owner, 0x5Cu), {owner, word(rt, config + 0xCu)});
+        const std::uint32_t found = call_set_v0(rt, ctx, slot_of(rt, owner, 0x5Cu), {owner, word(rt, config + 0xCu)});
         if (found != 0u) {
             const std::uint32_t counted = call_set(rt, ctx, 0x088B19E8u, {owner});
             (void)call_set(rt, ctx, 0x088BB44Cu, {lists, found, frame.at(0u), counted, word(rt, config + 0xCu)});
@@ -1798,9 +1803,9 @@ void func_088B4AE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             put(rt, word(rt, singleton) + 0x74u, 0x08A17428u);
             put(rt, word(rt, singleton) + 0x78u, 0u);
             const std::uint32_t owner = word(rt, singleton);
-            (void)call_set(rt, ctx, slot_of(rt, owner, 8u), {owner});
+            (void)call_set_v0(rt, ctx, slot_of(rt, owner, 8u), {owner});
         } else {
-            (void)call_set(rt, ctx, slot_of(rt, raw, 4u), {raw});
+            (void)call_set_v0(rt, ctx, slot_of(rt, raw, 4u), {raw});
         }
     }
     (void)call_set(rt, ctx, 0x08B3457Cu, {lock});

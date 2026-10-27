@@ -318,6 +318,7 @@ void func_089170E0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], count = ctx.gpr[5];
     GuestFrame frame(ctx, 0x40u);
     put8(rt, self + 0x19u, 1u);
+    ctx.gpr[2] = 1u;  // the stored byte's register: func_08BDC338 with a count of 0 hands it back as its v0
     put(rt, self, 0u);
     put(rt, self + 4u, 0u);
     put(rt, self + 8u, 0u);

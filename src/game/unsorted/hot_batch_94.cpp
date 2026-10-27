@@ -64,6 +64,11 @@ inline std::uint32_t call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     }
     return call_keep(rt, ctx, address, arguments);
 }
+// A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address (call_indirect's rule).
+inline std::uint32_t call_set_v0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t address, std::initializer_list<std::uint32_t> arguments) {
+    ctx.gpr[2] = address;
+    return call_set(rt, ctx, address, arguments);
+}
 // lwl / lwr pair at `address` + 3 / + 0: the little-endian word that starts at an unaligned address; swl / swr at + 3 / + 0 store one.
 inline std::uint32_t word_unaligned(psprecomp::Runtime &rt, std::uint32_t address) {
     return static_cast<std::uint32_t>(rt.memory().load8(address)) | static_cast<std::uint32_t>(rt.memory().load8(address + 1u)) << 8 |
@@ -205,7 +210,7 @@ void func_08B32B5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         (void)call_set(rt, ctx, 0x08B215B8u, {dest, 0u, 0u, 0u, 0u});
     } else {
         const std::uint32_t buffer = frame.at(0x1E0u);
-        (void)call_set(rt, ctx, slot_of(rt, inner, 8u), {buffer, inner});
+        (void)call_set_v0(rt, ctx, slot_of(rt, inner, 8u), {buffer, inner});
         copy_bytes(rt, frame.at(0xEEu), buffer, 0xEDu);
         (void)call_set(rt, ctx, 0x08B22E94u, {frame.at(0x2D0u), frame.at(0xEEu), word(rt, object + 8u)});
         copy_bytes(rt, dest, frame.at(0x2D0u), 0xEDu);

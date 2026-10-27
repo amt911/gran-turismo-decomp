@@ -60,6 +60,11 @@ inline std::uint32_t call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext
     }
     return call_keep(rt, ctx, address, arguments);
 }
+// A `lw v0, slot(vtable); jalr v0` call: the callee starts with v0 = its own address (call_indirect's rule).
+inline std::uint32_t call_set_v0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t address, std::initializer_list<std::uint32_t> arguments) {
+    ctx.gpr[2] = address;
+    return call_set(rt, ctx, address, arguments);
+}
 // A virtual call: the slot at `offset` of the object's vtable (the word at object[0]).
 inline std::uint32_t slot_of(psprecomp::Runtime &rt, std::uint32_t object, std::uint32_t offset) { return word(rt, word(rt, object) + offset); }
 // The HI of the MIPS signed `div` (what `mfhi` reads): the remainder; a zero divisor leaves the dividend (the recompiler's rule), INT_MIN / -1 leaves 0.
@@ -387,7 +392,7 @@ void func_088705D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     bool any = false;
     for (std::uint32_t i = 0u; i != 4u; ++i) {
         const std::uint32_t object = word(rt, self + 0xB04u);
-        (void)call_set(rt, ctx, slot_of(rt, object, 0xA8u), {object, entries + 0x10u * i, i});
+        (void)call_set_v0(rt, ctx, slot_of(rt, object, 0xA8u), {object, entries + 0x10u * i, i});
         if (0.0f < float_at(rt, entries + 0x10u * i)) any = true;
     }
     if (!any) return;
@@ -445,14 +450,14 @@ void func_088705D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // func_0889E01C(self, a1, b, c, flag): nothing happens when the virtual slot 0x20 of self answers zero. fp = the slot 0x60 of c, s4 = its slot 0x5C and s3 = the slot 0x30 of b; with s3 non-zero and the bit 0x800 of s4 clear nothing more happens. s5 = 1, or s4 & 1 when flag & 0xFF is non-zero. Unless bit 0x400 of s4 is set and flag non-zero: the slot 0x10 of c (c, sp + 0x18) fills the vector sp[0x18..0x20];
 // {f5, f6, f4} = {2.5f, 0x3D4CCCCD, 1.0f} when fp == 1 and (s3 != 0 or the slot 0x34 of b answers zero), else all 0x3E4CCCCD; f2 = 0.0f, or 0x3DCCCCCD when flag is zero; sp[0xC..0x14] = the vector, sp = {max(f2, f4), max(f2, f6), max(f2, f5)} and r = func_0889DEE4(b, sp + 0xC, sp) (the maxima keep the asm's compares: f4 < f2 gives f2, else f4); s5 = (r ^ 1) & s5.
 // a3 = 0, or (fp == 1 and the slot 0xFC of b answers non-zero) = 1, the second test only when flag is non-zero. func_0889A968(self + 0x28, a1, b, a3, flag & 0xFF, (s4 >> 4) & 1, s5) ends: v0 = its result.
-// Branches the compared cases do not take (from `tools.decomp_gate coverage` of the fast gate, read against the asm by hand, branch targets and delay slots included): `if (call_set(rt, ctx, slot_of(rt, self, 0x20u), {self}) == 0u) return;`; `if (s3 != 0u && (s4 & 0x800u) == 0u) {`; `const bool direct = (s4 & 0x400u) != 0u && flag != 0u;`; `if (!direct) {`; `if (fp == 1u) bright = s3 != 0u || call_set(rt, ctx, slot_of(rt, b, 0x34u), {b}) == 0u;`; `if (bright) {`; `const float x = f4 < f2 ? f2 : f4;`; `const float y = f6 < f2 ? f2 : f6;`; `if (!(f5 < f2)) f2 = f5;`; `if (check_c && fp == 1u) a3 = call_set(rt, ctx, slot_of(rt, b, 0xFCu), {b}) != 0u ? 1u : 0u;`
+// Branches the compared cases do not take (from `tools.decomp_gate coverage` of the fast gate, read against the asm by hand, branch targets and delay slots included): `if (call_set_v0(rt, ctx, slot_of(rt, self, 0x20u), {self}) == 0u) return;`; `if (s3 != 0u && (s4 & 0x800u) == 0u) {`; `const bool direct = (s4 & 0x400u) != 0u && flag != 0u;`; `if (!direct) {`; `if (fp == 1u) bright = s3 != 0u || call_set_v0(rt, ctx, slot_of(rt, b, 0x34u), {b}) == 0u;`; `if (bright) {`; `const float x = f4 < f2 ? f2 : f4;`; `const float y = f6 < f2 ? f2 : f6;`; `if (!(f5 < f2)) f2 = f5;`; `if (check_c && fp == 1u) a3 = call_set_v0(rt, ctx, slot_of(rt, b, 0xFCu), {b}) != 0u ? 1u : 0u;`
 void func_0889E01C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4], second = ctx.gpr[5], b = ctx.gpr[6], c = ctx.gpr[7], flag = ctx.gpr[8] & 0xFFu;
     GuestFrame frame(ctx, 0x60u);
-    if (call_set(rt, ctx, slot_of(rt, self, 0x20u), {self}) == 0u) return;
-    const std::uint32_t fp = call_set(rt, ctx, slot_of(rt, c, 0x60u), {c});
-    const std::uint32_t s4 = call_set(rt, ctx, slot_of(rt, c, 0x5Cu), {c});
-    const std::uint32_t s3 = call_set(rt, ctx, slot_of(rt, b, 0x30u), {b});
+    if (call_set_v0(rt, ctx, slot_of(rt, self, 0x20u), {self}) == 0u) return;
+    const std::uint32_t fp = call_set_v0(rt, ctx, slot_of(rt, c, 0x60u), {c});
+    const std::uint32_t s4 = call_set_v0(rt, ctx, slot_of(rt, c, 0x5Cu), {c});
+    const std::uint32_t s3 = call_set_v0(rt, ctx, slot_of(rt, b, 0x30u), {b});
     if (s3 != 0u && (s4 & 0x800u) == 0u) {
         ctx.gpr[2] = s4 & 0x800u;  // the andi v0 of the test: zero on this path
         return;
@@ -465,7 +470,7 @@ void func_0889E01C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (!direct) {
         (void)call_set(rt, ctx, slot_of(rt, c, 0x10u), {c, frame.at(0x18u)});
         bool bright = false;
-        if (fp == 1u) bright = s3 != 0u || call_set(rt, ctx, slot_of(rt, b, 0x34u), {b}) == 0u;
+        if (fp == 1u) bright = s3 != 0u || call_set_v0(rt, ctx, slot_of(rt, b, 0x34u), {b}) == 0u;
         float f5, f6, f4;
         if (bright) {
             f5 = std::bit_cast<float>(0x40200000u);
@@ -489,7 +494,7 @@ void func_0889E01C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         s5 = (result ^ 1u) & s5;
         check_c = flag != 0u;
     }
-    if (check_c && fp == 1u) a3 = call_set(rt, ctx, slot_of(rt, b, 0xFCu), {b}) != 0u ? 1u : 0u;
+    if (check_c && fp == 1u) a3 = call_set_v0(rt, ctx, slot_of(rt, b, 0xFCu), {b}) != 0u ? 1u : 0u;
     (void)call_set(rt, ctx, 0x0889A968u, {self + 0x28u, second, b, a3, flag, (s4 >> 4u) & 1u, s5});
 }
 
@@ -506,8 +511,8 @@ void func_088AA230(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         return;
     }
     const std::uint32_t block = self + 0x190u;
-    (void)call_set(rt, ctx, slot_of(rt, self, 0x10u), {self, frame.at(4u)});
-    (void)call_set(rt, ctx, slot_of(rt, self, 0x14u), {self, block});
+    (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x10u), {self, frame.at(4u)});
+    (void)call_set_v0(rt, ctx, slot_of(rt, self, 0x14u), {self, block});
     (void)call_setf(rt, ctx, 0x08B4B114u, {block, self + 0x150u}, {float_at(rt, frame.at(4u)), float_at(rt, frame.at(8u)), float_at(rt, frame.at(0xCu))});
     (void)call_set(rt, ctx, 0x0893C320u, {word(rt, self + 0xCu), self + 0x1A0u, self + 0x1A4u, self + 0x1A8u, self + 0x1ACu});
     if (byte_u(rt, self + 0x1B0u) == 0u || byte_u(rt, self + 0x38u) != 0u) {
