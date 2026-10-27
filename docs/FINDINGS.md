@@ -2621,3 +2621,16 @@ sabotage finds a body by its written signature, so it found none to flip.
 a parse miss, not N weak checks.
 
 Found: 2026-10-27 · src/game/unsorted/hot_batch_167.cpp
+
+## `jalr v0` virtual calls in functions that also call through other registers: converted per slot
+
+**Symptom.** `func_089DA070`'s decompiled run faulted at 0xC after the `circuit` route. Its empty virtual (slot 0x1D4)
+returned the caller's v0 (0) instead of its own address.
+**Cause.** Batch 147 converted `call_guest(word(word(x) + SLOT))` to `call_indirect` only in functions whose asm calls
+nothing but `jalr v0`. Functions that also call through `jalr s0` / `jalr v1` kept the old form for every site.
+**Fix / workaround.** A per-slot pass: a site becomes `call_indirect` when the asm loads that slot only into $v0 and
+calls it through `jalr v0`. That converted 25 more sites in `hot_leaves.cpp`, plus `func_089DA070`'s two by hand
+(its third call, through `jalr s0`, keeps v0 = the previous result). The script lives with the batch drafts; its
+rule is this entry.
+
+Found: 2026-10-28 · src/game/unsorted/hot_leaves.cpp
