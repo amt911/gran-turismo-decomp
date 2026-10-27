@@ -2557,3 +2557,38 @@ Found: 2026-10-26 · host/diff_harness.cpp
   and all use 0x30.
 
 Found: 2026-10-26 · src/game/unsorted/hot_batch_111.cpp, src/game/unsorted/hot_leaves.cpp
+
+## Scene inputs after four more routes: six old functions fixed, one open
+
+The synthetic runs after `save_garage`, `circuit`, `buy` and `options` (PR #320) showed six route-verified functions
+mismatching. Five came from register leftovers the original leaves for its callees, and one from a sign bug:
+
+- **Visitor calls through `jalr v0` with the vtable in an argument register.** `read_property` (73 users),
+  `visit_property` (119), `read_vec4_then`, `read_color_into` and `visit_string` called the visitor's slot +8 with
+  `call_guest`. The original leaves the visitor's vtable in a2 (or a3, or v1), and the slot's code reads it:
+  `func_089852EC`'s decompiled run faulted at 0x6, the caller's a2. Each helper now sets the registers its users' asm
+  leaves, checked against every user's asm, and calls through `call_indirect`. Two `visit_string` users
+  (`func_089A5F94`, `func_089BE0AC`) keep the vtable in a3 and pass `vtable_in_a3`.
+- **`method_of` virtual calls in functions whose asm calls only through `jalr v0`:** 104 sites now use
+  `call_indirect`, the batch 147 rule (`func_089BD608`'s empty virtual returned its own address in the original).
+  This also fixed `func_089D4068` and `func_08BAE2B0`.
+- **`signed_percent` / `signed_permille` (batch 133).** They subtracted the sign as a 0/1 bit. The asm
+  (`sra t, p, 31; subu v, v, t`) subtracts 0/−1, so every negative product came out 2 off (`func_0892D47C`,
+  7C / 7A).
+- **Still open:** `func_088A657C` (after `buy`): 8 bytes of the object it creates differ at +0x1BC. Its tail target
+  `func_0892F0A8` copies stack locals that `func_08936584` does not always fill. The working hypothesis is that those
+  locals are stale saved return addresses, which differ because `call_guest` gives callees a sentinel `ra`. Writing the
+  caller's saved registers into the frame did not change it.
+
+- **`call_indirect` left v0 = the target in the caller's context after the call.** A caller that later returned its
+  v0 untouched answered the target's address: `func_08AB9EF0` and `func_08ABC844`, after their sites became
+  `call_indirect`. It now writes back v0 / v1 / f0 as after the `jalr`. With that, the runs after `dealer` and `race`
+  lost three more long-open mismatches (`func_08972594`, `func_08972938`, `func_089D7DB8`). Separately,
+  `func_088C7474` now answers 0 on its early exits (the asm returns v1).
+- **Open after this:** 4 after `dealer` / `race` (`0889E01C`, `089170E0`, `0893D9AC`, `08A0A398`). After the other four
+  routes, those and three more: `088A657C` (above), `08C18650` (an import replay), and `08BAE2B0`, a cross product
+  whose y differs in one byte (00 / FF). It differs only for invented NaN inputs. The recompiled original also uses
+  plain host `*` and `-`, and which NaN payload survives depends on the operand order the compiler picks for a
+  commutative operation. That is a hypothesis, not yet measured.
+
+Found: 2026-10-27 · src/game/unsorted/hot_leaves.cpp, src/game/unsorted/hot_batch_133.cpp, include/gt/game/hot_common.hpp
