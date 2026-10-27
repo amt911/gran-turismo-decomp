@@ -1012,6 +1012,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 165** (2026-10-27): catorce envoltorios pequeños más (direcciones de globales, llamadas de cola con
+      argumentos intercambiados o leídos de campos, borrados de dos a cuatro palabras, almacenes y banderas): 67 filas,
+      las 67 verificadas. Total: 9.864 funciones.
 - [x] **Lote 164** (2026-10-27): formas pequeñas: miembros pendientes de siete macros del núcleo (`set_byte`,
       `clear_field`, `return_pair`, `ptr_set_float`, `ptr_set_field`, `set_two_fields`, `holder_virtual`) y nueve envoltorios
       nuevos de dos a cinco instrucciones (llamadas de cola con constantes, con `this` ajustado o con argumentos
