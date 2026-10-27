@@ -2646,3 +2646,15 @@ then read `hi`.
 `div` with `break` (a trap) still returns early in the decompiled code.
 
 Found: 2026-10-28 · src/game/unsorted/hot_batch_178.cpp
+
+## A tail call through a vtable leaves the vtable in v0, not the caller's value
+
+**Symptom.** `func_089A8C40` mismatched in a synthetic case on PR #332: v0 original 0x08CD6C70 (a vtable), decompiled
+the object itself.
+**Cause.** `forward_to_delegate` (hot_leaves.cpp) set v0 = self and tail-called the delegate's virtual. The asm loads
+the delegate's vtable into v0 (`lw v0, 0(v1)`) right before `jr t9`, so a callee that never writes v0 (an empty
+virtual) returns the vtable. Same class as the `call_indirect` v0 entry above, on a tail call instead of a `jalr`.
+**Fix / workaround.** `forward_to_delegate` leaves v0 = the vtable and t9 = the target when it jumps, and v1 = the
+delegate on both paths. Covers `func_089A8C40` and `func_089A8D0C`.
+
+Found: 2026-10-28 · src/game/unsorted/hot_leaves.cpp
