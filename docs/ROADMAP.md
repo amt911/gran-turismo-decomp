@@ -1012,6 +1012,9 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 163** (2026-10-27): casos sintéticos tras cuatro rutas más (garaje con partida, circuito, compra y
+      opciones): 36 filas comentadas quedan verificadas (16 + 10 + 6 + 4). `GT_SYNTH_ROUTE` acepta varias rutas a la
+      vez, y los veredictos repasan con todas. Total: 9.730 funciones.
 - [x] **Lote 162** (2026-10-26): casos sintéticos tras la carrera (`GT_SYNTH_ROUTE=race`). Tras el concesionario los
       nativos de script no tenían sus objetos de carrera y el original fallaba. De 431 filas comentadas, 49 comparan
       ahora y quedan verificadas. Total: 9.694 funciones.

@@ -1291,7 +1291,7 @@ HOT135(0x08C32D1Cu, func_08C32D1C, Word);
 // HOT135(0x08AA8F88u, func_08AA8F88, Void);  // no comparable synthetic case yet
 // HOT135(0x08AA9028u, func_08AA9028, Void);  // no comparable synthetic case yet
 // HOT135(0x08AA90B8u, func_08AA90B8, Void);  // no comparable synthetic case yet
-// HOT135(0x08AA9158u, func_08AA9158, Void);  // no comparable synthetic case yet
+HOT135(0x08AA9158u, func_08AA9158, Void);
 HOT135(0x08AA9318u, func_08AA9318, Void);
 // HOT135(0x08AA93A8u, func_08AA93A8, Void);  // no comparable synthetic case yet
 // HOT135(0x08AA9438u, func_08AA9438, Void);  // no comparable synthetic case yet
