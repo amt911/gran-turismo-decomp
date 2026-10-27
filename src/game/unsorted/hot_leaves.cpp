@@ -3455,7 +3455,12 @@ void forward_to_delegate(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t delegate = word(rt, self + field);
     ctx.gpr[2] = self;
-    if (delegate != 0u) tail_call(ctx, word(rt, word(rt, delegate) + slot), {delegate, self, ctx.gpr[5]});
+    ctx.gpr[3] = delegate;
+    if (delegate == 0u) return;
+    // v0 holds the delegate's vtable at the jump (`lw v0, 0(v1)`): an empty virtual returns it, not self.
+    ctx.gpr[2] = word(rt, delegate);
+    ctx.gpr[25] = word(rt, ctx.gpr[2] + slot);
+    tail_call(ctx, ctx.gpr[25], {delegate, self, ctx.gpr[5]});
 }
 
 } // namespace
