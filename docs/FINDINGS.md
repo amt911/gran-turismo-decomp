@@ -2658,3 +2658,14 @@ virtual) returns the vtable. Same class as the `call_indirect` v0 entry above, o
 delegate on both paths. Covers `func_089A8C40` and `func_089A8D0C`.
 
 Found: 2026-10-28 · src/game/unsorted/hot_leaves.cpp
+
+## A callee that overruns its buffer rewrites the caller's saved s-registers
+
+**Symptom.** `func_08AEA204` mismatched in a synthetic case: s0 original 0x980886AC, decompiled the caller's s0.
+**Cause.** It passes a 0x20-byte stack buffer at sp to `func_08AEA178`; with synthetic inputs the callee writes past
+it into sp+0x20, the slot where the prologue saved s0. The original restores the overwritten value; a decompiled body
+that keeps s0..s2 in C++ locals restores the clean one.
+**Fix / workaround.** For a function whose stack buffer sits right below its save slots, spill the s-registers to the
+guest frame (`put(rt, frame.at(off), G[n])`) and reload them from there before the frame closes, as the asm does.
+
+Found: 2026-10-28 · src/game/unsorted/hot_batch_195.cpp
