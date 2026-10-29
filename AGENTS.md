@@ -318,6 +318,7 @@ tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idemp
 # tools/gpu_gate.sh build recomp/analysis/gpu/run [SCALE] ["race:600 ..."]   GPU vs software GE gate (gt_play headless)
 # ctest --test-dir build
 # .venv/bin/python -m tools.disasm 08B54FB8 [ADDR:N]   asm of a function: relocations applied, branches as `-> ADDRESS` (read targets here, never count them by hand)
+# .venv/bin/python -m tools.frame_audit [FILE.cpp ...]   body GuestFrame sizes vs the original prologue (the gate can't see them)
 # Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):
 systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
   env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=4G \

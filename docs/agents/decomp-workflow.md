@@ -133,7 +133,10 @@ never per function. Settings measured and decided by the user on 2026-10-12:
        installed registration of that body is sabotaged — and only credits a target with a case where it
        was the one sabotaged registration. Targets it can't resolve (a C++ template function such as
        `set_boost_param<N>`, a macro defined in a header) are listed: bump those by hand.
-  5. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
+  5. **Frame audit**: `.venv/bin/python -m tools.frame_audit FILE.cpp` (no file: every `src/**/*.cpp`) must
+     report 0 wrong. The gate does not see stack layout, so a `GuestFrame` size that differs from the
+     original's `addiu $sp, $sp, -N` passes it and its sabotage (FINDINGS).
+  6. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
 - **Branches the gate did not take** (`tools.decomp_gate coverage TAG --only ...`): the fast gate proves only the paths its
   compared cases take. The coverage run builds the sources that register those functions with LLVM source-based
