@@ -2706,6 +2706,6 @@ That function read state the original sets before the `jalr`: s0 = the object, v
 the caller's 0x10 frame. The decompiled setter called a `to_int` helper instead, with none of that state.
 **Fix / workaround.** Each setter now makes the call the way its asm does: the same frame, the null check through
 `func_08A5BB7C`, and the same registers. The same sweep now reports 1/1 equal. A helper that "just calls the virtual"
-is equivalent only for valid objects. Whether synthetic cases count as the specification here was decided by the gate.
+is equivalent only for valid objects; the gate compares garbage inputs too, so keep the asm's call setup.
 
 Found: 2026-10-29 · src/game/unit/unit_system.cpp
