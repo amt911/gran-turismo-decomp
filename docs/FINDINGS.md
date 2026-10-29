@@ -2669,3 +2669,18 @@ that keeps s0..s2 in C++ locals restores the clean one.
 guest frame (`put(rt, frame.at(off), G[n])`) and reload them from there before the frame closes, as the asm does.
 
 Found: 2026-10-28 · src/game/unsorted/hot_batch_195.cpp
+
+## A wrong `GuestFrame` size passes the gate and its sabotage
+
+**Symptom.** Batch 200 reached its full gate with four bodies declaring `GuestFrame frame(ctx, 0x8u)`, `0x4u`,
+`0x2u` and `0x1u`. The original functions allocate `0x10`. All four were "verified": synthetic cases equal, and
+their sabotage detected.
+**Cause.** The bodies came from one template by substituting the constants that differ between family members. In
+those members a field offset equalled the template's frame size, so the frame size was substituted too. The gate
+compares results, saved registers and memory side effects. Where a function keeps its locals on the stack is not
+one of them, and neither is how deep its callees see the stack.
+**Fix / workaround.** `tools.frame_audit` reads each body's first `GuestFrame` size and the original's prologue
+`addiu $sp, $sp, -N` from the ELF. It reports any difference, and it is now step 5 of a batch. When generating
+bodies by substitution, leave the frame size out of the substitution.
+
+Found: 2026-10-29 · src/game/unsorted/hot_batch_200.cpp
