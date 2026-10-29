@@ -2684,3 +2684,15 @@ one of them, and neither is how deep its callees see the stack.
 bodies by substitution, leave the frame size out of the substitution.
 
 Found: 2026-10-29 · src/game/unsorted/hot_batch_200.cpp
+
+## The libc `memcmp` treats its count as signed
+
+**Symptom.** The verdict sweep of #352 found a new synthetic mismatch: `gt::libc::memcmp` (0x08B36170) with
+a2 = 0xFDFFB1D2. The original answered 0; the decompiled version answered 0x0F.
+**Cause.** The asm subtracts 5 from the count and branches on the sign. A count of 1..4, or one with the top bit set,
+goes straight to a tail that compares at most four bytes. The decompiled loop treated the count as unsigned and
+compared bytes until the first difference, far away.
+**Fix / workaround.** `memcmp` now follows the asm: the signed main loop, four bytes per iteration, then the
+four-byte tail. The same sweep (dealer, race) now reports memcmp 3/3 equal.
+
+Found: 2026-10-29 · src/libc/memcmp.cpp
