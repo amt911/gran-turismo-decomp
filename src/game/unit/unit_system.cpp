@@ -272,10 +272,6 @@ namespace {
 
 View<UnitSystem> global_units(psprecomp::Runtime &rt) { return View<UnitSystem>(rt.memory(), kUnitSystemAddress); }
 
-std::uint32_t first_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    return static_cast<std::uint32_t>(to_int(rt, ctx, rt.memory().load32(ctx.gpr[6])));  // argv[0]; NULL is not checked
-}
-
 void return_unit(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint32_t value) {
     const std::uint32_t result = ctx.gpr[4];
     GuestFrame frame(ctx, 0x20u);
@@ -286,17 +282,39 @@ bool has_argument(psprecomp::AllegrexContext &ctx) { return static_cast<std::int
 
 } // namespace
 
+namespace {
+
+// The four setters, as their asm runs them: a 0x10 frame, argv[0] null-checked through func_08A5BB7C (a0 = 0x08CAAFBC),
+// then the object's to-int (vtable slot 0x3C) called with s0 = the object, v1 = its vtable, v0 = the slot and a1/a2
+// still argc/argv. A synthetic case (circuit sweep, PR #356) whose object was garbage reached a callee that read that
+// state; the earlier version, which called to_int with none of it and no frame, wrote a different unit.
+std::uint32_t set_argument(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t saved_s0 = ctx.gpr[16];
+    GuestFrame frame(ctx, 0x10u);
+    const std::uint32_t object = rt.memory().load32(ctx.gpr[6]);
+    ctx.gpr[16] = object;
+    ctx.gpr[4] = 0x08CAAFBCu;
+    if (object == 0u) (void)call_guest(rt, ctx, 0x08A5BB7Cu, {0x08CAAFBCu});
+    ctx.gpr[3] = rt.memory().load32(object);
+    ctx.gpr[2] = rt.memory().load32(ctx.gpr[3] + 0x3Cu);
+    const std::uint32_t value = call_guest(rt, ctx, ctx.gpr[2], {object});
+    ctx.gpr[16] = saved_s0;
+    return value;
+}
+
+} // namespace
+
 void MUnit_SetUnitOfVelocity(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    if (has_argument(ctx)) global_units(rt).velocity() = first_argument(rt, ctx);
+    if (has_argument(ctx)) global_units(rt).velocity() = set_argument(rt, ctx);
 }
 void MUnit_SetUnitOfPower(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    if (has_argument(ctx)) global_units(rt).power() = first_argument(rt, ctx);
+    if (has_argument(ctx)) global_units(rt).power() = set_argument(rt, ctx);
 }
 void MUnit_SetUnitOfTorque(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    if (has_argument(ctx)) global_units(rt).torque() = first_argument(rt, ctx);
+    if (has_argument(ctx)) global_units(rt).torque() = set_argument(rt, ctx);
 }
 void MUnit_SetUnitOfTemperature(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    if (has_argument(ctx)) global_units(rt).temperature() = first_argument(rt, ctx);
+    if (has_argument(ctx)) global_units(rt).temperature() = set_argument(rt, ctx);
 }
 void MUnit_GetCurrentUnitOfVelocity(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { return_unit(rt, ctx, global_units(rt).velocity()); }
 void MUnit_GetCurrentUnitOfPower(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { return_unit(rt, ctx, global_units(rt).power()); }

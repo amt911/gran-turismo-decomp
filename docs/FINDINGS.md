@@ -2696,3 +2696,16 @@ compared bytes until the first difference, far away.
 four-byte tail. The same sweep (dealer, race) now reports memcmp 3/3 equal.
 
 Found: 2026-10-29 · src/libc/memcmp.cpp
+
+## A garbage object's virtual call reads the caller's frame and registers
+
+**Symptom.** The #356 verdict sweep (circuit) found a mismatch in `MUnit_SetUnitOfVelocity` (0x08A252E8). The
+original stored 0x...A0 in the unit; the decompiled version stored 0.
+**Cause.** The synthetic argv[0] pointed at garbage, so its vtable slot 0x3C pointed at some unrelated function.
+That function read state the original sets before the `jalr`: s0 = the object, v1 = the vtable, v0 = the slot, and
+the caller's 0x10 frame. The decompiled setter called a `to_int` helper instead, with none of that state.
+**Fix / workaround.** Each setter now makes the call the way its asm does: the same frame, the null check through
+`func_08A5BB7C`, and the same registers. The same sweep now reports 1/1 equal. A helper that "just calls the virtual"
+is equivalent only for valid objects; the gate compares garbage inputs too, so keep the asm's call setup.
+
+Found: 2026-10-29 · src/game/unit/unit_system.cpp
