@@ -2709,3 +2709,20 @@ the caller's 0x10 frame. The decompiled setter called a `to_int` helper instead,
 is equivalent only for valid objects; the gate compares garbage inputs too, so keep the asm's call setup.
 
 Found: 2026-10-29 · src/game/unit/unit_system.cpp
+
+## Constant substitution between same-shape functions can be wrong and still pass
+
+**Symptom.** Batch 223 registered three members of a same-shape group (`func_08BC9F18`, `func_08BCA078`,
+`func_08C4E6B0`) that differ from their template in one place: the template returns `word(object) + 4`, the members
+return `+ 8`. The generated bodies kept `+ 4`. They also moved a register save slot from `frame.at(4)` to `frame.at(8)`.
+All three still passed the synthetic cases and their sabotage. Batch 228 had the same kind of error in two call
+targets.
+**Cause.** Member bodies were derived by mapping each differing token of the template's asm to the member's token,
+then replacing every occurrence of that value in the template's C++. A value that changes in one instruction and
+stays the same in another, such as offset 4 used both as a field and as a save slot, was replaced everywhere. The
+drafting script skipped identical pairs, so it never saw the conflict.
+**Fix / workaround.** The drafting script now records identical pairs too and refuses a member whose mapping is
+ambiguous. The three rows were rewritten from the asm. Synthetic cases do not reach every path, so a row generated
+by substitution needs the same review as a hand-written one.
+
+Found: 2026-10-30 · src/game/unsorted/hot_batch_223.cpp
