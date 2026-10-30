@@ -110,12 +110,12 @@ HOT232(0x08C2C09Cu, func_08C2C09C, Word);
 HOT232(0x08A0BC44u, func_08A0BC44, Word);
 HOT232(0x08A11A98u, func_08A11A98, Word);
 // HOT232(0x08C577F0u, func_08C577F0, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
-HOT232(0x08C5792Cu, func_08C5792C, Word);
-HOT232(0x08C57A68u, func_08C57A68, Word);
+// HOT232(0x08C5792Cu, func_08C5792C, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
+// HOT232(0x08C57A68u, func_08C57A68, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
 // HOT232(0x08C57BA4u, func_08C57BA4, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
-HOT232(0x08C57CE0u, func_08C57CE0, Word);
+// HOT232(0x08C57CE0u, func_08C57CE0, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
 // HOT232(0x08C57E1Cu, func_08C57E1C, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
 // HOT232(0x08C57F58u, func_08C57F58, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
-HOT232(0x08C58094u, func_08C58094, Word);
-HOT232(0x08C58314u, func_08C58314, Word);
-HOT232(0x08C585C4u, func_08C585C4, Word);
+// HOT232(0x08C58094u, func_08C58094, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
+// HOT232(0x08C58314u, func_08C58314, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
+// HOT232(0x08C585C4u, func_08C585C4, Word);  // mismatched: the null-buffer path throws (func_08B5A9FC) and the original catch handler is not modelled
