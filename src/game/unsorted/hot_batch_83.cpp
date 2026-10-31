@@ -343,7 +343,7 @@ void func_08B85E00(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             ctx.gpr[6] = length;
             (void)call_keep(rt, ctx, 0x08B79A88u, {chars, begin, length});
         }
-        ctx.gpr[3] = 0x08CB4000u;
+        ctx.gpr[3] = 0x08CB0000u;
         ctx.gpr[4] = rt.memory().load8(0x08CB7430u);
         ctx.gpr[2] = chars + length;
         put(rt, block, length);
@@ -713,7 +713,7 @@ void func_08B89054(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         put(rt, representation - 4u, 0u);
         put(rt, representation - 0xCu, total);
         const std::uint32_t terminator = rt.memory().load8(0x08CB7430u);
-        ctx.gpr[3] = 0x08CB4000u;
+        ctx.gpr[3] = 0x08CB0000u;
         rt.memory().store8(representation + total, static_cast<std::uint8_t>(terminator));
     }
     ctx.gpr[2] = self;
