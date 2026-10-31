@@ -2726,3 +2726,28 @@ ambiguous. The three rows were rewritten from the asm. Synthetic cases do not re
 by substitution needs the same review as a hand-written one.
 
 Found: 2026-10-30 · src/game/unsorted/hot_batch_223.cpp
+
+## Palette-animated textures made a new Vulkan image every frame and pinned the texture cache at its limit
+
+**Symptom.** On the laptop in power-saver, Time Trial at New York in the Ferrari F2007 dropped below 40 fps, and its
+60 fps stretches did not look smooth (user, 2026-10-31). On the desktop the same standing view
+(`config/pad_routes/perf_tt_newyork.pad`) presented 59.9/s, but `GT_PERF_LOG` showed the GE thread spending 5.1 ms of
+every frame in its finish, 4.8 ms of it in "uploads", for only ~96 KB of texels a frame. The game thread waited 31 % of
+its time in `sceGeDrawSync`, and 15.8 % of the frame intervals were longer than 17.5 ms.
+**Cause.** The scene's screens animate their palettes: nine textures keep the same address and the same texels, and only
+their CLUT changes every frame. A texture's key includes the CLUT checksum, so each frame made nine new keys, and each
+new key got a new `VkImage`, memory and descriptor set. The cache filled up to the 4096-set limit. After that, every new
+texture called `evict_stale_textures`, which sorted all ~4100 entries to evict one. A gperftools profile put 39 % of the
+process in `allocate_combined_set` (eviction and its sort), 15 % in `create_image` and 14 % in `destroy_image`. Power-saver
+caps the laptop's CPU at 1.9 GHz, so those 5 ms grow several times over there, and frames miss the refresh (not
+measured on the laptop yet).
+**Fix / workaround.** Patch 0058 (lcs-recomp). A texture now has a slot: its key without the CLUT checksum and the
+content signature. On a cache miss, the new key takes over the image of the slot's previous texture if no draw of the
+frame sampled it. The new texels are uploaded into it, and the old image, memory and descriptor set are kept. A full
+cache now evicts down to 512 free sets in one pass, so the sort runs once per batch. Measured on the same view
+(desktop, Vulkan, NativeGE, InternalScale 2): GE finish 5.1 → 0.28 ms (uploads 4.8 → 0.03 ms), `sceGeDrawSync` wait
+31 → 2.2 %, intervals over 17.5 ms 15.8 → 0.1 %, p99 20.3 → 16.8 ms.
+Diagnose such a case with `GT_PERF_LOG` (the finish breakdown), then count images created per frame. A stable cache
+size together with steady image creation means keys are churning.
+
+Found: 2026-10-31 · tools/patches/lcs-recomp/0058-texture-slot-reuses-image.patch

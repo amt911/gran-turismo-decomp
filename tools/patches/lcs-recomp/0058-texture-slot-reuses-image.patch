@@ -1,0 +1,117 @@
+diff --git a/lcs/host/ge_gpu_backend.hpp b/lcs/host/ge_gpu_backend.hpp
+index bd0a14d..413ba14 100644
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -226,6 +226,7 @@ struct GeGpuBackendReport {
+     std::uint64_t decoded_t4_textures{};
+     std::uint64_t decoded_t8_textures{};
+     std::uint64_t texture_images_created{};
++    std::uint64_t texture_images_reused{};  // GT patch 0058: images taken over by new content at an address
+     std::uint64_t texture_image_uploads{};
+     std::uint64_t texture_image_upload_bytes{};
+     bool texture_descriptor_layout_created{};
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+index 61e40cd..7faaa87 100644
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -30,6 +30,7 @@
+ #include <mutex>
+ #include <thread>
+ #include <unordered_map>
++#include <utility>
+ #include <vector>
+ 
+ namespace lcs {
+@@ -40,6 +41,9 @@ constexpr std::uint32_t kTargetSpace = 512u;  // GT patch 0022: guest pixels a t
+ constexpr std::uint32_t kReferenceHeight = 272u;
+ constexpr std::size_t kGeometryUploadCapacity = 64u * 1024u * 1024u;
+ constexpr std::uint32_t kMaxDescriptorSets = 4096u;
++// GT patch 0058: a full cache evicts down to this many free sets at once, so its sort runs once per batch of new
++// textures instead of once per texture.
++constexpr std::uint32_t kEvictionBatch = 512u;
+ constexpr std::uint32_t kUniformAlign = 256u;
+ constexpr std::uint32_t kMaxDraws = 32768u;
+ 
+@@ -240,6 +244,7 @@ struct VulkanState {
+     float pixel_scale_x{1.0f};
+     float pixel_scale_y{1.0f};
+     std::unordered_map<std::uint64_t, std::uint64_t> content_keys;  // GT patch 0023: address key -> content key
++    std::unordered_map<std::uint64_t, std::uint64_t> slot_keys;  // GT patch 0058: slot key -> its latest texture key
+     // GT patch 0022: one depth buffer for every target, like the PSP's single zbp (GT clears depth while
+     // drawing one framebuffer and tests against it in the other). Never cleared behind the game's back.
+     VkImage shared_depth{};
+@@ -581,7 +586,7 @@ void evict_stale_textures(VulkanState &s, std::uint32_t slots_needed) {
+     }
+     std::sort(stale.begin(), stale.end());
+     for (const auto &item : stale) {
+-        if (s.descriptor_sets_live + slots_needed <= kMaxDescriptorSets) break;
++        if (s.descriptor_sets_live + slots_needed + kEvictionBatch <= kMaxDescriptorSets) break;  // GT patch 0058
+         const auto found = s.textures.find(item.second);
+         if (found == s.textures.end()) continue;
+         destroy_image(s, found->second.gpu);
+@@ -1554,6 +1559,10 @@ bool prepare_texture(VulkanState &s, const GeGpuDrawDescriptor &draw, std::uint3
+     if (width == 0u || height == 0u || rgba.empty() || mips == 0u) return false;
+     const std::uint64_t key = texture_key(draw);
+     Texture &texture = s.textures[key];
++    // GT patch 0058: an image taken over from other content is reused only at the same size and level count.
++    if (texture.gpu.image != VK_NULL_HANDLE &&
++        (texture.gpu.width != width || texture.gpu.height != height || texture.mip_levels != mips))
++        destroy_image(s, texture.gpu);
+     texture.descriptor = draw;
+     texture.rgba8 = std::move(rgba);
+     texture.mip_levels = mips;
+@@ -2779,6 +2788,7 @@ void destroy_backend(VulkanState &s) noexcept {
+     destroy_shared_depth(s);  // GT patch 0022
+     for (auto &entry : s.textures) destroy_image(s, entry.second.gpu);
+     s.textures.clear();
++    s.slot_keys.clear();  // GT patch 0058
+     destroy_image(s, s.white.gpu);
+     for (auto &entry : s.sampler_cache) {
+         if (entry.second != VK_NULL_HANDLE) vkDestroySampler(s.device, entry.second, nullptr);
+@@ -3623,6 +3633,31 @@ bool written_since_check(const VulkanState &s, const Texture &texture) noexcept
+            newest_write(s, texture.descriptor) > texture.checked_write_clock;
+ }
+ 
++// GT patch 0058: a texture's slot is its key without its palette and content: the same texels at the same place.
++// New York's screens cycle their CLUTs, so ~9 textures a frame got a new key, and each made a new image, memory and
++// descriptor set, filled the cache and then made it evict on every new texture (5 ms a frame on the GE thread).
++std::uint64_t texture_slot_key(const GeGpuDrawDescriptor &draw) noexcept {
++    GeGpuDrawDescriptor slot = draw;
++    slot.texture_cache_key_hint = 0u;
++    slot.clut_checksum = 0u;
++    return texture_key(slot);
++}
++
++// GT patch 0058: the new key `to` takes over the image of the slot's previous texture when no draw of this frame
++// sampled that one and it has no upload pending; the draw then decodes into it and uploads over it (prepare_texture).
++void take_over_slot_image(VulkanState &s, const GeGpuDrawDescriptor &draw, std::uint64_t to) {
++    std::uint64_t &latest = s.slot_keys[texture_slot_key(draw)];
++    const std::uint64_t from = std::exchange(latest, to);
++    if (from == 0u || from == to) return;
++    const auto found = s.textures.find(from);
++    if (found == s.textures.end() || found->second.dirty || found->second.last_used_epoch >= s.frame_epoch) return;
++    auto node = s.textures.extract(found);
++    node.key() = to;
++    node.mapped().dirty = true;  // no draw samples it until prepare_texture brings the new texels
++    s.textures.insert(std::move(node));
++    ++s.report.texture_images_reused;
++}
++
+ } // namespace
+ 
+ void ge_gpu_backend_finalize_texture_key(GeGpuDrawDescriptor &draw) noexcept {
+@@ -3673,8 +3708,12 @@ bool ge_gpu_backend_texture_needed(const GeGpuDrawDescriptor &draw) noexcept {
+         return false;
+     }
+     ++s.report.texture_decode_requests;
+-    const auto found = s.textures.find(texture_key(draw));
+-    if (found == s.textures.end()) return true;
++    const std::uint64_t key = texture_key(draw);
++    const auto found = s.textures.find(key);
++    if (found == s.textures.end()) {
++        take_over_slot_image(s, draw, key);  // GT patch 0058
++        return true;
++    }
+     found->second.signature_epoch = s.frame_epoch;
+     found->second.checked_write_clock = s.write_clock;
+     found->second.last_used_epoch = s.frame_epoch;
