@@ -1,0 +1,21 @@
+# Perf route — Time Trial at New York in the Ferrari F2007 (the user's "Ferrari F1"; its name on the Car Selection frame dump), from the user's finished save (like save_trialmtn.pad;
+# not a gate route): the scene where the laptop in power-saver dropped below 40 fps (user, 2026-10-31). Mode Selection
+# three LEFTs to Time Trial and CROSS through its "My Records" popup (0x1d058440); Car Selection UP and RIGHT from the
+# cursor (the save's "Latest 100 Acquired" list); Track Selection 12 RIGHTs to New York. Time Trial starts rolling and
+# the car runs into the wall after the start line, so SQUARE is held and the measured scene (from ~430 s) is the car
+# standing there: a steady view of the street, stands and the CLUT-animated screens (FINDINGS, patch 0058).
+# Page offsets: race.pad and save_trialmtn.pad.
+3300:START,
+WAIT:seek=0x2458a6c0,2000:LEFT:12,2250:LEFT:12,2500:LEFT:12,2700:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT:12,600:LEFT:12,900:LEFT:12,1300:CROSS,
+WAIT:seek=0x1cdb9140,300:LEFT:12,600:LEFT:12,900:LEFT:12,1600:CROSS,
+WAIT:seek=0x1d058440,300:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT:12,600:LEFT:12,900:LEFT:12,1200:RIGHT:12,1600:CROSS,
+WAIT:seek=0x1cd6db80,300:UP:12,500:RIGHT:12,900:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT:12,600:LEFT:12,900:LEFT:12,1200:RIGHT:12,1500:RIGHT:12,1900:CROSS,
+WAIT:seek=0x1cd7d200,840:RIGHT,1080:RIGHT,1320:RIGHT,1560:RIGHT,1800:RIGHT,2040:RIGHT,2280:RIGHT,2520:RIGHT,2760:RIGHT,3000:RIGHT,3240:RIGHT,3480:RIGHT,4020:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:LEFT:12,600:LEFT:12,900:LEFT:12,1200:RIGHT:12,1500:RIGHT:12,1800:RIGHT:12,2200:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,60:SQUARE:6000

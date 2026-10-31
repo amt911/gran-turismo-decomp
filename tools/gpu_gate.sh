@@ -5,7 +5,8 @@
 #
 # Usage: tools/gpu_gate.sh BUILD_DIR OUT_DIR [SCALE] [ROUTES]
 #   SCALE   InternalScale for the GPU (default 1: the pixel-equality gate; >1 only for speed and visual checks); the GPU frame is box-downsampled to 480x272.
-#   ROUTES  space-separated route:seconds (default "race:600 dealer:300 garage:310").
+#   ROUTES  space-separated route:seconds (default "race:600 dealer:300 garage:310"); save_* and perf_* routes start
+#           from a fresh copy of the user's save (game_files/UCES01245-GAMEDAT), e.g. "perf_tt_newyork:470".
 # The race samples mip level 0 like the software reference (see below); GPU_GATE_LOD0=1 forces it on every route, 0 on none.
 # The GPU keeps GT's half-pixel temporal jitter here (KeepTemporalJitter=true), as the software reference draws it.
 # Exit code: 0 every route passes, 1 some route fails, 2 a run or the setup failed.
@@ -51,6 +52,8 @@ for entry in $routes; do
   # changed (Options, a bought car) makes the route's presses land on other screens.
   rm -rf "${out:?}/$route" "${out:?}/$route-diff" "${out:?}/$route-savedata"
   mkdir -p "$out/$route-savedata"
+  # Routes that start from the user's save (save_*, and perf_* like perf_tt_newyork) get a fresh copy of it.
+  case $route in save_*|perf_*) cp -r game_files/UCES01245-GAMEDAT "$out/$route-savedata/" || exit 2 ;; esac
   flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G \
     -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$(route_ini "$route")" \
     GT_SAVEDATA_DIR="$out/$route-savedata" PSPRECOMP_GE_GPU_DUAL=1 GT_FRAMESKIP=0 GT_GPU_NO_DROP=1 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
