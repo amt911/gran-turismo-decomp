@@ -2726,3 +2726,18 @@ ambiguous. The three rows were rewritten from the asm. Synthetic cases do not re
 by substitution needs the same review as a hand-written one.
 
 Found: 2026-10-30 · src/game/unsorted/hot_batch_223.cpp
+
+## A lone `lui` holds high_half(address), not the address minus the immediate the disassembly shows
+
+**Symptom.** Batch 251's full gate failed on `func_08B32DA0`: v0 was 0x08D70000 in the original and 0x08D6C500 in the
+decompiled body. Twelve rows of batches 249–250 and two of batch 83 had the same wrong constants. They passed every
+gate, because the register was overwritten or caller-saved and nothing read it.
+**Cause.** When a `lui` is paired with an `addiu` or a load in another register, the body has to write the `lui`'s own
+value. `tools.disasm` prints `lui $v0, 0x9 [HI]` and the paired `-0x335C [LO] = 0x08D691A4`. Both immediates are the
+pre-relocation ones, and relocation adds the load base 0x08804000 to the pair. The register really holds
+`high_half(0x08D691A4)` = `(0x08D691A4 + 0x8000) & 0xFFFF0000` = 0x08D70000. "Address minus the shown immediate" is off
+by the base's 0x4000.
+**Fix / workaround.** Write `high_half(address)` with the relocated address the `[LO]` annotation prints; the helper
+is already in every batch header. The bad values were corrected in place.
+
+Found: 2026-10-31 · src/game/unsorted/hot_batch_251.cpp (func_08B32DA0)
