@@ -2766,3 +2766,16 @@ by the base's 0x4000.
 is already in every batch header. The bad values were corrected in place.
 
 Found: 2026-10-31 · src/game/unsorted/hot_batch_251.cpp (func_08B32DA0)
+
+## Registering a one-shot boot function can silently un-verify what it calls
+
+**Symptom.** Batch 289's full gate stayed at 0 mismatches, yet `compared` fell from about 6925 to 6538: each route lost
+about 370 functions. The function count rose as usual and nothing in the gate failed.
+
+**Cause.** `0x08805578` runs once during boot and calls a large set of functions that were previously compared on their
+own. Registered, it reported `compared=1`; 373 of its former callees then showed `compared=0` and `nested in 0 equal`
+in the race route, so they had no evidence left in that route.
+
+**Fix / workaround.** Leave that function unregistered until its callees have other routes or cases, and compare the
+`all routes: ... compared` line against the previous batch before opening a PR: a drop of more than a few dozen needs a
+per-function diff of two route reports (`tools.decomp_gate.parse_report`), not a shrug.
