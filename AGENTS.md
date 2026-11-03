@@ -99,7 +99,7 @@ A rule is edited in its document, not here and there at once — except for its 
 - **Decomp workflow** → [docs/agents/decomp-workflow.md](docs/agents/decomp-workflow.md), before
   decompiling. A function is *done* only when its differential test passes against the recompiled
   original and the game still boots to the reference state; recompiler output is never "decompiled".
-  Functions land in **batches of ~80**: fast gate (`GT_DECOMP_ONLY` + uncapped) while iterating,
+  Functions land in **batches of ~80** (hand-written singletons with synthetic cases: **15–25 per PR**): fast gate (`GT_DECOMP_ONLY` + uncapped) while iterating,
   sabotage (s0 flipped at entry), full gate before the PR, routes in parallel (§ Working in batches).
 - **Toolchain** → [docs/agents/toolchain.md](docs/agents/toolchain.md), before installing or calling a
   tool. Every tool pinned (version or commit) and fetched by `tools/setup.sh`, never vendored; compilers
