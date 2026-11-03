@@ -2779,3 +2779,8 @@ in the race route, so they had no evidence left in that route.
 **Fix / workaround.** Leave that function unregistered until its callees have other routes or cases, and compare the
 `all routes: ... compared` line against the previous batch before opening a PR: a drop of more than a few dozen needs a
 per-function diff of two route reports (`tools.decomp_gate.parse_report`), not a shrug.
+
+**Same symptom from a hot function (batch 291).** `0x08A4F5C0` runs about 21.7 million times across the routes.
+Registering it was correct (compared 484, 0 mismatches), but it slowed the diff runs enough that 57 functions reached
+late in the routes were no longer compared. Hot functions trade route coverage for their own; leave them out of the
+mass batches until the gate can afford them.
