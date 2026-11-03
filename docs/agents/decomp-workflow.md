@@ -72,6 +72,11 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 
 - **Batch size: ~80 functions** (60–100). Fewer wastes gate time; many more makes a red gate slow to
   bisect. One branch `decomp/hot-leaves-N`, one PR per batch.
+- **Hand-written singletons (`hot_batch_N.cpp`, `decomp/singletons-N`): 15–25 functions per PR**
+  (user, 2026-11-03). These are 75+ instruction functions verified by synthetic cases, so ~80 is too
+  many to draft per cycle, but 3–6 per PR let the fixed cost (build, synth, full gate, verdict gate)
+  dominate and progress crawled. Draft several candidates while the previous PR's gate runs, then do
+  one build/synth/gate/PR cycle for the whole batch.
 - **Two gates.** The routes always run in parallel, in one memory scope (each `gt_native --decomp
   diff` is ~290 MB): race, dealer, garage, buy, options, drift, challenge, dirt, manual, circuit, challenge2, trialmtn, each
   `GT_PAD=$(grep -v '^#' config/pad_routes/<route>.pad) build/gt_native --max-seconds <s> --decomp diff`.
