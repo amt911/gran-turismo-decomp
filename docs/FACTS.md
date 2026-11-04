@@ -328,3 +328,44 @@ the line says otherwise.
   the cursor on Driving Challenges; the Single Player hub opens with its cursor on OK and Mode Selection on the last mode
   (the save's: Drift Trial). The other page offsets are the same as with an empty save. *(measured: `GT_IO_LOG` + frames)*
 - Mode Selection's order with the save: Time Trial, Single Race, Drift Trial (from the left).
+
+## Player car and the per-car input record (verified 2026-11-04)
+
+Runtime addresses (ELF vaddr + `0x08804000`). All from `func_0894DD9C` (the physics step, `src/game/unsorted/hot_batch_123.cpp`),
+its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` and `circuit` pad routes (`--decomp off`,
+4 cars, 1 human), plus RAM dumps (`GT_RAM_DUMP`) of the same routes. Probe code was a scratch patch of `host/probes.cpp`
+(reverted, not committed): it printed the DD9C frame's registers `s2`/`s3` (world, car index) at the entry of `0x08948B78`.
+
+- **One call of `0x0894DD9C(world)` steps all cars** (`world+8` = 4 cars, `world+4` = slots of `0x2100` bytes, car =
+  slot + `0x2010`, `car+8` = the car's data, `world+0x10` = the controller). Called through the function table from
+  `0x088E1FA4` (virtual slot `0x18` of the object at `s2+0x148`), so a hook on it sees every step (10 471 hits in `race`).
+  *(observed: `generated_unit_0019.cpp:10421` `ctx.pc = 0x0894DD9C; return;`)*
+- **Per car the mode is `controller->vtable[2](controller, i)`** (`0x08898FF8`): the controller `world+0x10` holds a list
+  at `+0xC` (`func_088F8D58(list, i)` -> the car's *driver entry*; byte index at `list+0x24+i`, mask `list+0x2C`); mode 2 if
+  the entry's virtual `+0x38` holds, 1 if `+0x60`/`+0x74` holds or the entry byte `+8` is set, else 0. Mode 0 and
+  `car+8` byte `+3` != 4 -> `0x08948AE4` (zero record), controller slot `0xC` (= `0x08899094` -> entry virtual `+0x64` =
+  `0x08896780`, fills the record from the pad device `entry+0x6C`), **`0x08948B78(record)`**, slot `0x10`, then
+  **`0x08952B68(car, record)`**. Mode 1 -> `0x08952A5C`; mode 2 or kind 4 -> `0x089525A0`; no controller -> `0x08952B68` with
+  the zero record. *(observed: asm + decompiled C++; `0x08898FF8` semantics read from `hot_leaves.cpp:15285`)*
+- **The human car is the one whose driver entry has vtable `0x08CC1F60`** (AI cars: vtable `0x08CC1EA0`). In `race`/`circuit`
+  with 4 cars, indices 0..2 were AI (`car+8` byte `+3` = 2, entry vtable `0x08CC1EA0`) and index 3 the player (byte `+3` = 0,
+  vtable `0x08CC1F60`, pad device `entry+0x6C` = `0x094168D8`). `0x08948B78` was entered exactly once per step, always for
+  index 3 (race: 10 471 of 10 471 steps; circuit: 2 889 of 2 889). The AI cars never reach `0x08948B78` (mode 1).
+  *(measured: probe tally; entry/vtable fields read from the RAM dumps)*
+- **Replay of the same session reuses the same world, controller, entry and car 3**, and still enters `0x08948B78` once per step
+  with a (replayed) non-zero record (`+8` non-zero), so "called" does not separate live from replay. What changes is
+  **driver entry byte `+0xA8`**: 0 while driving, 1 once the replay runs (`circuit`: 1 451 steps with `+0xA8` = 0, 1 349 with 1;
+  `func_08896780` skips filling the record from the pad device when `+0xA8` is set; RAM dumps at vblank 18 000 / 18 500 show the
+  flip together with `entry+0xFC` -> `0xFFFFFFFF`). *(measured; that `+0xA8` means "replay playback" is inferred from the
+  timing against the route and the skipped pad fill - no code that sets it was read)*
+- **Predicate** (guest memory only): `entry = word(list + 4 + (2*i + int8(list[0x24+i]))*4)` with `list = word(word(world+0x10)+0xC)`;
+  player(i) = `word(entry) == 0x08CC1F60 && byte(entry+0xA8) == 0` (matched exactly one car per step in `race`, and was 0 for the
+  whole replay phase of `circuit`). `0x08948B78` receives only the record (a0), so a hook there needs `world` (a0 of
+  `0x0894DD9C`, captured by a pre-hook on it) or the entry (a0 of `0x08896780`).
+- **`0x08952B68` is called by a `goto` inside the recompiled unit that contains `0x0894DD9C`** (`generated_unit_0041.cpp:5338`),
+  so in `--decomp off` (the default of `gt_native`) a function-table hook on it never fires (`GT_PROBE` hits = 0 for `0x08952B68`,
+  `0x08952A5C`, `0x089525A0`); `0x08948B78` is reached through the table in both modes. With `--decomp on` DD9C is the C++ one and
+  calls them through the table.
+- **Input record at the entry of `0x08948B78`** (before the clamp): in `circuit`, with CROSS (accelerate) held, s16 `+8` was non-zero
+  and `+0xA` and byte `+0` were never non-zero (the routes use no analog stick/trigger). This disagrees with the earlier recon's
+  "`+0xA` = analog throttle, `+8` = brake (inferred)"; nothing here settles which field is the throttle - Task 6 must check.
