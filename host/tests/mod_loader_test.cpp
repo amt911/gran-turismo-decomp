@@ -117,6 +117,20 @@ int main() {
     {
         auto &rt = fresh_runtime(holder);
         fatal.clear();
+        const fs::path root = fresh_dir("dup_id");
+        make_mod(root, "a_first", "dup_mod", true, "1");
+        make_mod(root, "b_second", "dup_mod", true, "2");
+        const LoadReport r = load_mods(rt, root, fatal);
+        check(fatal.empty(), "duplicate_id: not fatal");
+        check(r.loaded.size() == 1 && r.skipped.size() == 1, "duplicate_id: one loaded, one skipped");
+        check(!r.skipped.empty() && r.skipped[0].find("dup_mod") != std::string::npos &&
+                  r.skipped[0].find("a_first") != std::string::npos && r.skipped[0].find("b_second") != std::string::npos,
+              "duplicate_id: reason names the id and both dirs");
+        check(call(rt, 5) == 5u + 1u + 1u, "duplicate_id: the first one is the active hook");
+    }
+    {
+        auto &rt = fresh_runtime(holder);
+        fatal.clear();
         check(load_mods(rt, fresh_dir("empty"), fatal).loaded.empty(), "empty dir loads nothing");
         const LoadReport missing = load_mods(rt, fresh_dir("empty") / "does_not_exist", fatal);
         check(missing.loaded.empty() && missing.skipped.empty() && fatal.empty(), "missing dir loads nothing");

@@ -358,6 +358,13 @@ its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` an
   `func_08896780` skips filling the record from the pad device when `+0xA8` is set; RAM dumps at vblank 18 000 / 18 500 show the
   flip together with `entry+0xFC` -> `0xFFFFFFFF`). *(measured; that `+0xA8` means "replay playback" is inferred from the
   timing against the route and the skipped pad fill - no code that sets it was read)*
+- **Limits of the predicate below (read before relying on it):** the mask at `list+0x2C` is **not consulted** (it was clear in
+  every run); with two or more human-class entries (adhoc, split screen) it is true for each and the mod refuses to inject (never
+  observed); and "live vs replay" (`+0xA8`) rests on **a single replay** (the end of the `circuit` route), none of demo/attract
+  replays, pause, photo mode or a time-trial ghost.
+- **`0x08952B68`'s record is the one `0x08948B78` clamped** - *inferred* from the asm (both calls take `s6` = `sp+0x20`,
+  `0x0894DEC8` / `0x08952B68` call at `0x0894DF80`; the decompiled one passes the same `input`), not compared at run time. Consequently
+  writing the analog fields after the clamp reaches `0x08952B68` unchanged (confirmed indirectly: the pedals follow the injection).
 - **Predicate** (guest memory only): `entry = word(list + 4 + (2*i + int8(list[0x24+i]))*4)` with `list = word(word(world+0x10)+0xC)`;
   player(i) = `word(entry) == 0x08CC1F60 && byte(entry+0xA8) == 0` (matched exactly one car per step in `race`, and was 0 for the
   whole replay phase of `circuit`). `0x08948B78` receives only the record (a0), so a hook there needs `world` (a0 of
@@ -381,6 +388,14 @@ and whose index is the human car's index, followed by the clamp" proves the clam
 the index only in the recompiled `0x0894DD9C` (`0x0894DE98`/`0x0894DEB0` use `s3` as the index); the decompiled one of `--decomp on`
 does not keep it in a register, so a register check cannot be used in both modes. `0x08896780` is entered through the table in both
 modes (the analog-pedals mod's hook on it fires: its check passes with `--decomp off` and `on`).
+
+### Which thread pumps SDL events (measured 2026-11-04)
+
+`GT_LOG_PUMP_THREAD=1` makes `host/gt_kernel.cpp` print the Linux tid that runs `display_window_pump()` (once); the analog-pedals mod
+logs the tid of its `0x0894DD9C` hook with `GT_MOD_PEDALS_LOG=1`. `race` route, `gt_play` headless: `--decomp off` pump tid 525267 =
+hook tid 525267; `--decomp on` pump tid 532357 = hook tid 532357. Both the same: mod hooks run on the SDL-pumping thread (the GE worker
+is the only other thread and never touches input). The real controller/keyboard path was not driven headlessly (the dummy video
+driver has no input source and no key-injection tool is installed); only SDL's state getters ran, with no controller present.
 
 ### Which record field is the accelerator and which the brake (measured 2026-11-04, Task 6)
 

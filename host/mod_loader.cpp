@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <system_error>
@@ -38,6 +39,7 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
     std::sort(entries.begin(), entries.end());
 
     bind_runtime(rt);
+    std::map<std::string, std::string> id_dirs;  // manifest id -> first directory that used it
     for (const auto &mod_dir : entries) {
         const std::string name = mod_dir.filename().string();
         const auto skip = [&](const std::string &why) { report.skipped.push_back(name + ": " + why); };
@@ -53,6 +55,10 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
         const auto manifest = parse_manifest(text.str(), error);
         if (!manifest) {
             skip("bad mod.toml: " + error);
+            continue;
+        }
+        if (const auto first = id_dirs.emplace(manifest->id, name); !first.second) {
+            skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
         if (manifest->api != GT_MOD_API_VERSION) {
@@ -84,6 +90,8 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
         live_mods().push_back(std::move(mod));
         const int status = init(&mod_api(), self);
         if (std::string conflict = take_hook_conflict(); !conflict.empty()) {
+            // Deliberately no rollback: the caller treats `fatal` as a startup failure (main returns 3), the process exits
+            // right away, so the hooks and mods loaded so far are never run.
             fatal = conflict;
             return report;
         }

@@ -108,7 +108,7 @@ Retroceso = atrás, Escape = START, F10 = ajustes, F11 = pantalla completa (mand
 **Mods nativos** (solo `gt_play`): bibliotecas `.so` con un `mod.toml` en `build/mods/<id>/` (o `GT_MODS_DIR`), cargadas con el
 SDK `include/gt_mod/gt_mod_api.h`; `GT_NO_MODS=1` los desactiva. Los mods viven en el repo privado `gt-mods`; el primero,
 `analog-pedals`, da acelerador y freno analógicos (gatillos del mando o teclas con rampa). Comprobación en juego:
-`tools/mod_pedals_check.sh` (ver `gt-mods/README.md` para instalarlo).
+`tools/mod_pedals_check.sh`. Cómo escribir e instalar mods: [`docs/MODS.md`](docs/MODS.md).
 
 ## Para agentes (Claude Code / Codex)
 

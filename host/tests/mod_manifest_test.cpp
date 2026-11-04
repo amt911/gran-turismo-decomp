@@ -65,6 +65,23 @@ int main() {
               "non-bool enabled is error");
         check(!parse_manifest("id = \"x\"\nlibrary = \"x.so\"\napi = 1\n[other]\n", err).has_value(), "unknown table is error");
     }
+    {
+        err.clear();
+        check(!parse_manifest("id = \"x\"\nlibrary = \"x.so\"\napi = 1\nid = \"y\"\n", err).has_value(), "duplicate top-level key is error");
+        check(err.find("line 4") != std::string::npos && err.find("id") != std::string::npos, "duplicate key: line number and key named");
+        err.clear();
+        check(!parse_manifest("id = \"x\"\nlibrary = \"x.so\"\napi = 1\n[settings]\na = 1\nb = 2\na = 3\n", err).has_value(),
+              "duplicate setting is error");
+        check(err.find("line 7") != std::string::npos, "duplicate setting: line number");
+        check(parse_manifest("id = \"x\"\nlibrary = \"x.so\"\napi = 1\n[settings]\nid = 1\n", err).has_value(),
+              "same key name in [settings] and top level is not a duplicate");
+        err.clear();
+        check(!parse_manifest("id = \"\"\nlibrary = \"x.so\"\napi = 1\n", err).has_value(), "empty id is error");
+        check(err.find("id") != std::string::npos, "empty id: message names id");
+        err.clear();
+        check(!parse_manifest("id = \"x\"\nlibrary = \"\"\napi = 1\n", err).has_value(), "empty library is error");
+        check(err.find("library") != std::string::npos, "empty library: message names library");
+    }
     if (failures == 0) std::puts("mod_manifest: all checks passed");
     return failures == 0 ? 0 : 1;
 }

@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <charconv>
+#include <set>
 
 namespace gt::mods {
 namespace {
@@ -51,6 +52,7 @@ std::optional<Manifest> parse_manifest(std::string_view text, std::string &error
     Manifest m;
     bool in_settings = false, have_id = false, have_library = false, have_api = false;
     int line_no = 0;
+    std::set<std::string> seen_top, seen_settings;  // a repeated key is an error, never "last one wins"
     auto fail = [&](const std::string &msg) -> std::optional<Manifest> {
         error = (line_no ? "line " + std::to_string(line_no) + ": " : std::string()) + msg;
         return std::nullopt;
@@ -81,6 +83,7 @@ std::optional<Manifest> parse_manifest(std::string_view text, std::string &error
         bool is_string = false;
         if (!parse_value(line.substr(eq + 1), value, is_string, why)) return fail(key + ": " + why);
 
+        if (!(in_settings ? seen_settings : seen_top).insert(key).second) return fail("duplicate key '" + key + "'");
         if (in_settings) {
             m.settings[key] = value;
             continue;
@@ -110,6 +113,8 @@ std::optional<Manifest> parse_manifest(std::string_view text, std::string &error
     }
 
     line_no = 0;
+    if (have_id && m.id.empty()) return fail("'id' must not be empty");
+    if (have_library && m.library.empty()) return fail("'library' must not be empty");
     if (!have_id) return fail("missing required key 'id'");
     if (!have_library) return fail("missing required key 'library'");
     if (!have_api) return fail("missing required key 'api'");
