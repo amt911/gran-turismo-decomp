@@ -108,3 +108,4 @@ void precise_sleep_until(std::chrono::steady_clock::time_point deadline) noexcep
 void gt::frontend_init(const std::filesystem::path &) {}
 void gt::frontend_attach() {}
 void gt::frontend_shutdown() {}
+void gt::frontend_load_mods(psprecomp::Runtime &, const char *, bool, std::string &) {}

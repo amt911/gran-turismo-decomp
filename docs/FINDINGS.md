@@ -2788,3 +2788,47 @@ times; registered, `compared` fell from about 6900 to 6572 and 394 functions los
 Registering it was correct (compared 484, 0 mismatches), but it slowed the diff runs enough that 57 functions reached
 late in the routes were no longer compared. Hot functions trade route coverage for their own; leave them out of the
 mass batches until the gate can afford them.
+
+## A mod hook (or probe) on a function never fires when the caller reaches it by an in-unit jump
+
+**Symptom.** `GT_PROBE=0x08952B68` printed `hits=0` in a race whose cars were clearly driven by it; a mod hook on it would never
+have run. In the same build `0x08948B78` (hits 11 334) and `0x0894DD9C` (11 334) fired. `0x0894E9C0` was 0 with `--decomp off` and
+44 287 with `--decomp on`.
+
+**Cause.** Hooks and probes replace the function in the runtime's address table. Recompiled code consults that table only for
+calls that leave its recompiled unit; a call the recompiler could keep inside one unit became a `goto` / direct jump
+(`recomp/generated/generated_unit_0041.cpp:5338` jumps to the body of `0x08952B68` from `0x0894DD9C`), so the table is never read.
+Decompiled functions (`--decomp on`) call through the table, hence the different hit counts between the two modes.
+
+**How to check a hook point.** Run `GT_PROBE=<addr>[,...]` (with `GT_NO_MODS=1`) on the route in **both** `--decomp off` and
+`--decomp on` and require `hits > 0` in both before hooking. In `on` mode a probe on a *decompiled* address reads 0 (the decompiled
+function replaces the probe); mods install after the decompiled registrations, so a mod hook there works. If no point after the
+function you want exists, work on its input instead (see the next entry). The same caveat is in `include/gt_mod/gt_mod_api.h`.
+
+Found: 2026-11-04 · docs/FACTS.md § Player car and the per-car input record
+
+## The game answers an analog pedal record with its own response curve (inverted by the mod); a replay does not keep it
+
+**What the analog-pedals mod does.** After `0x08948B78` it writes values into the player's input record (accelerator: s16 `+8` plus
+flag `0x02` in byte 0; brake: s16 `+0xA` plus flag `0x04`); mapping and disasm in docs/FACTS.md. It injects only into the record
+buffer of `0x0894DD9C` (`sp_entry - 0x50`) on the first call of a step. Works in `--decomp off` and `on`, live player car only
+(`tools/mod_pedals_check.sh`).
+
+**Observed (2026-11-04, `race` and `circuit` routes).**
+- The game turns the record into pedals through its own response, not the identity: writing 0.5 / 0.3 straight as records gave
+  accelerator `0x530` = 0.1035 (`x^8`, then a 10 % floor) and brake `0x538` = 0.37 (`x + (1 - x) * 0.1`). The mod therefore writes the
+  inverse (FACTS has the formulas and addresses) and the pedals settle at 0.4999 / 0.3000. A pedal below 0.1 cannot be produced (any
+  non-zero record gives at least 0.1): the mod injects nothing below 0.05 and the smallest press (0.1) for 0.05-0.1. No
+  mode-dependent hook is needed (`0x0894E9C0` is dispatched only with `--decomp on`).
+- **Replay** (measured with the first mod version, records written straight; the result is about what the recorder keeps): the `circuit` route (race with the fake brake 0.3 injected on every live step, then the replay): live brake pedal 0.37
+  on every sampled step; the replay of the same session shows brake 0.0000 on all 23 sampled steps, and the accelerator 0.0 where
+  the live one was the injected 0.1035 and 1.0 only where CROSS (a button) was held. So the replay keeps button presses but **not the
+  mod's injected analog values** (the recorder stores each car's position, velocity and angles per the decompiled `0x0894DD9C`, so the replayed
+  motion is the recorded one; the pedal state shown in the replay is the replayed record's). `+0xA8` = 1 in those steps, so the mod does not inject then.
+
+- **HUD / aids** (`race` route, fake 0.5 / 0.3, frames at vblanks 15 599-24 000 of a 240 s run, compared by eye with a run without the
+  mod): the bottom-left pedal indicator shows a short red (brake) bar with the mod and nothing without it; the car stays at 0 mph
+  (brake 0.37 beats accelerator 0.10); no ABS / traction-control light appeared (the car never moves, so this says nothing about
+  the aids under real driving - the user's manual test).
+
+Found: 2026-11-04 · analog-pedals in the gt-mods repo

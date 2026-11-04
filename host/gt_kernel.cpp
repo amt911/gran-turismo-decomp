@@ -17,6 +17,8 @@
 //
 // LCS (GTA: Liberty City Stories) kernel HLE.
 
+#include <sys/syscall.h>
+#include <unistd.h>
 #include "atrac_decoder.hpp"
 #include "audio_dump.hpp"
 #include "frame_dump.hpp"
@@ -4533,6 +4535,10 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         }
 
         const auto pump_begin = std::chrono::steady_clock::now();
+        if (static bool once = false; !once && std::getenv("GT_LOG_PUMP_THREAD") != nullptr) {  // which thread pumps SDL events (docs/FACTS.md)
+            once = true;
+            std::fprintf(stderr, "[pump] display_window_pump runs on tid %ld\n", static_cast<long>(::syscall(SYS_gettid)));
+        }
         display_window_pump();
         if (perf) {
             const double pump = milliseconds_since(pump_begin);

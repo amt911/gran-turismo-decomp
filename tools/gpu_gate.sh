@@ -13,6 +13,7 @@
 # The dumps are game output: OUT_DIR must stay out of git (use recomp/analysis/gpu/...).
 # One route at a time, each inside the memory cgroup and the shared heavy-job lock.
 set -u
+export GT_NO_MODS=1  # verification runs never load mods (a mods/ dir next to gt_play would change what is measured)
 build=${1:?build dir}
 out=${2:?output dir}
 scale=${3:-1}

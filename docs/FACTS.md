@@ -328,3 +328,116 @@ the line says otherwise.
   the cursor on Driving Challenges; the Single Player hub opens with its cursor on OK and Mode Selection on the last mode
   (the save's: Drift Trial). The other page offsets are the same as with an empty save. *(measured: `GT_IO_LOG` + frames)*
 - Mode Selection's order with the save: Time Trial, Single Race, Drift Trial (from the left).
+
+## Player car and the per-car input record (verified 2026-11-04)
+
+Runtime addresses (ELF vaddr + `0x08804000`). All from `func_0894DD9C` (the physics step, `src/game/unsorted/hot_batch_123.cpp`),
+its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` and `circuit` pad routes (`--decomp off`,
+4 cars, 1 human), plus RAM dumps (`GT_RAM_DUMP`) of the same routes. Probe code was a scratch patch of `host/probes.cpp`
+(reverted, not committed): it printed the DD9C frame's registers `s2`/`s3` (world, car index) at the entry of `0x08948B78`.
+
+- **One call of `0x0894DD9C(world)` steps all cars** (`world+8` = 4 cars, `world+4` = slots of `0x2100` bytes, car =
+  slot + `0x2010`, `car+8` = the car's data, `world+0x10` = the controller). Called through the function table from
+  `0x088E1FA4` (virtual slot `0x18` of the object at `s2+0x148`), so a hook on it sees every step (10 471 hits in `race`).
+  *(observed: `generated_unit_0019.cpp:10421` `ctx.pc = 0x0894DD9C; return;`)*
+- **Per car the mode is `controller->vtable[2](controller, i)`** (`0x08898FF8`): the controller `world+0x10` holds a list
+  at `+0xC` (`func_088F8D58(list, i)` -> the car's *driver entry*; byte index at `list+0x24+i`, mask `list+0x2C`); mode 2 if
+  the entry's virtual `+0x38` holds, 1 if `+0x60`/`+0x74` holds or the entry byte `+8` is set, else 0. Mode 0 and
+  `car+8` byte `+3` != 4 -> `0x08948AE4` (zero record), controller slot `0xC` (= `0x08899094` -> entry virtual `+0x64` =
+  `0x08896780`, fills the record from the pad device `entry+0x6C`), **`0x08948B78(record)`**, slot `0x10`, then
+  **`0x08952B68(car, record)`**. Mode 1 -> `0x08952A5C`; mode 2 or kind 4 -> `0x089525A0`; no controller -> `0x08952B68` with
+  the zero record. *(observed: asm + decompiled C++; `0x08898FF8` semantics read from `hot_leaves.cpp:15285`)*
+- **The human car is the one whose driver entry has vtable `0x08CC1F60`** (AI cars: vtable `0x08CC1EA0`). In `race`/`circuit`
+  with 4 cars, indices 0..2 were AI (`car+8` byte `+3` = 2, entry vtable `0x08CC1EA0`) and index 3 the player (byte `+3` = 0,
+  vtable `0x08CC1F60`, pad device `entry+0x6C` = `0x094168D8`). `0x08948B78` was entered exactly once per step, always for
+  index 3 (race: 10 471 of 10 471 steps; circuit: 2 889 of 2 889). The AI cars never reach `0x08948B78` (mode 1).
+  *(measured: probe tally; entry/vtable fields read from the RAM dumps)*
+- **Replay of the same session reuses the same world, controller, entry and car 3**, and still enters `0x08948B78` once per step
+  with a (replayed) non-zero record (`+8` non-zero), so "called" does not separate live from replay. What changes is
+  **driver entry byte `+0xA8`**: 0 while driving, 1 once the replay runs (`circuit`: 1 451 steps with `+0xA8` = 0, 1 349 with 1;
+  `func_08896780` skips filling the record from the pad device when `+0xA8` is set; RAM dumps at vblank 18 000 / 18 500 show the
+  flip together with `entry+0xFC` -> `0xFFFFFFFF`). *(measured; that `+0xA8` means "replay playback" is inferred from the
+  timing against the route and the skipped pad fill - no code that sets it was read)*
+- **Limits of the predicate below (read before relying on it):** the mask at `list+0x2C` is **not consulted** (it was clear in
+  every run); with two or more human-class entries (adhoc, split screen) it is true for each and the mod refuses to inject (never
+  observed); and "live vs replay" (`+0xA8`) rests on **a single replay** (the end of the `circuit` route), none of demo/attract
+  replays, pause, photo mode or a time-trial ghost.
+- **`0x08952B68`'s record is the one `0x08948B78` clamped** - *inferred* from the asm (both calls take `s6` = `sp+0x20`,
+  `0x0894DEC8` / `0x08952B68` call at `0x0894DF80`; the decompiled one passes the same `input`), not compared at run time. Consequently
+  writing the analog fields after the clamp reaches `0x08952B68` unchanged (confirmed indirectly: the pedals follow the injection).
+- **Predicate** (guest memory only): `entry = word(list + 4 + (2*i + int8(list[0x24+i]))*4)` with `list = word(word(world+0x10)+0xC)`;
+  player(i) = `word(entry) == 0x08CC1F60 && byte(entry+0xA8) == 0` (matched exactly one car per step in `race`, and was 0 for the
+  whole replay phase of `circuit`). `0x08948B78` receives only the record (a0), so a hook there needs `world` (a0 of
+  `0x0894DD9C`, captured by a pre-hook on it) or the entry (a0 of `0x08896780`).
+- **`0x08952B68` is called by a `goto` inside the recompiled unit that contains `0x0894DD9C`** (`generated_unit_0041.cpp:5338`),
+  so in `--decomp off` (the default of `gt_native`) a function-table hook on it never fires (`GT_PROBE` hits = 0 for `0x08952B68`,
+  `0x08952A5C`, `0x089525A0`); `0x08948B78` is reached through the table in both modes. With `--decomp on` DD9C is the C++ one and
+  calls them through the table.
+- **Input record at the entry of `0x08948B78`** (before the clamp): in `circuit`, with CROSS (accelerate) held, s16 `+8` was non-zero
+  and `+0xA` and byte `+0` were never non-zero (the routes use no analog stick/trigger). This disagrees with the earlier recon's
+  "`+0xA` = analog throttle, `+8` = brake (inferred)"; settled below: `+8` is the accelerator, `+0xA` the brake.
+
+### Proving which car a `0x08948B78` call belongs to (Task 6, fix round 2)
+
+The record (`sp_entry - 0x50`) is one stack buffer shared by every car of the `0x0894DD9C` loop, so its address proves nothing about
+the car. Per car in mode 0 the step calls controller slot `0xC` = `0x08899094(controller, index, record)`: it fetches the car's driver
+entry (`func_088F8D58(controller+0xC, index)`, asm `0x088990B8`) and calls the entry's virtual slot `0x64` = **`0x08896780(entry,
+buffer, index)`** (`0x088990D4-0x088990D8`; `a0` = entry, `a2` = the car index), then copies the buffer into the record (`0x0892B5F4`,
+`0x08899124`); `0x0894DD9C` then calls `0x08948B78(record)` (`0x0894DEC8`). So "a `0x08896780` call whose entry is the human entry
+and whose index is the human car's index, followed by the clamp" proves the clamp's record is the player's. The caller's `s3` holds
+the index only in the recompiled `0x0894DD9C` (`0x0894DE98`/`0x0894DEB0` use `s3` as the index); the decompiled one of `--decomp on`
+does not keep it in a register, so a register check cannot be used in both modes. `0x08896780` is entered through the table in both
+modes (the analog-pedals mod's hook on it fires: its check passes with `--decomp off` and `on`).
+
+### Which thread pumps SDL events (measured 2026-11-04)
+
+`GT_LOG_PUMP_THREAD=1` makes `host/gt_kernel.cpp` print the Linux tid that runs `display_window_pump()` (once); the analog-pedals mod
+logs the tid of its `0x0894DD9C` hook with `GT_MOD_PEDALS_LOG=1`. `race` route, `gt_play` headless: `--decomp off` pump tid 525267 =
+hook tid 525267; `--decomp on` pump tid 532357 = hook tid 532357. Both the same: mod hooks run on the SDL-pumping thread (the GE worker
+is the only other thread and never touches input). The real controller/keyboard path was not driven headlessly (the dummy video
+driver has no input source and no key-injection tool is installed); only SDL's state getters ran, with no controller present.
+
+### Which record field is the accelerator and which the brake (measured 2026-11-04, Task 6)
+
+Scratch diagnostic mod (not committed) hooking `0x0894DD9C` and `0x08948B78`, `race` pad prefix of `circuit`, then CROSS held
+600 vblanks, SQUARE held 600, `--decomp off`, car `0x093E8B18` (index 3, `word(world+4) + 3*0x2100 + 0x2010`), pedals read at
+`word(car+8) + off`:
+
+| Button held | record s16 `+8` | `+0xA` | float `+0x530` | float `+0x538` | `+0x534` |
+| --- | --- | --- | --- | --- | --- |
+| none | 0 | 0 | 0 | 0 | 0 |
+| CROSS (accelerate) | **1** | 0 | **1.0** | 0 | 1.0 |
+| SQUARE (brake) | 0 | **1** | 0 | **1.0** | 0 |
+
+So **`+8` = accelerator -> `car->constants+0x530` (-> `+0x534` effective throttle); `+0xA` = brake -> `+0x538`** - the earlier
+recon's names for `+0x530` / `+0x538` ("brake" / "throttle") were swapped. A digital press is the value 1 without an analog flag
+(`0x08952B68` scales `value << 12` when the flag is clear, `asm 0x08953F48-0x08953F80`). Analog flags in record byte 0, read from
+`0x08952B68` (`python -m tools.disasm 08952B68`): **bit `0x02` makes `+8` analog** (raw `0..0x1000`; `0x08953F54-0x08953F60`, then
+the analog branch `0x08954064`, which shapes it through `func_08960BE8` with a table chosen by byte0 bits `0x60`) and **bit `0x04`
+makes `+0xA` analog** (`0x08954200-0x08954298`: target = `+0xA / 4096`, plus `(1 - x) * const[0x08CDE108]`, ramped into `+0x538`).
+Bits `0x08` / `0x10` are the same switches for `+0xC` / `+0xE`.
+
+Exact record -> pedal mapping of the analog path (`python -m tools.disasm 08952B68 08952B68:500`, `08960BE8`; runtime addresses):
+- **Accelerator** (`+8`, byte0 bit `0x02`): `0x08953F48-0x08953F60` takes `raw = +8` unscaled when the flag is set (else `value << 12`);
+  `0x08953FDC` sends the analog case to `0x08954064`; `x = raw * 2^-12` (`0x08954078-0x0895408C`, constant `0x3980...`); byte0 bits
+  `0x60` choose the curve object (`0x08CF2FDC` when both clear, `0x08CF2FCC` for `0x20`, `0x08CF2FBC` for `0x40`;
+  `0x08954084-0x089540DC`), evaluated by `func_08960BE8(object, 0)` with `f12 = x`: object type 3 gives `y = c*x^8 + c8*x`
+  (`0x08960CC0-0x08960D04`). Runtime memory of `0x08CF2FDC` (read in game): type 3, `+4` = 0, `+8` (c8) = 0, `+0xC` (c) = 1.0, so
+  **`y = x^8`**. Then `target = y + (1 - y) * 0.1` (`0x089540E0-0x089540FC`, 0.1 = float at `0x08CDE108`), and the pedal float `+0x530`
+  ramps to `target` by the steps in the object at `sp+0x60` (`+0` up, `+4` down; `0x089540FC-0x08954204`, store `0x08954204`). `raw = 0`
+  takes the release path (`0x08953FE4`/`0x08954064` -> `0x08954178`), pedal ramps to 0.
+- **Brake** (`+0xA`, byte0 bit `0x04`): `0x08954200` tests the flag, `0x0895426C-0x08954280` `x = (+0xA & 0xFFFF) * 2^-12`;
+  `x = 0` skips the floor (`0x08954294` -> `0x089542BC`), target 0, the pedal ramps down; else `target = x + (1 - x) * 0.1` (`0x0895429C-0x089542B4`), pedal `+0x538`
+  ramps by the steps `+8` up / `+0xC` down (`0x089542BC-0x0895431C`, store `0x0895431C`).
+- Consequences: both pedals jump to **at least 0.1** for any non-zero record (a pedal in (0, 0.1) cannot be produced); the inverse for a
+  wanted pedal `p >= 0.1` is `x = ((p - 0.1) / 0.9)^(1/8)` (accelerator) or `(p - 0.1) / 0.9` (brake), `raw = round(x * 4096)`.
+  Verified in game: with the inverse the player's pedals settle at 0.5 / 0.3 (`tools/mod_pedals_check.sh`).
+
+Measured response before the inverse (fake 0.5 / 0.3 written straight as records): accelerator `0.5^8 = 0.0039` -> `0.1035`, brake
+`0.3` -> `0.37`; AI cars untouched (their pedals vary independently of the injected values).
+
+Where a post-`0x08952B68` hook would fire (`GT_PROBE`, `race` route, 230 s, mods off): `0x0894E9C0` (first of the drive chain,
+a0 = car) has **hits 0 with `--decomp off`** (in-unit call) and **44 287 with `--decomp on`** (4 cars x 11 071 steps);
+`0x08952B68` 0 / 11 071. With `--decomp on` the probes on `0x0894DD9C` / `0x08948B78` show 0 hits because the decompiled
+versions replace the probed trampolines, so a probe cannot measure those in `on` mode (mods installed after the decomp
+registrations do wrap them).

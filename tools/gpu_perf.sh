@@ -9,6 +9,7 @@
 #   WINDOWS  how many of the last 5-second windows to summarise (default 12)
 # One run, inside the memory cgroup and the shared heavy-job lock. OUT_DIR stays out of git.
 set -u
+export GT_NO_MODS=1  # verification runs never load mods (a mods/ dir next to gt_play would change what is measured)
 build=${1:?build dir}
 out=${2:?output dir}
 scale=${3:-8}

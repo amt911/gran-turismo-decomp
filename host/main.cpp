@@ -162,6 +162,15 @@ int main(int argc, char **argv) {
         psprecomp::set_runtime_import_observer(&trace_import);
         gt::install_probes(runtime);  // GT_PROBE=addr,... (debugging aid)
         gt::install_decompiled(runtime, options.decomp, options.decomp_cases);
+        {  // native mods (gt_play only; the call is a no-op in gt_native). After install_decompiled so mod hooks wrap decompiled functions too.
+            std::string mods_fatal;
+            gt::frontend_load_mods(runtime, argc > 0 ? argv[0] : "",
+                                   options.decomp != gt::DecompMode::Diff && !gt::synthetic_mode(), mods_fatal);
+            if (!mods_fatal.empty()) {
+                std::cerr << "gt_play: mod conflict: " << mods_fatal << "\n";
+                return 3;
+            }
+        }
         runtime.cpu().set_gpr(31, 0u);
         runtime.cpu().set_gpr(4, 0u);
         runtime.cpu().set_gpr(5, 0u);

@@ -8,6 +8,7 @@
 #   SECONDS_FROM  when the race is under way on the race route (default 170)
 # Needs /usr/lib/libprofiler.so (gperftools). One run, inside the memory cgroup. OUT_DIR stays out of git.
 set -u
+export GT_NO_MODS=1  # verification runs never load mods (a mods/ dir next to gt_play would change what is measured)
 build=${1:?build dir}
 out=${2:?output dir}
 scale=${3:-1}

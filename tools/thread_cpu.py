@@ -4,6 +4,7 @@ gt_play runs the game (the recompiled code and the HLE) on one thread and the GE
 times the GE thread; this says which thread is the one at 100 % when the frame rate drops (docs/PRUEBAS_PORTATIL.md).
 
 Usage: .venv/bin/python -m tools.thread_cpu [--pid PID | --name gt_play] [--every 5] [--count 0]
+  Start the process under measurement with GT_NO_MODS=1 so a mods/ dir cannot change what is measured.
   --name finds the process by its /proc comm (never this tool's own process); --count 0 runs until it exits.
 """
 
