@@ -110,7 +110,7 @@ read in the asm or in already-decompiled code; **inferred** = reading of the asm
   API version is refused; a mod with `enabled=false` is not loaded.
 - **Mod tests** (in `gt-mods`): the input mapping (dead zone, curve, ramp, max of sources) as unit tests.
 - **In game**: a scripted race (existing pad routes or a new one) with a synthetic trigger value — e.g. throttle held at
-  0.5 — checks that `car+8+0x538` settles at 0.5 and brake 0.3 gives `+0x530` = 0.3, for the player car only, AI cars
+  0.5 — checks that `car+8+0x538` settles at 0.5 and brake 0.3 gives `+0x530` = 0.3 *(superseded: measured mapping is `+0x530` = accelerator, `+0x538` = brake; see the last bullet of "Answers to the builder check")*, for the player car only, AI cars
   unchanged. Sabotage: break the hook (write the wrong field) and see the check fail.
 - **Manual**: the user drives with the Xbox controller and with the keyboard.
 

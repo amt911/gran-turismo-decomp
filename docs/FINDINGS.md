@@ -2807,18 +2807,20 @@ function you want exists, work on its input instead (see the next entry). The sa
 
 Found: 2026-11-04 · docs/FACTS.md § Player car and the per-car input record
 
-## The game answers an analog pedal record with its own response curve, and a replay does not keep it
+## The game answers an analog pedal record with its own response curve (inverted by the mod); a replay does not keep it
 
-**What the analog-pedals mod does.** After `0x08948B78` it writes the trigger values into the player's input record (accelerator:
-s16 `+8` plus flag `0x02` in byte 0; brake: s16 `+0xA` plus flag `0x04`); the mapping and the disasm are in docs/FACTS.md. The
-record route works in both `--decomp off` and `on`, only for the live player car (`tools/mod_pedals_check.sh`).
+**What the analog-pedals mod does.** After `0x08948B78` it writes values into the player's input record (accelerator: s16 `+8` plus
+flag `0x02` in byte 0; brake: s16 `+0xA` plus flag `0x04`); mapping and disasm in docs/FACTS.md. It injects only into the record
+buffer of `0x0894DD9C` (`sp_entry - 0x50`) on the first call of a step. Works in `--decomp off` and `on`, live player car only
+(`tools/mod_pedals_check.sh`).
 
-**Observed (2026-11-04, `race` and `circuit` routes, fake input throttle 0.5 / brake 0.3).**
-- The pedal floats are the game's response to the record, not the raw value: accelerator `0x530` = 0.1035 for 0.5; brake `0x538` =
-  0.37 for 0.3 (`x + (1 - x) * 0.1`). Making the floats equal the trigger exactly needs a write after `0x08952B68` has ramped them,
-  e.g. a pre-hook on `0x0894E9C0` (a0 = car) - dispatched only with `--decomp on` (probe above), so it was not used: it would change
-  behaviour between modes.
-- **Replay:** the `circuit` route (race with the fake brake 0.3 injected on every live step, then the replay): live brake pedal 0.37
+**Observed (2026-11-04, `race` and `circuit` routes).**
+- The game turns the record into pedals through its own response, not the identity: writing 0.5 / 0.3 straight as records gave
+  accelerator `0x530` = 0.1035 (`x^8`, then a 10 % floor) and brake `0x538` = 0.37 (`x + (1 - x) * 0.1`). The mod therefore writes the
+  inverse (FACTS has the formulas and addresses) and the pedals settle at 0.4999 / 0.3000. A pedal below 0.1 cannot be produced (any
+  non-zero record gives at least 0.1): the mod injects nothing below 0.05 and the smallest press (0.1) for 0.05-0.1. No
+  mode-dependent hook is needed (`0x0894E9C0` is dispatched only with `--decomp on`).
+- **Replay** (measured with the first mod version, records written straight; the result is about what the recorder keeps): the `circuit` route (race with the fake brake 0.3 injected on every live step, then the replay): live brake pedal 0.37
   on every sampled step; the replay of the same session shows brake 0.0000 on all 23 sampled steps, and the accelerator 0.0 where
   the live one was the injected 0.1035 and 1.0 only where CROSS (a button) was held. So the replay keeps button presses but **not the
   mod's injected analog values** (the recorder stores each car's position, velocity and angles per the decompiled `0x0894DD9C`, so the replayed

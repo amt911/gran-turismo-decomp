@@ -2,10 +2,11 @@
 # In-game check of the analog-pedals mod (gt-mods repo): headless gt_play on the `race` pad route with the mod installed
 # and GT_MOD_PEDALS_FAKE=0.5,0.3 (throttle 0.5, brake 0.3 without touching a controller). The mod logs the player's and an
 # AI car's pedals (GT_MOD_PEDALS_LOG=1); tools/mod_pedals_check.py passes when the player's pedals (car+8+0x530 accelerator,
-# +0x538 brake) show the game's response to those injected values and the AI car's pedals differ from the player's.
-#   tools/mod_pedals_check.sh [--without-mod] [--sabotage] [--disabled] [--sdl] [--decomp off|on] [--seconds N] [--route NAME]
+# +0x538 brake) are 0.5 / 0.3 and the AI car's pedals differ from the player's.
+#   tools/mod_pedals_check.sh [--without-mod] [--sabotage|--sabotage-brake] [--disabled] [--sdl] [--decomp off|on] [--seconds N] [--route NAME]
 #   --without-mod  empty mods dir (the check must FAIL: nothing injects)
-#   --sabotage     builds the mod with ANALOG_PEDALS_SABOTAGE (throttle written to the wrong record field; must FAIL)
+#   --sabotage     builds the mod with ANALOG_PEDALS_SABOTAGE=1 (throttle written to the wrong record field; must FAIL)
+#   --sabotage-brake  same with =2 (brake written to the wrong field; must FAIL)
 #   --disabled     mod installed with enabled = false: prints the `[mods] ... skipped` line and `script done at vblank N` (compare N
 #                  with a --without-mod run: they must be equal); no pedal check
 #   --sdl          no GT_MOD_PEDALS_FAKE: the mod reads SDL (keyboard/controller) while gt_play pumps events, for a long run
@@ -22,7 +23,7 @@ out=${OUT:-recomp/analysis/mod_pedals_check}
 decomp=off seconds=240 route=race without=0 sabotage=0 disabled=0 sdl=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) without=1;; --sabotage) sabotage=1;; --disabled) disabled=1;; --sdl) sdl=1;;
+    --without-mod) without=1;; --sabotage) sabotage=1;; --sabotage-brake) sabotage=2;; --disabled) disabled=1;; --sdl) sdl=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --route) route=$2; shift;;
     *) echo "mod_pedals_check: unknown argument $1" >&2; exit 2;;
   esac
@@ -33,7 +34,7 @@ done
 rm -rf "$out" && mkdir -p "$out/mods" "$out/savedata" || exit 2
 if [ $without -eq 0 ]; then
   mbuild="$out/mod-build"
-  flags=""; [ $sabotage -eq 1 ] && flags="-DCMAKE_CXX_FLAGS=-DANALOG_PEDALS_SABOTAGE"
+  flags=""; [ $sabotage -ne 0 ] && flags="-DCMAKE_CXX_FLAGS=-DANALOG_PEDALS_SABOTAGE=$sabotage"
   { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" $flags \
       && cmake --build "$mbuild" -j2 --target analog_pedals; } > "$out/mod-build.log" 2>&1 \
     || { echo "mod_pedals_check: mod build failed (log $out/mod-build.log)" >&2; exit 2; }

@@ -7,7 +7,7 @@ def lines(rows):
     )
 
 
-GOOD = [(600 + 60 * i, 0.1035, 0.37, 0.9, 0.0) for i in range(1, 8)]
+GOOD = [(600 + 60 * i, 0.5, 0.3, 0.9, 0.0) for i in range(1, 8)]
 
 
 def test_passes_when_player_matches_and_ai_differs():
@@ -21,7 +21,7 @@ def test_fails_without_mod_lines():
 
 
 def test_fails_when_throttle_is_off():
-    rows = GOOD[:-1] + [(1200, 0.0, 0.37, 0.9, 0.0)]
+    rows = GOOD[:-1] + [(1200, 0.0, 0.3, 0.9, 0.0)]
     assert not judge(lines(rows))[0]
 
 
@@ -39,3 +39,8 @@ def test_fails_when_ai_shows_the_injected_values_too():
 def test_ignores_samples_before_settling():
     rows = [(60, 0.0, 0.0, 0.0, 0.0)] + GOOD
     assert judge(lines(rows))[0]
+
+
+def test_fails_when_only_the_game_response_shows():
+    rows = [(s, 0.1035, 0.37, at, ab) for s, _, _, at, ab in GOOD]
+    assert not judge(lines(rows))[0]

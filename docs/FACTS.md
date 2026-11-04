@@ -390,11 +390,24 @@ the analog branch `0x08954064`, which shapes it through `func_08960BE8` with a t
 makes `+0xA` analog** (`0x08954200-0x08954298`: target = `+0xA / 4096`, plus `(1 - x) * const[0x08CDE108]`, ramped into `+0x538`).
 Bits `0x08` / `0x10` are the same switches for `+0xC` / `+0xE`.
 
-Game response to an injected analog record (the `analog-pedals` mod, `race` route, fake input 0.5 / 0.3, `--decomp off`): with
-`+8` = 2048 and flag `0x02` the accelerator pedal `+0x530` settles at **0.1035** (a response curve, `func_08960BE8` over the table
-at `0x08CF2FDC`), with `+0xA` = 1229 and flag `0x04` the brake pedal `+0x538` at **0.37** = `x + (1 - x) * 0.1` (float constant
-`0.1` at `0x08CDE108`, `0x08954268-0x089542B0`). So the game's own analog path is not the identity: a 0.3 brake becomes 0.37 and
-a half-pressed accelerator 0.10. AI cars are untouched (their pedals vary independently of the injected values).
+Exact record -> pedal mapping of the analog path (`python -m tools.disasm 08952B68 08952B68:500`, `08960BE8`; runtime addresses):
+- **Accelerator** (`+8`, byte0 bit `0x02`): `0x08953F48-0x08953F60` takes `raw = +8` unscaled when the flag is set (else `value << 12`);
+  `0x08953FDC` sends the analog case to `0x08954064`; `x = raw * 2^-12` (`0x08954078-0x0895408C`, constant `0x3980...`); byte0 bits
+  `0x60` choose the curve object (`0x08CF2FDC` when both clear, `0x08CF2FCC` for `0x20`, `0x08CF2FBC` for `0x40`;
+  `0x08954084-0x089540DC`), evaluated by `func_08960BE8(object, 0)` with `f12 = x`: object type 3 gives `y = c*x^8 + c8*x`
+  (`0x08960CC0-0x08960D04`). Runtime memory of `0x08CF2FDC` (read in game): type 3, `+4` = 0, `+8` (c8) = 0, `+0xC` (c) = 1.0, so
+  **`y = x^8`**. Then `target = y + (1 - y) * 0.1` (`0x089540E0-0x089540FC`, 0.1 = float at `0x08CDE108`), and the pedal float `+0x530`
+  ramps to `target` by the steps in the object at `sp+0x60` (`+0` up, `+4` down; `0x089540FC-0x08954204`, store `0x08954204`). `raw = 0`
+  takes the release path (`0x08953FE4`/`0x08954064` -> `0x08954178`), pedal ramps to 0.
+- **Brake** (`+0xA`, byte0 bit `0x04`): `0x08954200` tests the flag, `0x0895426C-0x08954280` `x = (+0xA & 0xFFFF) * 2^-12`;
+  `x = 0` skips the floor (`0x08954294` -> `0x089542BC`), target 0, the pedal ramps down; else `target = x + (1 - x) * 0.1` (`0x0895429C-0x089542B4`), pedal `+0x538`
+  ramps by the steps `+8` up / `+0xC` down (`0x089542BC-0x0895431C`, store `0x0895431C`).
+- Consequences: both pedals jump to **at least 0.1** for any non-zero record (a pedal in (0, 0.1) cannot be produced); the inverse for a
+  wanted pedal `p >= 0.1` is `x = ((p - 0.1) / 0.9)^(1/8)` (accelerator) or `(p - 0.1) / 0.9` (brake), `raw = round(x * 4096)`.
+  Verified in game: with the inverse the player's pedals settle at 0.5 / 0.3 (`tools/mod_pedals_check.sh`).
+
+Measured response before the inverse (fake 0.5 / 0.3 written straight as records): accelerator `0.5^8 = 0.0039` -> `0.1035`, brake
+`0.3` -> `0.37`; AI cars untouched (their pedals vary independently of the injected values).
 
 Where a post-`0x08952B68` hook would fire (`GT_PROBE`, `race` route, 230 s, mods off): `0x0894E9C0` (first of the drive chain,
 a0 = car) has **hits 0 with `--decomp off`** (in-unit call) and **44 287 with `--decomp on`** (4 cars x 11 071 steps);

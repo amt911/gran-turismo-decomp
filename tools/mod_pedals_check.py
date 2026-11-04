@@ -1,10 +1,9 @@
 """Verdict of tools/mod_pedals_check.sh: reads the analog-pedals mod's log lines from a gt_play run.
 
-The mod injects throttle 0.5 and brake 0.3 into the player's input record (analog flags + s16 fields). The game turns the
-record into pedal floats with its own response: the accelerator goes through a response curve (0.5 -> 0.1035, measured
-2026-11-04) and the brake through `x + (1 - x) * 0.1` (0.3 -> 0.37, constant at 0x08CDE108 = 0.1). Pass when, after the
-first SETTLE_STEPS physics steps, the player's pedals (car+8+0x530 accelerator, +0x538 brake) sit at those responses on
-every sample and the AI car's pedals are not the player's on every sample (the injection is player-only).
+The mod asks for throttle 0.5 and brake 0.3; it writes the input-record values whose game response (docs/FACTS.md: accelerator
+x^8 then a 10 % floor, brake a 10 % floor) is exactly those pedals. Pass when, after the first SETTLE_STEPS physics steps, the
+player's pedals (car+8+0x530 accelerator, +0x538 brake) are within TOLERANCE of 0.5 / 0.3 on every sample and the AI car's pedals
+are not the player's on every sample (the injection is player-only).
 
 Line format (mod.cpp): `[mod:analog-pedals] step=N player thr=T brk=B eff=E ai thr=T brk=B`.
 """
@@ -14,9 +13,9 @@ import sys
 LINE = re.compile(r"\[mod:analog-pedals\] step=(\d+) player thr=([-\d.]+) brk=([-\d.]+) eff=([-\d.]+) ai thr=([-\d.]+) brk=([-\d.]+)")
 SETTLE_STEPS = 600
 MIN_SAMPLES = 5
-EXPECT_THROTTLE = 0.1035  # game response to an injected 0.5
-EXPECT_BRAKE = 0.37  # game response to an injected 0.3
-TOLERANCE = 0.01
+EXPECT_THROTTLE = 0.5
+EXPECT_BRAKE = 0.3
+TOLERANCE = 0.02
 
 
 def judge(text, want_throttle=EXPECT_THROTTLE, want_brake=EXPECT_BRAKE):
