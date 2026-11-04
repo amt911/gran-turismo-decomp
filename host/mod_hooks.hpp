@@ -28,6 +28,9 @@ struct HookOwner {
 // (the error names both mod ids). On success the function at `address` is replaced by a trampoline that runs `fn`.
 bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, HookOwner owner, std::string &error);
 
+// Returns (and clears) the error of the last install_hook refused because the address was already hooked; empty if none.
+std::string take_hook_conflict();
+
 // Runtime that `mod_api().hook` installs into (the loader calls this before gt_mod_init).
 void bind_runtime(psprecomp::Runtime &rt);
 

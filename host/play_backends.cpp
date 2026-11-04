@@ -10,6 +10,7 @@
 #include "lcs_audio_output.hpp"
 #include "lcs_lang.hpp"
 #include "lcs_render_config.hpp"
+#include "mod_loader.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -50,3 +51,17 @@ void gt::frontend_attach() {
 }
 
 void gt::frontend_shutdown() { lcs::audio_output_shutdown(); }
+
+void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed, std::string &fatal) {
+    if (!allowed) {
+        std::cerr << "[mods] not loaded: --decomp diff and synthetic cases run the unmodded game\n";
+        return;
+    }
+    const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0), fatal);
+    if (report.loaded.empty() && report.skipped.empty()) return;  // no mods directory, or nothing in it: say nothing
+    std::cerr << "[mods] loaded:";
+    for (const auto &id : report.loaded) std::cerr << ' ' << id;
+    std::cerr << " skipped:";
+    for (const auto &why : report.skipped) std::cerr << " [" << why << ']';
+    std::cerr << "\n";
+}

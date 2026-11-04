@@ -187,6 +187,7 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -200,13 +201,14 @@ if(GT_PLAY)
         "${GT_LCS_HOST_DIR}/lcs_runtime_log.cpp"
         "${GT_GE_SPV_HEADER}" "${GT_FONT_HEADER}")
     target_compile_definitions(gt_play PRIVATE LCS_VULKAN_GE_BACKEND=1)
+    target_include_directories(gt_play PRIVATE include)  # gt_mod/gt_mod_api.h
     if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
         target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")
     endif()
     target_include_directories(gt_play BEFORE PRIVATE "${GT_PLAY_GENERATED}")
     target_include_directories(gt_play PRIVATE host "${GT_LCS_HOST_DIR}")
     target_link_libraries(gt_play PRIVATE gt_generated psprecomp_core PkgConfig::FFMPEG PkgConfig::LIBCRYPTO PkgConfig::SDL2
-                          PkgConfig::VULKAN Threads::Threads)
+                          PkgConfig::VULKAN Threads::Threads ${CMAKE_DL_LIBS})
     # The user's settings live in build/gt_play.ini: copy the template only when there is none, so a reconfigure or a
     # pull that changes config/gt_play.ini doesn't wipe them (keys an older copy lacks take the program's defaults).
     if(NOT EXISTS "${CMAKE_BINARY_DIR}/gt_play.ini")
@@ -267,6 +269,15 @@ add_executable(mod_hooks_tests host/tests/mod_hooks_test.cpp host/mod_hooks.cpp)
 target_include_directories(mod_hooks_tests PRIVATE host include)
 target_link_libraries(mod_hooks_tests PRIVATE psprecomp_core)
 add_test(NAME mod_hooks COMMAND mod_hooks_tests)
+add_library(test_mod MODULE host/tests/mods/test_mod.c)
+target_include_directories(test_mod PRIVATE include)
+set_target_properties(test_mod PROPERTIES PREFIX "" C_VISIBILITY_PRESET default)
+add_executable(mod_loader_tests host/tests/mod_loader_test.cpp host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp)
+target_include_directories(mod_loader_tests PRIVATE host include)
+target_link_libraries(mod_loader_tests PRIVATE psprecomp_core ${CMAKE_DL_LIBS})
+target_compile_definitions(mod_loader_tests PRIVATE TEST_MOD_LIB="$<TARGET_FILE:test_mod>")
+add_dependencies(mod_loader_tests test_mod)
+add_test(NAME mod_loader COMMAND mod_loader_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
 target_include_directories(ps_demux_tests PRIVATE host)
 add_test(NAME ps_demux COMMAND ps_demux_tests)

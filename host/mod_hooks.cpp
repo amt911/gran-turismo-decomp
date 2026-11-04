@@ -18,6 +18,7 @@ namespace {
 
 // The C API does not carry the Runtime; the loader binds it (bind_runtime) before calling gt_mod_init.
 psprecomp::Runtime *g_runtime = nullptr;
+std::string g_conflict;  // set by install_hook when an address is already hooked; taken by the loader
 
 struct Hook {
     GtHookFn fn;
@@ -97,6 +98,7 @@ bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, Ho
     if (existing != hooks().end()) {
         error = "address already hooked by mod '" + existing->second.owner.mod_id + "' (second hook from mod '" +
                 owner.mod_id + "')";
+        g_conflict = error;
         return false;
     }
     const auto original = rt.function_at(address);
@@ -117,10 +119,17 @@ const GtModApi &mod_api() {
     return api;
 }
 
+std::string take_hook_conflict() {
+    std::string out;
+    out.swap(g_conflict);
+    return out;
+}
+
 void bind_runtime(psprecomp::Runtime &rt) { g_runtime = &rt; }
 
 void clear_hooks_for_tests() {
     hooks().clear();
+    g_conflict.clear();
     g_runtime = nullptr;
 }
 
