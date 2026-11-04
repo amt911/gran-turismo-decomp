@@ -8,6 +8,7 @@
 #   BUILD_DIR  the build to optimise (default build)
 #   SECONDS    length of the profiling run (default 220: menus and the first race)
 set -euo pipefail
+export GT_NO_MODS=1  # profile runs never load mods (a mods/ dir next to gt_play would change what is measured)
 build=${1:-build}
 seconds=${2:-220}
 repo=$(cd "$(dirname "$0")/.." && pwd)

@@ -1,5 +1,5 @@
 // Native mod loader: finds mod directories (`mod.toml` + shared library), dlopens them and runs gt_mod_init.
-// Only gt_play uses it (host/main.cpp, GT_ENABLE_MODS); see include/gt_mod/gt_mod_api.h.
+// Only gt_play uses it (gt::frontend_load_mods, host/frontend.hpp); `GT_NO_MODS=1` disables it (verification tools set it); see include/gt_mod/gt_mod_api.h.
 #pragma once
 
 #include <filesystem>
@@ -21,7 +21,7 @@ struct LoadReport {
 // set only when two mods hook the same address (startup must stop). A missing or empty `dir` loads nothing.
 LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, std::string &fatal);
 
-// `$GT_MODS_DIR` if set and non-empty, else `<directory of the executable>/mods`.
+// `$GT_MODS_DIR` if set and non-empty, else `<directory of the executable>/mods` (/proc/self/exe, argv0 as fallback).
 std::filesystem::path mods_dir(const char *argv0);
 
 } // namespace gt::mods

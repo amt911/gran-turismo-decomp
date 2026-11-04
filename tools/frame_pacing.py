@@ -2,7 +2,7 @@
 
 The averages in GT_PERF_LOG ("presented 59.9/s") hide uneven pacing; this reads the per-frame log instead.
 
-  GT_FRAME_LOG=run.framelog build/gt_play ...        write the log at exit (off by default)
+  GT_FRAME_LOG=run.framelog GT_NO_MODS=1 build/gt_play ...        write the log at exit (off by default; GT_NO_MODS=1: a mods/ dir must not change what is measured)
   python -m tools.frame_pacing run.framelog [more.framelog ...] [--skip-s 30] [--end-s 200] [--json]
 
 Log format (text, one row per line, `#` lines ignored; times are wall-clock microseconds since the run began):

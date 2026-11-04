@@ -119,6 +119,17 @@ const GtModApi &mod_api() {
     return api;
 }
 
+void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod) {
+    for (auto it = hooks().begin(); it != hooks().end();) {
+        if (it->second.owner.mod == mod) {
+            rt.register_function(it->first, it->second.original, "mod:removed");
+            it = hooks().erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 std::string take_hook_conflict() {
     std::string out;
     out.swap(g_conflict);

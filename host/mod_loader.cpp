@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <memory>
@@ -25,6 +26,10 @@ std::vector<std::unique_ptr<GtMod>> &live_mods() {
 
 LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, std::string &fatal) {
     LoadReport report;
+    if (const char *off = std::getenv("GT_NO_MODS"); off != nullptr && *off != '\0' && std::string(off) != "0") {
+        std::fprintf(stderr, "[mods] disabled (GT_NO_MODS)\n");
+        return report;
+    }
     std::error_code ec;
     if (!std::filesystem::is_directory(dir, ec)) return report;
     std::vector<std::filesystem::path> entries;
@@ -83,7 +88,7 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
             return report;
         }
         if (status != 0) {
-            // Hooks it did install stay (the library cannot be unloaded under them); the mod is reported as skipped.
+            remove_hooks_for(rt, self);  // a skipped mod must not stay partly active
             skip("gt_mod_init returned " + std::to_string(status));
             continue;
         }
@@ -95,8 +100,10 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
 std::filesystem::path mods_dir(const char *argv0) {
     if (const char *env = std::getenv("GT_MODS_DIR"); env != nullptr && *env != '\0') return env;
     std::error_code ec;
-    const auto exe = std::filesystem::absolute(argv0 != nullptr ? argv0 : "", ec);
-    return exe.parent_path() / "mods";
+    const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
+    if (!ec && self.has_parent_path()) return self.parent_path() / "mods";
+    ec.clear();
+    return std::filesystem::absolute(argv0 != nullptr ? argv0 : "", ec).parent_path() / "mods";
 }
 
 } // namespace gt::mods

@@ -15,5 +15,9 @@ int gt_mod_init(const GtModApi *api, GtMod *self) {
     const char *bonus = api->config(self, "bonus");
     g_api = api;
     g_bonus = bonus != NULL ? (uint32_t)strtoul(bonus, NULL, 10) : 0u;
-    return api->hook(self, 0x08900000u, hook);
+    {
+        const char *fail = api->config(self, "fail_after_hook");
+        const int status = api->hook(self, 0x08900000u, hook);
+        return (fail != NULL && status == 0) ? 7 : status;
+    }
 }

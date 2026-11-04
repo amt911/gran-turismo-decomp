@@ -79,6 +79,17 @@ int main() {
     {
         clear_hooks_for_tests();
         psprecomp::Runtime rt;
+        rt.register_function(kAddr, &fake_original, "orig");
+        install_hook(rt, kAddr, hook_call_then_7, {"alpha", &a}, err);
+        remove_hooks_for(rt, &b);  // another mod: nothing happens
+        { psprecomp::AllegrexContext c; c.gpr[4] = 5; call(rt, c); check(c.gpr[2] == 7u, "remove_hooks_for other mod keeps hook"); }
+        remove_hooks_for(rt, &a);
+        { psprecomp::AllegrexContext c; c.gpr[4] = 5; call(rt, c); check(c.gpr[2] == 6u, "remove_hooks_for restores the original"); }
+        check(install_hook(rt, kAddr, hook_noop, {"beta", &b}, err), "remove_hooks_for frees the address");
+    }
+    {
+        clear_hooks_for_tests();
+        psprecomp::Runtime rt;
         err.clear();
         check(!install_hook(rt, kAddr, hook_noop, {"alpha", &a}, err), "hook_on_unknown_address_refused");
         check(!err.empty(), "unknown address: error filled");

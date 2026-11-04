@@ -57,9 +57,9 @@ void write(const fs::path &path, const std::string &text) {
 
 // A mod directory using the test library; `extra` is appended to the manifest.
 void make_mod(const fs::path &root, const std::string &dir, const std::string &id, bool enabled, const std::string &bonus,
-              const std::string &api = "1", const std::string &library = TEST_MOD_LIB) {
+              const std::string &api = "1", const std::string &library = TEST_MOD_LIB, const std::string &extra = "") {
     write(root / dir / "mod.toml", "id = \"" + id + "\"\nlibrary = \"" + library + "\"\napi = " + api + "\nenabled = " +
-                                       (enabled ? "true" : "false") + "\n[settings]\nbonus = \"" + bonus + "\"\n");
+                                       (enabled ? "true" : "false") + "\n[settings]\nbonus = \"" + bonus + "\"\n" + extra);
 }
 
 psprecomp::Runtime &fresh_runtime(std::unique_ptr<psprecomp::Runtime> &holder) {
@@ -123,10 +123,35 @@ int main() {
         check(call(rt, 5) == 6u, "empty_or_missing_dir: original untouched");
     }
     {
+        auto &rt = fresh_runtime(holder);
+        fatal.clear();
+        const fs::path root = fresh_dir("failing_init");
+        make_mod(root, "f", "failing_mod", true, "100", "1", TEST_MOD_LIB, "fail_after_hook = \"1\"\n");
+        const LoadReport r = load_mods(rt, root, fatal);
+        check(r.loaded.empty() && r.skipped.size() == 1 && fatal.empty(), "failing_init_is_skipped");
+        check(call(rt, 5) == 6u, "failing_init: hook removed, original only");
+        // the address is free again: another mod can take it
+        const fs::path root2 = fresh_dir("after_failing");
+        make_mod(root2, "ok", "ok_mod", true, "100");
+        check(load_mods(rt, root2, fatal).loaded.size() == 1 && call(rt, 5) == 106u, "failing_init: address reusable");
+    }
+    {
+        auto &rt = fresh_runtime(holder);
+        fatal.clear();
+        const fs::path root = fresh_dir("no_mods_env");
+        make_mod(root, "bonus", "bonus_mod", true, "100");
+        setenv("GT_NO_MODS", "1", 1);
+        const LoadReport r = load_mods(rt, root, fatal);
+        unsetenv("GT_NO_MODS");
+        check(r.loaded.empty() && r.skipped.empty() && fatal.empty(), "GT_NO_MODS: nothing loaded");
+        check(call(rt, 5) == 6u, "GT_NO_MODS: original untouched");
+    }
+    {
         setenv("GT_MODS_DIR", "/some/where", 1);
         check(mods_dir("/x/gt_play") == fs::path("/some/where"), "mods_dir: env wins");
         unsetenv("GT_MODS_DIR");
-        check(mods_dir("/x/y/gt_play") == fs::path("/x/y/mods"), "mods_dir: next to the executable");
+        check(mods_dir("/x/y/gt_play") == fs::read_symlink("/proc/self/exe").parent_path() / "mods",
+              "mods_dir: next to the executable (/proc/self/exe)");
     }
     fs::remove_all(fs::temp_directory_path() / ("gt_mod_loader_test_" + std::to_string(::getpid())));
     if (failures == 0) std::puts("mod_loader tests passed");
