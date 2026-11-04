@@ -370,6 +370,18 @@ its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` an
   and `+0xA` and byte `+0` were never non-zero (the routes use no analog stick/trigger). This disagrees with the earlier recon's
   "`+0xA` = analog throttle, `+8` = brake (inferred)"; settled below: `+8` is the accelerator, `+0xA` the brake.
 
+### Proving which car a `0x08948B78` call belongs to (Task 6, fix round 2)
+
+The record (`sp_entry - 0x50`) is one stack buffer shared by every car of the `0x0894DD9C` loop, so its address proves nothing about
+the car. Per car in mode 0 the step calls controller slot `0xC` = `0x08899094(controller, index, record)`: it fetches the car's driver
+entry (`func_088F8D58(controller+0xC, index)`, asm `0x088990B8`) and calls the entry's virtual slot `0x64` = **`0x08896780(entry,
+buffer, index)`** (`0x088990D4-0x088990D8`; `a0` = entry, `a2` = the car index), then copies the buffer into the record (`0x0892B5F4`,
+`0x08899124`); `0x0894DD9C` then calls `0x08948B78(record)` (`0x0894DEC8`). So "a `0x08896780` call whose entry is the human entry
+and whose index is the human car's index, followed by the clamp" proves the clamp's record is the player's. The caller's `s3` holds
+the index only in the recompiled `0x0894DD9C` (`0x0894DE98`/`0x0894DEB0` use `s3` as the index); the decompiled one of `--decomp on`
+does not keep it in a register, so a register check cannot be used in both modes. `0x08896780` is entered through the table in both
+modes (the analog-pedals mod's hook on it fires: its check passes with `--decomp off` and `on`).
+
 ### Which record field is the accelerator and which the brake (measured 2026-11-04, Task 6)
 
 Scratch diagnostic mod (not committed) hooking `0x0894DD9C` and `0x08948B78`, `race` pad prefix of `circuit`, then CROSS held
