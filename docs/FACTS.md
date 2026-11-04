@@ -368,4 +368,36 @@ its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` an
   calls them through the table.
 - **Input record at the entry of `0x08948B78`** (before the clamp): in `circuit`, with CROSS (accelerate) held, s16 `+8` was non-zero
   and `+0xA` and byte `+0` were never non-zero (the routes use no analog stick/trigger). This disagrees with the earlier recon's
-  "`+0xA` = analog throttle, `+8` = brake (inferred)"; nothing here settles which field is the throttle - Task 6 must check.
+  "`+0xA` = analog throttle, `+8` = brake (inferred)"; settled below: `+8` is the accelerator, `+0xA` the brake.
+
+### Which record field is the accelerator and which the brake (measured 2026-11-04, Task 6)
+
+Scratch diagnostic mod (not committed) hooking `0x0894DD9C` and `0x08948B78`, `race` pad prefix of `circuit`, then CROSS held
+600 vblanks, SQUARE held 600, `--decomp off`, car `0x093E8B18` (index 3, `word(world+4) + 3*0x2100 + 0x2010`), pedals read at
+`word(car+8) + off`:
+
+| Button held | record s16 `+8` | `+0xA` | float `+0x530` | float `+0x538` | `+0x534` |
+| --- | --- | --- | --- | --- | --- |
+| none | 0 | 0 | 0 | 0 | 0 |
+| CROSS (accelerate) | **1** | 0 | **1.0** | 0 | 1.0 |
+| SQUARE (brake) | 0 | **1** | 0 | **1.0** | 0 |
+
+So **`+8` = accelerator -> `car->constants+0x530` (-> `+0x534` effective throttle); `+0xA` = brake -> `+0x538`** - the earlier
+recon's names for `+0x530` / `+0x538` ("brake" / "throttle") were swapped. A digital press is the value 1 without an analog flag
+(`0x08952B68` scales `value << 12` when the flag is clear, `asm 0x08953F48-0x08953F80`). Analog flags in record byte 0, read from
+`0x08952B68` (`python -m tools.disasm 08952B68`): **bit `0x02` makes `+8` analog** (raw `0..0x1000`; `0x08953F54-0x08953F60`, then
+the analog branch `0x08954064`, which shapes it through `func_08960BE8` with a table chosen by byte0 bits `0x60`) and **bit `0x04`
+makes `+0xA` analog** (`0x08954200-0x08954298`: target = `+0xA / 4096`, plus `(1 - x) * const[0x08CDE108]`, ramped into `+0x538`).
+Bits `0x08` / `0x10` are the same switches for `+0xC` / `+0xE`.
+
+Game response to an injected analog record (the `analog-pedals` mod, `race` route, fake input 0.5 / 0.3, `--decomp off`): with
+`+8` = 2048 and flag `0x02` the accelerator pedal `+0x530` settles at **0.1035** (a response curve, `func_08960BE8` over the table
+at `0x08CF2FDC`), with `+0xA` = 1229 and flag `0x04` the brake pedal `+0x538` at **0.37** = `x + (1 - x) * 0.1` (float constant
+`0.1` at `0x08CDE108`, `0x08954268-0x089542B0`). So the game's own analog path is not the identity: a 0.3 brake becomes 0.37 and
+a half-pressed accelerator 0.10. AI cars are untouched (their pedals vary independently of the injected values).
+
+Where a post-`0x08952B68` hook would fire (`GT_PROBE`, `race` route, 230 s, mods off): `0x0894E9C0` (first of the drive chain,
+a0 = car) has **hits 0 with `--decomp off`** (in-unit call) and **44 287 with `--decomp on`** (4 cars x 11 071 steps);
+`0x08952B68` 0 / 11 071. With `--decomp on` the probes on `0x0894DD9C` / `0x08948B78` show 0 hits because the decompiled
+versions replace the probed trampolines, so a probe cannot measure those in `on` mode (mods installed after the decomp
+registrations do wrap them).

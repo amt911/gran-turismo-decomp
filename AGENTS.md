@@ -317,6 +317,7 @@ tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idemp
 # .venv/bin/python -m tools.trace_compare recomp/analysis/ppsspp.log recomp/analysis/gt.trace
 # tools/gpu_gate.sh build recomp/analysis/gpu/run [SCALE] ["race:600 ..."]   GPU vs software GE gate (gt_play headless)
 # ctest --test-dir build
+# tools/mod_pedals_check.sh [--without-mod|--sabotage] [--decomp off|on]   analog-pedals mod in-game check (gt_play headless, race route; needs ../gt-mods)
 # .venv/bin/python -m tools.disasm 08B54FB8 [ADDR:N]   asm of a function: relocations applied, branches as `-> ADDRESS` (read targets here, never count them by hand)
 # .venv/bin/python -m tools.frame_audit [FILE.cpp ...]   body GuestFrame sizes vs the original prologue (the gate can't see them)
 # Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):

@@ -2,7 +2,11 @@
  *
  * A mod is a shared library that exports `gt_mod_init`. The loader calls it once with the host's function table;
  * the mod registers hooks on guest (PSP) addresses through `api->hook` and reads/writes guest state through the
- * ctx-taking accessors. Valid C99 and C++. */
+ * ctx-taking accessors. Valid C99 and C++.
+ *
+ * Caveat: a hook fires only where the call goes through the runtime's function table. A call that stays inside one
+ * recompiled unit (an in-unit goto/direct jump, e.g. 0x08952B68 from 0x0894DD9C in the default --decomp off build)
+ * never reaches it. Check a hook point with GT_PROBE=<addr> (hits > 0) in both --decomp off and --decomp on. */
 #ifndef GT_MOD_API_H
 #define GT_MOD_API_H
 

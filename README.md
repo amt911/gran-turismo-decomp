@@ -105,6 +105,11 @@ Controles por defecto: W / Enter = acelerar y aceptar, S = frenar, A / D = girar
 Retroceso = atrás, Escape = START, F10 = ajustes, F11 = pantalla completa (mando: gatillos + stick).
 `build/gt_native` es la versión sin ventana para pruebas y el harness diferencial.
 
+**Mods nativos** (solo `gt_play`): bibliotecas `.so` con un `mod.toml` en `build/mods/<id>/` (o `GT_MODS_DIR`), cargadas con el
+SDK `include/gt_mod/gt_mod_api.h`; `GT_NO_MODS=1` los desactiva. Los mods viven en el repo privado `gt-mods`; el primero,
+`analog-pedals`, da acelerador y freno analógicos (gatillos del mando o teclas con rampa). Comprobación en juego:
+`tools/mod_pedals_check.sh` (ver `gt-mods/README.md` para instalarlo).
+
 ## Para agentes (Claude Code / Codex)
 
 - [`AGENTS.md`](AGENTS.md) es la guía canónica; [`CLAUDE.md`](CLAUDE.md) solo la importa y añade lo

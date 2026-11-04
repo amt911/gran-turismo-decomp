@@ -116,7 +116,12 @@ read in the asm or in already-decompiled code; **inferred** = reading of the asm
 
 ## Answers to the builder check (2026-11-04)
 
-- **Hooks do reach the callers.** Recompiled code calls other functions through the runtime's address dispatch:
+- **Hooks reach only callers that go through the dispatcher** (corrected 2026-11-04 after Task 5/6 measurements).
+  A call inside one recompiled unit that the recompiler turned into a `goto` / direct jump never consults the function
+  table, so a hook on its target does not fire: `0x08952B68` is reached that way from `0x0894DD9C` in the default
+  `--decomp off` build (`generated_unit_0041.cpp:5338`; `GT_PROBE` hits 0). Check a hook point with `GT_PROBE=<addr>` in
+  both `--decomp off` and `--decomp on` before relying on it (docs/FINDINGS.md). Original text, true for those callers:
+  recompiled code calls other functions through the runtime's address dispatch:
   decompiled functions already replace recompiled ones with `runtime.register_function(address, …)` and
   `runtime.function_at(address)` gives the one that was there (`host/diff_harness.cpp`, install loop). The loader uses
   the same two calls; no recompiler or `recomp/` change. 0x08948B78 is a function entry (`func_08948B78`, 53
@@ -154,3 +159,7 @@ read in the asm or in already-decompiled code; **inferred** = reading of the asm
   the user's call).
 - Native C++ mods only, Linux first, TOML manifest, mods off by default.
 - Keyboard ramp 100 ms, controller + keyboard combined by maximum.
+- **Measured mapping (Task 6, 2026-11-04): the spec's pedal names above are swapped.** Record `+8` (analog flag `0x02`) is the
+  accelerator -> `car+8+0x530`; `+0xA` (flag `0x04`) is the brake -> `+0x538`. The record carries both analog values, so the mod
+  injects both there and hooks only `0x0894DD9C` and `0x08948B78`; the game's own response (accelerator curve, 10 % brake floor)
+  applies, and replays do not keep the injected values (docs/FACTS.md, docs/FINDINGS.md).
