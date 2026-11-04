@@ -2780,6 +2780,10 @@ in the race route, so they had no evidence left in that route.
 `all routes: ... compared` line against the previous batch before opening a PR: a drop of more than a few dozen needs a
 per-function diff of two route reports (`tools.decomp_gate.parse_report`), not a shrug.
 
+Second case, batch 310: `0x08A9C340` (a setup guarded by a one-time flag at `+0x7C`) is reached by the routes 17
+times; registered, `compared` fell from about 6900 to 6572 and 394 functions lost their evidence. The tell for both: a
+"no route reaches" candidate that does have `calls > 0` in a route report once registered.
+
 **Same symptom from a hot function (batch 291).** `0x08A4F5C0` runs about 21.7 million times across the routes.
 Registering it was correct (compared 484, 0 mismatches), but it slowed the diff runs enough that 57 functions reached
 late in the routes were no longer compared. Hot functions trade route coverage for their own; leave them out of the
