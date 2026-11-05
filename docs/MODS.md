@@ -10,10 +10,27 @@ los casos sintéticos nunca los cargan. Los mods del autor viven en el repo priv
 
 - Directorio: `<build>/mods/` junto a `gt_play`, o el de `GT_MODS_DIR`. Cada mod es una subcarpeta con `mod.toml` y su biblioteca.
 - `gt_play` imprime `[mods] loaded: ... skipped: [...]` si el directorio tiene algo. Un mod se omite (con motivo) si falta
-  `mod.toml`, no se puede leer, `api` no es la del host, `enabled = false`, no abre la biblioteca, falta `gt_mod_init`, su init
+  `mod.toml`, no se puede leer, `api` no es la del host, no abre la biblioteca, falta `gt_mod_init`, su init
   devuelve distinto de 0 o repite el `id` de otra carpeta. Dos mods con un gancho en la misma dirección detienen el arranque
   (código 3) nombrando ambos.
+- Un mod con `enabled = false` **se carga e inicializa igualmente pero queda inactivo**: sus ganchos pasan directo a la función
+  original y ningún código del mod se ejecuta (así se puede activar desde el menú sin instalar ganchos desde otro hilo). Su
+  `gt_mod_init` sí corre (puede abrir un mando, leer ajustes). En el log sigue saliendo como `skipped [dir: disabled]`.
 - `GT_NO_MODS=1` desactiva todo (los scripts de verificación lo ponen: `gpu_gate.sh`, `ge_profile.sh`, `gpu_perf.sh`, `pgo.sh`).
+
+## Menú de mods en el juego (F9)
+
+En una ventana de `gt_play`, **F9** abre la página **MODS** del panel de ajustes del host (la de F10 no cambia). Una fila por mod
+con su nombre y `ON` / `OFF`; los que no se pudieron cargar salen como `ERROR` con el motivo recortado y no se pueden activar.
+Arriba/Abajo eligen, Izquierda/Derecha/Intro cambian, F9 o Escape cierran (la página enseña 5 filas y se desplaza). El cambio vale
+**al instante**: un mod apagado deja pasar sus ganchos a la función original (cada llamada lee el estado una sola vez al entrar,
+así que un cambio a mitad de llamada no la deja a medias) y se guarda en su `mod.toml` (`enabled = true|false`, respetando
+comentarios y demás claves). Si no se puede escribir el fichero, la fila muestra `SAVE FAILED` pero el cambio sigue aplicado.
+Sin mods instalados dice `NO MODS INSTALLED`. Con `GT_NO_MODS=1`, `--decomp diff` o casos sintéticos no hay mods que mostrar.
+Solo teclado (como el panel F10). No se editan los ajustes del mod ni se descargan bibliotecas en caliente.
+
+Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
+del menú pasado ese tiempo (`[mods] <id> -> OFF`).
 
 ## `mod.toml`
 
@@ -62,4 +79,7 @@ Instrucciones y ajustes en el README de `gt-mods` (`cmake -S . -B build -DCMAKE_
 ```bash
 tools/mod_pedals_check.sh [--decomp off|on]        # PASS = los pedales del jugador salen a 0.5 / 0.3
 tools/mod_pedals_check.sh --sabotage-brake         # debe FALLAR
+tools/mod_pedals_check.sh --toggle-off [--decomp on]   # el menú apaga el mod a mitad de carrera: inyecta antes, nada después
+tools/mod_pedals_check.sh --disabled               # enabled = false al arrancar: mismo `script done at vblank` que --without-mod
+# sabotaje del menú: cmake -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON, recompilar gt_play, --toggle-off --sabotage-active debe FALLAR
 ```

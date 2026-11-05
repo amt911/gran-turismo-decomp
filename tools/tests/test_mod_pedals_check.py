@@ -44,3 +44,35 @@ def test_ignores_samples_before_settling():
 def test_fails_when_only_the_game_response_shows():
     rows = [(s, 0.1035, 0.37, at, ab) for s, _, _, at, ab in GOOD]
     assert not judge(lines(rows))[0]
+
+
+# --- judge_toggle: the mod menu turns the mod off mid-race (GT_MOD_MENU_TEST_TOGGLE) ---
+from tools.mod_pedals_check import judge_toggle  # noqa: E402
+
+TOGGLE = "[mods] analog-pedals -> OFF"
+
+
+def test_toggle_passes_when_mod_logs_stop_at_the_toggle_line():
+    ok, message = judge_toggle(lines(GOOD) + "\n" + TOGGLE + "\nscript done at vblank 9\n")
+    assert ok, message
+
+
+def test_toggle_fails_when_the_mod_keeps_running_after_the_toggle():
+    ok, message = judge_toggle(lines(GOOD[:6]) + "\n" + TOGGLE + "\n" + lines(GOOD[6:]) + "\n")
+    assert not ok and "after" in message
+
+
+def test_toggle_fails_without_the_toggle_line():
+    ok, message = judge_toggle(lines(GOOD))
+    assert not ok and "toggle" in message
+
+
+def test_toggle_fails_when_the_mod_never_injected_before():
+    ok, message = judge_toggle(lines([(60, 0.0, 0.0, 0.0, 0.0)]) + "\n" + TOGGLE + "\n")
+    assert not ok and "before" in message
+
+
+def test_toggle_fails_when_pedals_before_are_off_target():
+    rows = [(s, 0.0, pb, at, ab) for s, _, pb, at, ab in GOOD]
+    ok, message = judge_toggle(lines(rows) + "\n" + TOGGLE + "\n")
+    assert not ok and "before" in message
