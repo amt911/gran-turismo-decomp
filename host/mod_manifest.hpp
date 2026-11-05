@@ -21,7 +21,7 @@ std::optional<Manifest> parse_manifest(std::string_view text, std::string &error
 
 // Sets the root-level `enabled = true|false` of a mod.toml in place: the existing line keeps its indentation and trailing
 // comment; every other line is untouched. A missing key is added after the last root key (before the first [table]).
-// The file is rewritten through the file itself (no rename), so a read-only file fails. False + `error` on any I/O problem.
+// The new text goes to `<manifest>.tmp` and is renamed over the file (never a truncated manifest); a read-only file fails. False + `error` on any I/O problem.
 bool write_enabled(const std::filesystem::path &manifest, bool enabled, std::string &error);
 
 } // namespace gt::mods

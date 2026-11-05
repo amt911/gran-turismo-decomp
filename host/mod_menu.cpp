@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <mutex>
 #include <thread>
 
@@ -55,17 +56,37 @@ std::string row(std::size_t index) {
 }
 
 bool toggle(std::size_t index) {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (index >= g_rows.size()) return false;
-    Row &r = g_rows[index];
-    if (r.entry.state == ModState::Error || r.entry.mod == nullptr) return false;
-    const bool turn_on = r.entry.state == ModState::Inactive;
-    set_active(r.entry.mod, turn_on);
-    r.entry.state = turn_on ? ModState::Active : ModState::Inactive;
+    // The flag flips under the lock; the file is written outside it (the renderer reads rows under the same lock every
+    // frame, so disk I/O must not hold it). Saves are serialised and write the state current at save time.
+    std::filesystem::path manifest;
+    std::string id;
+    bool turn_on = false;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (index >= g_rows.size()) return false;
+        Row &r = g_rows[index];
+        if (r.entry.state == ModState::Error || r.entry.mod == nullptr) return false;
+        turn_on = r.entry.state == ModState::Inactive;
+        set_active(r.entry.mod, turn_on);
+        r.entry.state = turn_on ? ModState::Active : ModState::Inactive;
+        manifest = r.entry.manifest;
+        id = r.entry.mod->id;
+    }
+    std::fprintf(stderr, "[mods] %s -> %s\n", id.c_str(), turn_on ? "ON" : "OFF");
+    static std::mutex save_mutex;
+    std::lock_guard<std::mutex> save(save_mutex);
+    bool state_now = turn_on;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (index < g_rows.size()) state_now = g_rows[index].entry.state == ModState::Active;
+    }
     std::string error;
-    r.save_failed = !write_enabled(r.entry.manifest, turn_on, error);
-    std::fprintf(stderr, "[mods] %s -> %s\n", r.entry.mod->id.c_str(), turn_on ? "ON" : "OFF");
-    if (r.save_failed) std::fprintf(stderr, "[mods] %s: could not save mod.toml: %s\n", r.entry.mod->id.c_str(), error.c_str());
+    const bool saved = write_enabled(manifest, state_now, error);
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (index < g_rows.size()) g_rows[index].save_failed = !saved;
+    }
+    if (!saved) std::fprintf(stderr, "[mods] %s: could not save mod.toml: %s\n", id.c_str(), error.c_str());
     return true;
 }
 
@@ -79,7 +100,12 @@ void start_test_toggle_from_env() {
         return;
     }
     const std::string id = text.substr(0, at);
-    const double seconds = std::atof(text.c_str() + at + 1);
+    char *rest = nullptr;
+    const double seconds = std::strtod(text.c_str() + at + 1, &rest);
+    if (rest == text.c_str() + at + 1 || seconds < 0) {
+        std::fprintf(stderr, "[mods] GT_MOD_MENU_TEST_TOGGLE ignored: bad seconds\n");
+        return;
+    }
     std::thread([id, seconds] {
         std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
         std::size_t index = static_cast<std::size_t>(-1);

@@ -126,6 +126,22 @@ int main() {
     {
         auto &rt = fresh_runtime(holder);
         fatal.clear();
+        const fs::path root = fresh_dir("conflict_disabled");
+        make_mod(root, "a", "first_mod", false, "1");  // sorts first, but disabled: the enabled one loads first
+        make_mod(root, "b", "second_mod", true, "2");
+        const auto report = load_mods(rt, root, fatal);
+        check(fatal.empty(), "disabled_mod_conflict_is_not_fatal");
+        bool second_active = false, first_error = false;
+        for (const auto &e : report.entries) {
+            if (e.name == "second_mod" && e.state == gt::mods::ModState::Active) second_active = true;
+            if (e.name == "first_mod" && e.state == gt::mods::ModState::Error && e.reason.find("hook conflict") != std::string::npos)
+                first_error = true;
+        }
+        check(second_active && first_error, "disabled_mod_conflict: enabled mod keeps the hook, disabled one is an error row");
+    }
+    {
+        auto &rt = fresh_runtime(holder);
+        fatal.clear();
         const fs::path root = fresh_dir("dup_id");
         make_mod(root, "a_first", "dup_mod", true, "1");
         make_mod(root, "b_second", "dup_mod", true, "2");

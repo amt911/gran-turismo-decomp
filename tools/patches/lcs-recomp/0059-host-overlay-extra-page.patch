@@ -1,7 +1,74 @@
+diff --git a/lcs/host/display_window.cpp b/lcs/host/display_window.cpp
+index bd442e6..da5bc4a 100644
+--- a/lcs/host/display_window.cpp
++++ b/lcs/host/display_window.cpp
+@@ -224,8 +224,8 @@ void paint_host_overlay(HDC hdc) noexcept {
+         FillRect(hdc, &panel, background);
+         DeleteObject(background);
+         SetTextColor(hdc, RGB(180, 200, 230));
+-        TextOutA(hdc, origin_x + 12, origin_y + 8, "HOST SETTINGS", 13);
+-        TextOutA(hdc, origin_x + 12, origin_y + 8 + line, "F10 CLOSE", 9);
++        TextOutA(hdc, origin_x + 12, origin_y + 8, view.title, static_cast<int>(std::strlen(view.title)));
++        TextOutA(hdc, origin_x + 12, origin_y + 8 + line, view.footer, static_cast<int>(std::strlen(view.footer)));
+         for (int row = 0; row < 5; ++row) {
+             const int y = origin_y + 8 + line * (2 + row);
+             if (row == view.selected) {
+@@ -279,6 +279,10 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpar
+             const bool was_open = host_settings_open();
+             host_settings_handle(HostSettingsKey::Toggle);
+             if (was_open) discard_pending_pointer();
++        } else if (host_key.toggle_page) {
++            const bool was_open = host_settings_open();
++            host_settings_handle(HostSettingsKey::TogglePage);
++            if (was_open && !host_settings_open()) discard_pending_pointer();
+         }
+         return 0;
+     }
+@@ -294,6 +298,7 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpar
+             else if (wparam == VK_DOWN) host_settings_handle(HostSettingsKey::Down);
+             else if (wparam == VK_LEFT) host_settings_handle(HostSettingsKey::Left);
+             else if (wparam == VK_RIGHT) host_settings_handle(HostSettingsKey::Right);
++            else if (wparam == VK_RETURN && !repeat) host_settings_handle(HostSettingsKey::Activate);
+             else if (wparam == VK_ESCAPE && !repeat) {
+                 host_settings_handle(HostSettingsKey::Close);
+                 discard_pending_pointer();
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index 949c970..28dadd0 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -150,8 +150,16 @@ void pump_events() noexcept {
+             const bool was_open = host_settings_open();
+             host_settings_handle(HostSettingsKey::Toggle);
+             if (was_open) discard_pending_pointer();
++        } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0 &&
++                   event.key.keysym.scancode == SDL_SCANCODE_F9 && host_settings_has_extra_page()) {
++            const bool was_open = host_settings_open();
++            host_settings_handle(HostSettingsKey::TogglePage);
++            if (was_open && !host_settings_open()) discard_pending_pointer();
+         } else if (event.type == SDL_KEYDOWN && host_settings_open()) {
+             const SDL_Scancode code = event.key.keysym.scancode;
++            if (code == SDL_SCANCODE_RETURN || code == SDL_SCANCODE_KP_ENTER) {
++                if (event.key.repeat == 0) host_settings_handle(HostSettingsKey::Activate);
++            } else
+             if (code == SDL_SCANCODE_UP) host_settings_handle(HostSettingsKey::Up);
+             else if (code == SDL_SCANCODE_DOWN) host_settings_handle(HostSettingsKey::Down);
+             else if (code == SDL_SCANCODE_LEFT) host_settings_handle(HostSettingsKey::Left);
+@@ -291,8 +299,8 @@ void paint_host_settings(SDL_Renderer *renderer) noexcept {
+     SDL_SetRenderDrawColor(renderer, 8, 12, 28, 230);
+     fill_rect(renderer, origin_x, origin_y, panel_w, panel_h);
+     SDL_SetRenderDrawColor(renderer, 180, 200, 230, 255);
+-    draw_text(renderer, origin_x + 8 * scale, origin_y + 6 * scale, scale, "HOST SETTINGS");
+-    draw_text(renderer, origin_x + 8 * scale, origin_y + 16 * scale, scale, "F10 CLOSE");
++    draw_text(renderer, origin_x + 8 * scale, origin_y + 6 * scale, scale, view.title);
++    draw_text(renderer, origin_x + 8 * scale, origin_y + 16 * scale, scale, view.footer);
+     for (int row = 0; row < 5; ++row) {
+         const int y = origin_y + (28 + row * 12) * scale;
+         if (row == view.selected) {
 diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index eb40e27..c3d7d67 100644
 --- a/lcs/host/lcs_display_menu.cpp
 +++ b/lcs/host/lcs_display_menu.cpp
-@@ -42,6 +42,10 @@
+@@ -42,6 +42,10 @@ constexpr int kRowCount = 5;
  
  bool g_open = false;
  int g_selected = 0;
@@ -12,7 +79,7 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
  bool g_applied_ready = false;
  InternalResolutionMode g_applied_mode{InternalResolutionMode::Scale};
  std::uint32_t g_applied_scale{2u};
-@@ -238,10 +242,30 @@
+@@ -238,10 +242,32 @@ void change_selected(int direction) noexcept {
      save_settings();
  }
  
@@ -31,6 +98,8 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
  
  bool host_settings_open() noexcept { return g_open; }
  
++bool host_settings_has_extra_page() noexcept { return g_extra != nullptr; }
++
 +void host_settings_set_extra_page(const HostExtraPage *page) noexcept {
 +    g_extra = page;
 +    g_extra_selected = 0;
@@ -43,7 +112,7 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
  void host_settings_note_fullscreen(bool enabled) noexcept {
      lcs_set_fullscreen_setting(enabled);
      save_settings();
-@@ -251,13 +275,40 @@
+@@ -251,13 +277,40 @@ bool host_settings_handle(HostSettingsKey key) noexcept {
      remember_applied_resolution();
      if (key == HostSettingsKey::Toggle) {
          g_open = !g_open;
@@ -84,11 +153,11 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
      if (key == HostSettingsKey::Up) g_selected = step_index(g_selected, kRowCount, -1);
      else if (key == HostSettingsKey::Down) g_selected = step_index(g_selected, kRowCount, 1);
      else if (key == HostSettingsKey::Left) change_selected(-1);
-@@ -273,11 +324,13 @@
+@@ -273,11 +326,13 @@ Win32HostKeyDecision classify_win32_host_key(std::uint32_t message, std::uint32_
          return decision;
      }
      const bool f10 = wparam == kWin32VkF10;
-+    const bool f9 = wparam == kWin32VkF9;
++    const bool f9 = wparam == kWin32VkF9 && g_extra != nullptr;  // without an extra page F9 stays the game's
      const bool down = message == kWin32KeyDown || message == kWin32SysKeyDown;
      const bool up = message == kWin32KeyUp || message == kWin32SysKeyUp;
 -    if (!f10 || (!down && !up)) return decision;
@@ -100,7 +169,7 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
      return decision;
  }
  
-@@ -369,8 +422,8 @@
+@@ -369,8 +424,8 @@ void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba
      const int line = 12 * scale;
      overlay_fill(rgba, width, height, 0, 0, static_cast<int>(width), static_cast<int>(height),
                   8u, 12u, 28u, 230u);
@@ -111,7 +180,7 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
      for (int row = 0; row < 5; ++row) {
          const int y = 6 * scale + line * (2 + row);
          if (row == view.selected)
-@@ -401,6 +454,20 @@
+@@ -401,6 +456,20 @@ void rasterize_fps_overlay(std::uint8_t *rgba, std::uint32_t width,
  HostSettingsView host_settings_view() noexcept {
      remember_applied_resolution();
      HostSettingsView view{};
@@ -133,9 +202,10 @@ diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
      view.resolution_pending = resolution_pending();
      char distance[16];
 diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index 6b12b47..3f9682c 100644
 --- a/lcs/host/lcs_display_menu.hpp
 +++ b/lcs/host/lcs_display_menu.hpp
-@@ -12,14 +12,30 @@
+@@ -12,14 +12,31 @@ enum class HostSettingsKey {
      Left,
      Right,
      Close,
@@ -162,11 +232,12 @@ diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
  
 +// Registers (or, with nullptr, removes) the extra page opened by F9. Without one F9 does nothing.
 +void host_settings_set_extra_page(const HostExtraPage *page) noexcept;
++[[nodiscard]] bool host_settings_has_extra_page() noexcept;
 +
  [[nodiscard]] bool host_settings_open() noexcept;
  bool host_settings_handle(HostSettingsKey key) noexcept;
  void host_settings_note_fullscreen(bool enabled) noexcept;
-@@ -33,14 +49,17 @@
+@@ -33,14 +50,17 @@ inline constexpr std::uint32_t kWin32SysKeyDown = 0x0104u;
  inline constexpr std::uint32_t kWin32SysKeyUp = 0x0105u;
  inline constexpr std::uint32_t kWin32SysCommand = 0x0112u;
  inline constexpr std::uint32_t kWin32VkF10 = 0x79u;
@@ -185,71 +256,8 @@ diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
  // system keys. The system key-menu command is ignored so DefWindowProc cannot
  // enter its modal menu loop.
  [[nodiscard]] Win32HostKeyDecision classify_win32_host_key(std::uint32_t message,
-diff --git a/lcs/host/display_window.cpp b/lcs/host/display_window.cpp
---- a/lcs/host/display_window.cpp
-+++ b/lcs/host/display_window.cpp
-@@ -224,8 +224,8 @@
-         FillRect(hdc, &panel, background);
-         DeleteObject(background);
-         SetTextColor(hdc, RGB(180, 200, 230));
--        TextOutA(hdc, origin_x + 12, origin_y + 8, "HOST SETTINGS", 13);
--        TextOutA(hdc, origin_x + 12, origin_y + 8 + line, "F10 CLOSE", 9);
-+        TextOutA(hdc, origin_x + 12, origin_y + 8, view.title, static_cast<int>(std::strlen(view.title)));
-+        TextOutA(hdc, origin_x + 12, origin_y + 8 + line, view.footer, static_cast<int>(std::strlen(view.footer)));
-         for (int row = 0; row < 5; ++row) {
-             const int y = origin_y + 8 + line * (2 + row);
-             if (row == view.selected) {
-@@ -279,6 +279,10 @@
-             const bool was_open = host_settings_open();
-             host_settings_handle(HostSettingsKey::Toggle);
-             if (was_open) discard_pending_pointer();
-+        } else if (host_key.toggle_page) {
-+            const bool was_open = host_settings_open();
-+            host_settings_handle(HostSettingsKey::TogglePage);
-+            if (was_open && !host_settings_open()) discard_pending_pointer();
-         }
-         return 0;
-     }
-@@ -294,6 +298,7 @@
-             else if (wparam == VK_DOWN) host_settings_handle(HostSettingsKey::Down);
-             else if (wparam == VK_LEFT) host_settings_handle(HostSettingsKey::Left);
-             else if (wparam == VK_RIGHT) host_settings_handle(HostSettingsKey::Right);
-+            else if (wparam == VK_RETURN && !repeat) host_settings_handle(HostSettingsKey::Activate);
-             else if (wparam == VK_ESCAPE && !repeat) {
-                 host_settings_handle(HostSettingsKey::Close);
-                 discard_pending_pointer();
-diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
---- a/lcs/host/display_window_sdl.cpp
-+++ b/lcs/host/display_window_sdl.cpp
-@@ -150,8 +150,16 @@
-             const bool was_open = host_settings_open();
-             host_settings_handle(HostSettingsKey::Toggle);
-             if (was_open) discard_pending_pointer();
-+        } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0 &&
-+                   event.key.keysym.scancode == SDL_SCANCODE_F9) {
-+            const bool was_open = host_settings_open();
-+            host_settings_handle(HostSettingsKey::TogglePage);
-+            if (was_open && !host_settings_open()) discard_pending_pointer();
-         } else if (event.type == SDL_KEYDOWN && host_settings_open()) {
-             const SDL_Scancode code = event.key.keysym.scancode;
-+            if (code == SDL_SCANCODE_RETURN || code == SDL_SCANCODE_KP_ENTER) {
-+                if (event.key.repeat == 0) host_settings_handle(HostSettingsKey::Activate);
-+            } else
-             if (code == SDL_SCANCODE_UP) host_settings_handle(HostSettingsKey::Up);
-             else if (code == SDL_SCANCODE_DOWN) host_settings_handle(HostSettingsKey::Down);
-             else if (code == SDL_SCANCODE_LEFT) host_settings_handle(HostSettingsKey::Left);
-@@ -291,8 +299,8 @@
-     SDL_SetRenderDrawColor(renderer, 8, 12, 28, 230);
-     fill_rect(renderer, origin_x, origin_y, panel_w, panel_h);
-     SDL_SetRenderDrawColor(renderer, 180, 200, 230, 255);
--    draw_text(renderer, origin_x + 8 * scale, origin_y + 6 * scale, scale, "HOST SETTINGS");
--    draw_text(renderer, origin_x + 8 * scale, origin_y + 16 * scale, scale, "F10 CLOSE");
-+    draw_text(renderer, origin_x + 8 * scale, origin_y + 6 * scale, scale, view.title);
-+    draw_text(renderer, origin_x + 8 * scale, origin_y + 16 * scale, scale, view.footer);
-     for (int row = 0; row < 5; ++row) {
-         const int y = origin_y + (28 + row * 12) * scale;
-         if (row == view.selected) {
 diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
+index 2caf72c..541e030 100644
 --- a/tests/lcs_host_menu_test.cpp
 +++ b/tests/lcs_host_menu_test.cpp
 @@ -3,6 +3,7 @@
@@ -260,7 +268,7 @@ diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
  #include <filesystem>
  #include <fstream>
  #include <iostream>
-@@ -263,6 +264,90 @@
+@@ -263,6 +264,96 @@ int f10_key() {
      return 0;
  }
  
@@ -336,6 +344,11 @@ diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
 +
 +int f9_key() {
 +    using namespace lcs;
++    host_settings_set_extra_page(nullptr);
++    const Win32HostKeyDecision free_key = classify_win32_host_key(kWin32KeyDown, kWin32VkF9, false);
++    if (free_key.consume || free_key.toggle_page) return fail("F9 taken without an extra page");
++    static const HostExtraPage page{"MODS", fake_count, fake_row, fake_toggle};
++    host_settings_set_extra_page(&page);
 +    const Win32HostKeyDecision down = classify_win32_host_key(kWin32KeyDown, kWin32VkF9, false);
 +    const Win32HostKeyDecision sys_down = classify_win32_host_key(kWin32SysKeyDown, kWin32VkF9, false);
 +    const Win32HostKeyDecision up = classify_win32_host_key(kWin32KeyUp, kWin32VkF9, false);
@@ -344,14 +357,15 @@ diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
 +    if (!sys_down.consume || !sys_down.toggle_page) return fail("system F9 press");
 +    if (!up.consume || up.toggle_page) return fail("F9 release");
 +    if (!repeat.consume || repeat.toggle_page) return fail("F9 repeat");
-+    std::cout << "f9=consume+page\n";
++    host_settings_set_extra_page(nullptr);
++    std::cout << "f9=free without page, consume+page with one\n";
 +    return 0;
 +}
 +
  }  // namespace
  
  int main(int argc, char **argv) {
-@@ -273,5 +358,7 @@
+@@ -273,5 +364,7 @@ int main(int argc, char **argv) {
      if (mode == "f10") return f10_key();
      if (mode == "bindings") return bindings();
      if (mode == "fps") return fps_counter();

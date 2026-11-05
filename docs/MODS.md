@@ -29,6 +29,11 @@ comentarios y demás claves). Si no se puede escribir el fichero, la fila muestr
 Sin mods instalados dice `NO MODS INSTALLED`. Con `GT_NO_MODS=1`, `--decomp diff` o casos sintéticos no hay mods que mostrar.
 Solo teclado (como el panel F10). No se editan los ajustes del mod ni se descargan bibliotecas en caliente.
 
+Un mod con `enabled = false` **se carga igualmente** (su `gt_mod_init` se ejecuta) y queda inactivo, para poder encenderlo
+sin reiniciar. Los activados se cargan primero: si uno desactivado engancha una dirección que ya engancha otro, sale como
+`ERROR` ("hook conflict") y el juego arranca; dos mods activados en la misma dirección siguen parando el arranque. El
+`mod.toml` se escribe en `mod.toml.tmp` y se renombra encima, así un corte nunca lo deja a medias.
+
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
 del menú pasado ese tiempo (`[mods] <id> -> OFF`).
 

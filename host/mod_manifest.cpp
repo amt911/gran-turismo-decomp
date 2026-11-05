@@ -7,6 +7,8 @@
 #include <sstream>
 #include <vector>
 
+#include <unistd.h>  // access
+
 namespace gt::mods {
 namespace {
 
@@ -150,14 +152,11 @@ bool write_enabled(const std::filesystem::path &manifest, bool enabled, std::str
         lines.push_back(text.substr(pos, end - pos));
         pos = end;
     }
-    size_t last_root_key = std::string::npos, enabled_line = std::string::npos, first_table = lines.size();
+    size_t last_root_key = std::string::npos, enabled_line = std::string::npos;
     for (size_t i = 0; i < lines.size(); ++i) {
         const std::string_view t = trim(lines[i]);
         if (t.empty() || t.front() == '#') continue;
-        if (t.front() == '[') {
-            first_table = i;
-            break;
-        }
+        if (t.front() == '[') break;  // root keys end at the first table
         last_root_key = i;
         const size_t eq = t.find('=');
         if (eq != std::string_view::npos && trim(t.substr(0, eq)) == "enabled") enabled_line = i;
@@ -175,20 +174,39 @@ bool write_enabled(const std::filesystem::path &manifest, bool enabled, std::str
         const size_t at = last_root_key == std::string::npos ? 0 : last_root_key + 1;
         if (last_root_key != std::string::npos && !lines[last_root_key].empty() && lines[last_root_key].back() != '\n')
             lines[last_root_key] += eol;  // the file did not end with a newline
-        (void)first_table;
         lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(at), added);
     }
     std::string out;
     for (const auto &l : lines) out += l;
-    std::ofstream file(manifest, std::ios::binary | std::ios::trunc);
-    if (!file) {
+    // Written to a temporary file beside it and renamed over it, so a crash or a full disk never leaves a truncated
+    // manifest. A read-only manifest still fails, as the user made it so.
+    if (::access(manifest.c_str(), W_OK) != 0) {
         error = "cannot write " + manifest.string();
         return false;
     }
-    file << out;
-    file.flush();
-    if (!file) {
-        error = "write failed for " + manifest.string();
+    std::filesystem::path temporary = manifest;
+    temporary += ".tmp";
+    {
+        std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
+        if (!file) {
+            error = "cannot write " + temporary.string();
+            return false;
+        }
+        file << out;
+        file.flush();
+        if (!file) {
+            std::error_code ignored;
+            std::filesystem::remove(temporary, ignored);
+            error = "write failed for " + temporary.string();
+            return false;
+        }
+    }
+    std::error_code renamed;
+    std::filesystem::rename(temporary, manifest, renamed);
+    if (renamed) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary, ignored);
+        error = "cannot replace " + manifest.string() + ": " + renamed.message();
         return false;
     }
     return true;
