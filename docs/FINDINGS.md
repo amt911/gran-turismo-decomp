@@ -2866,3 +2866,18 @@ short ones queued: ~35 min of routes alone.
 no longer wrap it. The cap is memory-bound at 7 routes (`MAX_ROUTES_BY_MEMORY`). Expected full gate ~20 min of routes.
 
 Found: 2026-11-05 · tools/decomp_gate.py, tools/verdict.sh, tools/synth_batch.py
+
+## Frame dumps in /tmp count against the heavy slice and throttle every gate
+
+**Symptom.** 2026-11-05: a full gate's routes logged only their start-up lines for 15 min and timed out (`exit 124`); the
+slice sat above `MemoryHigh` (5.45 GB, memory pressure ~70 %) with only six routes of ~0.4 GB each.
+
+**Cause.** `memory.stat` of gt-heavy.slice: `shmem` 3.5 GB. `/tmp` is a tmpfs, and 3 GB of PPM frames written there by
+camera-research runs started in the slice (`GT_FRAME_DUMP=/tmp/...`) stay charged to it as shared memory, which cannot be
+reclaimed, so the kernel throttled the routes instead.
+
+**Fix / workaround.** Never write frame dumps (or any bulk output of a slice job) under `/tmp`: use `recomp/analysis/`
+(disk). Deleting the PPMs brought `shmem` down to 0.7 GB. Check with
+`grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/.../gt-heavy.slice/memory.stat`.
+
+Found: 2026-11-05 · camera mod research
