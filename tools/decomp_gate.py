@@ -453,6 +453,14 @@ def heavy(command: Sequence[str]) -> list[str]:
     return ["systemd-run", "--user", "--scope", "--quiet", f"--slice={SLICE}", "--", *command]
 
 
+def route_command(binary: Path, kind: str, tag: str, logs: Path) -> list[str]:
+    """The routes of a gate as one heavy command. With GT_GATE_CPU_LOCK=<what> they run under tools/cpu_lock.sh (the
+    real-time part only: the recomp and the build before them never hold the shared CPU lock - AGENTS.md)."""
+    command = heavy(["bash", "-c", route_shell(binary, kind, tag, logs)])
+    what = os.environ.get("GT_GATE_CPU_LOCK")
+    return ["tools/cpu_lock.sh", what, *command] if what else command
+
+
 class HeavySlot:
     """One of len(locks) slots for a heavy job: at most that many run at once (flock on one file each).
 
@@ -628,8 +636,7 @@ def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no c
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
         return 2
-    subprocess.run(heavy(["bash", "-c", route_shell(Path("build/gt_native"), kind, tag, Path("recomp/analysis"))]),
-                   env=env)
+    subprocess.run(route_command(Path("build/gt_native"), kind, tag, Path("recomp/analysis")), env=env)
     return _report(tag, check_floor=kind == "full" and env is None, raise_floor_after=raise_floor_after, kind=kind)
 
 

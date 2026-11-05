@@ -191,6 +191,18 @@ def test_slice_limits_cap_the_total_at_6g_without_swap():
     assert {"MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0"} <= set(command)
 
 
+def test_routes_take_the_cpu_lock_only_around_the_routes(monkeypatch):
+    """GT_GATE_CPU_LOCK=<what>: the routes (the real-time part) run under tools/cpu_lock.sh, the recomp and the build do
+    not. Callers wrapped the whole gate, so the lock was held through ~18 min of recomp and build too; with the routes the
+    hold passed 30 min and a waiter stopped every route (exit 124, verdict of #482, 2026-11-05)."""
+    monkeypatch.delenv("GT_GATE_CPU_LOCK", raising=False)
+    plain = gate.route_command(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
+    assert plain[0] == "systemd-run" and "tools/cpu_lock.sh" not in plain
+    monkeypatch.setenv("GT_GATE_CPU_LOCK", "verdict full 482")
+    locked = gate.route_command(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
+    assert locked[:2] == ["tools/cpu_lock.sh", "verdict full 482"] and locked[2:] == plain
+
+
 def test_heavy_slot_lets_two_jobs_in_and_makes_a_third_wait(tmp_path):
     locks = [tmp_path / "a.lock", tmp_path / "b.lock"]
     first = gate.HeavySlot(locks)
