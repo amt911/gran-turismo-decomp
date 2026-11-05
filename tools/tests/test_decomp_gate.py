@@ -134,19 +134,21 @@ def test_full_routes_start_longest_first_and_at_most_max_parallel_at_once():
     lengths = dict(gate.ROUTES["full"])
     assert started[0] == "race" and [lengths[r] for r in started] == sorted(lengths.values(), reverse=True)
     assert full.count("wait -n") == len(started) and f"-ge {gate.MAX_PARALLEL_ROUTES} ]" in full
-    assert gate.MAX_PARALLEL_ROUTES * 0.55 < 5.0  # route budget x routes stays under MemoryHigh
+    assert gate.MAX_PARALLEL_ROUTES * 0.55 + 0.9 < 5.0  # routes + a clang build in the other slot stay under MemoryHigh
 
 
 def test_route_cap_leaves_cpu_headroom():
-    """A real-time route keeps ~3 cores busy (game, GE worker and audio threads: 2.6-3.1 measured in `top`, 2026-10-22);
-    eight of them filled all 24 cores and finals lost a route to a missed seek (FINDINGS)."""
+    """A real-time route kept ~3 cores busy before the vblank pacing fix (2.6-3.1 in `top`, 2026-10-22; eight filled all 24
+    cores and lost a seek, FINDINGS); since then 0.61-0.67 cores each (four routes of a full gate, load 17, 2026-11-05)."""
     assert gate.MAX_PARALLEL_ROUTES * gate.ROUTE_CORES <= 0.8 * gate.MACHINE_CORES
 
 
-@pytest.mark.parametrize("cores, routes", [(24, 6), (18, 4), (12, 3), (4, 1), (1, 1)])
+@pytest.mark.parametrize("cores, routes", [(24, 7), (18, 7), (12, 7), (8, 6), (4, 3), (1, 1)])
 def test_route_cap_follows_the_cores_the_gate_may_use(cores, routes):
     """Another session's jobs pinned to CPUs 0-5 left the gate 18 cores, which six routes filled to the last one; two to
-    five routes per full gate then lost a seek (2026-10-26). The cap counts the gate's own CPU affinity."""
+    five routes per full gate then lost a seek (2026-10-26). The cap counts the gate's own CPU affinity. Since the
+    vblank pacing fix a route uses ~0.65 cores (2026-11-05), so memory (7 x 0.55 GB under MemoryHigh, room for a build in
+    the other slot) is the bound on a full machine: with 4 routes the race's 1200 s lane left the rest queued (~35 min)."""
     assert gate.max_parallel_routes(cores) == routes
 
 

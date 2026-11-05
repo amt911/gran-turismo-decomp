@@ -85,17 +85,22 @@ SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
                 "CPUWeight=10000")
 SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
-# A route keeps ~3 cores busy (game, GE worker, audio); the cap leaves a fifth of the cores the gate may use free so
-# routes keep pace. Those cores are the process's CPU affinity, not the machine's: another session's jobs pinned to
+# A route keeps ~1 core busy (0.61-0.67 measured on a full gate, 2026-11-05; ~3 before the vblank pacing fix of
+# 2026-10-22); the cap leaves a fifth of the cores the gate may use free so routes keep pace. Those cores are the process's CPU affinity, not the machine's: another session's jobs pinned to
 # CPUs 0-5 left 18, which six routes filled, and full gates lost seeks (2026-10-26) - run gates under `taskset`.
-ROUTE_CORES = 3
+ROUTE_CORES = 1
 MACHINE_CORES = len(os.sched_getaffinity(0)) or 1
 
 
 # A real-time route peaks at ~0.5 GB (506 MB measured 2026-10-21); eleven at once passed MemoryHigh and the throttled
-# routes stalled (options timed out three full gates running). The full gate keeps this many alive, longest first.
+# routes stalled (options timed out three full gates running). Seven (3.9 GB) leave room under MemoryHigh for a clang
+# build in the other heavy slot; with four, the race's 1200 s lane left the rest queued (~35 min per full gate,
+# 2026-11-05). The full gate keeps this many alive, longest first.
+MAX_ROUTES_BY_MEMORY = 7
+
+
 def max_parallel_routes(cores: int) -> int:
-    return max(1, min(6, int(0.8 * cores) // ROUTE_CORES))
+    return max(1, min(MAX_ROUTES_BY_MEMORY, int(0.8 * cores) // ROUTE_CORES))
 
 
 MAX_PARALLEL_ROUTES = max_parallel_routes(MACHINE_CORES)
