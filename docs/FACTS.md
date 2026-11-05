@@ -362,11 +362,16 @@ its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` an
   every run); with two or more human-class entries (adhoc, split screen) it is true for each and the mod refuses to inject (never
   observed); and "live vs replay" (`+0xA8`) rests on **a single replay** (the end of the `circuit` route), none of demo/attract
   replays, pause, photo mode or a time-trial ghost.
+- **Time Trial has a second human-class entry** (`perf_tt_newyork` with the user's save, 2026-11-04): entry 0 vtable `0x08CC1F60`,
+  `+0xA8` = 0, pad device `+0x6C` = `0x094168D8`, `+0xF8` = 1; entry 1 also vtable `0x08CC1F60`, `+0xA8` = 0, but `+0x6C` = 0,
+  `+0xF8` = 0, `+0x08` = `0x00010100` (inferred: the lap recorder/ghost - its role is not read from code). In `race` the single
+  human entry has `+0x6C` = `0x094168D8`, `+0xF8` = 1. The predicate below therefore also requires `word(entry+0x6C) != 0`; with it
+  exactly one car matches in Time Trial (mod check passes there, both `--decomp` modes). *(measured: entry dump per step)*
 - **`0x08952B68`'s record is the one `0x08948B78` clamped** - *inferred* from the asm (both calls take `s6` = `sp+0x20`,
   `0x0894DEC8` / `0x08952B68` call at `0x0894DF80`; the decompiled one passes the same `input`), not compared at run time. Consequently
   writing the analog fields after the clamp reaches `0x08952B68` unchanged (confirmed indirectly: the pedals follow the injection).
 - **Predicate** (guest memory only): `entry = word(list + 4 + (2*i + int8(list[0x24+i]))*4)` with `list = word(word(world+0x10)+0xC)`;
-  player(i) = `word(entry) == 0x08CC1F60 && byte(entry+0xA8) == 0` (matched exactly one car per step in `race`, and was 0 for the
+  player(i) = `word(entry) == 0x08CC1F60 && byte(entry+0xA8) == 0 && word(entry+0x6C) != 0` (the last term added for Time Trial, above) (matched exactly one car per step in `race`, and was 0 for the
   whole replay phase of `circuit`). `0x08948B78` receives only the record (a0), so a hook there needs `world` (a0 of
   `0x0894DD9C`, captured by a pre-hook on it) or the entry (a0 of `0x08896780`).
 - **`0x08952B68` is called by a `goto` inside the recompiled unit that contains `0x0894DD9C`** (`generated_unit_0041.cpp:5338`),

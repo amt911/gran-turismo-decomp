@@ -32,6 +32,8 @@ done
 [ -x "$build/gt_play" ] || { echo "mod_pedals_check: no $build/gt_play" >&2; exit 2; }
 [ -f "config/pad_routes/$route.pad" ] || { echo "mod_pedals_check: no pad route $route" >&2; exit 2; }
 rm -rf "$out" && mkdir -p "$out/mods" "$out/savedata" || exit 2
+# Routes that start from the user's save (save_*, perf_* like perf_tt_newyork: Time Trial) get a fresh copy of it, as in gpu_gate.sh.
+case $route in save_*|perf_*) cp -r game_files/UCES01245-GAMEDAT "$out/savedata/" || exit 2 ;; esac
 if [ $without -eq 0 ]; then
   mbuild="$out/mod-build"
   flags=""; [ $sabotage -ne 0 ] && flags="-DCMAKE_CXX_FLAGS=-DANALOG_PEDALS_SABOTAGE=$sabotage"

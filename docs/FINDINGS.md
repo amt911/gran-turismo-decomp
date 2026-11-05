@@ -2832,3 +2832,21 @@ buffer of `0x0894DD9C` (`sp_entry - 0x50`) on the first call of a step. Works in
   the aids under real driving - the user's manual test).
 
 Found: 2026-11-04 · analog-pedals in the gt-mods repo
+
+## The host also binds the analog triggers to buttons, so a half-pressed trigger reached full throttle
+
+**Symptom.** With the analog-pedals mod and an Xbox One pad, in a race: with the trigger barely touched the pedal sat at ~1/3,
+and a little more press jumped to full (user, 2026-11-04). In Time Trial the mod did nothing at all.
+
+**Cause.** (1) `gt_play.ini` binds `PadRightTrigger=Sprint` (Cross, accelerate) and `PadLeftTrigger=Jump` (Square, brake); the
+SDL frontend turns a trigger into that button past 8192/32767 (~25 %). The game then filled the record with its own digital full
+press, and the mod kept `max(injected, existing)`. (2) Time Trial has two human-class driver entries (FACTS § analog pedals),
+so the player predicate matched two cars and the mod, by design, injected into none.
+
+**Fix / workaround.** gt-mods `fix/time-trial-trigger`: when the pad trigger is physically pressed the mod's value overrides the
+record (keyboard keeps `max`, so a digital key still works); the predicate requires a pad device (`entry+0x6C != 0`).
+`tools/mod_pedals_check.sh --route perf_tt_newyork` copies the user's save like `gpu_gate.sh`. Users can also set
+`PadRightTrigger=None` / `PadLeftTrigger=None` in `build/gt_play.ini`.
+
+Found: 2026-11-04 · tools/mod_pedals_check.sh, gt-mods analog-pedals
+
