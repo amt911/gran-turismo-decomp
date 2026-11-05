@@ -81,6 +81,7 @@ int main() {
         const LoadReport r = load_mods(rt, root, fatal);
         check(fatal.empty(), "loads_enabled_mod_and_hooks: no fatal");
         check(r.loaded.size() == 1 && r.loaded[0] == "bonus_mod" && r.skipped.empty(), "loads_enabled_mod_and_hooks: report");
+        check(r.entries.size() == 1 && r.entries[0].state == ModState::Active && r.entries[0].name == "bonus_mod", "loads_enabled_mod_and_hooks: Active entry");
         check(call(rt, 5) == 5u + 1u + 100u, "loads_enabled_mod_and_hooks: v0 = a0 + 1 + 100");
     }
     {
@@ -88,9 +89,14 @@ int main() {
         const fs::path root = fresh_dir("disabled");
         make_mod(root, "off", "off_mod", false, "100");
         const LoadReport r = load_mods(rt, root, fatal);
-        check(r.loaded.empty() && fatal.empty(), "disabled_mod_not_loaded: nothing loaded");
-        check(r.skipped.size() == 1, "disabled_mod_not_loaded: reported as skipped");
-        check(call(rt, 5) == 6u, "disabled_mod_not_loaded: original untouched");
+        check(r.loaded.empty() && fatal.empty(), "disabled_mod_loaded_inactive: not in loaded");
+        check(r.skipped.size() == 1 && r.skipped[0] == "off: disabled", "disabled_mod_loaded_inactive: reported as skipped 'disabled'");
+        check(r.entries.size() == 1 && r.entries[0].state == ModState::Inactive && r.entries[0].mod != nullptr &&
+                  r.entries[0].manifest == root / "off" / "mod.toml" && r.entries[0].reason == "disabled",
+              "disabled_mod_loaded_inactive: entry Inactive with mod and manifest path");
+        check(call(rt, 5) == 6u, "disabled_mod_loaded_inactive: hook passes to the original");
+        set_active(r.entries[0].mod, true);
+        check(call(rt, 5) == 106u, "disabled_mod_loaded_inactive: turning it on activates the hook");
     }
     {
         auto &rt = fresh_runtime(holder);
@@ -103,6 +109,9 @@ int main() {
         const LoadReport r = load_mods(rt, root, fatal);
         check(r.loaded.empty() && fatal.empty(), "loader_skips_broken_mods: nothing loaded, no fatal");
         check(r.skipped.size() == 4, "loader_skips_broken_mods: four skips");
+        bool all_error = r.entries.size() == 4;
+        for (const auto &e : r.entries) all_error = all_error && e.state == ModState::Error && e.mod == nullptr && !e.reason.empty();
+        check(all_error, "loader_skips_broken_mods: four Error entries with a reason");
         check(call(rt, 5) == 6u, "loader_skips_broken_mods: game state untouched");
     }
     {
