@@ -1012,6 +1012,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 322** (2026-11-05): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles, multiplicaciones y aritmética FPU): 25 filas, 18 verificadas; las 7 restantes no reciben casos. Total: 16.643 funciones.
 - [x] **Lote 321** (2026-11-05): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles, multiplicaciones y aritmética FPU): 25 filas, 20 verificadas; las 5 restantes no reciben casos. Total: 16.625 funciones.
 - [x] **Lote 320** (2026-11-05): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética FPU): 22 filas, 18 verificadas; las 4 restantes no reciben casos. Total: 16.605 funciones.
 - [x] **Lote 319** (2026-11-04): funciones sueltas de 127 a 352 instrucciones (código recto, bucles simples y aritmética FPU): 25 filas, 17 verificadas; las 8 restantes no reciben casos. Total: 16.587 funciones.
