@@ -2881,3 +2881,11 @@ reclaimed, so the kernel throttled the routes instead.
 `grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/.../gt-heavy.slice/memory.stat`.
 
 Found: 2026-11-05 · camera mod research
+
+### func_08BBAA74 reads a frame slot nobody writes (suspected stale-stack read)
+
+**Symptom.** Once batch 329 was installed, the synthetic gate (`dealer,race`) faulted the decompiled `func_08BBAA74` at `0x0002594C` in one case where the original returned normally (deterministic: a rerun printed the same line). The route cases were equal (15 per route) and the function passed standalone synthetic runs, so only the new layout of live objects exposed it.
+**Cause (inferred, not traced).** The original reads `lw v0, 0x20($sp)` at 08BBAC24 and copies four words from that pointer; neither the function nor `func_08B55140` (writes only frame +0xC..+0x1C) writes +0x20, so it is stale stack, as in the `func_0894D484` entry above. The fault address is `word(box + 0)` with `box = 0x2594C`.
+**Fix / workaround.** Unregistered (the same precedent); the function stays as a reading aid in `hot_batch_115.cpp`.
+
+Found: 2026-11-05 · src/game/unsorted/hot_batch_115.cpp (func_08BBAA74)
