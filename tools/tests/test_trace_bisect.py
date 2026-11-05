@@ -108,3 +108,15 @@ def test_ppm_box_mean_is_the_brightness_inside_the_box():
 def test_script_done_vblank_reads_the_pad_log():
     assert bisect.script_done_vblank("x\n[pad] script done at vblank 16954\n") == 16954
     assert bisect.script_done_vblank("no route end") is None
+
+
+def test_decomp_only_value_is_hex_without_prefix():
+    assert bisect.decomp_only_value([0x0884D9F0, 0x08800000]) == "0884D9F0,08800000"
+
+
+def test_decomp_only_value_refuses_a_list_past_the_kernel_cap():
+    import pytest
+
+    bisect.decomp_only_value(list(range(13000)))  # 3/4 of today's set fits
+    with pytest.raises(ValueError):
+        bisect.decomp_only_value(list(range(15000)))

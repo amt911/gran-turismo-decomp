@@ -123,6 +123,17 @@ def first_frame_after(log: str, vblank: int) -> int | None:
     return None
 
 
+MAX_ENV_STRING = 131072  # Linux MAX_ARG_STRLEN: one "NAME=value" string longer than this and exec fails
+
+
+def decomp_only_value(only: Sequence[int]) -> str:
+    """GT_DECOMP_ONLY for `only`: hex without 0x (9 bytes an address), refused past the kernel's per-string cap."""
+    value = ",".join(f"{a:08X}" for a in only)
+    if len("GT_DECOMP_ONLY=") + len(value) + 1 > MAX_ENV_STRING:
+        raise ValueError(f"{len(only)} addresses do not fit in one environment string")
+    return value
+
+
 def crashed(log: str) -> bool:
     """Whether a run's stderr shows the process dying on an uncaught error (not a normal stop)."""
     return "terminate called" in log or "gt_native error:" in log
@@ -138,7 +149,7 @@ def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Se
     if frames is not None:
         env.update(GT_FRAME_DUMP=str(frames), GT_FRAME_EVERY="30")
     if only is not None:
-        env["GT_DECOMP_ONLY"] = ",".join(f"0x{a:08X}" for a in only)
+        env["GT_DECOMP_ONLY"] = decomp_only_value(only)
     command = ["systemd-run", "--user", "--scope", "--quiet", "--slice=gt-heavy.slice", "--", str(binary),
                "--max-seconds", str(seconds), "--decomp", mode]
     if lines > 0:  # --lines 0: no import trace (the run stops when the trace reaches its limit)
