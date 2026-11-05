@@ -54,6 +54,11 @@ struct PageImages {
 
 // first_difference's RAM comparison over only the pages either run wrote, sorted by address — the rest of RAM
 // is the case's entry state in both runs. Same message, same ignored range [ignore_begin, ignore_end).
+// Where the differing bytes of first_page_difference are: the entry sp and the first `limit` bytes as "ADDRESS:orig>dec"
+// (a frame, a heap block or a thread's data show in the addresses). Appended by the harness to the mismatch text.
+[[nodiscard]] std::string page_difference_detail(std::span<const PageImages> pages, std::size_t page_size,
+                                                 std::uint32_t ignore_begin, std::uint32_t ignore_end, std::size_t limit = 8u);
+
 [[nodiscard]] std::optional<std::string> first_page_difference(std::span<const PageImages> pages, std::size_t page_size,
                                                                std::uint32_t ignore_begin, std::uint32_t ignore_end);
 
