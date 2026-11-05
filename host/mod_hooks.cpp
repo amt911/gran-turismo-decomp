@@ -41,7 +41,11 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t return_address = ctx.gpr[31];
     // One read per call: a toggle in the middle of a call never gives a half-modded call.
     const GtMod *owner = it->second.owner.mod;
+#ifdef GT_MOD_SABOTAGE_IGNORE_ACTIVE  // verification only (tools/mod_pedals_check.sh --sabotage-active): the gate must matter
+    const bool on = true;
+#else
     const bool on = owner == nullptr || owner->active.load(std::memory_order_acquire);
+#endif
     if (on) {
         GtModCtx mod_ctx{&rt, &ctx, address};
         it->second.fn(&mod_ctx);

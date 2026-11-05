@@ -202,6 +202,11 @@ if(GT_PLAY)
         "${GT_GE_SPV_HEADER}" "${GT_FONT_HEADER}")
     target_compile_definitions(gt_play PRIVATE LCS_VULKAN_GE_BACKEND=1)
     target_include_directories(gt_play PRIVATE include)  # gt_mod/gt_mod_api.h
+    # Verification only: a trampoline that ignores the mods' `active` flag (tools/mod_pedals_check.sh --toggle-off --sabotage-active must FAIL).
+    option(GT_MOD_SABOTAGE_IGNORE_ACTIVE "sabotage: mod hooks ignore the menu's on/off" OFF)
+    if(GT_MOD_SABOTAGE_IGNORE_ACTIVE)
+        set_source_files_properties(host/mod_hooks.cpp PROPERTIES COMPILE_DEFINITIONS GT_MOD_SABOTAGE_IGNORE_ACTIVE=1)
+    endif()
     if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
         target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")
     endif()
@@ -331,4 +336,15 @@ if(GT_COVERAGE_FILES)
     if(TARGET gt_play)
         target_link_options(gt_play PRIVATE -fprofile-instr-generate)
     endif()
+endif()
+
+# lcs-recomp's host overlay test (the framework's own CMake isn't used here): the F10 settings overlay and the extra page F9 opens.
+if(SDL2_FOUND)
+add_executable(lcs_host_menu_tests tools/src/lcs-recomp/tests/lcs_host_menu_test.cpp
+    "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
+target_include_directories(lcs_host_menu_tests PRIVATE "${GT_LCS_HOST_DIR}")
+target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2)
+foreach(mode menu present f10 f9 extra fps)
+    add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
+endforeach()
 endif()

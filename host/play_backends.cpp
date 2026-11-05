@@ -10,8 +10,11 @@
 #include "lcs_audio_output.hpp"
 #include "lcs_lang.hpp"
 #include "lcs_render_config.hpp"
+#include "lcs_display_menu.hpp"
 #include "mod_loader.hpp"
+#include "mod_menu.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -52,12 +55,23 @@ void gt::frontend_attach() {
 
 void gt::frontend_shutdown() { lcs::audio_output_shutdown(); }
 
+namespace {
+// The MODS page of the host overlay (F9): rows and toggles come from the mod menu model.
+void mods_page_row(std::size_t index, char *out, std::size_t capacity) {
+    std::snprintf(out, capacity, "%s", gt::mods::menu::row(index).c_str());
+}
+const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle};
+} // namespace
+
 void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed, std::string &fatal) {
     if (!allowed) {
         std::cerr << "[mods] not loaded: --decomp diff and synthetic cases run the unmodded game\n";
         return;
     }
     const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0), fatal);
+    gt::mods::menu::set_entries(report.entries);
+    lcs::host_settings_set_extra_page(&kModsPage);
+    gt::mods::menu::start_test_toggle_from_env();
     if (report.loaded.empty() && report.skipped.empty()) return;  // no mods directory, or nothing in it: say nothing
     std::cerr << "[mods] loaded:";
     for (const auto &id : report.loaded) std::cerr << ' ' << id;
