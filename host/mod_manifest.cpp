@@ -2,7 +2,10 @@
 
 #include <cctype>
 #include <charconv>
+#include <fstream>
 #include <set>
+#include <sstream>
+#include <vector>
 
 namespace gt::mods {
 namespace {
@@ -119,6 +122,76 @@ std::optional<Manifest> parse_manifest(std::string_view text, std::string &error
     if (!have_library) return fail("missing required key 'library'");
     if (!have_api) return fail("missing required key 'api'");
     return m;
+}
+
+} // namespace gt::mods
+
+namespace gt::mods {
+
+bool write_enabled(const std::filesystem::path &manifest, bool enabled, std::string &error) {
+    std::string text;
+    {
+        std::ifstream in(manifest, std::ios::binary);
+        if (!in) {
+            error = "cannot read " + manifest.string();
+            return false;
+        }
+        std::stringstream ss;
+        ss << in.rdbuf();
+        text = ss.str();
+    }
+    const std::string value = enabled ? "true" : "false";
+    const std::string eol = text.find("\r\n") != std::string::npos ? "\r\n" : "\n";
+    // Split into lines keeping their terminators.
+    std::vector<std::string> lines;
+    for (size_t pos = 0; pos < text.size();) {
+        const size_t nl = text.find('\n', pos);
+        const size_t end = nl == std::string::npos ? text.size() : nl + 1;
+        lines.push_back(text.substr(pos, end - pos));
+        pos = end;
+    }
+    size_t last_root_key = std::string::npos, enabled_line = std::string::npos, first_table = lines.size();
+    for (size_t i = 0; i < lines.size(); ++i) {
+        const std::string_view t = trim(lines[i]);
+        if (t.empty() || t.front() == '#') continue;
+        if (t.front() == '[') {
+            first_table = i;
+            break;
+        }
+        last_root_key = i;
+        const size_t eq = t.find('=');
+        if (eq != std::string_view::npos && trim(t.substr(0, eq)) == "enabled") enabled_line = i;
+    }
+    if (enabled_line != std::string::npos) {
+        std::string &line = lines[enabled_line];
+        const size_t eq = line.find('=');
+        size_t v = eq + 1;
+        while (v < line.size() && (line[v] == ' ' || line[v] == '\t')) ++v;
+        size_t e = v;
+        while (e < line.size() && !std::isspace(static_cast<unsigned char>(line[e])) && line[e] != '#') ++e;
+        line.replace(v, e - v, value);
+    } else {
+        std::string added = "enabled = " + value + eol;
+        const size_t at = last_root_key == std::string::npos ? 0 : last_root_key + 1;
+        if (last_root_key != std::string::npos && !lines[last_root_key].empty() && lines[last_root_key].back() != '\n')
+            lines[last_root_key] += eol;  // the file did not end with a newline
+        (void)first_table;
+        lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(at), added);
+    }
+    std::string out;
+    for (const auto &l : lines) out += l;
+    std::ofstream file(manifest, std::ios::binary | std::ios::trunc);
+    if (!file) {
+        error = "cannot write " + manifest.string();
+        return false;
+    }
+    file << out;
+    file.flush();
+    if (!file) {
+        error = "write failed for " + manifest.string();
+        return false;
+    }
+    return true;
 }
 
 } // namespace gt::mods

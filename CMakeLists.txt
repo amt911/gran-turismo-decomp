@@ -187,7 +187,7 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
-        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -278,6 +278,10 @@ target_link_libraries(mod_loader_tests PRIVATE psprecomp_core ${CMAKE_DL_LIBS})
 target_compile_definitions(mod_loader_tests PRIVATE TEST_MOD_LIB="$<TARGET_FILE:test_mod>")
 add_dependencies(mod_loader_tests test_mod)
 add_test(NAME mod_loader COMMAND mod_loader_tests)
+add_executable(mod_menu_tests host/tests/mod_menu_test.cpp host/mod_menu.cpp host/mod_hooks.cpp host/mod_manifest.cpp)
+target_include_directories(mod_menu_tests PRIVATE host include)
+target_link_libraries(mod_menu_tests PRIVATE psprecomp_core Threads::Threads)
+add_test(NAME mod_menu COMMAND mod_menu_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
 target_include_directories(ps_demux_tests PRIVATE host)
 add_test(NAME ps_demux COMMAND ps_demux_tests)
