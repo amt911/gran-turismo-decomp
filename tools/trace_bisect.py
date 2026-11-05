@@ -164,19 +164,29 @@ def _frame_at(args: argparse.Namespace, only: Sequence[int] | None, mode: str) -
     return path.read_bytes() if path is not None and path.exists() else b""
 
 
-def _dark_box_mean(args: argparse.Namespace, only: Sequence[int] | None) -> float:  # pragma: no cover - runs the game
-    """--dark-box's region brightness in the frame --after-script vblanks after the pad script ended (0.0: no such frame)."""
+def _dark_box_mean(args: argparse.Namespace, only: Sequence[int] | None, tag: str) -> float:  # pragma: no cover - runs the game
+    """--dark-box's region brightness in the frame --after-script vblanks after the pad script ended.
+
+    A run that never gets there (the route timed out under load, the game died) is inconclusive, not dark: it is
+    retried, and after three tries the bisection stops instead of chasing the wrong symptom. Each try's log is kept.
+    """
     frames = args.workdir / "frames_on"
     frames.mkdir(parents=True, exist_ok=True)
-    for old in frames.glob("*.ppm"):
-        old.unlink()
     trace = args.workdir / "on.trace"
-    _run(args.binary, args.pad, args.seconds, args.lines, trace, only, "on", frames)
-    log = trace.with_suffix(".log").read_text(errors="replace")
-    done = script_done_vblank(log)
-    number = first_frame_after(log, done + args.after_script) if done is not None else None
-    path = frames / f"frame_{number:06d}.ppm" if number is not None else None
-    return ppm_box_mean(path.read_bytes(), args.dark_box) if path is not None and path.exists() else 0.0
+    for attempt in range(3):
+        for old in frames.glob("*.ppm"):
+            old.unlink()
+        _run(args.binary, args.pad, args.seconds, args.lines, trace, only, "on", frames)
+        log = trace.with_suffix(".log").read_text(errors="replace")
+        (args.workdir / f"{tag}_try{attempt}.log").write_text(log)
+        done = script_done_vblank(log)
+        number = first_frame_after(log, done + args.after_script) if done is not None else None
+        path = frames / f"frame_{number:06d}.ppm" if number is not None else None
+        if path is not None and path.exists():
+            return ppm_box_mean(path.read_bytes(), args.dark_box)
+        print(f"  {tag}: inconclusive try {attempt} (" + ("crashed" if crashed(log) else "no frame after the route")
+              + ")", flush=True)
+    raise SystemExit(f"{tag}: three inconclusive runs; see {args.workdir}/{tag}_try*.log")
 
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
@@ -246,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
             print(f"run {runs}: {count} functions -> " + ("CRASH" if died else "ok"), flush=True)
             return died
         if args.dark_box:
-            mean = _dark_box_mean(args, subset)
+            mean = _dark_box_mean(args, subset, f"run{runs}")
             print(f"run {runs}: {count} functions -> box mean {mean:.4f}", flush=True)
             return mean < args.dark_below
         if args.frame_diff:
