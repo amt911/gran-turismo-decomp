@@ -2850,3 +2850,34 @@ record (keyboard keeps `max`, so a digital key still works); the predicate requi
 
 Found: 2026-11-04 · tools/mod_pedals_check.sh, gt-mods analog-pedals
 
+
+## Full gates held the CPU lock through their recomp and build, and ran 4 routes at a time
+
+**Symptom.** 2026-11-05: full gates (batch 328 three times, the verdict of #482) ended with routes missing or every route
+`exit 124`: they were stopped by `tools/cpu_lock.sh` (its own `timeout 1800`, or a waiter after 30 min).
+
+**Cause.** Two things. (1) Callers (`tools/verdict.sh`, `tools/synth_batch.py`, the batch pipeline's commit script) wrapped the
+whole `tools.decomp_gate` run in `cpu_lock.sh`, so the lock was held through ~18 min of `tools.recomp` and the build, which
+need no lock. (2) Under `taskset -c 6-23` the route cap came out at 4 (it assumed ~3 cores per route; a full-gate route uses
+0.61-0.67 since the vblank pacing fix), so the race's 1200 s lane and three other capped routes held every lane and the 13
+short ones queued: ~35 min of routes alone.
+
+**Fix / workaround.** `GT_GATE_CPU_LOCK=<what>` makes the gate take the lock around its routes only (`route_command`); callers
+no longer wrap it. The cap is memory-bound at 7 routes (`MAX_ROUTES_BY_MEMORY`). Expected full gate ~20 min of routes.
+
+Found: 2026-11-05 · tools/decomp_gate.py, tools/verdict.sh, tools/synth_batch.py
+
+## Frame dumps in /tmp count against the heavy slice and throttle every gate
+
+**Symptom.** 2026-11-05: a full gate's routes logged only their start-up lines for 15 min and timed out (`exit 124`); the
+slice sat above `MemoryHigh` (5.45 GB, memory pressure ~70 %) with only six routes of ~0.4 GB each.
+
+**Cause.** `memory.stat` of gt-heavy.slice: `shmem` 3.5 GB. `/tmp` is a tmpfs, and 3 GB of PPM frames written there by
+camera-research runs started in the slice (`GT_FRAME_DUMP=/tmp/...`) stay charged to it as shared memory, which cannot be
+reclaimed, so the kernel throttled the routes instead.
+
+**Fix / workaround.** Never write frame dumps (or any bulk output of a slice job) under `/tmp`: use `recomp/analysis/`
+(disk). Deleting the PPMs brought `shmem` down to 0.7 GB. Check with
+`grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/.../gt-heavy.slice/memory.stat`.
+
+Found: 2026-11-05 · camera mod research

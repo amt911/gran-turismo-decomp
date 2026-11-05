@@ -13,6 +13,7 @@ FILE lists the batch's registrations, one 0xADDRESS per line. Prints what was co
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -100,9 +101,10 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - runs t
     parser.add_argument("--cases", type=int, default=64)
     args = parser.parse_args(argv)
     batch = {line.strip() for line in args.addresses.read_text().split() if line.strip()}
-    # each run takes the CPU lock on its own (a hold stays under 30 min; the whole batch may not)
-    gate = ["tools/cpu_lock.sh", f"synth batch {args.tag}", "timeout", "1800", sys.executable, "-m", "tools.decomp_gate"]
-    subprocess.run(gate + ["synth", args.tag, "--cases", str(args.cases), "--only", ",".join(sorted(batch))])
+    # the gate takes the CPU lock around its routes only (GT_GATE_CPU_LOCK; its recomp and build never hold it)
+    gate = [sys.executable, "-m", "tools.decomp_gate"]
+    subprocess.run(gate + ["synth", args.tag, "--cases", str(args.cases), "--only", ",".join(sorted(batch))],
+                   env=dict(os.environ, GT_GATE_CPU_LOCK=f"synth batch {args.tag}"))
     from tools.decomp_gate import ROUTES
     log = synth_log(args.tag, ROUTES["synth"])
     report = log.read_text(errors="replace") if log.exists() else ""

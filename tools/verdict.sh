@@ -20,7 +20,8 @@ heavy sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ > /dev/nu
   > "$logs/build.log" 2>&1 || { echo "build failed"; tail -5 "$logs/build.log"; exit 1; }
 .venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1; tail -1 "$logs/pytest.log"
 ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
-tools/cpu_lock.sh "verdict full $tag" timeout 1800 taskset -c 6-23 .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
+# The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
+GT_GATE_CPU_LOCK="verdict full $tag" taskset -c 6-23 .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
   | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head
 # Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
 boot=$logs/boot
@@ -30,7 +31,7 @@ echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot
 rm -rf "$boot/sd"
 for group in dealer,race save_garage,circuit,buy,options; do
   t=v${tag}_${group%%,*}
-  GT_SYNTH_ROUTE=$group tools/cpu_lock.sh "verdict synth $tag $group" timeout 1800 .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
+  GT_SYNTH_ROUTE=$group GT_GATE_CPU_LOCK="verdict synth $tag $group" .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
     | grep -E "^all routes|exit [^02]" | head -3
   grep -ah "synthetic: [0-9]* functions in" recomp/analysis/gt_diff_${t}_*.log
   echo "mismatched: $(grep -ah 'mismatched [1-9]' recomp/analysis/gt_diff_${t}_*.log | grep -oE '@0x[0-9A-F]+' | sort -u | tr '\n' ' ')"
