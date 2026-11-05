@@ -140,7 +140,11 @@ def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Se
     if only is not None:
         env["GT_DECOMP_ONLY"] = ",".join(f"0x{a:08X}" for a in only)
     command = ["systemd-run", "--user", "--scope", "--quiet", "--slice=gt-heavy.slice", "--", str(binary),
-               "--max-seconds", str(seconds), "--decomp", mode, "--trace", str(trace), "--trace-limit", str(lines)]
+               "--max-seconds", str(seconds), "--decomp", mode]
+    if lines > 0:  # --lines 0: no import trace (the run stops when the trace reaches its limit)
+        command += ["--trace", str(trace), "--trace-limit", str(lines)]
+    else:
+        trace.write_text("")
     log = trace.with_suffix(".log")
     with log.open("w") as err:
         subprocess.run(command, env=env, stdout=subprocess.DEVNULL, stderr=err, check=False)
