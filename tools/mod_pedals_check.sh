@@ -50,7 +50,7 @@ lock="tools/cpu_lock.sh mod_pedals_check_$route"; [ -n "${MOD_CHECK_NO_LOCK:-}" 
 fake=0.5,0.3; [ $sdl -eq 1 ] && fake=
 env GT_MODS_DIR="$repo/$out/mods" GT_SAVEDATA_DIR="$repo/$out/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
     GT_MOD_PEDALS_FAKE="$fake" GT_MOD_PEDALS_LOG=1 GT_PAD="$pad" GT_PAD_LOG=1 \
-  $lock systemd-run --user --scope --quiet --slice=gt-heavy.slice -- \
+  $lock systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
   timeout $((seconds + 120)) "$build/gt_play" --max-seconds "$seconds" --decomp "$decomp" > "$out/run.log" 2>&1
 rc=$?
 if [ $rc -ne 0 ]; then echo "mod_pedals_check: gt_play exited $rc (log $out/run.log)" >&2; exit 2; fi

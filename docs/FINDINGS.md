@@ -2895,4 +2895,8 @@ of 0-5, so a busy 0-5 halves the routes that land on 12-17 and their screens lag
 `tools/verdict.sh`); 12 logical CPUs still allow the 7-route cap. Pin other sessions' jobs to whole cores too
 (0-5,12-17) when they must share the machine.
 
-Found: 2026-11-05 · tools/verdict.sh
+Also: builds and the recomp in another worktree run in the same slice and, unpinned, on the gate's cores; a route's scope now
+has `CPUWeight=10000` against their default 100 (`heavy(..., realtime=True)`, `tools/pad_route.sh`, `tools/mod_pedals_check.sh`): a
+fix gate overlapping a verdict's build lost six routes to exit 97 on 6-11,18-23 without it.
+
+Found: 2026-11-05 · tools/verdict.sh, tools/decomp_gate.py
