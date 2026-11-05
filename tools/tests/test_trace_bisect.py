@@ -68,3 +68,43 @@ def test_crashed_recognises_an_uncaught_exception_and_the_runtime_error():
     assert bisect.crashed("x\nterminate called after throwing an instance of 'psprecomp::Error'\n")
     assert bisect.crashed("gt_native error: Guest memory access outside PSP RAM\n")
     assert not bisect.crashed("Runtime stopped: Wall-clock limit reached at 0x08B2ACDC\n")
+
+
+def _ppm4(*pixels: int) -> bytes:  # 2x2 image
+    return b"P6\n2 2\n255\n" + bytes(pixels)
+
+
+def test_ppm_box_diff_is_zero_for_equal_images():
+    image = _ppm4(*range(12))
+    assert bisect.ppm_box_diff(image, image, (0, 0, 2, 2)) == 0.0
+
+
+def test_ppm_box_diff_is_the_mean_absolute_difference_inside_the_box():
+    white = _ppm4(*[255] * 12)
+    # right column black: pixels (1,0) and (1,1)
+    half = _ppm4(255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0)
+    assert bisect.ppm_box_diff(white, half, (0, 0, 2, 2)) == 0.5
+    assert bisect.ppm_box_diff(white, half, (1, 0, 1, 2)) == 1.0
+    assert bisect.ppm_box_diff(white, half, (0, 0, 1, 2)) == 0.0
+
+
+def test_ppm_box_diff_rejects_images_of_different_sizes():
+    import pytest
+
+    with pytest.raises(ValueError):
+        bisect.ppm_box_diff(_ppm4(*[0] * 12), _ppm(0, 0, 0, 0, 0, 0), (0, 0, 1, 1))
+
+
+def test_parse_box_reads_x_y_w_h():
+    assert bisect.parse_box("10,20,30,40") == (10, 20, 30, 40)
+
+
+def test_ppm_box_mean_is_the_brightness_inside_the_box():
+    half = _ppm4(255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0)
+    assert bisect.ppm_box_mean(half, (0, 0, 2, 2)) == 0.5
+    assert bisect.ppm_box_mean(half, (1, 0, 1, 2)) == 0.0
+
+
+def test_script_done_vblank_reads_the_pad_log():
+    assert bisect.script_done_vblank("x\n[pad] script done at vblank 16954\n") == 16954
+    assert bisect.script_done_vblank("no route end") is None

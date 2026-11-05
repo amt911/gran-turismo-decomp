@@ -8,7 +8,9 @@ frame the menu opens at, ...). Usage:
   (--pad @config/pad_routes/race.pad reads a route file)
 
 `--black-after V` bisects another symptom instead: the set "diverges" when the first frame dump at or after vblank
-V is completely black (the `on` build drew nothing where `off` shows a menu). `--crash` bisects a run that dies
+V is completely black (the `on` build drew nothing where `off` shows a menu). `--frame-diff V [--box x,y,w,h]`
+bisects a picture difference: the set "diverges" when the first frame dump at or after vblank V differs from `off`'s
+by more than `--tolerance` (mean absolute difference inside the box). `--crash` bisects a run that dies
 (`terminate called`, a guest memory fault...): the set "diverges" when the run's log says so.
 
 With no --functions, every function the harness registers is the starting set (read from a `--decomp diff` run).
@@ -72,6 +74,47 @@ def ppm_mean(data: bytes) -> float:
     return sum(pixels) / (len(pixels) * 255) if pixels else 0.0
 
 
+def _ppm_pixels(data: bytes) -> tuple[int, int, bytes]:
+    match = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", data)
+    if match is None:
+        raise ValueError("not a P6 image")
+    return int(match.group(1)), int(match.group(2)), data[match.end():]
+
+
+def ppm_box_diff(a: bytes, b: bytes, box: tuple[int, int, int, int]) -> float:
+    """Mean absolute difference (0..1) of two same-size P6 images inside box (x, y, w, h)."""
+    wa, ha, pa = _ppm_pixels(a)
+    wb, hb, pb = _ppm_pixels(b)
+    if (wa, ha) != (wb, hb):
+        raise ValueError(f"image sizes differ: {wa}x{ha} vs {wb}x{hb}")
+    x, y, w, h = box
+    total = 0
+    for row in range(y, y + h):
+        start = (row * wa + x) * 3
+        end = start + w * 3
+        total += sum(abs(p - q) for p, q in zip(pa[start:end], pb[start:end]))
+    count = w * h * 3
+    return total / (count * 255) if count else 0.0
+
+
+def ppm_box_mean(data: bytes, box: tuple[int, int, int, int]) -> float:
+    """Mean brightness (0..1) of a P6 image inside box (x, y, w, h)."""
+    width, height, pixels = _ppm_pixels(data)
+    black = b"P6\n%d %d\n255\n" % (width, height) + bytes(len(pixels))
+    return ppm_box_diff(black, data, box)
+
+
+def script_done_vblank(log: str) -> int | None:
+    """The vblank the pad script finished at (`[pad] script done at vblank N`), None when it never did."""
+    match = re.search(r"^\[pad\] script done at vblank (\d+)", log, re.MULTILINE)
+    return int(match.group(1)) if match else None
+
+
+def parse_box(text: str) -> tuple[int, int, int, int]:
+    x, y, w, h = (int(t) for t in text.split(","))
+    return x, y, w, h
+
+
 def first_frame_after(log: str, vblank: int) -> int | None:
     """Number of the first frame dump logged at or after `vblank`, None when there is none."""
     for m in re.finditer(r"^\[frame-dump\] frame (\d+) vblank (\d+)", log, re.MULTILINE):
@@ -91,7 +134,7 @@ def registered_functions(log: str) -> list[int]:  # pragma: no cover - trivially
 
 def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Sequence[int] | None,
          mode: str, frames: Path | None = None) -> list[str]:  # pragma: no cover - runs the game
-    env = dict(os.environ, GT_PAD=pad, LCS_UNCAPPED="1")
+    env = dict(os.environ, GT_PAD=pad, GT_PAD_LOG="1", GT_NO_MODS="1", LCS_UNCAPPED="1")
     if frames is not None:
         env.update(GT_FRAME_DUMP=str(frames), GT_FRAME_EVERY="30")
     if only is not None:
@@ -104,6 +147,34 @@ def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Se
     return trace.read_text().splitlines()[:lines]
 
 
+def _frame_at(args: argparse.Namespace, only: Sequence[int] | None, mode: str) -> bytes:  # pragma: no cover - runs the game
+    """The first frame dump at or after --frame-diff's vblank of one run (b"" when the run made none)."""
+    frames = args.workdir / f"frames_{mode}"
+    frames.mkdir(parents=True, exist_ok=True)
+    for old in frames.glob("*.ppm"):
+        old.unlink()
+    trace = args.workdir / f"{mode}.trace"
+    _run(args.binary, args.pad, args.seconds, args.lines, trace, only, mode, frames)
+    number = first_frame_after(trace.with_suffix(".log").read_text(errors="replace"), args.frame_diff)
+    path = frames / f"frame_{number:06d}.ppm" if number is not None else None
+    return path.read_bytes() if path is not None and path.exists() else b""
+
+
+def _dark_box_mean(args: argparse.Namespace, only: Sequence[int] | None) -> float:  # pragma: no cover - runs the game
+    """--dark-box's region brightness in the frame --after-script vblanks after the pad script ended (0.0: no such frame)."""
+    frames = args.workdir / "frames_on"
+    frames.mkdir(parents=True, exist_ok=True)
+    for old in frames.glob("*.ppm"):
+        old.unlink()
+    trace = args.workdir / "on.trace"
+    _run(args.binary, args.pad, args.seconds, args.lines, trace, only, "on", frames)
+    log = trace.with_suffix(".log").read_text(errors="replace")
+    done = script_done_vblank(log)
+    number = first_frame_after(log, done + args.after_script) if done is not None else None
+    path = frames / f"frame_{number:06d}.ppm" if number is not None else None
+    return ppm_box_mean(path.read_bytes(), args.dark_box) if path is not None and path.exists() else 0.0
+
+
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser = argparse.ArgumentParser(prog="tools.trace_bisect", description=__doc__.splitlines()[0])
     parser.add_argument("--binary", type=Path, default=Path("build/gt_native"))
@@ -113,13 +184,25 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser.add_argument("--functions", default="", help="comma-separated hex addresses; default: every registered one")
     parser.add_argument("--crash", action="store_true", help="bisect 'the run dies' instead")
     parser.add_argument("--black-after", type=int, default=0, help="bisect 'black frame at/after this vblank' instead")
+    parser.add_argument("--frame-diff", type=int, default=0,
+                        help="bisect 'the frame at/after this vblank differs from off inside --box' instead")
+    parser.add_argument("--dark-box", type=parse_box, default=None,
+                        help="bisect 'region x,y,w,h is darker than --dark-below' in the frame --after-script vblanks after the pad script ends")
+    parser.add_argument("--dark-below", type=float, default=0.075)
+    parser.add_argument("--after-script", type=int, default=600)
+    parser.add_argument("--box", type=parse_box, default=None, help="x,y,w,h of the --frame-diff region (default: whole frame)")
+    parser.add_argument("--tolerance", type=float, default=0.02, help="--frame-diff: mean abs difference that counts as differing")
     parser.add_argument("--workdir", type=Path, default=Path("recomp/analysis/bisect"))
     args = parser.parse_args(argv)
     if args.pad.startswith("@"):  # @file: a route file (comment lines ignored)
         args.pad = "".join(line for line in Path(args.pad[1:]).read_text().splitlines() if not line.startswith("#"))
     args.workdir.mkdir(parents=True, exist_ok=True)
     baseline: list[str] = []
-    if not args.black_after and not args.crash:
+    reference = b""
+    if args.frame_diff:
+        reference = _frame_at(args, None, "off")
+        print(f"baseline frame: {len(reference)} bytes")
+    elif not args.black_after and not args.crash and not args.dark_box:
         baseline = _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "off.trace", None, "off")
         print(f"baseline: {len(baseline)} lines")
     if args.functions:
@@ -146,18 +229,35 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     def diverges(subset: Sequence[int]) -> bool:
         nonlocal runs
         runs += 1
+        if len(subset) == len(functions):
+            # The whole set is the default (GT_DECOMP_ONLY unset): ~16k addresses would exceed Linux's 128 KiB cap
+            # on one environment string (MAX_ARG_STRLEN) and the run would not even start.
+            subset = None  # type: ignore[assignment]
+            count = len(functions)
+        else:
+            count = len(subset)
         if args.crash:
             _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "on.trace", subset, "on")
             died = crashed((args.workdir / "on.log").read_text(errors="replace"))
-            print(f"run {runs}: {len(subset)} functions -> " + ("CRASH" if died else "ok"), flush=True)
+            print(f"run {runs}: {count} functions -> " + ("CRASH" if died else "ok"), flush=True)
             return died
+        if args.dark_box:
+            mean = _dark_box_mean(args, subset)
+            print(f"run {runs}: {count} functions -> box mean {mean:.4f}", flush=True)
+            return mean < args.dark_below
+        if args.frame_diff:
+            image = _frame_at(args, subset, "on")
+            box = args.box or (0, 0, *_ppm_pixels(reference)[:2])
+            diff = ppm_box_diff(reference, image, box) if image else 1.0
+            print(f"run {runs}: {count} functions -> diff {diff:.4f}", flush=True)
+            return diff > args.tolerance
         if args.black_after:
             black = is_black(subset)
-            print(f"run {runs}: {len(subset)} functions -> " + ("BLACK" if black else "drawn"), flush=True)
+            print(f"run {runs}: {count} functions -> " + ("BLACK" if black else "drawn"), flush=True)
             return black
         trace = _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "on.trace", subset, "on")
         at = first_divergence(baseline, trace)
-        print(f"run {runs}: {len(subset)} functions -> " + ("same" if at is None else f"differs at import {at}"), flush=True)
+        print(f"run {runs}: {count} functions -> " + ("same" if at is None else f"differs at import {at}"), flush=True)
         return at is not None
 
     if not diverges(functions):
