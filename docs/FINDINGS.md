@@ -2506,7 +2506,7 @@ right after, the same routes finished with 0 mismatches.
 
 **Fix / workaround.** `tools.decomp_gate` now counts the process's CPU affinity: `MACHINE_CORES` is
 `len(os.sched_getaffinity(0))`, and `max_parallel_routes(cores)` keeps a fifth of those cores free, up to 6 routes. While
-another session holds CPUs 0-5, run gates as `taskset -c 6-23 .venv/bin/python -m tools.decomp_gate …`. That gives 4
+another session holds CPUs 0-5, run gates as `taskset -c 6-11,18-23 .venv/bin/python -m tools.decomp_gate …` (2026-11-05: 12-17 are SMT twins of 0-5, see below). That gave 4
 routes and about 22 min per full gate.
 
 Found: 2026-10-26 · tools/decomp_gate.py
@@ -2881,3 +2881,18 @@ reclaimed, so the kernel throttled the routes instead.
 `grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/.../gt-heavy.slice/memory.stat`.
 
 Found: 2026-11-05 · camera mod research
+
+## CPUs 6-23 are not free of a job pinned to 0-5: logical CPUs 12-17 share physical cores with 0-5 (SMT)
+
+**Symptom.** 2026-11-05: full gates under `taskset -c 6-23` lost one to three routes to `exit 97` (a pad WAIT timed out: the
+press meant to start a load was lost) whenever the engine-sim session's jobs ran, although those were pinned to CPUs 0-5 at
+nice 19 (confirmed with `taskset -p` by that session). With engine-sim idle the same gates passed.
+
+**Cause.** `thread_siblings_list`: cpu0 = 0,12 ... cpu5 = 5,17; cpu6 = 6,18 ... cpu11 = 11,23. CPUs 12-17 are the SMT twins
+of 0-5, so a busy 0-5 halves the routes that land on 12-17 and their screens lag the wall-clock vblanks.
+
+**Fix / workaround.** Gates run under `taskset -c 6-11,18-23` (six whole physical cores no other pinned job shares;
+`tools/verdict.sh`); 12 logical CPUs still allow the 7-route cap. Pin other sessions' jobs to whole cores too
+(0-5,12-17) when they must share the machine.
+
+Found: 2026-11-05 · tools/verdict.sh
