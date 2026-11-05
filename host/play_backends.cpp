@@ -13,6 +13,7 @@
 #include "lcs_display_menu.hpp"
 #include "mod_loader.hpp"
 #include "mod_menu.hpp"
+#include "pad_script.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -71,7 +72,7 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
     const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0), fatal);
     gt::mods::menu::set_entries(report.entries);
     lcs::host_settings_set_extra_page(&kModsPage);
-    gt::mods::menu::start_test_toggle_from_env();
+    gt::mods::menu::start_test_toggle_from_env(&gt::pad_script_vblanks);
     if (report.loaded.empty() && report.skipped.empty()) return;  // no mods directory, or nothing in it: say nothing
     std::cerr << "[mods] loaded:";
     for (const auto &id : report.loaded) std::cerr << ' ' << id;

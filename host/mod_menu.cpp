@@ -90,32 +90,50 @@ bool toggle(std::size_t index) {
     return true;
 }
 
-void start_test_toggle_from_env() {
+namespace {
+
+void toggle_by_id(const std::string &id) {
+    std::size_t index = static_cast<std::size_t>(-1);
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        for (std::size_t i = 0; i < g_rows.size(); ++i)
+            if (g_rows[i].entry.mod != nullptr && g_rows[i].entry.mod->id == id) index = i;
+    }
+    if (index == static_cast<std::size_t>(-1) || !toggle(index))
+        std::fprintf(stderr, "[mods] test toggle: no toggleable mod '%s'\n", id.c_str());
+}
+
+}  // namespace
+
+void start_test_toggle_from_env(std::uint64_t (*vblanks)()) {
     const char *spec = std::getenv("GT_MOD_MENU_TEST_TOGGLE");
     if (spec == nullptr || *spec == '\0') return;
     const std::string text = spec;
     const std::size_t at = text.rfind('@');
     if (at == std::string::npos || at == 0) {
-        std::fprintf(stderr, "[mods] GT_MOD_MENU_TEST_TOGGLE ignored: expected <mod id>@<seconds>\n");
+        std::fprintf(stderr, "[mods] GT_MOD_MENU_TEST_TOGGLE ignored: expected <mod id>@<seconds> or <mod id>@v<vblank>\n");
         return;
     }
     const std::string id = text.substr(0, at);
+    const bool by_vblank = at + 1 < text.size() && text[at + 1] == 'v';
+    const char *number = text.c_str() + at + (by_vblank ? 2 : 1);
     char *rest = nullptr;
-    const double seconds = std::strtod(text.c_str() + at + 1, &rest);
-    if (rest == text.c_str() + at + 1 || seconds < 0) {
-        std::fprintf(stderr, "[mods] GT_MOD_MENU_TEST_TOGGLE ignored: bad seconds\n");
+    const double seconds = std::strtod(number, &rest);
+    if (rest == number || seconds < 0 || (by_vblank && vblanks == nullptr)) {
+        std::fprintf(stderr, "[mods] GT_MOD_MENU_TEST_TOGGLE ignored: bad delay\n");
+        return;
+    }
+    if (by_vblank) {
+        const auto target = static_cast<std::uint64_t>(seconds);
+        std::thread([id, target, vblanks] {
+            while (vblanks() < target) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            toggle_by_id(id);
+        }).detach();
         return;
     }
     std::thread([id, seconds] {
         std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
-        std::size_t index = static_cast<std::size_t>(-1);
-        {
-            std::lock_guard<std::mutex> lock(g_mutex);
-            for (std::size_t i = 0; i < g_rows.size(); ++i)
-                if (g_rows[i].entry.mod != nullptr && g_rows[i].entry.mod->id == id) index = i;
-        }
-        if (index == static_cast<std::size_t>(-1) || !toggle(index))
-            std::fprintf(stderr, "[mods] test toggle: no toggleable mod '%s'\n", id.c_str());
+        toggle_by_id(id);
     }).detach();
 }
 

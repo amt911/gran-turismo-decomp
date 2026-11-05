@@ -9,7 +9,7 @@
 #   --sabotage-brake  same with =2 (brake written to the wrong field; must FAIL)
 #   --disabled     mod installed with enabled = false: prints the `[mods] ... skipped` line and `script done at vblank N` (compare N
 #                  with a --without-mod run: they must be equal); no pedal check
-#   --toggle-off   mod menu check: the mod is enabled, and GT_MOD_MENU_TEST_TOGGLE=analog-pedals@<--toggle-at seconds, default 120> makes
+#   --toggle-off   mod menu check: the mod is enabled, and GT_MOD_MENU_TEST_TOGGLE=analog-pedals@<--toggle-at: seconds, or v<vblank>; default v17000, mid-race; the run gets 330 s> makes
 #                  gt_play call the menu's own toggle mid-race (logs `[mods] analog-pedals -> OFF`). PASS = pedals injected before that
 #                  line and no mod log line after it (an inactive mod's code never runs).
 #   --sabotage-active  with --toggle-off, expects a build configured with -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON (the trampoline ignores
@@ -25,7 +25,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_pedals_check}
-decomp=off seconds=240 route=race without=0 sabotage=0 disabled=0 sdl=0 toggle=0 toggle_at=120 sab_active=0
+decomp=off seconds=240 route=race without=0 sabotage=0 disabled=0 sdl=0 toggle=0 toggle_at=v17000 sab_active=0
 while [ $# -gt 0 ]; do
   case $1 in
     --without-mod) without=1;; --sabotage) sabotage=1;; --sabotage-brake) sabotage=2;; --disabled) disabled=1;; --sdl) sdl=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage-active) sab_active=1;;
@@ -59,6 +59,7 @@ pad=$(grep -v '^#' "config/pad_routes/$route.pad")
 lock="tools/cpu_lock.sh mod_pedals_check_$route"; [ -n "${MOD_CHECK_NO_LOCK:-}" ] && lock=""
 fake=0.5,0.3; [ $sdl -eq 1 ] && fake=
 toggle_env=""; [ $toggle -eq 1 ] && toggle_env="analog-pedals@$toggle_at"
+[ $toggle -eq 1 ] && [ "$seconds" = 240 ] && seconds=330  # samples after the game-paced toggle too
 env GT_MOD_MENU_TEST_TOGGLE="$toggle_env" GT_MODS_DIR="$repo/$out/mods" GT_SAVEDATA_DIR="$repo/$out/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
     GT_MOD_PEDALS_FAKE="$fake" GT_MOD_PEDALS_LOG=1 GT_PAD="$pad" GT_PAD_LOG=1 \
   $lock systemd-run --user --scope --quiet --slice=gt-heavy.slice -- \

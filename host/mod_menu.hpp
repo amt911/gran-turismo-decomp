@@ -2,6 +2,8 @@
 // overlay). Toggling flips the mod's `active` gate at once and saves `enabled =` to its mod.toml. Thread-safe.
 #pragma once
 
+#include <cstdint>
+
 #include "mod_loader.hpp"
 
 #include <cstddef>
@@ -26,7 +28,9 @@ std::string row(std::size_t index);
 // shows SAVE FAILED). False for an Error row, an out-of-range index or the "no mods" row. Logs `[mods] <id> -> ON|OFF`.
 bool toggle(std::size_t index);
 
-// `GT_MOD_MENU_TEST_TOGGLE=<mod id>@<seconds>` (verification only): a detached thread toggles that mod once after the delay.
-void start_test_toggle_from_env();
+// `GT_MOD_MENU_TEST_TOGGLE=<mod id>@<seconds>` or `<mod id>@v<vblank>` (verification only): a detached thread toggles that mod
+// once after the delay, or once `vblanks()` reaches that vblank (a game-paced point: a loaded machine reaches the race later
+// in wall time, which made a seconds-based toggle land before the race, 2026-11-05).
+void start_test_toggle_from_env(std::uint64_t (*vblanks)() = nullptr);
 
 } // namespace gt::mods::menu

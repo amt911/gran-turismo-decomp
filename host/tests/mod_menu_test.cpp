@@ -5,7 +5,11 @@
 
 #include <unistd.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
+#include <thread>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -105,6 +109,19 @@ int main() {
         check(!bad_save.active.load(), "menu: flag flipped despite SAVE FAILED");
         check(menu::row(3).find("SAVE FAILED") != std::string::npos && menu::row(3).size() <= 40, "menu: SAVE FAILED shown, row fits");
         check(menu::toggle(3) && menu::row(3).find("SAVE FAILED") != std::string::npos, "menu: still failing -> still shown");
+
+        // GT_MOD_MENU_TEST_TOGGLE=<id>@v<vblank>: toggles once the supplied clock reaches that vblank, not before.
+        static std::atomic<std::uint64_t> fake_vblank{0};
+        ::setenv("GT_MOD_MENU_TEST_TOGGLE", "pedals@v500", 1);
+        menu::start_test_toggle_from_env([] { return fake_vblank.load(); });
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        check(on.active.load(), "test toggle: nothing before the vblank");
+        fake_vblank = 500;
+        for (int i = 0; i < 40 && on.active.load(); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        check(!on.active.load(), "test toggle: toggled at the vblank");
+        ::setenv("GT_MOD_MENU_TEST_TOGGLE", "pedals@vabc", 1);
+        menu::start_test_toggle_from_env([] { return fake_vblank.load(); });  // ignored: bad delay
+        ::unsetenv("GT_MOD_MENU_TEST_TOGGLE");
     }
     fs::remove_all(scratch());
     if (failures == 0) std::puts("mod_menu tests passed");
