@@ -2149,5 +2149,8 @@ HOT115(0x0890B92Cu, func_0890B92C, Word);
 HOT115(0x08B71394u, func_08B71394, DoubleWord);
 HOT115(0x088F469Cu, func_088F469C, Word);
 HOT115(0x0887D990u, func_0887D990, Word);
-HOT115(0x08BBAA74u, func_08BBAA74, Word);
+// HOT115(0x08BBAA74u, func_08BBAA74, Word);  // unregistered 2026-11-05: with the batch-329 set the synthetic gate (dealer,race)
+// deterministically faults the decompiled run at 0x0002594C where the original returns (a0=0x09492F20 a1=0x09EDBAB8). The
+// function reads frame +0x20 (lw 0x20($sp) at 08BBAC24, then 4 words from it) and never writes it: suspected stale-stack
+// read (FINDINGS: "A callee can read a stale stack slot", func_0894D484). Route cases were equal (15 per route).
 HOT115(0x08C160CCu, func_08C160CC, Word);

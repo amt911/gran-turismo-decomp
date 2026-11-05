@@ -654,7 +654,10 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     auto difference = !replay_error.empty() ? std::optional<std::string>("import replay: " + replay_error)
                       : !decompiled_fault.empty() ? std::optional<std::string>("decompiled run faulted: " + decompiled_fault)
                                                   : first_difference(original, decompiled, entry.info.returns);
-    if (!difference) difference = first_page_difference(written, kPage, original.ignore_begin, original.ignore_end);
+    if (!difference) {
+        difference = first_page_difference(written, kPage, original.ignore_begin, original.ignore_end);
+        if (difference) *difference += page_difference_detail(written, kPage, original.ignore_begin, original.ignore_end);
+    }
     if (!difference && vram != nullptr) {
         const PageImages whole[] = {{kVramBase, vram_original.data(), vram}};
         difference = first_page_difference(whole, kVramSize, 0u, 0u);
