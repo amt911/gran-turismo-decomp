@@ -21,7 +21,7 @@ heavy sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ > /dev/nu
 .venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1; tail -1 "$logs/pytest.log"
 ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
 # The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
-GT_GATE_CPU_LOCK="verdict full $tag" taskset -c 6-23 .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
+GT_GATE_CPU_LOCK="verdict full $tag" taskset -c 6-11,18-23 .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
   | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head
 # Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
 boot=$logs/boot
