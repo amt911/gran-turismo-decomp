@@ -110,6 +110,32 @@ std::uint64_t next_sample_after(std::uint64_t call) {
 DecompMode g_mode = DecompMode::Off;
 unsigned g_cases = 32u;
 std::unordered_map<std::uint32_t, Entry> g_entries;
+// The trampoline runs on every call of a decompiled function: a hash lookup there cost as much as the memory
+// accessors of the decompiled code itself (sampled profile, 2026-11-05). Entries never move once registered
+// (unordered_map nodes are stable), so a dense table over [g_dense_base, +4 * size) indexes them directly.
+std::vector<Entry *> g_dense;
+std::uint32_t g_dense_base = 0u;
+
+void index_entries() {
+    g_dense.clear();
+    if (g_entries.empty()) return;
+    std::uint32_t low = UINT32_MAX, high = 0u;
+    for (const auto &[address, entry] : g_entries) {
+        low = std::min(low, address);
+        high = std::max(high, address);
+    }
+    g_dense_base = low & ~3u;
+    g_dense.assign((high - g_dense_base) / 4u + 1u, nullptr);
+    for (auto &[address, entry] : g_entries)
+        if ((address & 3u) == 0u) g_dense[(address - g_dense_base) / 4u] = &entry;
+}
+
+Entry *find_entry(std::uint32_t pc) {
+    const std::uint32_t delta = pc - g_dense_base;
+    if ((delta & 3u) == 0u && delta / 4u < g_dense.size()) return g_dense[delta / 4u];
+    const auto it = g_entries.find(pc);  // a misaligned address (never registered) or one outside the table
+    return it == g_entries.end() ? nullptr : &it->second;
+}
 std::uint64_t g_imports = 0u;
 
 // --- Import gate (docs/superpowers/specs/2026-10-13-import-record-replay-design.md) ---------------
@@ -368,10 +394,10 @@ bool run_to_sentinel(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         // Nested decompiled functions: the original's run runs their originals; the decompiled run runs their
         // decompiled versions (through the trampoline, which knows the phase), so the whole decompiled call
         // tree is compared against the whole original one.
-        const auto decompiled = g_entries.find(ctx.pc);
-        const auto fn = decompiled == g_entries.end() ? rt.function_at(ctx.pc)
-                        : g_phase == ImportPhase::Replaying && decompiled->second.info.nested ? &trampoline
-                                                                                             : decompiled->second.original;
+        const Entry *decompiled = find_entry(ctx.pc);
+        const auto fn = decompiled == nullptr ? rt.function_at(ctx.pc)
+                        : g_phase == ImportPhase::Replaying && decompiled->info.nested ? &trampoline
+                                                                                      : decompiled->original;
         if (fn == nullptr) {
             g_last_stop = "no function at " + psprecomp::hex32(ctx.pc);
             return false;
@@ -411,12 +437,12 @@ void run_decompiled(Entry &entry, psprecomp::Runtime &rt, psprecomp::AllegrexCon
 }
 
 void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto it = g_entries.find(ctx.pc);
-    if (it == g_entries.end()) {
+    Entry *found = find_entry(ctx.pc);
+    if (found == nullptr) {
         rt.unsupported(ctx.pc, 0u, "decomp trampoline reached for an unregistered address");
         return;
     }
-    Entry &entry = it->second;
+    Entry &entry = *found;
     if (g_mode == DecompMode::On) {
         fiber::run(rt, ctx, entry.info.fn, entry.info.address);  // may block: see host/fiber.hpp
         return;
@@ -654,7 +680,10 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     auto difference = !replay_error.empty() ? std::optional<std::string>("import replay: " + replay_error)
                       : !decompiled_fault.empty() ? std::optional<std::string>("decompiled run faulted: " + decompiled_fault)
                                                   : first_difference(original, decompiled, entry.info.returns);
-    if (!difference) difference = first_page_difference(written, kPage, original.ignore_begin, original.ignore_end);
+    if (!difference) {
+        difference = first_page_difference(written, kPage, original.ignore_begin, original.ignore_end);
+        if (difference) *difference += page_difference_detail(written, kPage, original.ignore_begin, original.ignore_end);
+    }
     if (!difference && vram != nullptr) {
         const PageImages whole[] = {{kVramBase, vram_original.data(), vram}};
         difference = first_page_difference(whole, kVramSize, 0u, 0u);
@@ -771,6 +800,7 @@ void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned c
         g_entries.emplace(function.address, Entry{function, original});
         runtime.register_function(function.address, &trampoline, std::string("decomp:") + function.name);
     }
+    index_entries();
     std::cerr << "[decomp] mode=" << (mode == DecompMode::On ? "on" : "diff") << " functions=" << g_entries.size()
               << " cases/function=" << cases_per_function << "\n";
 }

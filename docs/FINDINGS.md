@@ -2900,3 +2900,67 @@ has `CPUWeight=10000` against their default 100 (`heavy(..., realtime=True)`, `t
 fix gate overlapping a verdict's build lost six routes to exit 97 on 6-11,18-23 without it.
 
 Found: 2026-11-05 · tools/verdict.sh, tools/decomp_gate.py
+
+## Exit 97 under load: the vblank skip let the game's timers outrun the script's waits
+
+**Symptom.** Routes died now and then with `[pad] WAIT seek=X timed out after 12000 vblanks`, a different route each
+time and mostly right after the main menu (`... (2 seeks since vblank 5174, none to 0x1cdb3240)`), only when other
+sessions loaded the machine. Pinning gates to whole cores 6-11,18-23 and `CPUWeight=10000` did not remove them.
+**Measured** (`tools/pad_load_probe.sh`, six routes side by side, 12 busy loops + a cat loop over `extracted/` on the
+same cores): 4 of 6 routes failed with exit 97 in one run, 5 of 6 in another; the failures had one thing in common: the
+press after the load went to the wrong item (dealer: RIGHT,RIGHT,CROSS opened Ad Hoc Mode, whose page load came 50 waits
+after the CROSS), never a late load - after the main menu's load there were 2 seeks in 2000 waits. `GT_PAD_TRACE=1` showed
+why: **the script counts vblank waits, the game's timers count guest virtual time, and under load they part**. When the
+host is late `throttle_vblank_to_real_time` skips vblanks, adding them to the guest's virtual time without a wait, so 200
+waits took 2.0-4.0 s of guest time while the machine was free and 5.4-5.6 s (3.3x) when loaded. The game's idle and
+animation timers then ran out between two presses 100 waits apart, and the menu was not where the route thought.
+**Ruled out.** (1) *A settle time after a seek WAIT* (the first idea: a slow load eats the offset): the loads were short -
+the last read of a page came 14 waits after its seek - and nothing was loading between the main menu and the first
+press; a quiet-disc wait cannot see a timer. (2) *Counting guest virtual time instead of waits*: failed 6 of 6 under the
+same load, the game computes fewer frames in the same virtual time. Both were implemented and measured, then dropped.
+**Fix.** A scripted run (`GT_PAD` set, so every gate route) never advances guest time over skipped vblanks
+(`scripted_run_keeps_logical_time`, host/gt_kernel.cpp; `GT_PAD_SKIP_VBLANKS=1` restores the old skipping). Guest time =
+vblanks waited, as with `LCS_UNCAPPED=1`, which already made the fast gate flake-free, but it still sleeps when the host
+is ahead, so a free machine keeps real-time pace. A loaded run just takes longer in wall time (the `--max-seconds` cap of
+the full gate is 2x the route). Same load as above after the fix: 6 of 6 routes exit 0.
+**Tooling.** `tools/pad_load_probe.sh <tag> <routes> [busy_workers]` (with `IO_LOAD=1`) reproduces the load;
+`GT_PAD_TRACE=1` prints waits against pad reads and guest time every 200 waits, and each change of the buttons the game
+reads (what the game saw of a press).
+**Also found.** `tools/cpu_lock.sh`: a waiter past its 30 minutes kills "the holders" of the lock file, which includes
+the job that took it a moment ago (three of my probes were `Terminated` within seconds of starting).
+
+Found: 2026-11-05 · host/gt_kernel.cpp, host/pad_script.cpp, tools/pad_load_probe.sh
+
+### func_08BBAA74 reads a frame slot nobody writes (suspected stale-stack read)
+
+**Symptom.** Once batch 329 was installed, the synthetic gate (`dealer,race`) faulted the decompiled `func_08BBAA74` at `0x0002594C` in one case where the original returned normally (deterministic: a rerun printed the same line). The route cases were equal (15 per route) and the function passed standalone synthetic runs, so only the new layout of live objects exposed it.
+**Cause (inferred, not traced).** The original reads `lw v0, 0x20($sp)` at 08BBAC24 and copies four words from that pointer; neither the function nor `func_08B55140` (writes only frame +0xC..+0x1C) writes +0x20, so it is stale stack, as in the `func_0894D484` entry above. The fault address is `word(box + 0)` with `box = 0x2594C`.
+**Fix / workaround.** Unregistered (the same precedent); the function stays as a reading aid in `hot_batch_115.cpp`.
+
+Found: 2026-11-05 · src/game/unsorted/hot_batch_115.cpp (func_08BBAA74)
+
+## `--decomp on` cost a third of the frame budget on the laptop: byte-wise memory accessors and a hash per call
+
+**Symptom.** Laptop (Ryzen 5850U, power-saver), Time Trial New York: `--decomp off` slept 42 % of each vblank, `--decomp on` 15 %;
+`on` frameskipped 338 frames in 210 s (`off`: 5) and was late on 1,493 vblanks (`GT_FRAME_LOG`, `tools.frame_pacing`).
+**Cause (measured).** A SIGPROF leaf sampler (`perf` is not allowed on this machine: `perf_event_paranoid` 2, and `strace` is
+not installed) over 170 s of the same route showed the extra samples of `on`: `GuestMemory::resolve`/`load32`/`store32`
++5,400 (the decompiled code calls `rt.memory().load32/store32`, ~6,000 call sites, and those resolved every byte on its own;
+a store also read the old value for the write watch), the decomp trampoline's `unordered_map::find` +1,100, `call_guest` +
+`dispatch_function_at` +1,250. The fibers' `getcontext`/`swapcontext` (two `rt_sigprocmask` syscalls each) were only ~200:
+1.45 M fiber runs in 120 s, ~200 a frame, ~1.4 µs each.
+**Fix.** Patch 0060 gives `GuestMemory::load8..32`/`store8..32` the same inline main-RAM fast path as the generated code's
+`aot_*` (everything else, write watch included, goes to the unchanged `*_checked` bodies); the trampoline indexes entries in a
+dense table. Desktop A/B, same load, real time: vblank sleep `off` 21.8 %, `on` before 11.4 %, after 16.9 %; the sampled
+memory accessor cost fell from ~5,600 to ~60 samples and the trampoline's from 1,141 to 202.
+**Left:** `call_guest` copies the whole `AllegrexContext` (VFPU included) per call; measure before changing it.
+
+Found: 2026-11-05 · tools/patches/lcs-recomp/0060-memory-load-store-inline-fast-path.patch, host/diff_harness.cpp
+
+### func_0899CB44 mismatched in three routes of one loaded verdict and never again
+
+**Symptom.** The verdict of #486 (machine load 26-31, other sessions' gates running) showed, in race, dirt and trialmtn, the same case of the decompiled `func_0899CB44` (batch 95) mismatching: `RAM at 0x09C7AC97: original F8, decompiled 9C (3 bytes differ) (a0=0x09C7A7D0)`, one case more compared than in quiet runs (the case is "not comparable: original step bound" there).
+**Cause.** Unknown. Not reproduced: a fast gate with only this function, a full gate on the same commit with the new mismatch detail, and the clean verdict of #486 afterwards all compared it 5-8 times with 0 mismatches. The C was re-read against `tools.disasm` (frame layout, delay slots, the copy loop, the virtual slot 0xCC call): no difference found.
+**Fix / workaround.** Unregistered (a byte difference is a fidelity bug until shown otherwise). To bring it back: reproduce under load with the detail the harness now prints (entry sp + the first eight differing bytes), then fix or document.
+
+Found: 2026-11-05 · src/game/unsorted/hot_batch_95.cpp (func_0899CB44)

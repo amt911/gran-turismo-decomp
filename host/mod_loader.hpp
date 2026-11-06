@@ -6,18 +6,33 @@
 #include <string>
 #include <vector>
 
+struct GtMod;
+
 namespace psprecomp {
 class Runtime;
 }
 
 namespace gt::mods {
 
-struct LoadReport {
-    std::vector<std::string> loaded; // mod ids
-    std::vector<std::string> skipped; // "<dir>: <reason>"
+enum class ModState { Active, Inactive, Error };
+
+// One mod directory, as the mod menu lists it. `mod` is null for Error.
+struct ModEntry {
+    std::string name;  // manifest name, else id, else the directory name
+    ModState state = ModState::Error;
+    std::string reason;  // Inactive: "disabled"; Error: why it did not load
+    std::filesystem::path manifest;  // <dir>/mod.toml
+    GtMod *mod = nullptr;
 };
 
-// Loads every `<dir>/<mod>/mod.toml` that is enabled. A broken, disabled or failing mod is skipped (reported); `fatal` is
+struct LoadReport {
+    std::vector<std::string> loaded; // mod ids of the active mods
+    std::vector<std::string> skipped; // "<dir>: <reason>" (inactive mods too: "<dir>: disabled")
+    std::vector<ModEntry> entries;  // every directory examined, in order
+};
+
+// Loads every `<dir>/<mod>/mod.toml`. A mod with `enabled = false` is loaded and initialised but left inactive (its hooks pass
+// to the original; the mod menu can turn it on). A broken or failing mod is skipped (reported as Error); `fatal` is
 // set only when two mods hook the same address (startup must stop). A missing or empty `dir` loads nothing.
 LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, std::string &fatal);
 

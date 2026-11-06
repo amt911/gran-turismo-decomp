@@ -3,7 +3,9 @@
 
 #include "gt_mod/gt_mod_api.h"
 
+#include <atomic>
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <string>
 
@@ -15,6 +17,10 @@ class Runtime;
 struct GtMod {
     std::string id;
     std::map<std::string, std::string> settings;
+    // Gate of every hook this mod owns: read once at the entry of each hooked call (acquire); false = the call goes straight
+    // to the original. Written by `set_active` (the mod menu, from the window thread).
+    std::atomic<bool> active{true};
+    std::filesystem::path manifest;  // its mod.toml (the menu rewrites `enabled =` there); empty in tests
 };
 
 namespace gt::mods {
@@ -27,6 +33,9 @@ struct HookOwner {
 // One hook per guest address across all mods. Fails (error filled) if the address has no function or already has a hook
 // (the error names both mod ids). On success the function at `address` is replaced by a trampoline that runs `fn`.
 bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, HookOwner owner, std::string &error);
+
+// Turns the hooks of `mod` on or off (release store); takes effect at the next hooked call.
+void set_active(GtMod *mod, bool on);
 
 // Removes every hook `mod` installed: each address gets its previous function back (used when a mod's init fails).
 void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod);
