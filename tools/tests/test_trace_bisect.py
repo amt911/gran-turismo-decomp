@@ -139,3 +139,16 @@ def test_narrow_window_finds_the_span_of_a_cumulative_symptom():
 def test_narrow_window_of_a_single_culprit_is_that_item():
     lo, hi = bisect.narrow_window(list(range(64)), lambda s: 41 in s)
     assert (lo, hi) == (41, 42)
+
+
+def test_ddmin_with_a_batch_evaluator_matches_the_sequential_result():
+    batches = []
+
+    def evaluate(subsets):
+        batches.append(len(subsets))
+        return [3 in s and 9 in s for s in subsets]
+
+    sequential = bisect.ddmin(list(range(12)), lambda s: 3 in s and 9 in s)
+    parallel = bisect.ddmin(list(range(12)), lambda s: 3 in s and 9 in s, evaluate=evaluate)
+    assert sorted(parallel) == sorted(sequential) == [3, 9]
+    assert max(batches) > 1  # subsets of a level went out together

@@ -37,31 +37,43 @@ def first_divergence(a: Sequence[str], b: Sequence[str]) -> int | None:
     return None if len(a) == len(b) else min(len(a), len(b))
 
 
-def ddmin(items: Sequence[int], diverges: Callable[[Sequence[int]], bool]) -> list[int]:
+def ddmin(items: Sequence[int], diverges: Callable[[Sequence[int]], bool],
+          evaluate: Callable[[list[Sequence[int]]], list[bool]] | None = None) -> list[int]:
     """Smallest set (as far as halving finds) of `items` that still makes `diverges` true.
 
     Precondition: diverges(items). Tries each half; when a half diverges alone it replaces the set. When neither
-    half does, tries removing each quarter; when nothing can be removed the set is returned."""
+    half does, tries removing each quarter; when nothing can be removed the set is returned. `evaluate`, when given,
+    judges a whole level's subsets (or complements) at once -- in parallel -- and the first diverging one in order is
+    taken, so the result is the sequential one."""
+    judge = evaluate or (lambda subsets: [diverges(subset) for subset in subsets])
+
+    def first(subsets: list[list[int]]) -> int | None:
+        if evaluate is None:  # sequential: stop at the first hit, as before
+            for index, subset in enumerate(subsets):
+                if diverges(subset):
+                    return index
+            return None
+        verdicts = judge(subsets)
+        return next((i for i, v in enumerate(verdicts) if v), None)
+
     current = list(items)
     granularity = 2
     while len(current) >= 2:
         chunk = max(1, len(current) // granularity)
         subsets = [current[i:i + chunk] for i in range(0, len(current), chunk)]
-        reduced = False
-        for subset in subsets:
-            if diverges(subset):
-                current, granularity, reduced = subset, 2, True
-                break
-        if not reduced and granularity > 2:
-            for index in range(len(subsets)):
-                complement = [x for j, s in enumerate(subsets) if j != index for x in s]
-                if complement and diverges(complement):
-                    current, granularity, reduced = complement, max(granularity - 1, 2), True
-                    break
-        if not reduced:
-            if granularity >= len(current):
-                break
-            granularity = min(len(current), granularity * 2)
+        hit = first(subsets)
+        if hit is not None:
+            current, granularity = subsets[hit], 2
+            continue
+        if granularity > 2:
+            complements = [[x for j, s in enumerate(subsets) if j != index for x in s] for index in range(len(subsets))]
+            hit = first([c for c in complements if c])
+            if hit is not None:
+                current, granularity = [c for c in complements if c][hit], max(granularity - 1, 2)
+                continue
+        if granularity >= len(current):
+            break
+        granularity = min(len(current), granularity * 2)
     return current
 
 
@@ -203,9 +215,10 @@ def _dark_box_mean(args: argparse.Namespace, only: Sequence[int] | None, tag: st
     A run that never gets there (the route timed out under load, the game died) is inconclusive, not dark: it is
     retried, and after three tries the bisection stops instead of chasing the wrong symptom. Each try's log is kept.
     """
-    frames = args.workdir / "frames_on"
+    run_dir = args.workdir / tag  # one per run: --jobs runs several at once
+    frames = run_dir / "frames_on"
     frames.mkdir(parents=True, exist_ok=True)
-    trace = args.workdir / "on.trace"
+    trace = run_dir / "on.trace"
     for attempt in range(3):
         for old in frames.glob("*.ppm"):
             old.unlink()
@@ -239,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser.add_argument("--after-script", type=int, default=600)
     parser.add_argument("--box", type=parse_box, default=None, help="x,y,w,h of the --frame-diff region (default: whole frame)")
     parser.add_argument("--tolerance", type=float, default=0.02, help="--frame-diff: mean abs difference that counts as differing")
+    parser.add_argument("--jobs", type=int, default=1, help="--dark-box: runs of one ddmin level at once")
     parser.add_argument("--narrow", action="store_true",
                         help="find the shortest diverging window (prefix, then suffix) instead of ddmin")
     parser.add_argument("--start-set", type=Path, default=None, help="file of hex addresses to start from (one per line)")
@@ -320,7 +334,23 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     if not diverges(functions):
         print("the full set does not diverge within the window: nothing to bisect")
         return 0
-    found = ddmin(functions, diverges)
+    evaluate = None
+    if args.dark_box and args.jobs > 1:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def evaluate(subsets: list[Sequence[int]]) -> list[bool]:
+            nonlocal runs
+            tags = []
+            for subset in subsets:
+                runs += 1
+                tags.append((f"run{runs}", None if len(subset) == registered_count else subset, len(subset)))
+            with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                means = list(pool.map(lambda t: _dark_box_mean(args, t[1], t[0]), tags))
+            for (tag, _, count), mean in zip(tags, means):
+                print(f"{tag}: {count} functions -> box mean {mean:.4f}", flush=True)
+            return [mean < args.dark_below for mean in means]
+
+    found = ddmin(functions, diverges, evaluate)
     print("minimal diverging set: " + ",".join(f"0x{a:08X}" for a in found))
     return 0
 
