@@ -2882,6 +2882,36 @@ reclaimed, so the kernel throttled the routes instead.
 
 Found: 2026-11-05 · camera mod research
 
+## Exit 97 under load: the vblank skip let the game's timers outrun the script's waits
+
+**Symptom.** Routes died now and then with `[pad] WAIT seek=X timed out after 12000 vblanks`, a different route each
+time and mostly right after the main menu (`... (2 seeks since vblank 5174, none to 0x1cdb3240)`), only when other
+sessions loaded the machine. Pinning gates to whole cores 6-11,18-23 and `CPUWeight=10000` did not remove them.
+**Measured** (`tools/pad_load_probe.sh`, six routes side by side, 12 busy loops + a cat loop over `extracted/` on the
+same cores): 4 of 6 routes failed with exit 97 in one run, 5 of 6 in another; the failures had one thing in common: the
+press after the load went to the wrong item (dealer: RIGHT,RIGHT,CROSS opened Ad Hoc Mode, whose page load came 50 waits
+after the CROSS), never a late load - after the main menu's load there were 2 seeks in 2000 waits. `GT_PAD_TRACE=1` showed
+why: **the script counts vblank waits, the game's timers count guest virtual time, and under load they part**. When the
+host is late `throttle_vblank_to_real_time` skips vblanks, adding them to the guest's virtual time without a wait, so 200
+waits took 2.0-4.0 s of guest time while the machine was free and 5.4-5.6 s (3.3x) when loaded. The game's idle and
+animation timers then ran out between two presses 100 waits apart, and the menu was not where the route thought.
+**Ruled out.** (1) *A settle time after a seek WAIT* (the first idea: a slow load eats the offset): the loads were short -
+the last read of a page came 14 waits after its seek - and nothing was loading between the main menu and the first
+press; a quiet-disc wait cannot see a timer. (2) *Counting guest virtual time instead of waits*: failed 6 of 6 under the
+same load, the game computes fewer frames in the same virtual time. Both were implemented and measured, then dropped.
+**Fix.** A scripted run (`GT_PAD` set, so every gate route) never advances guest time over skipped vblanks
+(`scripted_run_keeps_logical_time`, host/gt_kernel.cpp; `GT_PAD_SKIP_VBLANKS=1` restores the old skipping). Guest time =
+vblanks waited, as with `LCS_UNCAPPED=1`, which already made the fast gate flake-free, but it still sleeps when the host
+is ahead, so a free machine keeps real-time pace. A loaded run just takes longer in wall time (the `--max-seconds` cap of
+the full gate is 2x the route). Same load as above after the fix: 6 of 6 routes exit 0.
+**Tooling.** `tools/pad_load_probe.sh <tag> <routes> [busy_workers]` (with `IO_LOAD=1`) reproduces the load;
+`GT_PAD_TRACE=1` prints waits against pad reads and guest time every 200 waits, and each change of the buttons the game
+reads (what the game saw of a press).
+**Also found.** `tools/cpu_lock.sh`: a waiter past its 30 minutes kills "the holders" of the lock file, which includes
+the job that took it a moment ago (three of my probes were `Terminated` within seconds of starting).
+
+Found: 2026-11-05 · host/gt_kernel.cpp, host/pad_script.cpp, tools/pad_load_probe.sh
+
 ### func_08BBAA74 reads a frame slot nobody writes (suspected stale-stack read)
 
 **Symptom.** Once batch 329 was installed, the synthetic gate (`dealer,race`) faulted the decompiled `func_08BBAA74` at `0x0002594C` in one case where the original returned normally (deterministic: a rerun printed the same line). The route cases were equal (15 per route) and the function passed standalone synthetic runs, so only the new layout of live objects exposed it.
