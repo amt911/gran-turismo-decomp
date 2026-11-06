@@ -2919,3 +2919,11 @@ Found: 2026-11-05 · host/gt_kernel.cpp, host/pad_script.cpp, tools/pad_load_pro
 **Fix / workaround.** Unregistered (the same precedent); the function stays as a reading aid in `hot_batch_115.cpp`.
 
 Found: 2026-11-05 · src/game/unsorted/hot_batch_115.cpp (func_08BBAA74)
+
+### func_0899CB44 mismatched in three routes of one loaded verdict and never again
+
+**Symptom.** The verdict of #486 (machine load 26-31, other sessions' gates running) showed, in race, dirt and trialmtn, the same case of the decompiled `func_0899CB44` (batch 95) mismatching: `RAM at 0x09C7AC97: original F8, decompiled 9C (3 bytes differ) (a0=0x09C7A7D0)`, one case more compared than in quiet runs (the case is "not comparable: original step bound" there).
+**Cause.** Unknown. Not reproduced: a fast gate with only this function, a full gate on the same commit with the new mismatch detail, and the clean verdict of #486 afterwards all compared it 5-8 times with 0 mismatches. The C was re-read against `tools.disasm` (frame layout, delay slots, the copy loop, the virtual slot 0xCC call): no difference found.
+**Fix / workaround.** Unregistered (a byte difference is a fidelity bug until shown otherwise). To bring it back: reproduce under load with the detail the harness now prints (entry sp + the first eight differing bytes), then fix or document.
+
+Found: 2026-11-05 · src/game/unsorted/hot_batch_95.cpp (func_0899CB44)
