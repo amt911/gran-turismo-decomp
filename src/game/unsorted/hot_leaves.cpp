@@ -13037,18 +13037,24 @@ void func_08AF1490(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_08968850(this, flag): func_08966050(this, flag), then down the chain func_08965CE0 gives while
 // bit 12 of +0xE0 is set.
+// The original's tail call to itself (j 0x08968850) is the loop: a decompiled tail call to its own entry would read as
+// a return (ctx.pc == entry) and the chain would stop after one link (tools/self_tail_audit.py).
 void func_08968850(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
+    std::uint32_t self = ctx.gpr[4];
     const std::uint32_t flag = ctx.gpr[5] & 0xFFu;
-    std::uint32_t next = 0u;
-    {
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[2] = call_guest(rt, ctx, 0x08966050u, {self, flag});
-        if ((word(rt, self + 0xE0u) & 0x1000u) == 0u) return;
-        next = call_guest(rt, ctx, 0x08965CE0u, {self});
+    for (;;) {
+        std::uint32_t next = 0u;
+        {
+            GuestFrame frame(ctx, 0x10u);
+            ctx.gpr[2] = call_guest(rt, ctx, 0x08966050u, {self, flag});
+            if ((word(rt, self + 0xE0u) & 0x1000u) == 0u) return;
+            next = call_guest(rt, ctx, 0x08965CE0u, {self});
+        }
+        ctx.gpr[2] = next;
+        if (next == 0u) return;
+        ctx.gpr[4] = self = next;
+        ctx.gpr[5] = flag;
     }
-    ctx.gpr[2] = next;
-    if (next != 0u) tail_call(ctx, 0x08968850u, {next, flag});
 }
 
 // func_088FBDC0(this, a, b) -> func_0890640C(r + 0x34, a, b) for r = the virtual +0x34, unless absent or
@@ -13822,19 +13828,24 @@ void func_08AFA0F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_089687D8(this, flag): func_08965DDC(this, flag) (twice when bit 12 of +0xE0 is set), then down the
 // chain func_08965CE0 gives (as func_08968850).
+// As func_08968850: the tail call to itself is the loop.
 void func_089687D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const std::uint32_t self = ctx.gpr[4];
+    std::uint32_t self = ctx.gpr[4];
     const std::uint32_t flag = ctx.gpr[5] & 0xFFu;
-    std::uint32_t next;
-    {
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[2] = call_guest(rt, ctx, 0x08965DDCu, {self, flag});
-        if ((word(rt, self + 0xE0u) & 0x1000u) == 0u) return;
-        (void)call_guest(rt, ctx, 0x08965DDCu, {self, flag});
-        next = call_guest(rt, ctx, 0x08965CE0u, {self});
+    for (;;) {
+        std::uint32_t next;
+        {
+            GuestFrame frame(ctx, 0x10u);
+            ctx.gpr[2] = call_guest(rt, ctx, 0x08965DDCu, {self, flag});
+            if ((word(rt, self + 0xE0u) & 0x1000u) == 0u) return;
+            (void)call_guest(rt, ctx, 0x08965DDCu, {self, flag});
+            next = call_guest(rt, ctx, 0x08965CE0u, {self});
+        }
+        ctx.gpr[2] = next;
+        if (next == 0u) return;
+        ctx.gpr[4] = self = next;
+        ctx.gpr[5] = flag;
     }
-    ctx.gpr[2] = next;
-    if (next != 0u) tail_call(ctx, 0x089687D8u, {next, flag});
 }
 
 // func_08ABEEE0(this): func_08AD4050 on every entry of the set at +0x144 (func_08ABF868 first,
