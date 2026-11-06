@@ -102,6 +102,23 @@ std::optional<std::string> first_page_difference(std::span<const PageImages> pag
     return "RAM at " + hex32(*first) + bytes;
 }
 
+std::string page_difference_detail(std::span<const PageImages> pages, std::size_t page_size, std::uint32_t ignore_begin,
+                                   std::uint32_t ignore_end, std::size_t limit) {
+    std::string detail = " [entry sp " + hex32(ignore_end) + ";";
+    std::size_t listed = 0;
+    for (const PageImages &page : pages) {
+        for (std::size_t i = 0; i < page_size && listed < limit; ++i) {
+            const std::uint32_t address = page.address + static_cast<std::uint32_t>(i);
+            if (page.original[i] == page.decompiled[i] || (address >= ignore_begin && address < ignore_end)) continue;
+            char one[40];
+            std::snprintf(one, sizeof one, " %08X:%02X>%02X", address, page.original[i], page.decompiled[i]);
+            detail += one;
+            ++listed;
+        }
+    }
+    return detail + "]";
+}
+
 std::optional<std::size_t> first_byte_difference(std::span<const std::uint8_t> a, std::span<const std::uint8_t> b,
                                                  std::size_t skip_begin, std::size_t skip_end) {
     constexpr std::size_t kBlock = 4096u;
