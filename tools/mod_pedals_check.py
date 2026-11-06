@@ -34,9 +34,30 @@ def judge(text, want_throttle=EXPECT_THROTTLE, want_brake=EXPECT_BRAKE):
     return True, f"{len(rows)} samples: player thr={rows[-1][1]:.4f} brk={rows[-1][2]:.4f}, AI thr={rows[-1][3]:.4f} brk={rows[-1][4]:.4f}"
 
 
+TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
+
+
+def judge_toggle(text):
+    """The mod menu turned the mod off mid-run (`[mods] <id> -> OFF`, GT_MOD_MENU_TEST_TOGGLE): the mod's pedal log must show the
+    injection (judge) before that line and no mod line at all after it -- an inactive mod's code never runs, so its log stops.
+    Returns (ok, message)."""
+    cut = TOGGLE_LINE.search(text)
+    if cut is None:
+        return False, "no `[mods] <id> -> OFF` toggle line in the log: the menu did not toggle the mod"
+    before, after = text[: cut.start()], text[cut.end() :]
+    ok, message = judge(before)
+    if not ok:
+        return False, "before the toggle: " + message
+    later = LINE.findall(after)
+    if later:
+        return False, f"the mod still ran after the toggle ({len(later)} log lines after it): the hooks ignored `active`"
+    return True, f"injected before the toggle ({message}); no mod activity after it"
+
+
 def main(argv):
     with open(argv[1], errors="replace") as handle:
-        ok, message = judge(handle.read())
+        text = handle.read()
+    ok, message = judge_toggle(text) if len(argv) > 2 and argv[2] == "--toggle" else judge(text)
     print(("PASS: " if ok else "FAIL: ") + message)
     return 0 if ok else 1
 
