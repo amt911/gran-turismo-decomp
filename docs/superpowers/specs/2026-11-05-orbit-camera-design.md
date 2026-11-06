@@ -19,12 +19,12 @@ While driving, the right stick swings the camera around the player's car (chase 
 - Camera: `word(0x09413E00+0x1FA4)` (active camera of the race scene), `+0x10` = camera-to-world matrix (basis rows,
   translation = eye), row vectors. Player car world position: `word(car+8)+0x10` (x, y, z; Y-up form `(x, z, -y)`), car and
   player from the FACTS predicate (world = a0 of `0x0894DD9C`).
-- The scene address `0x09413E00` is one run's value: the mod must take it from code (who stores it) or validate it; a fixed
-  address is acceptable only with the evidence written next to it *(builder: find the pointer chain)*.
+- The scene address `0x09413E00` is one run's value; **settled:** the mod takes it from a0 of the scene refresh `0x08928A80` (no static chain: the
+  global `0x08D11F74` reads 0 in a race), see FACTS.
 
 ## Behaviour
 
-- Pre-hook `0x08B59508`: for a perspective upload while the player's car is live, `M' = M · T(-p) · R_y(yaw) · R_x(pitch) · T(p)`
+- Pre-hook `0x08B59210` (cmd `0x3A`, the world-matrix writer 0x08B59508 calls; hooking 0x08B59508 itself restores the matrix too early, FACTS): for a perspective upload while the player's car is live, `M' = M · T(-p) · R_y(yaw) · R_x(pitch) · T(p)`
   with `p` the car's position in view space (`p[r] = dot(row_r, carpos - eye)`), call the original, restore the 16 floats. Ortho
   (HUD) uploads are never touched.
 - Pivot *(Claude)*: the car in every view. In chase it orbits the car; in bumper/cockpit the pivot is ~at the eye, which
@@ -50,7 +50,7 @@ While driving, the right stick swings the camera around the player's car (chase 
   `GT_MOD_CAMERA_FAKE=<yaw>` (degrees, 180 = rear view); PASS = frames with the fake angle differ from the without-mod run in the 3D area and the
   car's screen position stays centred (car pixel box within tolerance), the HUD rows identical; fake 0 = identical to
   without-mod. Both `--decomp off` and `on`. Sabotage: pivot at the eye must fail the centred-car check.
-- **Open bug to settle before merge:** in `--decomp on` the orbited car rendered black (spike 2). Compare an on-mode baseline
+- **Settled:** the black car of `--decomp on` (spike 2) was the lost self tail calls, fixed by PR #494, not the mod. (Original note:) in `--decomp on` the orbited car rendered black (spike 2). Compare an on-mode baseline
   first; if the mod causes it (lighting uses the world matrix), fix it (e.g. leave the matrices the lighting reads untouched).
 
 ## Non-goals

@@ -20,7 +20,7 @@ HUD_DIGITS = (200, 340, 234, 268)  # x0, x1, y0, y1 of the speed readout
 CHASE_AFTER_VBLANKS = 150
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
 FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
-CAR_WINDOW = (100, 380, 50, 232)  # x0, x1, y0, y1 where the player's car is looked for (chase views put it in the middle)
+CAR_WINDOW = (110, 330, 100, 232)  # x0, x1, y0, y1 where the player's car sits in the chase view (the orange TRD banner is right of x = 340)
 CAR_MIN_PIXELS = 150   # fewer orange pixels = no car in this frame
 CAR_KEEP_RATIO = 0.15  # the orbited frame keeps at least this share of the baseline's car pixels
 CENTRE_TOL_X, CENTRE_TOL_Y = 48, 36
@@ -46,8 +46,9 @@ def read_ppm(path):
 
 
 def is_orange(r, g, b):
-    """The player's car in the check's route is orange/red-orange: strong red, mid green, little blue."""
-    return r > 140 and 40 < g < 150 and b < 90 and r - g > 55 and g - b > -10
+    """The player's car in the check's route is a red-brown/salmon body (bright in the sun, dark in shade): red clearly above green,
+    green not below blue. Grey road, green grass, blue sky, the cyan HUD digits and dark windows do not match."""
+    return r >= 24 and r - g >= 16 and g - b >= -4
 
 
 def car_box(frame):

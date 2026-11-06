@@ -33,22 +33,25 @@ mkdir -p "$out" || exit 2
 mkdir -p "$out/mods/orbit-camera" "$out/nomods"
 if [ $without -eq 0 ]; then
   mbuild="$out/mod-build"
-  flags=""; [ $sabotage -ne 0 ] && flags="-DCMAKE_CXX_FLAGS=-DORBIT_CAMERA_SABOTAGE=1"
-  { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" $flags \
+  flags=""; [ $sabotage -ne 0 ] && flags="-DORBIT_CAMERA_SABOTAGE=1"
+  { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" "-DCMAKE_CXX_FLAGS=$flags" \
       && cmake --build "$mbuild" -j2 --target orbit_camera; } > "$out/mod-build.log" 2>&1 \
     || { echo "mod_camera_check: mod build failed (log $out/mod-build.log)" >&2; exit 2; }
   cp "$mbuild/orbit-camera/liborbit_camera.so" "$out/mods/orbit-camera/" || exit 2
   sed 's/^enabled = false/enabled = true/' "$mods_repo/orbit-camera/mod.toml" > "$out/mods/orbit-camera/mod.toml"
 fi
 pad=$(grep -v '^#' config/pad_routes/chase.pad)
-lock="tools/cpu_lock.sh mod_camera_check"; [ -n "${MOD_CHECK_NO_LOCK:-}" ] && lock=""
+# One lock hold for all the runs (each is real-time; the whole check stays well under the lock's 30 min): re-run this script under it.
+if [ -z "${MOD_CHECK_NO_LOCK:-}" ]; then
+  exec env MOD_CHECK_NO_LOCK=1 tools/cpu_lock.sh mod_camera_check "$0" "$@"
+fi
 # run_one LABEL MODS_DIR [FAKE]: one gt_play run, frames in $out/LABEL/frames
 run_one() {
   local label=$1 mdir=$2 fake=${3:-}
   rm -rf "$out/$label" && mkdir -p "$out/$label/frames" "$out/$label/savedata" || return 2
   env GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/$label/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
       GT_MOD_CAMERA_FAKE="$fake" GT_MOD_CAMERA_LOG=1 GT_PAD="$pad" GT_PAD_LOG=1 GT_FRAME_DUMP="$repo/$out/$label/frames" GT_FRAME_EVERY=$every \
-    $lock systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
+    systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
     timeout $((seconds + 120)) "$build/gt_play" --max-seconds "$seconds" --decomp "$decomp" > "$out/$label/run.log" 2>&1
   local rc=$?
   if [ $rc -ne 0 ]; then echo "mod_camera_check: gt_play exited $rc (log $out/$label/run.log)" >&2; return 2; fi
