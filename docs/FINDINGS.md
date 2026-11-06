@@ -2964,3 +2964,23 @@ Found: 2026-11-05 · tools/patches/lcs-recomp/0060-memory-load-store-inline-fast
 **Fix / workaround.** Unregistered (a byte difference is a fidelity bug until shown otherwise). To bring it back: reproduce under load with the detail the harness now prints (entry sp + the first eight differing bytes), then fix or document.
 
 Found: 2026-11-05 · src/game/unsorted/hot_batch_95.cpp (func_0899CB44)
+
+## A decompiled tail call to the function's own entry is lost (the black cars of `--decomp on`)
+
+**Symptom.** With `--decomp on` every car raced black (the user's laptop: Chaparral 2J at Seattle, Bugatti Veyron; the
+desktop chase route: the Peugeot 206 and the AI cars), only the environment-map reflection showing. The GE received light
+colours 0 (commands 0x8F–0x9A): `func_08B577D0` got colour 0 from `func_08B57E68` because the source floats at the
+lighting object's +0x4C were never written — an Adhoc script setter (VM in generated unit 0120, the virtual call after
+`08BC6E18`) never ran.
+**Cause.** A decompiled function returns with `ctx.pc == entry`; a tail call leaves `ctx.pc` at its target. A tail call to
+the function's **own** entry therefore looks like a return to the trampoline, the fibers and `call_here`, and the
+recursion never runs. `func_08B1928C` (the Adhoc symbol lookup) does its parent-scope lookup as `j 0x08B1928C`: with it and
+its decompiled callers (`func_08B19590` → `08B1935C` → `08B19354`, the same generated unit, so a recompiled caller jumps
+straight into the recompiled body and never reaches the decompiled one) the lookup stopped at the first scope, the
+script did not find the light colours and left them 0. Needing all four at once made it look cumulative: a ddmin over
+16,680 functions (`tools.trace_bisect --dark-box --jobs 8`) ended on exactly these four. The gate never saw it: no case
+compares the whole chain, and a single function compared alone runs its tail target itself.
+**Fix.** The three self tail calls in `src/` (`func_08B1928C`, `func_08968850`, `func_089687D8`) are loops;
+`tools/self_tail_audit.py` and its tree test keep new ones out. Write the original's `j <own entry>` as a loop.
+
+Found: 2026-11-06 · src/game/unsorted/hot_batch_215.cpp, src/game/unsorted/hot_leaves.cpp, tools/self_tail_audit.py
