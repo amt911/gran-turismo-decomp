@@ -61,16 +61,30 @@ def ddmin(items: Sequence[int], diverges: Callable[[Sequence[int]], bool],
     while len(current) >= 2:
         chunk = max(1, len(current) // granularity)
         subsets = [current[i:i + chunk] for i in range(0, len(current), chunk)]
-        hit = first(subsets)
-        if hit is not None:
-            current, granularity = subsets[hit], 2
-            continue
+        complements = []
         if granularity > 2:
-            complements = [[x for j, s in enumerate(subsets) if j != index for x in s] for index in range(len(subsets))]
-            hit = first([c for c in complements if c])
+            complements = [c for c in ([x for j, s in enumerate(subsets) if j != index for x in s]
+                                       for index in range(len(subsets))) if c]
+        if evaluate is not None and complements:  # one batch: a subset hit still wins over a complement hit
+            verdicts = evaluate(subsets + complements)
+            hit = next((i for i, v in enumerate(verdicts[:len(subsets)]) if v), None)
             if hit is not None:
-                current, granularity = [c for c in complements if c][hit], max(granularity - 1, 2)
+                current, granularity = subsets[hit], 2
                 continue
+            hit = next((i for i, v in enumerate(verdicts[len(subsets):]) if v), None)
+            if hit is not None:
+                current, granularity = complements[hit], max(granularity - 1, 2)
+                continue
+        else:
+            hit = first(subsets)
+            if hit is not None:
+                current, granularity = subsets[hit], 2
+                continue
+            if complements:
+                hit = first(complements)
+                if hit is not None:
+                    current, granularity = complements[hit], max(granularity - 1, 2)
+                    continue
         if granularity >= len(current):
             break
         granularity = min(len(current), granularity * 2)
