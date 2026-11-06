@@ -448,15 +448,19 @@ def slice_limits() -> list[str]:
     return ["systemctl", "--user", "set-property", "--runtime", SLICE, *SLICE_LIMITS]
 
 
-def heavy(command: Sequence[str]) -> list[str]:
-    """`command` in a scope inside the shared heavy-job slice."""
-    return ["systemd-run", "--user", "--scope", "--quiet", f"--slice={SLICE}", "--", *command]
+REALTIME_CPU_WEIGHT = 10000  # a route's scope against a build's default 100 in the same slice (exit 97, 2026-11-05)
+
+
+def heavy(command: Sequence[str], realtime: bool = False) -> list[str]:
+    """`command` in a scope inside the shared heavy-job slice; `realtime` (game routes) outweighs builds in the slice."""
+    weight = ["-p", f"CPUWeight={REALTIME_CPU_WEIGHT}"] if realtime else []
+    return ["systemd-run", "--user", "--scope", "--quiet", f"--slice={SLICE}", *weight, "--", *command]
 
 
 def route_command(binary: Path, kind: str, tag: str, logs: Path) -> list[str]:
     """The routes of a gate as one heavy command. With GT_GATE_CPU_LOCK=<what> they run under tools/cpu_lock.sh (the
     real-time part only: the recomp and the build before them never hold the shared CPU lock - AGENTS.md)."""
-    command = heavy(["bash", "-c", route_shell(binary, kind, tag, logs)])
+    command = heavy(["bash", "-c", route_shell(binary, kind, tag, logs)], realtime=True)
     what = os.environ.get("GT_GATE_CPU_LOCK")
     return ["tools/cpu_lock.sh", what, *command] if what else command
 
