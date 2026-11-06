@@ -191,6 +191,16 @@ def test_slice_limits_cap_the_total_at_6g_without_swap():
     assert {"MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0"} <= set(command)
 
 
+def test_routes_outweigh_builds_in_the_heavy_slice(monkeypatch):
+    """Real-time routes get CPUWeight=10000 in their scope, builds and the recomp keep the default (100): a clang build in
+    another worktree beside a full gate made six routes miss a pad press (exit 97, 2026-11-05)."""
+    monkeypatch.delenv("GT_GATE_CPU_LOCK", raising=False)
+    routes = gate.route_command(Path("build/gt_native"), "full", "t1", Path("recomp/analysis"))
+    assert "CPUWeight=10000" in routes[: routes.index("--")]
+    build = gate.heavy(["cmake", "--build", "build"])
+    assert not any(part.startswith("CPUWeight") for part in build[: build.index("--")])
+
+
 def test_routes_take_the_cpu_lock_only_around_the_routes(monkeypatch):
     """GT_GATE_CPU_LOCK=<what>: the routes (the real-time part) run under tools/cpu_lock.sh, the recomp and the build do
     not. Callers wrapped the whole gate, so the lock was held through ~18 min of recomp and build too; with the routes the

@@ -18,7 +18,7 @@ what neither can see, posts the verdict, and **waits for the user to merge**.
    `game_files/` pointing at the user's ISO.
 2. **Rebuild from zero** — setup, extract (hash checks must pass), recomp, build, all inside the memory
    cgroup. `tools/verdict.sh <branch> <tag>` runs steps 2-3 on `../gt-verify` (`GT_VERIFY_TREE`): pytest,
-   ctest, the full gate under `taskset -c 6-23`, the `save_garage` boot check and the synthetic gate after
+   ctest, the full gate under `taskset -c 6-11,18-23`, the `save_garage` boot check and the synthetic gate after
    `dealer,race` and `save_garage,circuit,buy,options`. A route that exits 97 is re-run alone before the
    verdict is written.
 3. **Run the gates** — the full differential suite and the boot check

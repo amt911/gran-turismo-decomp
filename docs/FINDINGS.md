@@ -2506,7 +2506,7 @@ right after, the same routes finished with 0 mismatches.
 
 **Fix / workaround.** `tools.decomp_gate` now counts the process's CPU affinity: `MACHINE_CORES` is
 `len(os.sched_getaffinity(0))`, and `max_parallel_routes(cores)` keeps a fifth of those cores free, up to 6 routes. While
-another session holds CPUs 0-5, run gates as `taskset -c 6-23 .venv/bin/python -m tools.decomp_gate …`. That gives 4
+another session holds CPUs 0-5, run gates as `taskset -c 6-11,18-23 .venv/bin/python -m tools.decomp_gate …` (2026-11-05: 12-17 are SMT twins of 0-5, see below). That gave 4
 routes and about 22 min per full gate.
 
 Found: 2026-10-26 · tools/decomp_gate.py
@@ -2882,6 +2882,25 @@ reclaimed, so the kernel throttled the routes instead.
 
 Found: 2026-11-05 · camera mod research
 
+## CPUs 6-23 are not free of a job pinned to 0-5: logical CPUs 12-17 share physical cores with 0-5 (SMT)
+
+**Symptom.** 2026-11-05: full gates under `taskset -c 6-23` lost one to three routes to `exit 97` (a pad WAIT timed out: the
+press meant to start a load was lost) whenever the engine-sim session's jobs ran, although those were pinned to CPUs 0-5 at
+nice 19 (confirmed with `taskset -p` by that session). With engine-sim idle the same gates passed.
+
+**Cause.** `thread_siblings_list`: cpu0 = 0,12 ... cpu5 = 5,17; cpu6 = 6,18 ... cpu11 = 11,23. CPUs 12-17 are the SMT twins
+of 0-5, so a busy 0-5 halves the routes that land on 12-17 and their screens lag the wall-clock vblanks.
+
+**Fix / workaround.** Gates run under `taskset -c 6-11,18-23` (six whole physical cores no other pinned job shares;
+`tools/verdict.sh`); 12 logical CPUs still allow the 7-route cap. Pin other sessions' jobs to whole cores too
+(0-5,12-17) when they must share the machine.
+
+Also: builds and the recomp in another worktree run in the same slice and, unpinned, on the gate's cores; a route's scope now
+has `CPUWeight=10000` against their default 100 (`heavy(..., realtime=True)`, `tools/pad_route.sh`, `tools/mod_pedals_check.sh`): a
+fix gate overlapping a verdict's build lost six routes to exit 97 on 6-11,18-23 without it.
+
+Found: 2026-11-05 · tools/verdict.sh, tools/decomp_gate.py
+
 ## Exit 97 under load: the vblank skip let the game's timers outrun the script's waits
 
 **Symptom.** Routes died now and then with `[pad] WAIT seek=X timed out after 12000 vblanks`, a different route each
@@ -2945,3 +2964,23 @@ Found: 2026-11-05 · tools/patches/lcs-recomp/0060-memory-load-store-inline-fast
 **Fix / workaround.** Unregistered (a byte difference is a fidelity bug until shown otherwise). To bring it back: reproduce under load with the detail the harness now prints (entry sp + the first eight differing bytes), then fix or document.
 
 Found: 2026-11-05 · src/game/unsorted/hot_batch_95.cpp (func_0899CB44)
+
+## A decompiled tail call to the function's own entry is lost (the black cars of `--decomp on`)
+
+**Symptom.** With `--decomp on` every car raced black (the user's laptop: Chaparral 2J at Seattle, Bugatti Veyron; the
+desktop chase route: the Peugeot 206 and the AI cars), only the environment-map reflection showing. The GE received light
+colours 0 (commands 0x8F–0x9A): `func_08B577D0` got colour 0 from `func_08B57E68` because the source floats at the
+lighting object's +0x4C were never written — an Adhoc script setter (VM in generated unit 0120, the virtual call after
+`08BC6E18`) never ran.
+**Cause.** A decompiled function returns with `ctx.pc == entry`; a tail call leaves `ctx.pc` at its target. A tail call to
+the function's **own** entry therefore looks like a return to the trampoline, the fibers and `call_here`, and the
+recursion never runs. `func_08B1928C` (the Adhoc symbol lookup) does its parent-scope lookup as `j 0x08B1928C`: with it and
+its decompiled callers (`func_08B19590` → `08B1935C` → `08B19354`, the same generated unit, so a recompiled caller jumps
+straight into the recompiled body and never reaches the decompiled one) the lookup stopped at the first scope, the
+script did not find the light colours and left them 0. Needing all four at once made it look cumulative: a ddmin over
+16,680 functions (`tools.trace_bisect --dark-box --jobs 8`) ended on exactly these four. The gate never saw it: no case
+compares the whole chain, and a single function compared alone runs its tail target itself.
+**Fix.** The three self tail calls in `src/` (`func_08B1928C`, `func_08968850`, `func_089687D8`) are loops;
+`tools/self_tail_audit.py` and its tree test keep new ones out. Write the original's `j <own entry>` as a loop.
+
+Found: 2026-11-06 · src/game/unsorted/hot_batch_215.cpp, src/game/unsorted/hot_leaves.cpp, tools/self_tail_audit.py
