@@ -1,0 +1,114 @@
+--- a/include/psprecomp/guest_memory.hpp
++++ b/include/psprecomp/guest_memory.hpp
+@@ -226,14 +226,58 @@
+     [[nodiscard]] std::uint8_t *raw_pointer(std::uint32_t address, std::size_t length) noexcept;
+     [[nodiscard]] const std::uint8_t *raw_pointer(std::uint32_t address, std::size_t length) const noexcept;
+ 
+-    [[nodiscard]] std::uint8_t load8(std::uint32_t address) const;
+-    [[nodiscard]] std::uint16_t load16(std::uint32_t address) const;
+-    [[nodiscard]] std::uint32_t load32(std::uint32_t address) const;
++    // load8..32 / store8..32 are what hand-written code (HLE, the host, a decompiled game) calls.  Their main-RAM
++    // case is inline, as aot_* are for generated code: the checked bodies resolve every byte on its own (and a
++    // store reads the old value first for the write watch), which made a decompiled function several times
++    // slower than the generated one it replaces.  Anything else -- EDRAM, out of range, a region-crossing
++    // width, an armed write watch -- goes to the *_checked bodies, unchanged.
++    [[nodiscard]] PSPRECOMP_MEMORY_FAST_PATH std::uint8_t load8(std::uint32_t address) const {
++        const std::uint32_t offset = ram_offset_of(address);
++        if (offset <= ram_limit8_) return ram_data_[offset];
++        return load8_checked(address);
++    }
++    [[nodiscard]] PSPRECOMP_MEMORY_FAST_PATH std::uint16_t load16(std::uint32_t address) const {
++        const std::uint32_t offset = ram_offset_of(address);
++        if (offset <= ram_limit16_) return read_le16(ram_data_ + offset);
++        return load16_checked(address);
++    }
++    [[nodiscard]] PSPRECOMP_MEMORY_FAST_PATH std::uint32_t load32(std::uint32_t address) const {
++        const std::uint32_t offset = ram_offset_of(address);
++        if (offset <= ram_limit32_) return read_le32(ram_data_ + offset);
++        return load32_checked(address);
++    }
++    [[nodiscard]] std::uint8_t load8_checked(std::uint32_t address) const;
++    [[nodiscard]] std::uint16_t load16_checked(std::uint32_t address) const;
++    [[nodiscard]] std::uint32_t load32_checked(std::uint32_t address) const;
+     [[nodiscard]] std::uint32_t load_word_left(std::uint32_t address, std::uint32_t existing) const;
+     [[nodiscard]] std::uint32_t load_word_right(std::uint32_t address, std::uint32_t existing) const;
+-    void store8(std::uint32_t address, std::uint8_t value);
+-    void store16(std::uint32_t address, std::uint16_t value);
+-    void store32(std::uint32_t address, std::uint32_t value);
++    PSPRECOMP_MEMORY_FAST_PATH void store8(std::uint32_t address, std::uint8_t value) {
++        const std::uint32_t offset = ram_offset_of(address);
++        if (!write_watch_enabled_ && offset <= ram_limit8_) {
++            ram_data_[offset] = value;
++            return;
++        }
++        store8_checked(address, value);
++    }
++    PSPRECOMP_MEMORY_FAST_PATH void store16(std::uint32_t address, std::uint16_t value) {
++        const std::uint32_t offset = ram_offset_of(address);
++        if (!write_watch_enabled_ && offset <= ram_limit16_) {
++            write_le16(ram_data_ + offset, value);
++            return;
++        }
++        store16_checked(address, value);
++    }
++    PSPRECOMP_MEMORY_FAST_PATH void store32(std::uint32_t address, std::uint32_t value) {
++        const std::uint32_t offset = ram_offset_of(address);
++        if (!write_watch_enabled_ && offset <= ram_limit32_) {
++            write_le32(ram_data_ + offset, value);
++            return;
++        }
++        store32_checked(address, value);
++    }
++    void store8_checked(std::uint32_t address, std::uint8_t value);
++    void store16_checked(std::uint32_t address, std::uint16_t value);
++    void store32_checked(std::uint32_t address, std::uint32_t value);
+     void store_word_left(std::uint32_t address, std::uint32_t value);
+     void store_word_right(std::uint32_t address, std::uint32_t value);
+     void memory_barrier() const noexcept;
+--- a/src/guest_memory.cpp
++++ b/src/guest_memory.cpp
+@@ -305,15 +305,15 @@
+     return nullptr;
+ }
+ 
+-std::uint8_t GuestMemory::load8(std::uint32_t address) const {
++std::uint8_t GuestMemory::load8_checked(std::uint32_t address) const {
+     const auto r = resolve(address, 1u);
+     return region_bytes(r.region)[r.offset];
+ }
+-std::uint16_t GuestMemory::load16(std::uint32_t address) const {
++std::uint16_t GuestMemory::load16_checked(std::uint32_t address) const {
+     return static_cast<std::uint16_t>(load8(address)) |
+            static_cast<std::uint16_t>(static_cast<std::uint16_t>(load8(address + 1u)) << 8u);
+ }
+-std::uint32_t GuestMemory::load32(std::uint32_t address) const {
++std::uint32_t GuestMemory::load32_checked(std::uint32_t address) const {
+     return static_cast<std::uint32_t>(load8(address)) |
+            (static_cast<std::uint32_t>(load8(address + 1u)) << 8u) |
+            (static_cast<std::uint32_t>(load8(address + 2u)) << 16u) |
+@@ -329,14 +329,14 @@
+     const std::uint32_t memory_word = load32(address & ~3u);
+     return (existing & (0xFFFFFF00u << (24u - shift))) | (memory_word >> shift);
+ }
+-void GuestMemory::store8(std::uint32_t address, std::uint8_t value) {
++void GuestMemory::store8_checked(std::uint32_t address, std::uint8_t value) {
+     const auto r = resolve(address, 1u);
+     auto &data = region_bytes(r.region);
+     const std::uint8_t old = data[r.offset];
+     log_write_watch(address, 1u, "store8", old, value);
+     data[r.offset] = value;
+ }
+-void GuestMemory::store16(std::uint32_t address, std::uint16_t value) {
++void GuestMemory::store16_checked(std::uint32_t address, std::uint16_t value) {
+     const std::uint16_t old = load16(address);
+     log_write_watch(address, 2u, "store16", old, value);
+     const auto write_byte = [this](std::uint32_t byte_address, std::uint8_t byte) {
+@@ -346,7 +346,7 @@
+     write_byte(address, static_cast<std::uint8_t>(value & 0xFFu));
+     write_byte(address + 1u, static_cast<std::uint8_t>((value >> 8u) & 0xFFu));
+ }
+-void GuestMemory::store32(std::uint32_t address, std::uint32_t value) {
++void GuestMemory::store32_checked(std::uint32_t address, std::uint32_t value) {
+     const std::uint32_t old = load32(address);
+     log_write_watch(address, 4u, "store32", old, value);
+     const auto write_byte = [this](std::uint32_t byte_address, std::uint8_t byte) {

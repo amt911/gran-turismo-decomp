@@ -2919,3 +2919,29 @@ Found: 2026-11-05 · host/gt_kernel.cpp, host/pad_script.cpp, tools/pad_load_pro
 **Fix / workaround.** Unregistered (the same precedent); the function stays as a reading aid in `hot_batch_115.cpp`.
 
 Found: 2026-11-05 · src/game/unsorted/hot_batch_115.cpp (func_08BBAA74)
+
+## `--decomp on` cost a third of the frame budget on the laptop: byte-wise memory accessors and a hash per call
+
+**Symptom.** Laptop (Ryzen 5850U, power-saver), Time Trial New York: `--decomp off` slept 42 % of each vblank, `--decomp on` 15 %;
+`on` frameskipped 338 frames in 210 s (`off`: 5) and was late on 1,493 vblanks (`GT_FRAME_LOG`, `tools.frame_pacing`).
+**Cause (measured).** A SIGPROF leaf sampler (`perf` is not allowed on this machine: `perf_event_paranoid` 2, and `strace` is
+not installed) over 170 s of the same route showed the extra samples of `on`: `GuestMemory::resolve`/`load32`/`store32`
++5,400 (the decompiled code calls `rt.memory().load32/store32`, ~6,000 call sites, and those resolved every byte on its own;
+a store also read the old value for the write watch), the decomp trampoline's `unordered_map::find` +1,100, `call_guest` +
+`dispatch_function_at` +1,250. The fibers' `getcontext`/`swapcontext` (two `rt_sigprocmask` syscalls each) were only ~200:
+1.45 M fiber runs in 120 s, ~200 a frame, ~1.4 µs each.
+**Fix.** Patch 0060 gives `GuestMemory::load8..32`/`store8..32` the same inline main-RAM fast path as the generated code's
+`aot_*` (everything else, write watch included, goes to the unchanged `*_checked` bodies); the trampoline indexes entries in a
+dense table. Desktop A/B, same load, real time: vblank sleep `off` 21.8 %, `on` before 11.4 %, after 16.9 %; the sampled
+memory accessor cost fell from ~5,600 to ~60 samples and the trampoline's from 1,141 to 202.
+**Left:** `call_guest` copies the whole `AllegrexContext` (VFPU included) per call; measure before changing it.
+
+Found: 2026-11-05 · tools/patches/lcs-recomp/0060-memory-load-store-inline-fast-path.patch, host/diff_harness.cpp
+
+### func_0899CB44 mismatched in three routes of one loaded verdict and never again
+
+**Symptom.** The verdict of #486 (machine load 26-31, other sessions' gates running) showed, in race, dirt and trialmtn, the same case of the decompiled `func_0899CB44` (batch 95) mismatching: `RAM at 0x09C7AC97: original F8, decompiled 9C (3 bytes differ) (a0=0x09C7A7D0)`, one case more compared than in quiet runs (the case is "not comparable: original step bound" there).
+**Cause.** Unknown. Not reproduced: a fast gate with only this function, a full gate on the same commit with the new mismatch detail, and the clean verdict of #486 afterwards all compared it 5-8 times with 0 mismatches. The C was re-read against `tools.disasm` (frame layout, delay slots, the copy loop, the virtual slot 0xCC call): no difference found.
+**Fix / workaround.** Unregistered (a byte difference is a fidelity bug until shown otherwise). To bring it back: reproduce under load with the detail the harness now prints (entry sp + the first eight differing bytes), then fix or document.
+
+Found: 2026-11-05 · src/game/unsorted/hot_batch_95.cpp (func_0899CB44)

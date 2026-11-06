@@ -39,8 +39,20 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     const std::uint32_t address = ctx.pc;
     const std::uint32_t return_address = ctx.gpr[31];
-    GtModCtx mod_ctx{&rt, &ctx, address};
-    it->second.fn(&mod_ctx);
+    // One read per call: a toggle in the middle of a call never gives a half-modded call.
+    const GtMod *owner = it->second.owner.mod;
+#ifdef GT_MOD_SABOTAGE_IGNORE_ACTIVE  // verification only (tools/mod_pedals_check.sh --sabotage-active): the gate must matter
+    const bool on = true;
+#else
+    const bool on = owner == nullptr || owner->active.load(std::memory_order_acquire);
+#endif
+    if (on) {
+        GtModCtx mod_ctx{&rt, &ctx, address};
+        it->second.fn(&mod_ctx);
+    } else {
+        ctx.pc = address;  // same entry state call_original gives (a decompiled trampoline finds itself by ctx.pc)
+        it->second.original(rt, ctx);
+    }
     ctx.gpr[0] = 0u;
     // A registered function ends with ctx.pc = ra; a hook that never called the original (or left pc on the entry) gets it here.
     if (ctx.pc == address) ctx.pc = return_address;
@@ -117,6 +129,10 @@ const GtModApi &mod_api() {
                               api_read8,          api_read16, api_read32,        api_readf,  api_write8,
                               api_write16,        api_write32, api_writef,       api_config, api_log};
     return api;
+}
+
+void set_active(GtMod *mod, bool on) {
+    if (mod != nullptr) mod->active.store(on, std::memory_order_release);
 }
 
 void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod) {

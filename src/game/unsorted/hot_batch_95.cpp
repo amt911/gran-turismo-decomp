@@ -1795,7 +1795,11 @@ HOT95(0x08888988u, func_08888988, Word);
 HOT95(0x089170E0u, func_089170E0, Word);
 HOT95(0x089936C4u, func_089936C4, Word);
 HOT95(0x0899BEC0u, func_0899BEC0, Word);
-HOT95(0x0899CB44u, func_0899CB44, Word);
+// HOT95(0x0899CB44u, func_0899CB44, Word);  // unregistered 2026-11-05: the verdict of #486 (loaded machine) compared 6-7 cases per
+// route in race, dirt and trialmtn and one mismatched identically each time (a0=0x09C7A7D0): "RAM at 0x09C7AC97: original F8, decompiled 9C
+// (3 bytes differ)". Not reproduced since (fast gate, two full gates, the clean verdict of #486 after it: 0 mismatched), the cause is not
+// known (the C matches the asm read line by line; the 250 ms case bound, a stale frame slot and a refcount ordering were considered), so it
+// counts as real until a case shows the bytes (the RAM-mismatch text now lists the entry sp and the first differing bytes).
 HOT95(0x089B02F0u, func_089B02F0, Word);
 HOT95(0x089B90B4u, func_089B90B4, Word);
 HOT95(0x089BACACu, func_089BACAC, Word);
