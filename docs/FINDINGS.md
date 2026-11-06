@@ -2506,7 +2506,7 @@ right after, the same routes finished with 0 mismatches.
 
 **Fix / workaround.** `tools.decomp_gate` now counts the process's CPU affinity: `MACHINE_CORES` is
 `len(os.sched_getaffinity(0))`, and `max_parallel_routes(cores)` keeps a fifth of those cores free, up to 6 routes. While
-another session holds CPUs 0-5, run gates as `taskset -c 6-23 .venv/bin/python -m tools.decomp_gate …`. That gives 4
+another session holds CPUs 0-5, run gates as `taskset -c 6-11,18-23 .venv/bin/python -m tools.decomp_gate …` (2026-11-05: 12-17 are SMT twins of 0-5, see below). That gave 4
 routes and about 22 min per full gate.
 
 Found: 2026-10-26 · tools/decomp_gate.py
@@ -2882,6 +2882,25 @@ reclaimed, so the kernel throttled the routes instead.
 
 Found: 2026-11-05 · camera mod research
 
+## CPUs 6-23 are not free of a job pinned to 0-5: logical CPUs 12-17 share physical cores with 0-5 (SMT)
+
+**Symptom.** 2026-11-05: full gates under `taskset -c 6-23` lost one to three routes to `exit 97` (a pad WAIT timed out: the
+press meant to start a load was lost) whenever the engine-sim session's jobs ran, although those were pinned to CPUs 0-5 at
+nice 19 (confirmed with `taskset -p` by that session). With engine-sim idle the same gates passed.
+
+**Cause.** `thread_siblings_list`: cpu0 = 0,12 ... cpu5 = 5,17; cpu6 = 6,18 ... cpu11 = 11,23. CPUs 12-17 are the SMT twins
+of 0-5, so a busy 0-5 halves the routes that land on 12-17 and their screens lag the wall-clock vblanks.
+
+**Fix / workaround.** Gates run under `taskset -c 6-11,18-23` (six whole physical cores no other pinned job shares;
+`tools/verdict.sh`); 12 logical CPUs still allow the 7-route cap. Pin other sessions' jobs to whole cores too
+(0-5,12-17) when they must share the machine.
+
+Also: builds and the recomp in another worktree run in the same slice and, unpinned, on the gate's cores; a route's scope now
+has `CPUWeight=10000` against their default 100 (`heavy(..., realtime=True)`, `tools/pad_route.sh`, `tools/mod_pedals_check.sh`): a
+fix gate overlapping a verdict's build lost six routes to exit 97 on 6-11,18-23 without it.
+
+Found: 2026-11-05 · tools/verdict.sh, tools/decomp_gate.py
+
 ## Exit 97 under load: the vblank skip let the game's timers outrun the script's waits
 
 **Symptom.** Routes died now and then with `[pad] WAIT seek=X timed out after 12000 vblanks`, a different route each
@@ -2919,6 +2938,24 @@ Found: 2026-11-05 · host/gt_kernel.cpp, host/pad_script.cpp, tools/pad_load_pro
 **Fix / workaround.** Unregistered (the same precedent); the function stays as a reading aid in `hot_batch_115.cpp`.
 
 Found: 2026-11-05 · src/game/unsorted/hot_batch_115.cpp (func_08BBAA74)
+
+## `--decomp on` cost a third of the frame budget on the laptop: byte-wise memory accessors and a hash per call
+
+**Symptom.** Laptop (Ryzen 5850U, power-saver), Time Trial New York: `--decomp off` slept 42 % of each vblank, `--decomp on` 15 %;
+`on` frameskipped 338 frames in 210 s (`off`: 5) and was late on 1,493 vblanks (`GT_FRAME_LOG`, `tools.frame_pacing`).
+**Cause (measured).** A SIGPROF leaf sampler (`perf` is not allowed on this machine: `perf_event_paranoid` 2, and `strace` is
+not installed) over 170 s of the same route showed the extra samples of `on`: `GuestMemory::resolve`/`load32`/`store32`
++5,400 (the decompiled code calls `rt.memory().load32/store32`, ~6,000 call sites, and those resolved every byte on its own;
+a store also read the old value for the write watch), the decomp trampoline's `unordered_map::find` +1,100, `call_guest` +
+`dispatch_function_at` +1,250. The fibers' `getcontext`/`swapcontext` (two `rt_sigprocmask` syscalls each) were only ~200:
+1.45 M fiber runs in 120 s, ~200 a frame, ~1.4 µs each.
+**Fix.** Patch 0060 gives `GuestMemory::load8..32`/`store8..32` the same inline main-RAM fast path as the generated code's
+`aot_*` (everything else, write watch included, goes to the unchanged `*_checked` bodies); the trampoline indexes entries in a
+dense table. Desktop A/B, same load, real time: vblank sleep `off` 21.8 %, `on` before 11.4 %, after 16.9 %; the sampled
+memory accessor cost fell from ~5,600 to ~60 samples and the trampoline's from 1,141 to 202.
+**Left:** `call_guest` copies the whole `AllegrexContext` (VFPU included) per call; measure before changing it.
+
+Found: 2026-11-05 · tools/patches/lcs-recomp/0060-memory-load-store-inline-fast-path.patch, host/diff_harness.cpp
 
 ### func_0899CB44 mismatched in three routes of one loaded verdict and never again
 

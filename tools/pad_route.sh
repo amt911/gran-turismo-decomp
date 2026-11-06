@@ -17,6 +17,6 @@ export GT_PAD GT_PAD_LOG=1
 export GT_FRAME_DUMP="${GT_FRAME_DUMP-$outdir/frames}"
 [ -n "$GT_FRAME_DUMP" ] || unset GT_FRAME_DUMP  # GT_FRAME_DUMP= (empty) runs without frame dumps
 set +e
-systemd-run --user --scope --quiet --slice=gt-heavy.slice -- \
+systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
   timeout "$((seconds + 60))" build/gt_native --max-seconds "$seconds" "$@" > "$outdir/run.log" 2>&1
 echo "$?" > "$outdir/run.exit"
