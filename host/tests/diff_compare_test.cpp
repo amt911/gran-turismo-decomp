@@ -150,6 +150,17 @@ int main() {
         check(both({4u * kPage + 70u}, 0x08000000u + 4u * kPage, 0x08000000u + 4u * kPage + 64u),
               "page-wise: bytes after the ignored range count");
     }
+    {  // the detail line: entry sp, the first bytes, the ignored range skipped, the limit honoured
+        constexpr std::size_t kPage = 4096u;
+        std::vector<std::uint8_t> a(kPage, 0u), b(kPage, 0u);
+        b[1] = 0x11u;
+        b[2] = 0x22u;
+        b[3] = 0x33u;
+        b[100] = 0x44u;
+        const gt::PageImages page{0x09C7A000u, a.data(), b.data()};
+        const auto detail = gt::page_difference_detail(std::span(&page, 1), kPage, 0x09C7A000u + 2u, 0x09C7A000u + 3u, 2u);
+        check(detail == " [entry sp 0x09C7A003; 09C7A001:00>11 09C7A003:00>33]", "detail: sp, ignored byte skipped, limit 2");
+    }
     if (failures == 0) std::puts("diff_compare_test: all passed");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
