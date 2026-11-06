@@ -446,3 +446,32 @@ a0 = car) has **hits 0 with `--decomp off`** (in-unit call) and **44 287 with `-
 `0x08952B68` 0 / 11 071. With `--decomp on` the probes on `0x0894DD9C` / `0x08948B78` show 0 hits because the decompiled
 versions replace the probed trampolines, so a probe cannot measure those in `on` mode (mods installed after the decomp
 registrations do wrap them).
+
+## Camera and the world-matrix upload (verified 2026-11-05..07, orbit-camera mod)
+
+Runtime addresses (ELF vaddr + `0x08804000`). Evidence: camera spikes 1-2, then the `orbit-camera` mod and `tools/mod_camera_check.sh`
+(`chase` route, frames compared with a run without the mod).
+
+- **The GE never receives a view matrix** (VIEW uploads are identity). The game folds view x model on the CPU and uploads the product per
+  object as the WORLD matrix (GE cmd `0x3A`, 4 rows x 3 floats), with a perspective projection (`m[11] = -1`) for 3D and an orthographic
+  one (`m[11] = 0`) for the HUD. A world matrix of the race carries the model scale (a basis row of length ~100 on the car, not 1).
+- `0x08B59508(this)` (GU class method, `this = 0x08D6CE00`, vtable slot `0x08CE0DD8`) is the lazy matrix flush: with `block = this+0x2E0`,
+  bit 0 of `read16(block+0xD18)` -> `0x08B59210(this, 0x3A, word(block+0xD00))` (world), bit 1 -> `0x08B59194(this, 0x3E, word(block+0xD04))`
+  (projection), bit 2 -> `0x08B59210(this, 0x40, word(block+0xD08))`. ~85 world uploads per physics step in a race.
+- **Hook `0x08B59210`, not `0x08B59508`.** The recompiled `0x08B59508` reaches `0x08B59210` by `ctx.pc = 0x08B59210; return;` (generated
+  unit 0106, label L_08B5954C), so the runtime runs it **after** a hook on `0x08B59508` returned: an edit-call-restore hook there restores
+  the matrix before it is read. Measured: 695 k edits of the world matrix in a race (even all zeros) left every dumped frame byte-identical
+  to the run without the mod, and the GE-list cursor `this+0x5C` did not move during `call_original`. `0x08B59210(this, cmd, ptr)` is a
+  leaf that reads `ptr` (12 floats) and writes 13 words into the list, so edit-call-restore is complete there; with it the frames orbit
+  (`--decomp off`; `on` below).
+- **Scene object** `S = 0x09413E00` (this run): the argument a0 of `0x08928A80` (scene refresh, once per physics step; the only a0 seen in a
+  race). `word(S+0x1FA4)` is the active camera (S itself in the chase view); its camera-to-world matrix is at `+0x10` (16 floats, row vectors,
+  row 3 = eye). The static word `0x08D11F74` held S in a RAM dump (menus) but reads **0 during the race**, so there is no static chain: the
+  mod takes S from the refresh's argument at run time.
+- Player car position: `word(car+8)+0x10` (x, y, z; Y-up form `(x, z, -y)`), car from the player predicate (docs above: vtable `0x08CC1F60`,
+  `+0xA8 == 0`, `+0x6C != 0`). In view space `p[r] = dot(row_r, carpos - eye)`: the car is at about `(0, -0.2, -4.5)` in the chase view.
+- **SELECT cycles the camera view** (`chase` route: `race` + three SELECT presses at +2000/+3000/+4000 vblanks after the last page): the third
+  press lands on the chase view (car seen from behind, low in the picture, ~(240, 200) of 480x272); the others are bumper/cockpit/hood views.
+  `script done at vblank 17821` (~frame 8620 of the dumps, `GT_FRAME_EVERY=30`); chase frames are those from ~vblank 17970 on.
+- Orbit sign: `M' = M * T(-p) * R_y(yaw) * T(p)` with `R_y = {c,0,s; 0,1,0; -s,0,c}` (row vectors): **+90 puts the camera on the car's right
+  side** (the car is seen from its right, front pointing to the right of the picture), 180 from the front.
