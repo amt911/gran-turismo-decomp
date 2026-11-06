@@ -65,6 +65,28 @@ def ddmin(items: Sequence[int], diverges: Callable[[Sequence[int]], bool]) -> li
     return current
 
 
+def narrow_window(items: Sequence[int], diverges: Callable[[Sequence[int]], bool]) -> tuple[int, int]:
+    """The shortest window items[lo:hi] that still diverges, by two binary searches (shortest prefix, then shortest
+    suffix of it). For a symptom that needs many members at once, where ddmin degenerates to one run per member
+    (every fifth is needed, every quarter...). Precondition: diverges(items); assumes adding members never cures it."""
+    lo, hi = 1, len(items)  # shortest prefix items[:hi]
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if diverges(items[:mid]):
+            hi = mid
+        else:
+            lo = mid + 1
+    end = hi
+    lo, hi = 0, end - 1  # largest start with items[start:end] diverging
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if diverges(items[mid:end]):
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo, end
+
+
 def ppm_mean(data: bytes) -> float:
     """Mean brightness (0..1) of a binary PPM (P6) image; 0.0 means completely black."""
     match = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", data)
@@ -217,6 +239,9 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser.add_argument("--after-script", type=int, default=600)
     parser.add_argument("--box", type=parse_box, default=None, help="x,y,w,h of the --frame-diff region (default: whole frame)")
     parser.add_argument("--tolerance", type=float, default=0.02, help="--frame-diff: mean abs difference that counts as differing")
+    parser.add_argument("--narrow", action="store_true",
+                        help="find the shortest diverging window (prefix, then suffix) instead of ddmin")
+    parser.add_argument("--start-set", type=Path, default=None, help="file of hex addresses to start from (one per line)")
     parser.add_argument("--workdir", type=Path, default=Path("recomp/analysis/bisect"))
     args = parser.parse_args(argv)
     if args.pad.startswith("@"):  # @file: a route file (comment lines ignored)
@@ -254,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     def diverges(subset: Sequence[int]) -> bool:
         nonlocal runs
         runs += 1
-        if len(subset) == len(functions):
+        if len(subset) == registered_count:
             # The whole set is the default (GT_DECOMP_ONLY unset): ~16k addresses would exceed Linux's 128 KiB cap
             # on one environment string (MAX_ARG_STRLEN) and the run would not even start.
             subset = None  # type: ignore[assignment]
@@ -285,6 +310,13 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
         print(f"run {runs}: {count} functions -> " + ("same" if at is None else f"differs at import {at}"), flush=True)
         return at is not None
 
+    registered_count = len(functions)  # that many = every function: GT_DECOMP_ONLY stays unset
+    if args.start_set is not None:
+        functions = [int(t, 16) for t in args.start_set.read_text().split()]
+    if args.narrow:
+        lo, hi = narrow_window(functions, diverges)
+        print(f"window [{lo}, {hi}) of {len(functions)}: " + ",".join(f"0x{a:08X}" for a in functions[lo:hi]))
+        return 0
     if not diverges(functions):
         print("the full set does not diverge within the window: nothing to bisect")
         return 0

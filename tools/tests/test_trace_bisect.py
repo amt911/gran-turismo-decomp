@@ -120,3 +120,22 @@ def test_decomp_only_value_refuses_a_list_past_the_kernel_cap():
     bisect.decomp_only_value(list(range(13000)))  # 3/4 of today's set fits
     with pytest.raises(ValueError):
         bisect.decomp_only_value(list(range(15000)))
+
+
+def test_narrow_window_finds_the_span_of_a_cumulative_symptom():
+    items = list(range(100))
+    # diverges when the set holds both 30 and 70 (and everything else is irrelevant)
+    calls = []
+
+    def diverges(subset):
+        calls.append(len(subset))
+        return 30 in subset and 70 in subset
+
+    lo, hi = bisect.narrow_window(items, diverges)
+    assert items[lo:hi] == list(range(30, 71))
+    assert len(calls) <= 16  # two binary searches
+
+
+def test_narrow_window_of_a_single_culprit_is_that_item():
+    lo, hi = bisect.narrow_window(list(range(64)), lambda s: 41 in s)
+    assert (lo, hi) == (41, 42)
