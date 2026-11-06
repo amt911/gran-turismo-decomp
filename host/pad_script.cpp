@@ -8,7 +8,8 @@
 // (`WAIT:seek=<offset>`, from the kernel's sceIoLseek; GT_IO_LOG=1 lists them with the vblank); a wait that is not
 // satisfied within its timeout ends the run with exit code 97 and a message, never a silent miss.
 //
-// GT_PAD_LOG=1 prints each satisfied wait and the end of the script on stderr.
+// GT_PAD_LOG=1 prints each satisfied wait and the end of the script on stderr; GT_PAD_TRACE=1 also prints the waits
+// against the pad reads and the guest's time every 200 waits, and each change of the buttons the game reads.
 // GT_RAM_DUMP="<dir>:<vblank>[,<vblank>...]" writes the guest RAM (0x08800000..0x0A000000) at those vblanks, a
 // debugging aid to find the words that identify a screen (game data: keep the directory out of git).
 #include "pad_script.hpp"
@@ -33,6 +34,7 @@ namespace {
 std::atomic<std::uint64_t> g_vblanks{0u};
 std::atomic<std::uint32_t> g_buttons{0u};
 std::atomic<std::uint64_t> g_pad_reads{0u};
+std::atomic<std::uint64_t> g_virtual_us{0u};
 std::atomic<std::uint64_t> g_done_at{0u};  // the vblank the script finished at (0: not yet)
 
 struct Script {
@@ -146,6 +148,11 @@ void pad_script_tick(psprecomp::Runtime &runtime) {
     g_buttons.store(latch.update(s.sequencer.buttons(), g_pad_reads.load(std::memory_order_relaxed)),
                     std::memory_order_relaxed);
     static const bool log = std::getenv("GT_PAD_LOG") != nullptr;
+    static const bool trace = std::getenv("GT_PAD_TRACE") != nullptr;
+    if (trace && now % 200u == 0u)
+        std::fprintf(stderr, "[pad-clock] waits %llu pad_reads %llu virtual_us %llu\n", static_cast<unsigned long long>(now),
+                     static_cast<unsigned long long>(g_pad_reads.load(std::memory_order_relaxed)),
+                     static_cast<unsigned long long>(g_virtual_us.load(std::memory_order_relaxed)));
     if (state == PadSequencer::State::TimedOut) {
         std::fprintf(stderr, "[pad] %s\n", s.sequencer.message().c_str());
         kernel_thread_report();
@@ -178,9 +185,17 @@ std::uint64_t pad_script_done_vblank() { return g_done_at.load(std::memory_order
 
 std::uint64_t pad_script_vblanks() { return g_vblanks.load(std::memory_order_relaxed); }
 
+void pad_script_note_virtual_time(std::uint64_t microseconds) { g_virtual_us.store(microseconds, std::memory_order_relaxed); }
+
 std::uint32_t scripted_buttons() {  // one pad read by the game (PressLatch counts them)
-    g_pad_reads.fetch_add(1u, std::memory_order_relaxed);
-    return g_buttons.load(std::memory_order_relaxed);
+    const std::uint64_t reads = g_pad_reads.fetch_add(1u, std::memory_order_relaxed) + 1u;
+    const std::uint32_t buttons = g_buttons.load(std::memory_order_relaxed);
+    static const bool trace = std::getenv("GT_PAD_TRACE") != nullptr;
+    static std::atomic<std::uint32_t> last{0u};
+    if (trace && last.exchange(buttons, std::memory_order_relaxed) != buttons)  // the game saw the buttons change
+        std::fprintf(stderr, "[pad-read] read %llu at wait %llu buttons 0x%04x\n", static_cast<unsigned long long>(reads),
+                     static_cast<unsigned long long>(g_vblanks.load(std::memory_order_relaxed)), buttons);
+    return buttons;
 }
 
 } // namespace gt

@@ -37,12 +37,27 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
     for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
         if (it->is_directory(ec)) entries.push_back(it->path());
     std::sort(entries.begin(), entries.end());
+    // Enabled mods load first, so a disabled mod never takes an address an enabled one hooks: its conflict is its own
+    // (reported as an error row, not fatal - turning a conflicting mod off resolves the conflict).
+    const auto enabled_in = [](const std::filesystem::path &mod_dir) {
+        std::ifstream in(mod_dir / "mod.toml");
+        std::stringstream text;
+        text << in.rdbuf();
+        std::string ignored;
+        const auto manifest = parse_manifest(text.str(), ignored);
+        return !manifest || manifest->enabled;  // broken manifests keep their place among the enabled (reported there)
+    };
+    std::stable_partition(entries.begin(), entries.end(), enabled_in);
 
     bind_runtime(rt);
     std::map<std::string, std::string> id_dirs;  // manifest id -> first directory that used it
     for (const auto &mod_dir : entries) {
         const std::string name = mod_dir.filename().string();
-        const auto skip = [&](const std::string &why) { report.skipped.push_back(name + ": " + why); };
+        std::string entry_name = name;
+        const auto skip = [&](const std::string &why) {
+            report.skipped.push_back(name + ": " + why);
+            report.entries.push_back(ModEntry{entry_name, ModState::Error, why, mod_dir / "mod.toml", nullptr});
+        };
 
         std::ifstream in(mod_dir / "mod.toml");
         if (!in) {
@@ -57,16 +72,13 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
             skip("bad mod.toml: " + error);
             continue;
         }
+        entry_name = !manifest->name.empty() ? manifest->name : manifest->id;
         if (const auto first = id_dirs.emplace(manifest->id, name); !first.second) {
             skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
         if (manifest->api != GT_MOD_API_VERSION) {
             skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + ")");
-            continue;
-        }
-        if (!manifest->enabled) {
-            skip("disabled");
             continue;
         }
         const std::filesystem::path library = mod_dir / manifest->library;
@@ -86,10 +98,15 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
         auto mod = std::make_unique<GtMod>();
         mod->id = manifest->id;
         mod->settings = manifest->settings;
+        mod->manifest = mod_dir / "mod.toml";
         GtMod *self = mod.get();
         live_mods().push_back(std::move(mod));
         const int status = init(&mod_api(), self);
-        if (std::string conflict = take_hook_conflict(); !conflict.empty()) {
+        if (std::string conflict = take_hook_conflict(); !conflict.empty() && !manifest->enabled) {
+            remove_hooks_for(rt, self);  // a disabled mod's conflict is reported on its row, the game still starts
+            skip("hook conflict: " + conflict);
+            continue;
+        } else if (!conflict.empty()) {
             // Deliberately no rollback: the caller treats `fatal` as a startup failure (main returns 3), the process exits
             // right away, so the hooks and mods loaded so far are never run.
             fatal = conflict;
@@ -100,7 +117,14 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
             skip("gt_mod_init returned " + std::to_string(status));
             continue;
         }
-        report.loaded.push_back(manifest->id);
+        if (manifest->enabled) {
+            report.loaded.push_back(manifest->id);
+            report.entries.push_back(ModEntry{entry_name, ModState::Active, "", self->manifest, self});
+        } else {
+            set_active(self, false);
+            report.skipped.push_back(name + ": disabled");
+            report.entries.push_back(ModEntry{entry_name, ModState::Inactive, "disabled", self->manifest, self});
+        }
     }
     return report;
 }

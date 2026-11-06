@@ -49,6 +49,25 @@ void hook_call_then_7(GtModCtx *c) {
 }
 void hook_no_original(GtModCtx *c) { gt::mods::mod_api().set_gpr(c, 2, 99); }
 void hook_noop(GtModCtx *) {}
+int g_hook_calls = 0;
+std::uint32_t g_pc_seen_by_original = 0;
+GtMod *g_self = nullptr;
+void recording_original(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    g_pc_seen_by_original = ctx.pc;
+    ctx.gpr[2] = ctx.gpr[4] + 1u;
+    ctx.pc = ctx.gpr[31];
+}
+void hook_counts(GtModCtx *c) {
+    ++g_hook_calls;
+    gt::mods::mod_api().call_original(c);
+    gt::mods::mod_api().set_gpr(c, 2, 7);
+}
+void hook_turns_itself_off(GtModCtx *c) {
+    ++g_hook_calls;
+    gt::mods::set_active(g_self, false);
+    gt::mods::mod_api().call_original(c);
+    gt::mods::mod_api().set_gpr(c, 2, 7);
+}
 } // namespace
 
 int main() {
@@ -124,6 +143,35 @@ int main() {
         check(api.hook(&b, kAddr, hook_noop) != 0, "api.hook refuses a second hook");
         check(std::string(api.config(&a, "k")) == "v" && api.config(&a, "x") == nullptr, "api.config");
         check(api.version == GT_MOD_API_VERSION, "api version");
+    }
+    {
+        clear_hooks_for_tests();
+        psprecomp::Runtime rt;
+        rt.register_function(kAddr, &recording_original, "orig");
+        GtMod m{"gate", {}};
+        install_hook(rt, kAddr, hook_counts, {"gate", &m}, err);
+        set_active(&m, false);
+        { psprecomp::AllegrexContext c; c.gpr[4] = 5; call(rt, c);
+          check(g_hook_calls == 0, "inactive_mod_runs_original: hook fn not called");
+          check(c.gpr[2] == 6u, "inactive_mod_runs_original: original result");
+          check(g_pc_seen_by_original == kAddr, "inactive_mod_runs_original: ctx.pc == address inside original");
+          check(c.pc == kReturn && c.gpr[0] == 0u, "inactive_mod_runs_original: pc = ra"); }
+        set_active(&m, true);
+        { psprecomp::AllegrexContext c; c.gpr[4] = 5; call(rt, c);
+          check(g_hook_calls == 1 && c.gpr[2] == 7u, "inactive_mod_runs_original: active again runs the hook"); }
+    }
+    {
+        clear_hooks_for_tests();
+        psprecomp::Runtime rt;
+        rt.register_function(kAddr, &recording_original, "orig");
+        GtMod m{"once", {}};
+        g_self = &m;
+        g_hook_calls = 0;
+        install_hook(rt, kAddr, hook_turns_itself_off, {"once", &m}, err);
+        { psprecomp::AllegrexContext c; c.gpr[4] = 5; call(rt, c);
+          check(g_hook_calls == 1 && c.gpr[2] == 7u && c.pc == kReturn, "active_read_once_per_call: toggled call completes modded"); }
+        { psprecomp::AllegrexContext c; c.gpr[4] = 5; call(rt, c);
+          check(g_hook_calls == 1 && c.gpr[2] == 6u, "active_read_once_per_call: next call is unmodded"); }
     }
     std::fprintf(stderr, failures ? "%d failure(s)\n" : "all passed\n", failures);
     return failures ? 1 : 0;

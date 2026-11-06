@@ -2031,6 +2031,16 @@ bool g_host_late = false;
 std::int64_t g_vblank_lag_us = 0;
 bool g_vblank_lag_valid = false;
 
+// A scripted run (GT_PAD: a gate route) never fast-forwards guest time over vblanks the host was too slow for, unless
+// GT_PAD_SKIP_VBLANKS is set. Guest time = vblanks waited, as when uncapped, so the script's times, the game's timers
+// and its input handling stay in step however loaded the machine is (skipping let the timers outrun the waits: the
+// presses of a route came at the wrong game state, docs/FINDINGS.md 2026-11-05). It still sleeps when the host is
+// ahead, so a free machine keeps real-time pace.
+bool scripted_run_keeps_logical_time() {
+    static const bool keep = std::getenv("GT_PAD") != nullptr && std::getenv("GT_PAD_SKIP_VBLANKS") == nullptr;
+    return keep;
+}
+
 // Keeps guest time in step with the wall clock (gt::VblankPacer). Several threads wait on the same vblank (GT has two),
 // so pacing each call by one period instead ran the game at half speed (docs/FINDINGS.md). Returns the vblanks to skip
 // when the host has fallen behind, re-anchoring after a long stall.
@@ -2065,7 +2075,7 @@ std::uint32_t throttle_vblank_to_real_time() {
         perf_vblank_lag.max_ms = std::max(perf_vblank_lag.max_ms, ms);
     }
     if (wait.sleep_until) precise_sleep_until(*wait.sleep_until);
-    return wait.skipped_vblanks;
+    return scripted_run_keeps_logical_time() ? 0u : wait.skipped_vblanks;
 }
 
 struct GeWorker {
@@ -4545,6 +4555,7 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
             perf_log.pump_ms += pump;
             perf_log.pump_max_ms = std::max(perf_log.pump_max_ms, pump);
         }
+        gt::pad_script_note_virtual_time(virtual_time_us);
         gt::pad_script_tick(rt);
         if (display_window_closed()) {
             ge_worker_wait_idle();
