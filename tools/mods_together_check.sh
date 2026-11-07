@@ -26,7 +26,8 @@ while [ $# -gt 0 ]; do
 done
 [ -x "$build/gt_play" ] || { echo "mods_together_check: no $build/gt_play" >&2; exit 2; }
 [ -f config/pad_routes/chase.pad ] || { echo "mods_together_check: no pad route chase" >&2; exit 2; }
-if [ -z "${MOD_CHECK_NO_LOCK:-}" ]; then
+# Build and install every mod (outside the lock: builds never take it), then re-run under the lock unless the caller holds it.
+if [ -z "${MODS_TOGETHER_PREPARED:-}" ]; then
   rm -rf "$out/mods" && mkdir -p "$out/mods" || exit 2
   ids=() n=0
   for r in $repos; do
@@ -47,7 +48,9 @@ if [ -z "${MOD_CHECK_NO_LOCK:-}" ]; then
   done
   [ ${#ids[@]} -ge 2 ] || { echo "mods_together_check: fewer than two mods found in $repos" >&2; exit 2; }
   printf '%s\n' "${ids[@]}" > "$out/ids"
-  exec env MOD_CHECK_NO_LOCK=1 tools/cpu_lock.sh mods_together_check "$0" "${orig_args[@]}"
+  if [ -z "${MOD_CHECK_NO_LOCK:-}" ]; then
+    exec env MOD_CHECK_NO_LOCK=1 MODS_TOGETHER_PREPARED=1 tools/cpu_lock.sh mods_together_check "$0" "${orig_args[@]}"
+  fi
 fi
 mapfile -t ids < "$out/ids"
 pad=$(grep -v '^#' config/pad_routes/chase.pad)

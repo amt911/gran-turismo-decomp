@@ -16,8 +16,7 @@ def test_all_loaded_acted_and_done_passes():
 
 
 def test_hook_conflict_skip_fails():
-    log = GOOD.replace("orbit-camera skipped:", "skipped: [orbit-camera: hook conflict: x]").replace(
-        "loaded: analog-pedals draw-distance", "loaded: analog-pedals draw-distance")
+    log = GOOD.replace("orbit-camera skipped:", "skipped: [orbit-camera: hook conflict: x]")
     ok, problems = m.judge(log, IDS)
     assert not ok
     assert any("not loaded: orbit-camera" in p for p in problems)

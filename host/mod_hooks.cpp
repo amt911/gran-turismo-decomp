@@ -123,11 +123,13 @@ void api_log(GtMod *self, const char *message) {
 
 }  // namespace
 
+// Load time only (gt_mod_init on the loader thread): run_chain walks the links without a lock, so a hook installed while the
+// game runs could reallocate the vector under a running call.
 bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, HookOwner owner, std::string &error) {
     const auto existing = chains().find(address);
     if (existing != chains().end()) {
         for (const Link &link : existing->second.links)
-            if (link.owner.mod == owner.mod) {
+            if (owner.mod != nullptr && link.owner.mod == owner.mod) {
                 error = "mod '" + owner.mod_id + "' already hooks this address";
                 return false;
             }
