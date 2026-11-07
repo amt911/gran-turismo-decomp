@@ -4,7 +4,7 @@ Un **mod** es una biblioteca compartida (`.so`) más un `mod.toml`, cargada por 
 **funciones del juego por dirección** (la dirección de ejecución PSP = vaddr del ELF + `0x08804000`), lee y escribe la memoria
 del invitado y puede llamar a la función original. Solo `gt_play` carga mods; `gt_native`, la puerta diferencial, `--decomp diff` y
 los casos sintéticos nunca los cargan. Los mods del autor viven en el repo privado `gt-mods`
-(`analog-pedals`: gatillos/teclas analógicos; ver su README).
+(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; ver su README).
 
 ## Dónde y cómo se carga
 
@@ -88,3 +88,17 @@ tools/mod_pedals_check.sh --toggle-off [--decomp on]   # el menú apaga el mod a
 tools/mod_pedals_check.sh --disabled               # enabled = false al arrancar: mismo `script done at vblank` que --without-mod
 # sabotaje del menú: cmake -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON, recompilar gt_play, --toggle-off --sabotage-active debe FALLAR
 ```
+
+## Construir e instalar `orbit-camera`
+
+Mismo esquema (README de `gt-mods`; copiar `orbit-camera/` con `liborbit_camera.so`, `enabled = true`; también se activa desde el menú F9).
+Comprobación en juego, desde este repo (ruta `chase`: la carrera más tres pulsaciones de SELECT que cambian de vista; la última cae en la
+cámara trasera con el coche visible; un run sin mod y uno por ángulo `GT_MOD_CAMERA_FAKE`, frames a disco en `recomp/analysis/mod_camera_check`):
+
+```bash
+tools/mod_camera_check.sh [--decomp off|on] [--yaws "90 180"]   # yaw 0 (control de determinismo, siempre se ejecuta) idéntico al run sin mod; yaw != 0: 3D distinto, dígitos del HUD iguales, coche centrado
+tools/mod_camera_check.sh --sabotage                              # pivote en el ojo: debe FALLAR
+tools/mod_camera_check.sh --without-mod                           # sin mod: debe FALLAR (nada cambia)
+tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
+```
+
