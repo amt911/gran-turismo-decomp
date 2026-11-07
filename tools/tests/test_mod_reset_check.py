@@ -19,7 +19,7 @@ def good_log(**kw):
              for i in range(4)]
     lines.append(restore_line())
     for t in range(0, 661, 5):
-        lines.append(state(t, 1900 + t, spd=min(12.0, 0.01 + t * 0.05), pos=(-300.0 + t * 0.1, 250.0, 0.0), restores=1, ring=1, **kw))
+        lines.append(state(t, 1900 + t, spd=min(18.0, 0.01 + t * 0.05), pos=(-300.0 + t * 0.1, 250.0, 0.0), restores=1, ring=1, **kw))
     return "\n".join(lines)
 
 
@@ -31,6 +31,12 @@ def test_parse_states_and_restores():
     restores = mr.parse_restores(text)
     assert restores == [{"step": 1900, "pos": (-300.0, 250.0, 0.0), "yaw": pytest.approx(1.57)}]
     assert mr.parse_states("garbage") == [] and mr.parse_restores("garbage") == []
+
+
+def test_parse_states_with_the_new_fields():
+    line = state(5, 10).replace(" ring=", " vel=-35.00,0.00,0.10 fwdcos=0.99 ring=")
+    s = mr.parse_states(line)[0]
+    assert s["fwdcos"] == 0.99 and s["ring"] == 3
 
 
 def test_parse_states_accepts_nan():
@@ -69,7 +75,7 @@ def test_nothing_restored_when_the_car_did_not_move():
             l = l.replace("pos=-300.00,250.00,0.00", "pos=-441.00,250.00,2.00")
         lines.append(l)
     ok, message = mr.judge_restore("\n".join(lines))
-    assert not ok and "moved only" in message
+    assert not ok and "a rewind of" in message
 
 
 def test_not_from_rest_fails():
@@ -135,10 +141,57 @@ def test_a_car_that_never_drives_fails():
     assert not ok and "does not drive" in message
 
 
+def ring_lines(n, start=100, ring=5):
+    return "\n".join(state(-1, start + i, ring=ring, spd=20.0) for i in range(n))
+
+
 def test_no_restore_judge():
-    assert mr.judge_no_restore(good_log().replace("RESTORE", "x"))[0]
+    quiet = ring_lines(12)
+    ok, message = mr.judge_no_restore(quiet)
+    assert ok and "the mod ran" in message
     ok, message = mr.judge_no_restore(good_log())
     assert not ok and "1 RESTORE" in message
+
+
+def test_quiet_run_must_show_the_mod_ran():
+    ok, message = mr.judge_no_restore("")
+    assert not ok and "did not run" in message
+    assert not mr.judge_no_restore(ring_lines(12, ring=0))[0]   # state lines, but never a pose in the ring
+    assert not mr.judge_no_restore(ring_lines(9))[0]
+
+
+def test_toggle_run_needs_lines_before_and_none_after():
+    off = "[mods] reset-to-track -> OFF"
+    good = ring_lines(12) + "\n" + off + "\n[pad] script done"
+    assert mr.judge_no_restore(good, toggled=True)[0]
+    ok, message = mr.judge_no_restore(ring_lines(12), toggled=True)
+    assert not ok and "-> OFF" in message
+    ok, message = mr.judge_no_restore(ring_lines(12) + "\n" + off + "\n" + ring_lines(2, start=900), toggled=True)
+    assert not ok and "after the toggle" in message
+    ok, message = mr.judge_no_restore(ring_lines(3) + "\n" + off, toggled=True)
+    assert not ok and "did not run" in message  # toggled before the mod did anything
+
+
+def test_nan_is_an_error_not_a_dropped_line():
+    bad = ring_lines(12) + "\n" + state(-1, 500, up_z=float("nan"))
+    assert "nan" in bad
+    assert len(mr.parse_states(bad)) == 13  # parsed, not skipped
+    ok, message = mr.judge_no_restore(bad)
+    assert not ok and "nan/inf" in message
+    ok, message = mr.judge_restore(good_log() + "\n" + state(-1, 10, spd=float("inf")))
+    assert not ok and "nan/inf" in message
+
+
+def test_rewind_distance_follows_the_logged_speed():
+    # restored only 20 m back although the car was doing 35 m/s (a rewind of 0.57 s): fails; 60 m back (1.7 s) passes
+    def log(back):
+        lines = [state(-1, 1800 + i * 30, wheels=4 if i < 2 else 0, spd=35.0, pos=(-440.0 - i, 250.0, 2.0)).replace("t=-1", "t=-1") for i in range(4)]
+        lines.append(restore_line(step=1900))
+        for t in range(0, 661, 5):
+            lines.append(state(t, 1900 + t, spd=min(18.0, 0.01 + t * 0.05), pos=(-440.0 + back + t * 0.1, 250.0, 0.0), restores=1, ring=1))
+        return "\n".join(lines)
+    assert not mr.judge_restore(log(20.0))[0]
+    assert mr.judge_restore(log(60.0))[0]
 
 
 def frame(value):
@@ -172,14 +225,15 @@ def make_run(tmp_path, label, log, frames):
 def test_main_modes(tmp_path, capsys):
     same = {i: 7 for i in range(8)}
     make_run(tmp_path, "baseline", "", same)
+    make_run(tmp_path, "baseline_nosel", "", same)
     make_run(tmp_path, "reset", good_log(), {})
-    make_run(tmp_path, "quiet", "ok", same)
-    make_run(tmp_path, "toggle", "[mods] reset-to-track -> OFF\n", same)
+    make_run(tmp_path, "quiet", ring_lines(12), same)
+    make_run(tmp_path, "toggle", ring_lines(12) + "\n[mods] reset-to-track -> OFF\n", same)
     out = str(tmp_path)
     assert mr.main(["x", out, "restore"]) == 0
     assert mr.main(["x", out, "quiet"]) == 0
     assert mr.main(["x", out, "toggle"]) == 0
-    make_run(tmp_path, "toggle", "no toggle line\n", same)
+    make_run(tmp_path, "toggle", ring_lines(12) + "\nno toggle line\n", same)
     assert mr.main(["x", out, "toggle"]) == 1
     make_run(tmp_path, "quiet", good_log(), same)
     assert mr.main(["x", out, "quiet"]) == 1
@@ -187,3 +241,57 @@ def test_main_modes(tmp_path, capsys):
     assert mr.main(["x", out, "restore"]) == 1
     printed = capsys.readouterr().out
     assert "PASS reset" in printed and "FAIL reset" in printed
+
+
+def pad_lines(*events):
+    return "\n".join(f"[mod:reset-to-track] PADSEL {k} step={s}" + (f" tap={tap}" if tap is not None else "") for k, s, tap in events)
+
+
+def test_padsel_parsing_and_hidden_judge():
+    text = pad_lines(("down", 1851, None), ("up", 1890, 0))
+    assert mr.parse_padsel(text) == [("down", 1851, None), ("up", 1890, False)]
+    assert mr.judge_select_hidden(text)[0]
+    ok, message = mr.judge_select_hidden(pad_lines(("down", 1851, None), ("up", 1860, 1)))
+    assert not ok and "replayed" in message
+    assert not mr.judge_select_hidden("")[0]
+    assert not mr.judge_select_hidden(pad_lines(("down", 1, None), ("up", 40, 0), ("down", 50, None), ("up", 90, 0)))[0]
+
+
+def test_restore_judge_includes_the_select_check_when_pad_lines_exist():
+    assert mr.judge_restore(good_log() + "\n" + pad_lines(("down", 1851, None), ("up", 1890, 0)))[0]
+    ok, message = mr.judge_restore(good_log() + "\n" + pad_lines(("down", 1851, None), ("up", 1890, 1)))
+    assert not ok and "tap" in message
+
+
+def test_taps_judge():
+    taps = pad_lines(("down", 10, None), ("up", 16, 1), ("down", 30, None), ("up", 36, 1), ("down", 50, None), ("up", 56, 1))
+    assert mr.judge_taps(taps, 3)[0]
+    assert not mr.judge_taps(taps, 4)[0]
+    assert not mr.judge_taps(taps.replace("tap=1", "tap=0", 1), 3)[0]
+    ok, message = mr.judge_taps(taps + "\n" + restore_line(), 3)
+    assert not ok and "reset the car" in message
+
+
+def test_main_tap_mode(tmp_path, capsys):
+    frames = {i: 7 for i in range(30, 60)}
+    log = "\n".join(f"[frame-dump] frame {i:06d} vblank {1000 + i * 10}" for i in frames) + "\n[pad] script done at vblank 1000\n"
+    make_run(tmp_path, "baseline_chase", log, frames)
+    make_run(tmp_path, "tap", pad_lines(("down", 10, None), ("up", 16, 1), ("down", 30, None), ("up", 36, 1), ("down", 50, None), ("up", 56, 1)), frames)
+    assert mr.main(["x", str(tmp_path), "tap"]) == 0
+    make_run(tmp_path, "tap", pad_lines(("down", 10, None), ("up", 16, 1)), frames)
+    assert mr.main(["x", str(tmp_path), "tap"]) == 1
+    make_run(tmp_path, "tap", pad_lines(("down", 10, None), ("up", 16, 1), ("down", 30, None), ("up", 36, 1), ("down", 50, None), ("up", 56, 1)), {**frames, 59: 9})
+    assert mr.main(["x", str(tmp_path), "tap"]) == 0   # a small difference (a one-step timing shift) is the same view
+    make_run(tmp_path, "tap", pad_lines(("down", 10, None), ("up", 16, 1), ("down", 30, None), ("up", 36, 1), ("down", 50, None), ("up", 56, 1)), {**frames, 59: 200})
+    assert mr.main(["x", str(tmp_path), "tap"]) == 1   # another camera view
+    assert "PASS tap" in capsys.readouterr().out
+
+
+def test_judge_same_view(tmp_path):
+    base = write_frames(tmp_path, "b", {i: 100 for i in range(8)})
+    near = write_frames(tmp_path, "n", {i: 130 for i in range(8)})
+    far = write_frames(tmp_path, "f", {**{i: 100 for i in range(7)}, 7: 250})
+    assert mr.judge_same_view(base, near)[0]
+    ok, message = mr.judge_same_view(base, far)
+    assert not ok and "frame 7" in message and "another camera view" in message
+    assert "common frames" in mr.judge_same_view(base, {0: near[0]})[1]

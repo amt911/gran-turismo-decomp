@@ -117,15 +117,32 @@ tools/mod_drawdist_check.sh --toggle-off          # el menú apaga el mod a mita
 ## Construir e instalar `reset-to-track`
 
 Mismo esquema (README de `gt-mods`; copiar `reset-to-track/` con `libreset_to_track.so`, `enabled = true`; también desde el menú F9). Botón: Select
-del mando mantenido 0,5 s (o la tecla `reset_keys`, por defecto R); el coche vuelve a la pose buena más reciente con al menos 2,5 s de antigüedad
-(las cuatro ruedas en asfalto, derecho, en movimiento) y arranca desde parado. Como Select también cambia la vista de cámara del juego, cada reset
-cambia la vista una vez. Comprobación en juego (ruta `reset`: el coche se sale al final de la recta y choca; el botón lo da `GT_MOD_RESET_FAKE=<paso>`,
-sin mando; log del mod en `recomp/analysis/mod_reset_check`):
+del mando mantenido 0,5 s (`hold_ms`) o la tecla `reset_keys` (R). El coche vuelve a la pose buena más reciente con al menos `rewind_ms` (2,5 s) de
+antigüedad y arranca desde parado. «Buena» = las cuatro ruedas en asfalto, derecho (up.z > 0.9), más de 5 m/s, giro de guiñada <= 0,6 rad/s y
+velocidad alineada con el morro (cos > 0,9: ni de lado ni marcha atrás). El anillo (una pose cada 15 pasos, 24 poses) se vacía si el coche salta
+más de 15 m en un paso (aparición, nuevo intento, F9 apagado/encendido), si pasan más de 2 s sin pasos, o al cambiar de coche; nunca se restaura una pose de
+más de 8 s.
+
+**Select y la cámara.** El juego usa Select para cambiar de vista. El mod engancha la lectura del mando (`0x08C7ABF0`, el stub de importación de
+sceCtrlReadBufferPositive, despachado en `--decomp off` y `on`, FACTS): en carrera oculta Select al juego mientras está pulsado; si se suelta antes de
+0,5 s, se lo devuelve como un toque de 3 lecturas (la vista cambia igual que sin el mod); si se suelta después, se dispara el reset y la vista NO cambia.
+Fuera de carrera (menús, pausa) Select pasa sin tocar. La tecla R no toca el mando.
+
+**Límites conocidos.** (1) Marcha, rpm y la posición previa del coche no se restauran (no se localizaron); el cambio automático relanza bien desde parado
+(la comprobación exige > 15 m/s con el acelerador pisado después del reset). (2) Vueltas y tiempo: el cronómetro y el contador de vueltas siguen su curso
+(no se rebobinan; medido con un reset a mitad de vuelta: HUD 0'24.000 -> 0'27.000 en 3 s de juego, vuelta 1/2 sin cambio); un reset que cruce la línea de meta no se pudo probar (ninguna ruta completa una vuelta) y podría contar la vuelta dos veces: no hay bloqueo.
+(3) Fantasma y repetición: en Time Trial el fantasma se graba con el coche real, así que un reset deja un salto en el fantasma/la repetición del jugador;
+no se ha comprobado cómo reacciona. (4) Sin geometría de pista: se restaura donde el coche estuvo, no el punto más cercano al asfalto.
+
+Comprobación en juego (ruta `reset`: el coche se sale al final de la recta y choca; un SELECT real de la ruta dispara el reset; log del mod en
+`recomp/analysis/mod_reset_check`; cada ejecución toma su propio turno del bloqueo de CPU):
 
 ```bash
-GT_MODS_REPO=../gt-mods-reset tools/mod_reset_check.sh [--decomp off|on]   # sin pulsar: fotogramas idénticos al run sin mod; con botón: 4 ruedas en asfalto, up.z > 0.9, desde parado, sin deriva, conduce 600 pasos
-tools/mod_reset_check.sh --sabotage-rates    # no pone a cero las velocidades angulares: debe FALLAR
-tools/mod_reset_check.sh --sabotage-newest   # restaura la pose más reciente (fuera de pista): debe FALLAR
-tools/mod_reset_check.sh --without-mod       # sin mod: debe FALLAR (nada se restaura)
-tools/mod_reset_check.sh --toggle-off        # el menú apaga el mod antes del botón: ni un reset, fotogramas idénticos
+GT_MODS_REPO=../gt-mods-reset tools/mod_reset_check.sh [--decomp off|on]   # sin pulsar: fotogramas idénticos y el mod funcionó; con SELECT: 4 ruedas en asfalto, up.z > 0.9, desde parado, calmado, mismo rumbo, >= 15 m/s con acelerador, >= 1,5 s de recorrido atrás, Select oculto sin toque
+tools/mod_reset_check.sh --tap                # las 3 pulsaciones cortas de la ruta chase: toques repetidos, misma vista de cámara que sin el mod
+tools/mod_reset_check.sh --toggle-off         # el menú apaga el mod antes del botón: ni un reset, el mod funcionó antes y calló después, fotogramas idénticos
+tools/mod_reset_check.sh --sabotage-rates     # no pone a cero las velocidades angulares: debe FALLAR
+tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (fuera de pista): debe FALLAR
+tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR
+tools/mod_reset_check.sh --without-mod        # sin mod: debe FALLAR (nada se restaura)
 ```

@@ -59,6 +59,9 @@ Approved. Button: pad Select held 0.5 s (keyboard R); restart **from rest**; all
   ring keeps 24 poses = 6 s), `reset_keys` (`R`). Button: first SDL controller's Select (BACK) or the key. A reset keeps the restored pose as the
   ring's only entry, so a second press (after the cooldown) goes back to the same place.
 - Durations are in physics steps (60/s, `1000/60` ms each), not vblanks: the game runs ~0.48 steps per vblank (FACTS).
-- Side effect, not avoidable from the mod: Select is also the game's camera-view button, so each pad reset cycles the view once.
-- In-game check: `tools/mod_reset_check.sh` (route `reset`, button = `GT_MOD_RESET_FAKE=<step>`, since the mod reads SDL, not the guest pad).
+- Select is also the game's camera-view button. A guest function reads the pad buffer and is hookable (`0x08C7ABF0`, FACTS), so the mod hides a held Select
+  while racing: a press shorter than `hold_ms` is replayed as a tap on release (the camera still cycles), a longer one resets and the view does not change.
+- Review round: poses also need a low yaw rate and velocity along the heading; the ring is emptied on a position jump, a long gap and a new car, and poses
+  older than 8 s are never restored; gear/rpm are not restored (not located), laps/timer are not rewound (documented in docs/MODS.md and the README).
+- In-game check: `tools/mod_reset_check.sh` (route `reset`, the route's real SELECT hold is the button).
   Passes in `--decomp off` and `on`; sabotages (rates not zeroed, newest pose) and no-mod fail; the F9 toggle gives no reset.

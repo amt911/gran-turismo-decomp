@@ -26,6 +26,9 @@ ACTED: dict[str, re.Pattern[str]] = {
     "orbit-camera": re.compile(r"^\[mod:orbit-camera\] step=\d+ yaw=90\.00 .* edits=[1-9]\d*", re.M),
     # GT_MOD_DRAWDIST_LOG=1: the world pass was matched
     "draw-distance": re.compile(r"^\[mod:draw-distance\] world depth call from ra=", re.M),
+    # GT_MOD_RESET_LOG=1: the chase route's short SELECT presses were hidden from the game and replayed as taps (no car is
+    # moving fast enough on that route for a reset, so the pad hook is what acts)
+    "reset-to-track": re.compile(r"^\[mod:reset-to-track\] PADSEL up step=\d+ tap=1", re.M),
 }
 
 

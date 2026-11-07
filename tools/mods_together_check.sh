@@ -57,7 +57,7 @@ pad=$(grep -v '^#' config/pad_routes/chase.pad)
 run="$out/run_$decomp"
 rm -rf "$run" && mkdir -p "$run/savedata" || exit 2
 env GT_MODS_DIR="$repo/$out/mods" GT_SAVEDATA_DIR="$repo/$run/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
-    GT_MOD_PEDALS_FAKE=0.5,0.3 GT_MOD_PEDALS_LOG=1 GT_MOD_CAMERA_FAKE=90 GT_MOD_CAMERA_LOG=1 GT_MOD_DRAWDIST_LOG=1 \
+    GT_MOD_PEDALS_FAKE=0.5,0.3 GT_MOD_PEDALS_LOG=1 GT_MOD_CAMERA_FAKE=90 GT_MOD_CAMERA_LOG=1 GT_MOD_DRAWDIST_LOG=1 GT_MOD_RESET_LOG=1 \
     GT_PAD="$pad" GT_PAD_LOG=1 \
   systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
   timeout $((seconds + 120)) "$build/gt_play" --max-seconds "$seconds" --decomp "$decomp" > "$run/run.log" 2>&1

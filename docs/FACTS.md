@@ -512,3 +512,18 @@ and `tools/mod_reset_check.sh`. Spec: `docs/superpowers/specs/2026-11-07-reset-t
 - **Restoring a pose works from the step hook**: writing position, the three Euler angles, the three basis rows and zeroing velocity, speed and all rates
   puts the car back and it drives on normally (~10-step settle transient, rates up to ~0.6 for a few steps); without zeroing the rates the car keeps its
   spin. No racing line, checkpoint list or "recover car" routine was found (only license-test failure and pit logic).
+
+### Reset-to-track: forward direction, the pad read, drivetrain (verified 2026-11-07)
+
+- **Forward direction of the car body** (Z-up frame): `(-sin yaw, cos yaw)` with `yaw = K+0x704`. Evidence: the `race` run's crash, yaw 1.842 / vel
+  (-15.94, -8.09) (cos 0.98) and yaw 2.208 / vel (-10.88, -9.07) (cos 0.998); on the straight yaw 1.571, vel (-35, 0) (cos 1.00, logged as
+  `fwdcos`). The mod keeps a pose only if the horizontal velocity has cos > 0.9 with it and `|K+0x6F8| <= 0.6 rad/s` (not spinning, not backwards).
+- **The pad read is a dispatched, hookable function: `0x08C7ABF0`**, the import stub `sceCtrl::0x1F803938` (sceCtrlReadBufferPositive):
+  `a0` = buffer, `a1` = sample count (1 in GT), `v0` = samples read (but a read the host delays to the next vblank has already filled the buffer and the hook sees another `v0`: use `a1`); sample (16 B) word `+4` = buttons (PSP bits: Select `0x1`, Start `0x8`,
+  Cross `0x4000`, Square `0x8000`). `GT_PROBE=0x08C7ABF0` hits 13799 (`--decomp off`) and 13763 (`on`) on the `race` route in 230 s (the
+  stub is called from `0x08B33414`). A hook that clears a bit after `call_original` hides that button from the game (host buttons and `GT_PAD` presses
+  alike, they are merged before the buffer is written). Player-car steps run at ~0.48 per vblank while the pad is read once per vblank per thread.
+- **Drivetrain after a restore (gap, not identified):** the mod restores position, basis rows, Euler angles and zeroes velocity, speed and the
+  rates; the gear, engine rpm and the previous-position fields were not located (no Ghidra pass). Observation: from rest the automatic gearbox
+  re-launches normally (the throttle held after a reset reaches > 15 m/s in ~330 steps, the same as a start from the grid), so the gap does not
+  show; the check requires that speed (a bogged-down gear would fail it).
