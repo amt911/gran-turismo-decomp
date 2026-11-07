@@ -30,18 +30,17 @@ struct HookOwner {
     GtMod *mod = nullptr;
 };
 
-// One hook per guest address across all mods. Fails (error filled) if the address has no function or already has a hook
-// (the error names both mod ids). On success the function at `address` is replaced by a trampoline that runs `fn`.
+// Hooks on one guest address form a chain, outermost first (install order): the trampoline runs the first active hook, its
+// call_original runs the next active one, the last one's runs the game's function; inactive hooks are skipped. Fails (error
+// filled) if the address has no function or `owner.mod` already hooks it.
 bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, HookOwner owner, std::string &error);
 
 // Turns the hooks of `mod` on or off (release store); takes effect at the next hooked call.
 void set_active(GtMod *mod, bool on);
 
-// Removes every hook `mod` installed: each address gets its previous function back (used when a mod's init fails).
+// Removes every hook `mod` installed, from any place in its chain; an address left with no hook gets its function back
+// (used when a mod's init fails).
 void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod);
-
-// Returns (and clears) the error of the last install_hook refused because the address was already hooked; empty if none.
-std::string take_hook_conflict();
 
 // Runtime that `mod_api().hook` installs into (the loader calls this before gt_mod_init).
 void bind_runtime(psprecomp::Runtime &rt);

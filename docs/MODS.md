@@ -4,15 +4,17 @@ Un **mod** es una biblioteca compartida (`.so`) más un `mod.toml`, cargada por 
 **funciones del juego por dirección** (la dirección de ejecución PSP = vaddr del ELF + `0x08804000`), lee y escribe la memoria
 del invitado y puede llamar a la función original. Solo `gt_play` carga mods; `gt_native`, la puerta diferencial, `--decomp diff` y
 los casos sintéticos nunca los cargan. Los mods del autor viven en el repo privado `gt-mods`
-(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `reset-to-track`: un botón devuelve el coche del jugador a la pista; ver su README).
+(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `draw-distance`: plano lejano de la carrera x `far_scale`, comprobación `tools/mod_drawdist_check.sh`; `reset-to-track`: un botón devuelve el coche del jugador a la pista; ver su README).
 
 ## Dónde y cómo se carga
 
 - Directorio: `<build>/mods/` junto a `gt_play`, o el de `GT_MODS_DIR`. Cada mod es una subcarpeta con `mod.toml` y su biblioteca.
 - `gt_play` imprime `[mods] loaded: ... skipped: [...]` si el directorio tiene algo. Un mod se omite (con motivo) si falta
   `mod.toml`, no se puede leer, `api` no es la del host, no abre la biblioteca, falta `gt_mod_init`, su init
-  devuelve distinto de 0 o repite el `id` de otra carpeta. Dos mods con un gancho en la misma dirección detienen el arranque
-  (código 3) nombrando ambos.
+  devuelve distinto de 0 o repite el `id` de otra carpeta (o engancha dos veces la misma dirección).
+- **Varios mods en la misma dirección se encadenan** (desde 2026-11-07; antes paraba el arranque): el primero cargado es el de
+  fuera, su `call_original` ejecuta el siguiente mod activo y el último, la función del juego; un mod apagado se salta. Todos los
+  mods deben funcionar juntos: `tools/mods_together_check.sh` los instala todos activados y recorre la ruta `chase`.
 - Un mod con `enabled = false` **se carga e inicializa igualmente pero queda inactivo**: sus ganchos pasan directo a la función
   original y ningún código del mod se ejecuta (así se puede activar desde el menú sin instalar ganchos desde otro hilo). Su
   `gt_mod_init` sí corre (puede abrir un mando, leer ajustes). En el log sigue saliendo como `skipped [dir: disabled]`.
@@ -30,8 +32,7 @@ Sin mods instalados dice `NO MODS INSTALLED`. Con `GT_NO_MODS=1`, `--decomp diff
 Solo teclado (como el panel F10). No se editan los ajustes del mod ni se descargan bibliotecas en caliente.
 
 Un mod con `enabled = false` **se carga igualmente** (su `gt_mod_init` se ejecuta) y queda inactivo, para poder encenderlo
-sin reiniciar. Los activados se cargan primero: si uno desactivado engancha una dirección que ya engancha otro, sale como
-`ERROR` ("hook conflict") y el juego arranca; dos mods activados en la misma dirección siguen parando el arranque. El
+sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de cada cadena). El
 `mod.toml` se escribe en `mod.toml.tmp` y se renombra encima, así un corte nunca lo deja a medias.
 
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
@@ -101,6 +102,16 @@ tools/mod_camera_check.sh --sabotage                              # pivote en el
 tools/mod_camera_check.sh --without-mod                           # sin mod: debe FALLAR (nada cambia)
 tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
 ```
+
+## Comprobar `draw-distance`
+
+Mismo esquema (ruta `chase`, frames a disco en `recomp/analysis/mod_drawdist_check`; ver `docs/FACTS.md` § Draw distance):
+
+```bash
+tools/mod_drawdist_check.sh [--decomp off|on]     # draw-distance: scale 1.0 = fotogramas idénticos; 2.5 = cambia solo el fondo lejano
+tools/mod_drawdist_check.sh --sabotage            # near también escalado: debe FALLAR (composición)
+tools/mod_drawdist_check.sh --without-mod         # debe FALLAR (nada cambia)
+tools/mod_drawdist_check.sh --toggle-off          # el menú apaga el mod a mitad de carrera: idéntico a partir de ahí
 
 
 ## Construir e instalar `reset-to-track`

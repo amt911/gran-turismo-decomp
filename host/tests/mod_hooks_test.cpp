@@ -91,9 +91,9 @@ int main() {
         psprecomp::Runtime rt;
         rt.register_function(kAddr, &fake_original, "orig");
         check(install_hook(rt, kAddr, hook_noop, {"alpha", &a}, err), "second_hook: first installs");
-        check(!install_hook(rt, kAddr, hook_noop, {"beta", &b}, err), "second_hook_same_address_refused");
-        check(err.find("alpha") != std::string::npos && err.find("beta") != std::string::npos,
-              "second_hook: error names both ids");
+        check(install_hook(rt, kAddr, hook_noop, {"beta", &b}, err), "second_mod_same_address_chains");
+        check(!install_hook(rt, kAddr, hook_noop, {"alpha", &a}, err), "same_mod_same_address_twice_refused");
+        check(err.find("alpha") != std::string::npos, "same_mod_twice: error names the mod");
     }
     {
         clear_hooks_for_tests();
@@ -140,7 +140,8 @@ int main() {
         bind_runtime(rt);
         const GtModApi &api = mod_api();
         check(api.hook(&a, kAddr, hook_noop) == 0, "api.hook installs through bound runtime");
-        check(api.hook(&b, kAddr, hook_noop) != 0, "api.hook refuses a second hook");
+        check(api.hook(&b, kAddr, hook_noop) == 0, "api.hook chains a second mod's hook");
+        check(api.hook(&b, kAddr, hook_noop) != 0, "api.hook refuses the same mod twice on one address");
         check(std::string(api.config(&a, "k")) == "v" && api.config(&a, "x") == nullptr, "api.config");
         check(api.version == GT_MOD_API_VERSION, "api version");
     }

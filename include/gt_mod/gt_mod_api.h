@@ -25,6 +25,9 @@ typedef void (*GtHookFn)(GtModCtx *ctx);
 
 typedef struct GtModApi {
     uint32_t version; /* GT_MOD_API_VERSION the host implements */
+    /* Several mods may hook one address: the hooks chain in load order, and call_original runs the next active mod's hook
+     * (the game's function after the last one). A hook must not assume it is the only one: read the state it needs after
+     * call_original returns, never cache what another mod may change. */
     int (*hook)(GtMod *self, uint32_t address, GtHookFn fn);
     void (*call_original)(GtModCtx *ctx);
     uint32_t (*gpr)(GtModCtx *ctx, unsigned reg);
