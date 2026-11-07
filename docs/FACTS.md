@@ -475,3 +475,23 @@ Runtime addresses (ELF vaddr + `0x08804000`). Evidence: camera spikes 1-2, then 
   `script done at vblank 17821` (~frame 8620 of the dumps, `GT_FRAME_EVERY=30`); chase frames are those from ~vblank 17970 on.
 - Orbit sign: `M' = M * T(-p) * R_y(yaw) * T(p)` with `R_y = {c,0,s; 0,1,0; -s,0,c}` (row vectors): **+90 puts the camera on the car's right
   side** (the car is seen from its right, front pointing to the right of the picture), 180 from the front.
+
+## Car body state, wheel contacts and the physics step (verified 2026-11-07, reset-to-track mod)
+
+Runtime addresses (ELF vaddr + `0x08804000`). Evidence: research probe (hook on `0x0894DD9C`, runs e1-e3b, r1-r3), then the `reset-to-track` mod
+and `tools/mod_reset_check.sh`. Spec: `docs/superpowers/specs/2026-11-07-reset-to-track-design.md`.
+- **`0x0894DD9C(world)` steps every car once per physics step**, 60 per second of game time; on the `race` route (`--decomp off`) that is ~0.48
+  steps per vblank (~2 vblanks per step, deterministic but not exactly constant: `GT_PAD` times are vblanks, so a route cannot be written in steps).
+  The race starts (the car answers the throttle) at step ~750.
+  Player car = `word(world+4) + i*0x2100 + 0x2010` (the orbit-camera predicate: driver entry vtable `0x08CC1F60`, `+0xA8 == 0`, `+0x6C != 0`, exactly one).
+  A hook there runs before the step, so what it writes is integrated that same step. It is dispatched in `--decomp off` and `on` alike.
+- **Body state `K = word(car+8)`, Z-up** (the physics frame; the renderer's is Y-up): position `K+0x10/14/18`; basis rows `+0x1C/20/24`, `+0x28/2C/30`,
+  `+0x34/38/3C` (up vector = the third row, `K+0x3C` = up.z); Euler angles `+0x6FC`, `+0x700` (tilt), `+0x704` (yaw, 1.571 at the `race` start);
+  the rows are rebuilt from the angles by `0x0893C3E4` (called from `0x0893E0FC`); velocity `+0x6CC/6D0/6D4`, speed `+0x6C4` (m/s); angular rates
+  `+0x6E4/6E8` (Euler) and `+0x6F0/6F4/6F8` (body); byte `+0x74B` is a flag (bit 2 clear in normal driving; its meaning is not known, the mod just requires it clear).
+- **Wheel contact records** `word(car+0x10) + 0x38*i` (i = 0..3, four wheels): word `+0x2C` = surface, **0 on asphalt, `0x0300` off the track**
+  (the only off-road value seen), recomputed each step. On the `race` route (throttle held from +1500) the car leaves the asphalt at the end of the
+  straight and hits the barrier at step ~1830 (pos x ~ -447, speed 38 -> 17 m/s); contacts read `0x300` from there on.
+- **Restoring a pose works from the step hook**: writing position, the three Euler angles, the three basis rows and zeroing velocity, speed and all rates
+  puts the car back and it drives on normally (~10-step settle transient, rates up to ~0.6 for a few steps); without zeroing the rates the car keeps its
+  spin. No racing line, checkpoint list or "recover car" routine was found (only license-test failure and pit logic).

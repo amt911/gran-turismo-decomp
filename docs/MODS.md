@@ -4,7 +4,7 @@ Un **mod** es una biblioteca compartida (`.so`) más un `mod.toml`, cargada por 
 **funciones del juego por dirección** (la dirección de ejecución PSP = vaddr del ELF + `0x08804000`), lee y escribe la memoria
 del invitado y puede llamar a la función original. Solo `gt_play` carga mods; `gt_native`, la puerta diferencial, `--decomp diff` y
 los casos sintéticos nunca los cargan. Los mods del autor viven en el repo privado `gt-mods`
-(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; ver su README).
+(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `reset-to-track`: un botón devuelve el coche del jugador a la pista; ver su README).
 
 ## Dónde y cómo se carga
 
@@ -102,3 +102,19 @@ tools/mod_camera_check.sh --without-mod                           # sin mod: deb
 tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
 ```
 
+
+## Construir e instalar `reset-to-track`
+
+Mismo esquema (README de `gt-mods`; copiar `reset-to-track/` con `libreset_to_track.so`, `enabled = true`; también desde el menú F9). Botón: Select
+del mando mantenido 0,5 s (o la tecla `reset_keys`, por defecto R); el coche vuelve a la pose buena más reciente con al menos 2,5 s de antigüedad
+(las cuatro ruedas en asfalto, derecho, en movimiento) y arranca desde parado. Como Select también cambia la vista de cámara del juego, cada reset
+cambia la vista una vez. Comprobación en juego (ruta `reset`: el coche se sale al final de la recta y choca; el botón lo da `GT_MOD_RESET_FAKE=<paso>`,
+sin mando; log del mod en `recomp/analysis/mod_reset_check`):
+
+```bash
+GT_MODS_REPO=../gt-mods-reset tools/mod_reset_check.sh [--decomp off|on]   # sin pulsar: fotogramas idénticos al run sin mod; con botón: 4 ruedas en asfalto, up.z > 0.9, desde parado, sin deriva, conduce 600 pasos
+tools/mod_reset_check.sh --sabotage-rates    # no pone a cero las velocidades angulares: debe FALLAR
+tools/mod_reset_check.sh --sabotage-newest   # restaura la pose más reciente (fuera de pista): debe FALLAR
+tools/mod_reset_check.sh --without-mod       # sin mod: debe FALLAR (nada se restaura)
+tools/mod_reset_check.sh --toggle-off        # el menú apaga el mod antes del botón: ni un reset, fotogramas idénticos
+```
