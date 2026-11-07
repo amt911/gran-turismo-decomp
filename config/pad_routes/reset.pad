@@ -1,0 +1,24 @@
+# Route reset — the race (route A), throttle held until the car runs off the end of the straight and hits the barrier, then SELECT
+# held 80 vblanks (a real press: the reset-to-track mod reads the game's pad buffer), then throttle (840 vblanks) and brake (300), for
+# tools/mod_reset_check.sh. `reset.pad` minus the `:SELECT:` item is the quiet run's route (no button).
+# Timeline (measured 2026-11-07 with the mod's step log, `--decomp off`): the game runs ~0.48 player-car physics steps per vblank (~2
+# vblanks per step; deterministic, not exactly constant), the race starts (GO, the car answers the throttle) at step ~750. The throttle
+# is held to step ~1725 (+3430); the car leaves the asphalt at step ~1850 and hits the barrier (x ~ -450). SELECT goes down at +3690
+# (step ~1851; the mod fires the reset after 30 held steps, ~1880, +3753, while the crash's spin is still going). The throttle goes
+# down at +3840 (step ~1925) for 840 vblanks (~400 steps, the car reaches > 15 m/s), then the brake for 300 (~145 steps). The check
+# installs the mod with rewind_ms = 4500: the restored pose is ~130 m before the barrier, so the car stops well short of it.
+# Pages: see chase.pad.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,3070:CROSS:360,3690:SELECT:80,3840:CROSS:840,4700:SQUARE:300

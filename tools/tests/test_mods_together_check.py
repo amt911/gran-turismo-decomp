@@ -57,3 +57,11 @@ def test_main_exit_codes(tmp_path, capsys):
     assert m.main([str(p), *IDS]) == 1
     assert m.main([str(tmp_path / "missing.log"), "x"]) == 2
     assert m.main([str(p)]) == 2
+
+
+def test_reset_to_track_must_show_the_replayed_tap():
+    ids = IDS + ["reset-to-track"]
+    good = GOOD.replace("orbit-camera skipped:", "orbit-camera reset-to-track skipped:") + "\n[mod:reset-to-track] PADSEL up step=620 tap=1"
+    assert m.judge(good, ids) == (True, [])
+    ok, problems = m.judge(good.replace("tap=1", "tap=0"), ids)  # a swallowed press: the camera would not change
+    assert not ok and problems[0].startswith("reset-to-track: no log line")

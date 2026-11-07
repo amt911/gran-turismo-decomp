@@ -492,3 +492,38 @@ Runtime addresses (ELF vaddr + `0x08804000`). Evidence: camera spikes 1-2, then 
 - **`call_original` returns before the rest of the hooked function's body runs** (also in the pre-hook of `0x0890E41C`: scaling
   `self+0xC`, calling the original and restoring changed 0 of 647 frames, `--decomp off`; the persistent write changed 320): restore-after
   is not available for a function that does more than one call; hook the leaf that consumes the value instead.
+
+## Car body state, wheel contacts and the physics step (verified 2026-11-07, reset-to-track mod)
+
+Runtime addresses (ELF vaddr + `0x08804000`). Evidence: research probe (hook on `0x0894DD9C`, runs e1-e3b, r1-r3), then the `reset-to-track` mod
+and `tools/mod_reset_check.sh`. Spec: `docs/superpowers/specs/2026-11-07-reset-to-track-design.md`.
+- **`0x0894DD9C(world)` steps every car once per physics step**, 60 per second of game time; on the `race` route (`--decomp off`) that is ~0.48
+  steps per vblank (~2 vblanks per step, deterministic but not exactly constant: `GT_PAD` times are vblanks, so a route cannot be written in steps).
+  The race starts (the car answers the throttle) at step ~750.
+  Player car = `word(world+4) + i*0x2100 + 0x2010` (the orbit-camera predicate: driver entry vtable `0x08CC1F60`, `+0xA8 == 0`, `+0x6C != 0`, exactly one).
+  A hook there runs before the step, so what it writes is integrated that same step. It is dispatched in `--decomp off` and `on` alike.
+- **Body state `K = word(car+8)`, Z-up** (the physics frame; the renderer's is Y-up): position `K+0x10/14/18`; basis rows `+0x1C/20/24`, `+0x28/2C/30`,
+  `+0x34/38/3C` (up vector = the third row, `K+0x3C` = up.z); Euler angles `+0x6FC`, `+0x700` (tilt), `+0x704` (yaw, 1.571 at the `race` start);
+  the rows are rebuilt from the angles by `0x0893C3E4` (called from `0x0893E0FC`); velocity `+0x6CC/6D0/6D4`, speed `+0x6C4` (m/s); angular rates
+  `+0x6E4/6E8` (Euler) and `+0x6F0/6F4/6F8` (body); byte `+0x74B` is a flag (bit 2 clear in normal driving; its meaning is not known, the mod just requires it clear).
+- **Wheel contact records** `word(car+0x10) + 0x38*i` (i = 0..3, four wheels): word `+0x2C` = surface, **0 on asphalt, `0x0300` off the track**
+  (the only off-road value seen), recomputed each step. On the `race` route (throttle held from +1500) the car leaves the asphalt at the end of the
+  straight and hits the barrier at step ~1830 (pos x ~ -447, speed 38 -> 17 m/s); contacts read `0x300` from there on.
+- **Restoring a pose works from the step hook**: writing position, the three Euler angles, the three basis rows and zeroing velocity, speed and all rates
+  puts the car back and it drives on normally (~10-step settle transient, rates up to ~0.6 for a few steps); without zeroing the rates the car keeps its
+  spin. No racing line, checkpoint list or "recover car" routine was found (only license-test failure and pit logic).
+
+### Reset-to-track: forward direction, the pad read, drivetrain (verified 2026-11-07)
+
+- **Forward direction of the car body** (Z-up frame): `(-sin yaw, cos yaw)` with `yaw = K+0x704`. Evidence: the `race` run's crash, yaw 1.842 / vel
+  (-15.94, -8.09) (cos 0.98) and yaw 2.208 / vel (-10.88, -9.07) (cos 0.998); on the straight yaw 1.571, vel (-35, 0) (cos 1.00, logged as
+  `fwdcos`). The mod keeps a pose only if the horizontal velocity has cos > 0.9 with it and `|K+0x6F8| <= 0.6 rad/s` (not spinning, not backwards).
+- **The pad read is a dispatched, hookable function: `0x08C7ABF0`**, the import stub `sceCtrl::0x1F803938` (sceCtrlReadBufferPositive):
+  `a0` = buffer, `a1` = sample count (1 in GT), `v0` = samples read (but a read the host delays to the next vblank has already filled the buffer and the hook sees another `v0`: use `a1`); sample (16 B) word `+4` = buttons (PSP bits: Select `0x1`, Start `0x8`,
+  Cross `0x4000`, Square `0x8000`). `GT_PROBE=0x08C7ABF0` hits 13799 (`--decomp off`) and 13763 (`on`) on the `race` route in 230 s (the
+  stub is called from `0x08B33414`). A hook that clears a bit after `call_original` hides that button from the game (host buttons and `GT_PAD` presses
+  alike, they are merged before the buffer is written). Player-car steps run at ~0.48 per vblank while the pad is read once per vblank per thread.
+- **Drivetrain after a restore (gap, not identified):** the mod restores position, basis rows, Euler angles and zeroes velocity, speed and the
+  rates; the gear, engine rpm and the previous-position fields were not located (no Ghidra pass). Observation: from rest the automatic gearbox
+  re-launches normally (the throttle held after a reset reaches > 15 m/s in ~330 steps, the same as a start from the grid), so the gap does not
+  show; the check requires that speed (a bogged-down gear would fail it).
