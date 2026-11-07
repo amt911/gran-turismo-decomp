@@ -20,9 +20,9 @@ def make_frame(car_at=(240, 150), hud=CYAN, far_block=False, near_block=False, c
             else:
                 if car_at and abs(x - car_at[0]) < car_size[0] // 2 and abs(y - car_at[1]) < car_size[1] // 2:
                     colour = ORANGE
-                if far_block and 20 <= y < 40:
+                if far_block and 20 <= y < 24 and x < 100:
                     colour = LIGHT
-                if near_block and mc.NEAR_ROWS[0] + 5 <= y < mc.NEAR_ROWS[0] + 25 and x < 400:
+                if near_block and mc.NEAR_ROWS[0] + 5 <= y < mc.NEAR_ROWS[0] + 10 and x < 60:
                     colour = LIGHT
             buf += bytes(colour)
     return HEADER + bytes(buf)
@@ -136,21 +136,59 @@ def test_toggle(tmp_path):
     assert "only 0/4" in mc.judge_toggle(base, run(tmp_path, "n", never), [1, 2, 3, 4], [5, 6, 7], log)[1]
 
 
-def test_main_end_to_end(tmp_path, capsys):
+MOD_LINES = "[mod:draw-distance] far_scale=2.500\n[mod:draw-distance] world depth call from ra=00000160\n"
+
+
+def make_out(tmp_path, with_mod_lines=True):
     out = tmp_path / "out"
-    for label, frames in (("baseline", seven()), ("scale_1", seven()), ("scale_2.5", seven(far_block=True)), ("toggle_2.5", {**seven(far_block=True), **{i: make_frame() for i in (5, 6, 7)}})):
+    for label, frames in (("baseline", seven()), ("scale_1", seven()), ("scale_2.5", seven(far_block=True)),
+                          ("toggle_2.5", {**seven(far_block=True), **{i: make_frame() for i in (5, 6, 7)}})):
         directory = out / label / "frames"
         directory.mkdir(parents=True)
         for index, data in frames.items():
             (directory / f"frame_{index:06d}.ppm").write_bytes(data)
+        if label != "baseline":
+            extra = "[mods] draw-distance -> OFF\n" if label.startswith("toggle_") else ""
+            (out / label / "run.log").write_text((MOD_LINES if with_mod_lines else "") + extra)
     (out / "baseline" / "run.log").write_text("[pad] script done at vblank 0\n" + "".join(f"[frame-dump] frame {i} vblank {150 + i * 400}\n" for i in range(1, 8)))
-    (out / "toggle_2.5" / "run.log").write_text("[mods] draw-distance -> OFF\n")
+    return out
+
+
+def test_judge_mod_loaded():
+    assert mc.judge_mod_loaded(MOD_LINES)[0]
+    assert "not loaded" in mc.judge_mod_loaded("[mods] loaded: x\n")[1]
+    assert "never matched" in mc.judge_mod_loaded("[mod:draw-distance] far_scale=1.000\n")[1]
+
+
+def test_main_end_to_end(tmp_path, capsys):
+    out = make_out(tmp_path)
     assert mc.main(["x", str(out), "scale_1", "scale_2.5"]) == 0
     assert mc.main(["x", str(out), "toggle_2.5", "--toggle-at", "1750"]) == 0
-    text = capsys.readouterr().out
-    assert text.count("PASS") == 3
+    assert capsys.readouterr().out.count("PASS") == 3
     (out / "scale_2.5" / "frames" / "frame_000002.ppm").write_bytes(make_frame())
     assert mc.main(["x", str(out), "scale_2.5"]) == 0  # 6 of 7 frames still change: above FAR_MIN_FRAMES
     assert mc.main(["x", str(out), "scale_1"]) == 0
     (out / "scale_1" / "frames" / "frame_000002.ppm").write_bytes(make_frame(far_block=True))
     assert mc.main(["x", str(out), "scale_1"]) == 1
+
+
+def test_main_fails_when_the_mod_did_not_load(tmp_path, capsys):
+    out = make_out(tmp_path, with_mod_lines=False)
+    assert mc.main(["x", str(out), "scale_1"]) == 1  # byte-identical frames alone are not a pass
+    assert "not loaded" in capsys.readouterr().out
+
+
+def test_main_errors_on_no_labels(tmp_path, capsys):
+    out = make_out(tmp_path)
+    assert mc.main(["x", str(out)]) == 2
+    assert mc.main(["x", str(out), "--toggle-at", "1750"]) == 2
+    assert "no run labels" in capsys.readouterr().err
+
+
+def test_main_toggle_without_script_done_is_a_verdict_not_a_traceback(tmp_path, capsys):
+    out = make_out(tmp_path)
+    (out / "baseline" / "run.log").write_text("[frame-dump] frame 1 vblank 550\n")
+    assert mc.main(["x", str(out), "toggle_2.5", "--toggle-at", "1750"]) == 1
+    assert "script done" in capsys.readouterr().out
+    (out / "baseline" / "run.log").write_text("[pad] script done at vblank 0\n")
+    assert mc.main(["x", str(out), "toggle_2.5"]) == 1  # no --toggle-at either

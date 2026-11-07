@@ -4,9 +4,10 @@
 # tools/mod_drawdist_check.py judges the frames:
 #   scale 1.0  frames byte-identical to the baseline (the mod writes nothing at the identity);
 #   scale > 1  the 3D area changes (far scenery shows) but the near field, the HUD digits and the car are as in the baseline.
-#   tools/mod_drawdist_check.sh [--without-mod] [--sabotage] [--toggle-off [--toggle-at V]] [--scales "1 2.5"] [--decomp off|on] [--seconds N] [--every N] [--keep-baseline]
+#   tools/mod_drawdist_check.sh [--without-mod] [--sabotage|--sabotage-mild] [--toggle-off [--toggle-at V]] [--scales "1 2.5"] [--decomp off|on] [--seconds N] [--every N] [--keep-baseline]
 #   --without-mod  empty mods dir for the "mod" runs too (must FAIL: nothing changes the picture)
-#   --sabotage     builds the mod with DRAW_DISTANCE_SABOTAGE=1 (near plane scaled too; must FAIL the composition check)
+#   --sabotage     builds the mod with DRAW_DISTANCE_SABOTAGE=1 (near plane scaled by far_scale x 6 too; must FAIL the composition check)
+#   --sabotage-mild  DRAW_DISTANCE_SABOTAGE=2 (near x 1.3 only; must FAIL too: the thresholds are tight enough to see a mild near change)
 #   --toggle-off   the F9 menu's toggle turns the mod off mid-race (GT_MOD_MENU_TEST_TOGGLE=draw-distance@v<--toggle-at>, default v18500):
 #                  one run at scale 2.5 (--scales is ignored); PASS = edited before, byte-identical to the baseline after
 #   --keep-baseline  reuse $OUT/baseline from an earlier run (same --decomp)
@@ -23,7 +24,7 @@ orig_args=("$@")  # the parse below shifts them away; the lock re-exec needs the
 decomp=off seconds=300 every=30 without=0 sabotage=0 scales="1 2.5" keep=0 toggle=0 toggle_at=18500
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) without=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage) sabotage=1;; --keep-baseline) keep=1;;
+    --without-mod) without=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage) sabotage=1;; --sabotage-mild) sabotage=2;; --keep-baseline) keep=1;;
     --scales) scales=$2; shift;; --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_drawdist_check: unknown argument $1" >&2; exit 2;;
   esac
@@ -34,7 +35,7 @@ done
 mkdir -p "$out" "$out/mods/draw-distance" "$out/nomods" || exit 2
 if [ $without -eq 0 ]; then
   mbuild="$out/mod-build"
-  flags=""; [ $sabotage -ne 0 ] && flags="-DDRAW_DISTANCE_SABOTAGE=1"
+  flags=""; [ $sabotage -ne 0 ] && flags="-DDRAW_DISTANCE_SABOTAGE=$sabotage"
   { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" "-DCMAKE_CXX_FLAGS=$flags" \
       && cmake --build "$mbuild" -j2 --target draw_distance; } > "$out/mod-build.log" 2>&1 \
     || { echo "mod_drawdist_check: mod build failed (log $out/mod-build.log)" >&2; exit 2; }

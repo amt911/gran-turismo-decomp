@@ -1,7 +1,7 @@
 # Draw distance mod — design
 
-**Status:** draft for the user's approval. The user asked for a draw-distance mod (2026-11-04, queue item 2). Decisions marked
-*(Claude)* are Claude's; the user reviews them here.
+**Status:** approved by the user (2026-11-06) and implemented (2026-11-07; gt-mods `draw-distance`, check `tools/mod_drawdist_check.sh`).
+The user asked for a draw-distance mod (2026-11-04, queue item 2). Decisions marked *(Claude)* are Claude's.
 
 ## Intent
 
@@ -43,6 +43,19 @@ In races the far scenery is cut off at a fixed distance: buildings, hills and gr
   Sabotage: a mod that also changes near (self+4) must fail the composition check.
 - Laptop (power-saver): `GT_FRAME_LOG` pacing with and without the mod, same route — the extra GPU pixels must not cost
   frames (user's target: power-saver runs well).
+
+## As built (2026-11-07)
+
+- **The depth-based check became row and pixel thresholds.** The harness dumps colour frames only, so "pixels whose depth was at the far
+  plane" is not available; `tools/mod_drawdist_check.py` instead requires: scale 1.0 byte-identical; at 2.5 at least 30 % of the race
+  frames change (far scenery is in view on ~50 % of the route's frames), at most 5 % of the 3D area on any frame (measured worst
+  0.1 %), at most 0.1 % of the near-field rows 190..232 (measured worst 0.01 %: depth speckle), HUD digits identical, the car in place.
+  Sabotage: near x (6 x far_scale) and a milder near x 1.3 both fail it.
+- **Depth-range limit.** The world pass is recognised by its depth range (near < 5, far 300..6000), because the caller's return
+  address differs with `--decomp on`. A course whose far is outside 300..6000, or a perspective view with such a range, is left alone
+  (one log line says so). **Replays and showroom/garage 3D views were not probed**: they may use the same builder and be scaled, or
+  have another range and be skipped.
+- **Laptop (power-saver) pacing was not measured.**
 
 ## Non-goals
 
