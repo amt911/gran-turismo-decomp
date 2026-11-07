@@ -96,8 +96,9 @@ Comprobación en juego, desde este repo (ruta `chase`: la carrera más tres puls
 cámara trasera con el coche visible; un run sin mod y uno por ángulo `GT_MOD_CAMERA_FAKE`, frames a disco en `recomp/analysis/mod_camera_check`):
 
 ```bash
-tools/mod_camera_check.sh [--decomp off|on] [--yaws "0 90 180"]   # PASS = yaw 0 idéntico al run sin mod; yaw != 0: 3D distinto, dígitos del HUD iguales, coche centrado
+tools/mod_camera_check.sh [--decomp off|on] [--yaws "90 180"]   # yaw 0 (control de determinismo, siempre se ejecuta) idéntico al run sin mod; yaw != 0: 3D distinto, dígitos del HUD iguales, coche centrado
 tools/mod_camera_check.sh --sabotage                              # pivote en el ojo: debe FALLAR
 tools/mod_camera_check.sh --without-mod                           # sin mod: debe FALLAR (nada cambia)
+tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
 ```
 

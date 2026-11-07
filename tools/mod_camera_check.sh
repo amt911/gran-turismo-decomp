@@ -2,13 +2,13 @@
 # In-game check of the orbit-camera mod (gt-mods repo): headless gt_play on the `chase` pad route (the race + three SELECT presses
 # that cycle the camera view), frames dumped to disk. One run without the mod (the baseline) and one per fake angle with the mod
 # installed and GT_MOD_CAMERA_FAKE=<yaw degrees> (180 = rear view; no stick needed). tools/mod_camera_check.py judges the frames:
-#   yaw 0   frames byte-identical to the baseline (the mod writes nothing at the identity);
+#   yaw 0   (always run, the determinism control) frames byte-identical to the baseline (the mod writes nothing at the identity);
 #   yaw != 0  the 3D area differs from the baseline, the HUD strip is identical, and where the baseline shows the player's car
 #           (orange pixels near the centre) the car is still there, centred within tolerance (the pivot is the car).
 #   tools/mod_camera_check.sh [--without-mod] [--sabotage] [--yaws "0 90 180"] [--decomp off|on] [--seconds N] [--every N] [--keep-baseline]
 #   --without-mod  empty mods dir for the "mod" runs too (must FAIL: nothing changes the picture)
 #   --sabotage     builds the mod with ORBIT_CAMERA_SABOTAGE=1 (pivot at the eye, not at the car; must FAIL the centred-car check)
-#   --toggle-off   the F9 menu's toggle turns the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE=orbit-camera@v<--toggle-at>, default v18500):
+#   --toggle-off   the F9 menu's toggle turns the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE=orbit-camera@v<--toggle-at>, default v18700):
 #                  one run with yaw 90 (--yaws is ignored); PASS = orbited before, byte-identical to the baseline after (an inactive mod writes nothing)
 #   --keep-baseline  reuse $OUT/baseline from an earlier run (same --decomp)
 # Env: MOD_CHECK_NO_LOCK=1 (the caller already holds tools/cpu_lock.sh), GT_MODS_REPO (default ../gt-mods), BUILD (default build),
@@ -21,7 +21,7 @@ mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_camera_check}
 orig_args=("$@")  # the parse below shifts them away; the lock re-exec needs them
-decomp=off seconds=300 every=30 without=0 sabotage=0 yaws="0 90 180" keep=0 toggle=0 toggle_at=18500
+decomp=off seconds=300 every=30 without=0 sabotage=0 yaws="0 90 180" keep=0 toggle=0 toggle_at=18700
 while [ $# -gt 0 ]; do
   case $1 in
     --without-mod) without=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage) sabotage=1;; --keep-baseline) keep=1;;
@@ -30,6 +30,8 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+# The determinism control is mandatory: a yaw 0 run (byte-identical to the baseline) always runs, even when --yaws omits it.
+case " $yaws " in *" 0 "*) ;; *) yaws="0 $yaws";; esac
 [ -x "$build/gt_play" ] || { echo "mod_camera_check: no $build/gt_play" >&2; exit 2; }
 [ -f config/pad_routes/chase.pad ] || { echo "mod_camera_check: no pad route chase" >&2; exit 2; }
 mkdir -p "$out" || exit 2
