@@ -32,9 +32,9 @@ struct LoadReport {
 };
 
 // Loads every `<dir>/<mod>/mod.toml`. A mod with `enabled = false` is loaded and initialised but left inactive (its hooks pass
-// to the original; the mod menu can turn it on). A broken or failing mod is skipped (reported as Error); `fatal` is
-// set only when two mods hook the same address (startup must stop). A missing or empty `dir` loads nothing.
-LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, std::string &fatal);
+// to the original; the mod menu can turn it on). A broken or failing mod is skipped (reported as Error). Mods hooking the
+// same address chain (mod_hooks.hpp). A missing or empty `dir` loads nothing.
+LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir);
 
 // `$GT_MODS_DIR` if set and non-empty, else `<directory of the executable>/mods` (/proc/self/exe, argv0 as fallback).
 std::filesystem::path mods_dir(const char *argv0);

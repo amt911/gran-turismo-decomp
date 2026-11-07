@@ -2984,3 +2984,14 @@ compares the whole chain, and a single function compared alone runs its tail tar
 `tools/self_tail_audit.py` and its tree test keep new ones out. Write the original's `j <own entry>` as a loop.
 
 Found: 2026-11-06 · src/game/unsorted/hot_batch_215.cpp, src/game/unsorted/hot_leaves.cpp, tools/self_tail_audit.py
+
+## Two mods that each passed their check alone could not be enabled together (one hook per address)
+
+**Symptom.** With `analog-pedals` and `orbit-camera` installed, F9 showed one of them as `ERROR (hook conflict)`; both enabled
+in `mod.toml` stopped gt_play at startup (exit 3). Both hook the race step `0x0894DD9C`; the host kept one hook per address,
+and each mod's in-game check installed only that mod, so nothing ever ran them together.
+**Fix.** Hooks on one address chain (`host/mod_hooks.cpp`): load order, outermost first; `call_original` runs the next active
+link, the last link runs the game's function; an inactive mod is skipped. `tools/mods_together_check.sh` installs every mod
+enabled and requires all loaded, the route finished and each mod's "acted" log line. Run it for every new mod.
+
+Found: 2026-11-07 · host/mod_hooks.cpp, tools/mods_together_check.sh

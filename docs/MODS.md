@@ -11,8 +11,10 @@ los casos sintéticos nunca los cargan. Los mods del autor viven en el repo priv
 - Directorio: `<build>/mods/` junto a `gt_play`, o el de `GT_MODS_DIR`. Cada mod es una subcarpeta con `mod.toml` y su biblioteca.
 - `gt_play` imprime `[mods] loaded: ... skipped: [...]` si el directorio tiene algo. Un mod se omite (con motivo) si falta
   `mod.toml`, no se puede leer, `api` no es la del host, no abre la biblioteca, falta `gt_mod_init`, su init
-  devuelve distinto de 0 o repite el `id` de otra carpeta. Dos mods con un gancho en la misma dirección detienen el arranque
-  (código 3) nombrando ambos.
+  devuelve distinto de 0 o repite el `id` de otra carpeta (o engancha dos veces la misma dirección).
+- **Varios mods en la misma dirección se encadenan** (desde 2026-11-07; antes paraba el arranque): el primero cargado es el de
+  fuera, su `call_original` ejecuta el siguiente mod activo y el último, la función del juego; un mod apagado se salta. Todos los
+  mods deben funcionar juntos: `tools/mods_together_check.sh` los instala todos activados y recorre la ruta `chase`.
 - Un mod con `enabled = false` **se carga e inicializa igualmente pero queda inactivo**: sus ganchos pasan directo a la función
   original y ningún código del mod se ejecuta (así se puede activar desde el menú sin instalar ganchos desde otro hilo). Su
   `gt_mod_init` sí corre (puede abrir un mando, leer ajustes). En el log sigue saliendo como `skipped [dir: disabled]`.
@@ -30,8 +32,7 @@ Sin mods instalados dice `NO MODS INSTALLED`. Con `GT_NO_MODS=1`, `--decomp diff
 Solo teclado (como el panel F10). No se editan los ajustes del mod ni se descargan bibliotecas en caliente.
 
 Un mod con `enabled = false` **se carga igualmente** (su `gt_mod_init` se ejecuta) y queda inactivo, para poder encenderlo
-sin reiniciar. Los activados se cargan primero: si uno desactivado engancha una dirección que ya engancha otro, sale como
-`ERROR` ("hook conflict") y el juego arranca; dos mods activados en la misma dirección siguen parando el arranque. El
+sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de cada cadena). El
 `mod.toml` se escribe en `mod.toml.tmp` y se renombra encima, así un corte nunca lo deja a medias.
 
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`

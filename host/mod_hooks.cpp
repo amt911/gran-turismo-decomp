@@ -2,15 +2,18 @@
 
 #include "psprecomp/runtime.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <unordered_map>
+#include <vector>
 
-// What a hook receives: the runtime and CPU state it runs against, and the address it wraps.
+// What a hook receives: the runtime and CPU state it runs against, the address it wraps and its link in that address's chain.
 struct GtModCtx {
     psprecomp::Runtime *rt;
     psprecomp::AllegrexContext *ctx;
     std::uint32_t address;
+    std::size_t link;
 };
 
 namespace gt::mods {
@@ -18,41 +21,56 @@ namespace {
 
 // The C API does not carry the Runtime; the loader binds it (bind_runtime) before calling gt_mod_init.
 psprecomp::Runtime *g_runtime = nullptr;
-std::string g_conflict;  // set by install_hook when an address is already hooked; taken by the loader
 
-struct Hook {
+struct Link {
     GtHookFn fn;
     HookOwner owner;
-    psprecomp::Runtime::RecompiledFunction original;
 };
 
-std::unordered_map<std::uint32_t, Hook> &hooks() {
-    static std::unordered_map<std::uint32_t, Hook> table;
+// Every hook on one guest address, outermost first (load order), and the function they wrap.
+struct Chain {
+    psprecomp::Runtime::RecompiledFunction original;
+    std::vector<Link> links;
+};
+
+std::unordered_map<std::uint32_t, Chain> &chains() {
+    static std::unordered_map<std::uint32_t, Chain> table;
     return table;
 }
 
+bool link_on(const Link &link) {
+#ifdef GT_MOD_SABOTAGE_IGNORE_ACTIVE  // verification only (tools/mod_pedals_check.sh --sabotage-active): the gate must matter
+    (void)link;
+    return true;
+#else
+    return link.owner.mod == nullptr || link.owner.mod->active.load(std::memory_order_acquire);
+#endif
+}
+
+// Runs the chain of `address` from link `from`: the first active link's hook (its call_original continues after it), or the
+// original when no active link is left. Each link's `active` is read once, when the call reaches it: a toggle in the middle
+// of a call never gives a half-modded call of that mod.
+void run_chain(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, const Chain &chain, std::uint32_t address,
+               std::size_t from) {
+    for (std::size_t i = from; i < chain.links.size(); ++i) {
+        if (!link_on(chain.links[i])) continue;
+        GtModCtx mod_ctx{&rt, &ctx, address, i};
+        chain.links[i].fn(&mod_ctx);
+        return;
+    }
+    ctx.pc = address;  // the entry state the original expects (a decompiled trampoline finds itself by ctx.pc)
+    chain.original(rt, ctx);
+}
+
 void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const auto it = hooks().find(ctx.pc);
-    if (it == hooks().end()) {
+    const auto it = chains().find(ctx.pc);
+    if (it == chains().end()) {
         rt.unsupported(ctx.pc, 0u, "mod trampoline reached for an unhooked address");
         return;
     }
     const std::uint32_t address = ctx.pc;
     const std::uint32_t return_address = ctx.gpr[31];
-    // One read per call: a toggle in the middle of a call never gives a half-modded call.
-    const GtMod *owner = it->second.owner.mod;
-#ifdef GT_MOD_SABOTAGE_IGNORE_ACTIVE  // verification only (tools/mod_pedals_check.sh --sabotage-active): the gate must matter
-    const bool on = true;
-#else
-    const bool on = owner == nullptr || owner->active.load(std::memory_order_acquire);
-#endif
-    if (on) {
-        GtModCtx mod_ctx{&rt, &ctx, address};
-        it->second.fn(&mod_ctx);
-    } else {
-        ctx.pc = address;  // same entry state call_original gives (a decompiled trampoline finds itself by ctx.pc)
-        it->second.original(rt, ctx);
-    }
+    run_chain(rt, ctx, it->second, address, 0);
     ctx.gpr[0] = 0u;
     // A registered function ends with ctx.pc = ra; a hook that never called the original (or left pc on the entry) gets it here.
     if (ctx.pc == address) ctx.pc = return_address;
@@ -66,11 +84,11 @@ int api_hook(GtMod *self, std::uint32_t address, GtHookFn fn) {
     return 1;
 }
 
+// The next active link of the chain, or the game's function after the last one.
 void api_call_original(GtModCtx *c) {
-    const auto it = hooks().find(c->address);
-    if (it == hooks().end()) return;
-    c->ctx->pc = c->address;  // a decompiled-function trampoline registered earlier finds itself by ctx.pc
-    it->second.original(*c->rt, *c->ctx);
+    const auto it = chains().find(c->address);
+    if (it == chains().end()) return;
+    run_chain(*c->rt, *c->ctx, it->second, c->address, c->link + 1);
 }
 
 std::uint32_t api_gpr(GtModCtx *c, unsigned reg) { return c->ctx->gpr[reg & 31u]; }
@@ -106,12 +124,15 @@ void api_log(GtMod *self, const char *message) {
 }  // namespace
 
 bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, HookOwner owner, std::string &error) {
-    const auto existing = hooks().find(address);
-    if (existing != hooks().end()) {
-        error = "address already hooked by mod '" + existing->second.owner.mod_id + "' (second hook from mod '" +
-                owner.mod_id + "')";
-        g_conflict = error;
-        return false;
+    const auto existing = chains().find(address);
+    if (existing != chains().end()) {
+        for (const Link &link : existing->second.links)
+            if (link.owner.mod == owner.mod) {
+                error = "mod '" + owner.mod_id + "' already hooks this address";
+                return false;
+            }
+        existing->second.links.push_back(Link{fn, std::move(owner)});  // the next link in: runs inside the earlier ones
+        return true;
     }
     const auto original = rt.function_at(address);
     if (original == nullptr) {
@@ -119,7 +140,7 @@ bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, Ho
         return false;
     }
     const std::string name = "mod:" + owner.mod_id;
-    hooks().emplace(address, Hook{fn, std::move(owner), original});
+    chains().emplace(address, Chain{original, {Link{fn, std::move(owner)}}});
     rt.register_function(address, &trampoline, name);
     return true;
 }
@@ -136,27 +157,22 @@ void set_active(GtMod *mod, bool on) {
 }
 
 void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod) {
-    for (auto it = hooks().begin(); it != hooks().end();) {
-        if (it->second.owner.mod == mod) {
+    for (auto it = chains().begin(); it != chains().end();) {
+        auto &links = it->second.links;
+        links.erase(std::remove_if(links.begin(), links.end(), [mod](const Link &l) { return l.owner.mod == mod; }), links.end());
+        if (links.empty()) {
             rt.register_function(it->first, it->second.original, "mod:removed");
-            it = hooks().erase(it);
+            it = chains().erase(it);
         } else {
             ++it;
         }
     }
 }
 
-std::string take_hook_conflict() {
-    std::string out;
-    out.swap(g_conflict);
-    return out;
-}
-
 void bind_runtime(psprecomp::Runtime &rt) { g_runtime = &rt; }
 
 void clear_hooks_for_tests() {
-    hooks().clear();
-    g_conflict.clear();
+    chains().clear();
     g_runtime = nullptr;
 }
 
