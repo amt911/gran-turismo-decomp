@@ -8,6 +8,8 @@
 #   tools/mod_camera_check.sh [--without-mod] [--sabotage] [--yaws "0 90 180"] [--decomp off|on] [--seconds N] [--every N] [--keep-baseline]
 #   --without-mod  empty mods dir for the "mod" runs too (must FAIL: nothing changes the picture)
 #   --sabotage     builds the mod with ORBIT_CAMERA_SABOTAGE=1 (pivot at the eye, not at the car; must FAIL the centred-car check)
+#   --toggle-off   the F9 menu's toggle turns the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE=orbit-camera@v<--toggle-at>, default v18500):
+#                  one run with yaw 90 (--yaws is ignored); PASS = orbited before, byte-identical to the baseline after (an inactive mod writes nothing)
 #   --keep-baseline  reuse $OUT/baseline from an earlier run (same --decomp)
 # Env: MOD_CHECK_NO_LOCK=1 (the caller already holds tools/cpu_lock.sh), GT_MODS_REPO (default ../gt-mods), BUILD (default build),
 # OUT (default recomp/analysis/mod_camera_check, gitignored; frames are on disk there, never /tmp). Exit: 0 pass, 1 check failed, 2 setup/run problem.
@@ -18,10 +20,11 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_camera_check}
-decomp=off seconds=300 every=30 without=0 sabotage=0 yaws="0 90 180" keep=0
+orig_args=("$@")  # the parse below shifts them away; the lock re-exec needs them
+decomp=off seconds=300 every=30 without=0 sabotage=0 yaws="0 90 180" keep=0 toggle=0 toggle_at=18500
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) without=1;; --sabotage) sabotage=1;; --keep-baseline) keep=1;;
+    --without-mod) without=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage) sabotage=1;; --keep-baseline) keep=1;;
     --yaws) yaws=$2; shift;; --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_camera_check: unknown argument $1" >&2; exit 2;;
   esac
@@ -43,13 +46,14 @@ fi
 pad=$(grep -v '^#' config/pad_routes/chase.pad)
 # One lock hold for all the runs (each is real-time; the whole check stays well under the lock's 30 min): re-run this script under it.
 if [ -z "${MOD_CHECK_NO_LOCK:-}" ]; then
-  exec env MOD_CHECK_NO_LOCK=1 tools/cpu_lock.sh mod_camera_check "$0" "$@"
+  exec env MOD_CHECK_NO_LOCK=1 tools/cpu_lock.sh mod_camera_check "$0" "${orig_args[@]}"
 fi
+toggle_env=""; [ $toggle -eq 1 ] && toggle_env="orbit-camera@v$toggle_at"
 # run_one LABEL MODS_DIR [FAKE]: one gt_play run, frames in $out/LABEL/frames
 run_one() {
   local label=$1 mdir=$2 fake=${3:-}
   rm -rf "$out/$label" && mkdir -p "$out/$label/frames" "$out/$label/savedata" || return 2
-  env GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/$label/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
+  env GT_MOD_MENU_TEST_TOGGLE="$toggle_env" GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/$label/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
       GT_MOD_CAMERA_FAKE="$fake" GT_MOD_CAMERA_LOG=1 GT_PAD="$pad" GT_PAD_LOG=1 GT_FRAME_DUMP="$repo/$out/$label/frames" GT_FRAME_EVERY=$every \
     systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
     timeout $((seconds + 120)) "$build/gt_play" --max-seconds "$seconds" --decomp "$decomp" > "$out/$label/run.log" 2>&1
@@ -59,6 +63,11 @@ run_one() {
 }
 if [ $keep -eq 0 ] || [ ! -d "$out/baseline/frames" ]; then run_one baseline "$out/nomods" || exit 2; fi
 mdir="$out/mods"; [ $without -eq 1 ] && mdir="$out/nomods"
+if [ $toggle -eq 1 ]; then
+  run_one toggle_90 "$mdir" 90 || exit 2
+  .venv/bin/python -I tools/mod_camera_check.py "$out" toggle_90 --toggle-at "$toggle_at"
+  exit $?
+fi
 for y in $yaws; do run_one "yaw_$y" "$mdir" "$y" || exit 2; done
 args=""
 for y in $yaws; do args="$args yaw_$y"; done

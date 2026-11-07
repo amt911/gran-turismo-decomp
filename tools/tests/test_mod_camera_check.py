@@ -165,3 +165,33 @@ def test_main_prints_verdicts_and_returns_status(tmp_path, capsys):
     write_run(tmp_path, "yaw_180", baseline_frames())
     assert mc.main(["x", str(tmp_path), "yaw_180"]) == 1
     assert "FAIL yaw_180" in capsys.readouterr().out
+
+
+def test_judge_toggle(tmp_path):
+    base = write_run(tmp_path, "base", baseline_frames())
+    mixed = {**orbited(), **{i: baseline_frames()[i] for i in (50, 60, 70, 80)}}  # 10..40 orbited, 50..80 back to the baseline
+    mod = write_run(tmp_path, "mod", mixed)
+    log = "[mods] orbit-camera -> OFF\n"
+    ok, message = mc.judge_toggle(base, mod, [10, 20, 30, 40], [50, 60, 70, 80], log)
+    assert ok, message
+    assert not mc.judge_toggle(base, mod, [10, 20, 30, 40], [50, 60, 70, 80], "")[0]  # no toggle line
+    assert "still edits" in mc.judge_toggle(base, mod, [10, 20, 30, 40], [30, 50, 60, 70], log)[1]  # frame 30 is orbited
+    assert "only 0/" in mc.judge_toggle(base, mod, [50, 60, 70, 80], [50, 60, 70], log)[1]  # nothing orbited before
+    assert "too few" in mc.judge_toggle(base, mod, [10], [50, 60, 70], log)[1]
+
+
+def test_frames_in_vblanks():
+    log = "[frame-dump] frame 000030 vblank 100\n[frame-dump] frame 000060 vblank 200\n[frame-dump] frame 000090 vblank 300\n"
+    assert mc.frames_in_vblanks(log, 150, 300) == [60]
+
+
+def test_main_toggle_label(tmp_path, capsys):
+    frames = {i: make_frame(car_at=(240, 140)) for i in range(10, 90, 10)}
+    write_run(tmp_path, "baseline", frames)
+    (tmp_path / "baseline" / "run.log").write_text("[pad] script done at vblank 1000\n" + "".join(f"[frame-dump] frame {i:06d} vblank {1000 + 20 * i}\n" for i in frames))
+    mixed = {**{i: v for i, v in orbited().items() if i <= 40}, **{i: v for i, v in frames.items() if i > 40}}
+    write_run(tmp_path, "toggle_90", mixed)
+    (tmp_path / "toggle_90" / "run.log").write_text("[mods] orbit-camera -> OFF\n")
+    # chase start = 1000 + 150; toggle at vblank 1000 + 20 * 45 = 1900, margin 150: before = frames with vblank in [1150, 1750), after >= 2050
+    assert mc.main(["x", str(tmp_path), "toggle_90", "--toggle-at", "1900"]) == 0
+    assert "PASS toggle_90" in capsys.readouterr().out

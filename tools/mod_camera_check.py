@@ -125,6 +125,33 @@ def chase_frame_indices(log_text):
     return [int(f) for f, v in FRAME_DUMP.findall(log_text) if int(v) >= start]
 
 
+def frames_in_vblanks(log_text, lo, hi):
+    """Frame numbers dumped at a vblank in [lo, hi)."""
+    return [int(f) for f, v in FRAME_DUMP.findall(log_text) if lo <= int(v) < hi]
+
+
+TOGGLE_MARGIN = 150  # vblanks around the toggle that are not judged (the frame in flight, the list already built)
+TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
+
+
+def judge_toggle(base_frames, mod_frames, before, after, run_log):
+    """The F9 menu turned the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE): frames before differ from the baseline (orbited), frames
+    after are byte-identical to it (an inactive mod's hooks pass straight to the original). Returns (ok, message)."""
+    if TOGGLE_LINE.search(run_log) is None:
+        return False, "no `[mods] <id> -> OFF` line in the run log: the menu did not toggle the mod"
+    before = [i for i in before if i in base_frames and i in mod_frames]
+    after = [i for i in after if i in base_frames and i in mod_frames]
+    if len(before) < MIN_CAR_FRAMES or len(after) < MIN_CAR_FRAMES:
+        return False, f"too few frames around the toggle ({len(before)} before, {len(after)} after)"
+    orbited = sum(1 for i in before if diff_fraction(read_ppm(base_frames[i]), read_ppm(mod_frames[i]), 0, HUD_TOP) >= DIFF_MIN_FRACTION)
+    if orbited < DIFF_MIN_FRAMES * len(before):
+        return False, f"before the toggle only {orbited}/{len(before)} frames are orbited"
+    for i in after:
+        if read_ppm(base_frames[i])[2] != read_ppm(mod_frames[i])[2]:
+            return False, f"frame {i} after the toggle differs from the baseline: the mod still edits while inactive"
+    return True, f"{orbited}/{len(before)} frames orbited before the toggle, {len(after)} frames identical to the baseline after it"
+
+
 def judge_orbit(base_frames, mod_frames, indices):
     """yaw != 0 on the frames `indices` (those present in both runs). Returns (ok, message)."""
     frames = [i for i in indices if i in base_frames and i in mod_frames]
@@ -161,10 +188,24 @@ def main(argv):
     with open(os.path.join(out, "baseline", "run.log"), errors="replace") as handle:
         indices = chase_frame_indices(handle.read())
     failed = False
-    for label in argv[2:]:
+    args = argv[2:]
+    toggle_at = None
+    if "--toggle-at" in args:
+        at = args.index("--toggle-at")
+        toggle_at = int(args[at + 1])
+        del args[at:at + 2]
+    base_log = open(os.path.join(out, "baseline", "run.log"), errors="replace").read()
+    for label in args:
         yaw = float(label.split("_", 1)[1])
         mod = frames_of(os.path.join(out, label, "frames"))
-        ok, message = judge_identity(base, mod) if yaw == 0 else judge_orbit(base, mod, indices)
+        if label.startswith("toggle_"):
+            run_log = open(os.path.join(out, label, "run.log"), errors="replace").read()
+            start = int(SCRIPT_DONE.search(base_log).group(1)) + CHASE_AFTER_VBLANKS
+            before = frames_in_vblanks(base_log, start, toggle_at - TOGGLE_MARGIN)
+            after = frames_in_vblanks(base_log, toggle_at + TOGGLE_MARGIN, 10 ** 9)
+            ok, message = judge_toggle(base, mod, before, after, run_log)
+        else:
+            ok, message = judge_identity(base, mod) if yaw == 0 else judge_orbit(base, mod, indices)
         print(("PASS " if ok else "FAIL ") + f"{label}: {message}")
         failed = failed or not ok
     return 1 if failed else 0
