@@ -475,3 +475,20 @@ Runtime addresses (ELF vaddr + `0x08804000`). Evidence: camera spikes 1-2, then 
   `script done at vblank 17821` (~frame 8620 of the dumps, `GT_FRAME_EVERY=30`); chase frames are those from ~vblank 17970 on.
 - Orbit sign: `M' = M * T(-p) * R_y(yaw) * T(p)` with `R_y = {c,0,s; 0,1,0; -s,0,c}` (row vectors): **+90 puts the camera on the car's right
   side** (the car is seen from its right, front pointing to the right of the picture), 180 from the front.
+
+## Draw distance (verified 2026-11-07, `tools/mod_drawdist_check.sh`)
+
+- The race world far plane is `word(0x0890E41C's a0 + 0xC)` (= `0x09EF1778 + 0xC`, 1200.0 in the race of the `chase` route), near `+4`
+  (1.3). `0x0890E41C` calls `func_08AF4B4C(matrix, f12 = near, f13 = far)` at `0x0890E4AC` (return `0x0890E4B4`, mode 0, near scaled by
+  `func_08B84A2C`) or `0x0890E4C8` (return `0x0890E4D0`); `func_08AF4B4C` only writes `m10 = -(f+n)/(f-n)` (+0x28) and
+  `m14 = -2fn/(f-n)` (+0x38), so near = m14/(m10-1), far = m14/(m10+1). The other caller of `0x08AF4B4C` that is not `0x0890E41C`
+  is the car reflection pass (`0x0889C014`, near 0.1, far 100). Observed in a probe hook: far 1200 at both `0x0890E41C` returns,
+  100 at `0x0889C014`.
+- With `--decomp on` the same hook sees the world call with `ra` = `0x160` / `0x148` (dispatcher artefacts), so the mod tells the world
+  pass by its depth range (near < 5, far 300..6000; the reflection pass is 0.1 / 100), not by the return address.
+- The game submits the same geometry whatever the far plane (one frame's GE list identical at 1200 and 8000): the far plane only clips.
+  With far x2.5 the frames differ from the baseline in ~50 % of the route's race frames (far scenery visible in some views), at most
+  0.1 % of the 3D area, near field changes <= 0.01 % (depth speckle).
+- **`call_original` returns before the rest of the hooked function's body runs** (also in the pre-hook of `0x0890E41C`: scaling
+  `self+0xC`, calling the original and restoring changed 0 of 647 frames, `--decomp off`; the persistent write changed 320): restore-after
+  is not available for a function that does more than one call; hook the leaf that consumes the value instead.
