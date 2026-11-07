@@ -1012,6 +1012,8 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 332** (2026-11-06): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 17 verificadas; las 8 restantes no reciben casos. Total: 16.824 funciones.
+- [x] **Lote 331** (2026-11-06): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 17 verificadas; las 8 restantes no reciben casos. Total: 16.807 funciones.
 - [x] **Lote 330** (2026-11-06): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 18 verificadas; las 7 restantes no reciben casos. Total: 16.790 funciones.
 - [x] **Lote 329** (2026-11-05): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 18 verificadas; las 7 restantes no reciben casos. Total: 16.772 funciones.
 - [x] **Corrección** (2026-11-05): `func_0899CB44` (lote 95) se desregistra: el veredicto de #486 (máquina cargada) la vio discrepar igual en tres rutas (3 bytes de RAM) y no se ha vuelto a reproducir; hasta explicarlo cuenta como real. Total: 16.754 funciones.
