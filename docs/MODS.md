@@ -4,7 +4,7 @@ Un **mod** es una biblioteca compartida (`.so`) más un `mod.toml`, cargada por 
 **funciones del juego por dirección** (la dirección de ejecución PSP = vaddr del ELF + `0x08804000`), lee y escribe la memoria
 del invitado y puede llamar a la función original. Solo `gt_play` carga mods; `gt_native`, la puerta diferencial, `--decomp diff` y
 los casos sintéticos nunca los cargan. Los mods del autor viven en el repo privado `gt-mods`
-(`analog-pedals`: gatillos/teclas analógicos; ver su README).
+(`analog-pedals`: gatillos/teclas analógicos; `draw-distance`: plano lejano de la carrera x `far_scale`, comprobación `tools/mod_drawdist_check.sh`; ver su README).
 
 ## Dónde y cómo se carga
 
@@ -87,4 +87,11 @@ tools/mod_pedals_check.sh --sabotage-brake         # debe FALLAR
 tools/mod_pedals_check.sh --toggle-off [--decomp on]   # el menú apaga el mod a mitad de carrera: inyecta antes, nada después
 tools/mod_pedals_check.sh --disabled               # enabled = false al arrancar: mismo `script done at vblank` que --without-mod
 # sabotaje del menú: cmake -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON, recompilar gt_play, --toggle-off --sabotage-active debe FALLAR
+```
+
+```bash
+tools/mod_drawdist_check.sh [--decomp off|on]     # draw-distance: scale 1.0 = fotogramas idénticos; 2.5 = cambia solo el fondo lejano
+tools/mod_drawdist_check.sh --sabotage            # near también escalado: debe FALLAR (composición)
+tools/mod_drawdist_check.sh --without-mod         # debe FALLAR (nada cambia)
+tools/mod_drawdist_check.sh --toggle-off          # el menú apaga el mod a mitad de carrera: idéntico a partir de ahí
 ```
