@@ -64,12 +64,12 @@ void mods_page_row(std::size_t index, char *out, std::size_t capacity) {
 const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle};
 } // namespace
 
-void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed, std::string &fatal) {
+void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed) {
     if (!allowed) {
         std::cerr << "[mods] not loaded: --decomp diff and synthetic cases run the unmodded game\n";
         return;
     }
-    const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0), fatal);
+    const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0));
     gt::mods::menu::set_entries(report.entries);
     lcs::host_settings_set_extra_page(&kModsPage);
     gt::mods::menu::start_test_toggle_from_env(&gt::pad_script_vblanks);

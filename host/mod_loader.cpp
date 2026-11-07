@@ -25,7 +25,7 @@ std::vector<std::unique_ptr<GtMod>> &live_mods() {
 
 } // namespace
 
-LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, std::string &fatal) {
+LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
     LoadReport report;
     if (const char *off = std::getenv("GT_NO_MODS"); off != nullptr && *off != '\0' && std::string(off) != "0") {
         std::fprintf(stderr, "[mods] disabled (GT_NO_MODS)\n");
@@ -37,8 +37,7 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
     for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
         if (it->is_directory(ec)) entries.push_back(it->path());
     std::sort(entries.begin(), entries.end());
-    // Enabled mods load first, so a disabled mod never takes an address an enabled one hooks: its conflict is its own
-    // (reported as an error row, not fatal - turning a conflicting mod off resolves the conflict).
+    // Enabled mods load first: on an address several mods hook, the enabled ones are the outer links of the chain.
     const auto enabled_in = [](const std::filesystem::path &mod_dir) {
         std::ifstream in(mod_dir / "mod.toml");
         std::stringstream text;
@@ -102,16 +101,6 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir, s
         GtMod *self = mod.get();
         live_mods().push_back(std::move(mod));
         const int status = init(&mod_api(), self);
-        if (std::string conflict = take_hook_conflict(); !conflict.empty() && !manifest->enabled) {
-            remove_hooks_for(rt, self);  // a disabled mod's conflict is reported on its row, the game still starts
-            skip("hook conflict: " + conflict);
-            continue;
-        } else if (!conflict.empty()) {
-            // Deliberately no rollback: the caller treats `fatal` as a startup failure (main returns 3), the process exits
-            // right away, so the hooks and mods loaded so far are never run.
-            fatal = conflict;
-            return report;
-        }
         if (status != 0) {
             remove_hooks_for(rt, self);  // a skipped mod must not stay partly active
             skip("gt_mod_init returned " + std::to_string(status));
