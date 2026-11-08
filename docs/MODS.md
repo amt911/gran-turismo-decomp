@@ -182,6 +182,15 @@ velocidad alineada con el morro (cos > 0,9: ni de lado ni marcha atrás). El ani
 más de 15 m en un paso (aparición, nuevo intento, F9 apagado/encendido), si pasan más de 2 s sin pasos, o al cambiar de coche; nunca se restaura una pose de
 más de 8 s.
 
+**Regla de mirar adelante (mod 0.2.0, API v2).** Una pose «buena» entra en el anillo solo si la recta que seguiría el coche desde ella (rumbo `-sin yaw, cos yaw`) se
+queda en asfalto `ahead_m` metros (40): el tic de vblank llama a la consulta de carretera del propio juego (`obj = word(word(car)+0x14)`, `fn = word(word(obj)+8)`,
+`call_guest(fn, {obj, registro})`; un rayo vertical hacia abajo desde 2 m sobre la pose; registro de 0x38 bytes: x, altura de salida, -y, pistas en +0x30/+0x34; resultado: v0 = 1
+si hay carretera, suelo en +0x0C, superficie en +0x2C = 0 en asfalto) cada 4 m y por tres líneas (el centro y 1,5 m a cada lado: una rueda sale del asfalto antes que el centro),
+con el suelo a menos de 1,5 m del nivel del coche. Si ninguna pose lo cumple, el botón no restaura nada. Sin la regla, una pose «buena» que cruza la pista en diagonal hacia el borde
+(4/4 asfalto, derecha, tranquila) devolvía al coche fuera de pista (3 de 4 restauraciones de la reproducción). El registro de la consulta es un bloque privado de 64 bytes pedido una vez
+al asignador del propio juego (`sceKernelAllocPartitionMemory` + `sceKernelGetBlockHeadAddr`, stubs `0x08C7A968`/`0x08C7A970`, también por `call_guest`), no un registro de contacto. Medido en la ruta `reset_multi`:
+un coche que arranca parado recorre ~38 m en 4 s, por eso 40 m y no 30 (con 30 una pose aceptada salió del asfalto a los 225 pasos).
+
 **Select y la cámara.** El juego usa Select para cambiar de vista. El mod engancha la lectura del mando (`0x08C7ABF0`, el stub de importación de
 sceCtrlReadBufferPositive, despachado en `--decomp off` y `on`, FACTS): en carrera oculta Select al juego mientras está pulsado; si se suelta antes de
 0,5 s, se lo devuelve como un toque de 3 lecturas (la vista cambia igual que sin el mod); si se suelta después, se dispara el reset y la vista NO cambia.
@@ -201,6 +210,8 @@ GT_MODS_REPO=../gt-mods-reset tools/mod_reset_check.sh [--decomp off|on]   # sin
 tools/mod_reset_check.sh --tap                # las 3 pulsaciones cortas de la ruta chase: toques repetidos, misma vista de cámara que sin el mod
 tools/mod_reset_check.sh --toggle-off         # el menú apaga el mod antes del botón: ni un reset, el mod funcionó antes y calló después, fotogramas idénticos
 OUT=recomp/analysis/mod_reset_check_cheats WITH_CHEATS=1 tools/mod_reset_check.sh --reset-only|--tap   # con el mod cheats instalado también (menú del mando activo, Select llega 8 vblanks tarde): restaura igual / el toque sigue cambiando la vista
+tools/mod_reset_check.sh --multi              # ruta reset_multi (cruce en diagonal y cuatro SELECT): cada reset deja al coche 240 pasos (4 s) en 4/4 asfalto sin girar, y la regla de mirar adelante rechazó poses (líneas AHEAD)
+tools/mod_reset_check.sh --multi --sabotage-lookahead-off   # toda pose buena entra en el anillo (-DRESET_SABOTAGE=5): debe FALLAR (un reset saca al coche de la pista)
 tools/mod_reset_check.sh --sabotage-rates     # no pone a cero las velocidades angulares: debe FALLAR
 tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (fuera de pista): debe FALLAR
 tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR

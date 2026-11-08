@@ -10,10 +10,17 @@
 #   --tap        the chase route's three short SELECT presses with and without the mod: replayed as taps, same camera view afterwards
 #   --toggle-off the F9 menu's toggle turns the mod off (GT_MOD_MENU_TEST_TOGGLE=reset-to-track@v<--toggle-at>, default v16300) before the
 #                press: PASS = the mod ran before `-> OFF` and logged nothing after, no reset, frames identical to the baseline
+#   --multi      the `reset_multi` route (a diagonal crossing, then SELECT held four times; the mod's default rewind_ms): every restore must be
+#                followed by 4 s (240 steps) on asphalt with no steering, and the look-ahead rule must have rejected poses (AHEAD lines)
 #   --reset-only just the reset run (no baseline), judged by the restore criteria
 #   Each of these must FAIL (--sabotage-notap with --tap): --without-mod (nothing resets), --sabotage-rates (-DRESET_SABOTAGE=1: rates not zeroed), --sabotage-newest
 #   (=2: newest pose, off-track included), --sabotage-norewind (=3: newest good pose, no rewind), --sabotage-notap (=4: the short
-#   press is not replayed to the game)
+#   press is not replayed to the game), --sabotage-lookahead-off (=5: every good pose enters the ring; with --multi)
+# The quiet and toggle runs set GT_MOD_RESET_QUIET=1: the mod then makes no road queries (every good pose is eligible). The game's road query is not
+# frame-neutral: with the queries a run diverges from the stock game (chaotically, from vblank ~7500 to ~17000 in different runs; with the tick and the
+# allocation but no query the 691 frames are identical), so byte-identity can only be asked of the rest of the mod. --multi covers the queries.
+# BASELINES run with the cheats mod installed but OFF ($out/mods_base): the host's pad menu filter, installed whenever an API v2 mod is loaded (reset-to-track
+# is one since 0.2.0), holds a lone Select/Start back 8 vblanks, so a baseline without any API v2 mod would differ from the first START of the route on.
 # WITH_CHEATS=1 also installs the cheats mod (enabled): the pad menu is then active, so a lone Select reaches reset-to-track 8 vblanks late (use with --reset-only and --tap; the quiet run's
 # byte-identity does not hold with the delay).
 # Env: ROUTE (a pad route file, default config/pad_routes/reset.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
@@ -27,10 +34,10 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_reset_check}
-decomp=off seconds=200 every=30 without=0 sabotage=0 toggle=0 reset_only=0 tap=0 toggle_at=16300 fake=${GT_RESET_FAKE_STEP:-none}
+decomp=off seconds=200 every=30 without=0 sabotage=0 toggle=0 reset_only=0 multi=0 tap=0 toggle_at=16300 fake=${GT_RESET_FAKE_STEP:-none}
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) without=1;; --sabotage-rates) sabotage=1;; --sabotage-newest) sabotage=2;; --sabotage-norewind) sabotage=3;; --sabotage-notap) sabotage=4;; --tap) tap=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;;
+    --without-mod) without=1;; --sabotage-rates) sabotage=1;; --sabotage-newest) sabotage=2;; --sabotage-norewind) sabotage=3;; --sabotage-notap) sabotage=4;; --sabotage-lookahead-off) sabotage=5;; --multi) multi=1;; --tap) tap=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;;
     --fake) fake=$2; shift;; --reset-only) reset_only=1;; --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_reset_check: unknown argument $1" >&2; exit 2;;
   esac
@@ -39,6 +46,7 @@ done
 [ "$fake" = none ] && fake=-  # --fake none: the reset run without the button (debugging)
 [ -x "$build/gt_play" ] || { echo "mod_reset_check: no $build/gt_play" >&2; exit 2; }
 route=${ROUTE:-config/pad_routes/reset.pad}
+[ $multi -eq 1 ] && route=${ROUTE:-config/pad_routes/reset_multi.pad}
 [ -f "$route" ] || { echo "mod_reset_check: no pad route $route" >&2; exit 2; }
 mkdir -p "$out/nomods" || exit 2
 mkdir -p "$out/mods/reset-to-track"
@@ -46,14 +54,18 @@ if [ $without -eq 0 ]; then
   mbuild="$out/mod-build-s$sabotage"
   flags=""; [ $sabotage -ne 0 ] && flags="-DRESET_SABOTAGE=$sabotage"
   { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" "-DCMAKE_CXX_FLAGS=$flags" \
-      && cmake --build "$mbuild" -j2 --target reset_to_track ${WITH_CHEATS:+cheats}; } > "$out/mod-build-s$sabotage.log" 2>&1 \
+      && cmake --build "$mbuild" -j2 --target reset_to_track cheats; } > "$out/mod-build-s$sabotage.log" 2>&1 \
     || { echo "mod_reset_check: mod build failed (log $out/mod-build-s$sabotage.log)" >&2; exit 2; }
   cp "$mbuild/reset-to-track/libreset_to_track.so" "$out/mods/reset-to-track/" || exit 2
+  # the baseline's mods dir: an API v2 mod that is switched off, so the host installs the same pad filter and tick as in the runs with reset-to-track
+  mkdir -p "$out/mods_base/cheats" && cp "$mbuild/cheats/libcheats.so" "$out/mods_base/cheats/" && cp "$mods_repo/cheats/mod.toml" "$out/mods_base/cheats/mod.toml" || exit 2
+  grep -q '^enabled = false' "$out/mods_base/cheats/mod.toml" || { echo "mod_reset_check: the cheats mod.toml is not disabled by default" >&2; exit 2; }
   # rewind_ms 4500 (the default is 2500): the restored car is ~130 m before the barrier, room to reach 15 m/s and stop
   if [ -n "${WITH_CHEATS:-}" ]; then  # an API-2 mod installed too: the host's pad menu (and its 8-vblank hold-back of a lone Select/Start) is then active
     mkdir -p "$out/mods/cheats" && cp "$mbuild/cheats/libcheats.so" "$out/mods/cheats/" && sed 's/^enabled = false/enabled = true/' "$mods_repo/cheats/mod.toml" > "$out/mods/cheats/mod.toml" || exit 2
   fi
-  sed 's/^enabled = false/enabled = true/; s/^rewind_ms *=.*/rewind_ms = 4500/' "$mods_repo/reset-to-track/mod.toml" > "$out/mods/reset-to-track/mod.toml"
+  rewind='s/^rewind_ms *=.*/rewind_ms = 4500/'; [ $multi -eq 1 ] && rewind=''  # --multi: the mod's own default (2500)
+  sed "s/^enabled = false/enabled = true/; $rewind" "$mods_repo/reset-to-track/mod.toml" > "$out/mods/reset-to-track/mod.toml"
 fi
 # the same route without the SELECT hold (the quiet run: no button), and the camera-tap route
 sed -E 's/,[0-9]+:SELECT:[0-9]+//' "$route" > "$out/route_nosel.pad"
@@ -88,15 +100,20 @@ mdir="$out/mods"; [ $without -eq 1 ] && mdir="$out/nomods"
 py=.venv/bin/python
 need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/$1/frames" ]; }
 if [ $tap -eq 1 ]; then  # the chase route's three short SELECT presses: hidden while down, replayed as taps, the camera view reached is the same
-  need_baseline baseline_chase && { run_one baseline_chase "$out/nomods" - - 1 config/pad_routes/chase.pad || exit 2; }
+  need_baseline baseline_chase && { run_one baseline_chase "$out/mods_base" - - 1 config/pad_routes/chase.pad || exit 2; }
   run_one tap "$mdir" - - 1 config/pad_routes/chase.pad || exit 2
   $py -I tools/mod_reset_check.py "$out" tap
   exit $?
 fi
 if [ $toggle -eq 1 ]; then
-  need_baseline baseline && { run_one baseline "$out/nomods" - - 1 "$route" || exit 2; }
-  run_one toggle "$mdir" "$fake" "reset-to-track@v$toggle_at" 1 "$route" || exit 2
+  need_baseline baseline && { run_one baseline "$out/mods_base" - - 1 "$route" || exit 2; }
+  GT_MOD_RESET_QUIET=1 run_one toggle "$mdir" "$fake" "reset-to-track@v$toggle_at" 1 "$route" || exit 2
   $py -I tools/mod_reset_check.py "$out" toggle
+  exit $?
+fi
+if [ $multi -eq 1 ]; then  # one run, judged on every restore (a sabotage or --without-mod must FAIL it)
+  run_one reset "$mdir" - - 0 "$route" || exit 2
+  $py -I tools/mod_reset_check.py "$out" multi
   exit $?
 fi
 if [ $sabotage -ne 0 ] || [ $without -eq 1 ] || [ $reset_only -eq 1 ]; then  # a failing run is all that is asked of a sabotage: no baseline needed
@@ -104,8 +121,8 @@ if [ $sabotage -ne 0 ] || [ $without -eq 1 ] || [ $reset_only -eq 1 ]; then  # a
   $py -I tools/mod_reset_check.py "$out" restore
   exit $?
 fi
-need_baseline baseline_nosel && { run_one baseline_nosel "$out/nomods" - - 1 "$out/route_nosel.pad" || exit 2; }
-run_one quiet "$mdir" - - 1 "$out/route_nosel.pad" || exit 2
+need_baseline baseline_nosel && { run_one baseline_nosel "$out/mods_base" - - 1 "$out/route_nosel.pad" || exit 2; }
+GT_MOD_RESET_QUIET=1 run_one quiet "$mdir" - - 1 "$out/route_nosel.pad" || exit 2
 run_one reset "$mdir" "$fake" - 1 "$route" || exit 2
 rc=0
 $py -I tools/mod_reset_check.py "$out" quiet || rc=1

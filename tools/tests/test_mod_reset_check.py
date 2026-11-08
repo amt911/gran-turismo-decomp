@@ -317,3 +317,63 @@ def test_main_restore_takes_the_calm_window(tmp_path):
     assert mr.main(["x", str(tmp_path), "restore"]) == 1
     assert mr.main(["x", str(tmp_path), "restore", "0"]) == 0
     assert mr.main(["x", str(tmp_path), "restore", "-1"]) == 0
+
+
+# --- --multi: every restore stays on the asphalt for 4 s, and the look-ahead rule ran ------------------------------------------------
+def ahead_line(step, ok, checked, rejected):
+    return f"[mod:reset-to-track] AHEAD step={step} pos=1.00,2.00 yaw=1.000 ok={ok} checked={checked} rejected={rejected}"
+
+
+def multi_log(restores=(2000, 2500, 3000), bad=None, rejected=3, ahead=True):
+    """`bad` = (restore index, wheels): from t=100 on that restore's samples have that many wheels on asphalt."""
+    lines = []
+    for n, step in enumerate(restores, 1):
+        lines.append(state(-1, step - 5, restores=n - 1).replace("t=-1", "t=-1"))
+        lines.append(restore_line(step))
+        for t in range(1, 361, 5):
+            wheels = bad[1] if bad and bad[0] == n and t >= 100 else 4
+            lines.append(state(t, step + t, wheels=wheels, restores=n))
+    if ahead:
+        lines.append(ahead_line(1990, 0, 20, rejected))
+    return "\n".join(lines)
+
+
+def test_multi_good_run_passes():
+    ok, message = mr.judge_multi(multi_log())
+    assert ok, message
+    assert "3 restores" in message and "rejected 3 of 20" in message
+
+
+def test_multi_a_restore_that_leaves_the_road_fails():
+    ok, message = mr.judge_multi(multi_log(bad=(2, 0)))
+    assert not ok and "restore 2" in message and "out of bounds" in message
+
+
+def test_multi_a_tipped_car_after_a_restore_fails():
+    text = multi_log().replace("up_z=1.000", "up_z=0.500", 40)
+    assert not mr.judge_multi(text)[0]
+
+
+def test_multi_needs_restores_and_the_rule_to_have_run():
+    assert "need at least" in mr.judge_multi(multi_log(restores=(2000,)))[1]
+    assert "no AHEAD line" in mr.judge_multi(multi_log(ahead=False))[1]
+    assert "rejected none" in mr.judge_multi(multi_log(rejected=0))[1]
+    assert not mr.judge_multi("nothing")[0]
+
+
+def test_multi_a_short_log_after_a_restore_fails():
+    lines = [l for l in multi_log(restores=(2000, 2500)).splitlines() if not ("restores=2" in l and "t=" in l and int(l.split("t=")[1].split()[0]) > 60)]
+    assert "follows the car only" in mr.judge_multi("\n".join(lines))[1]
+
+
+def test_multi_nan_is_an_error():
+    assert "nan" in mr.judge_multi(multi_log().replace("up_z=1.000", "up_z=nan", 1))[1]
+
+
+def test_main_multi_mode(tmp_path, capsys):
+    (tmp_path / "reset").mkdir()
+    (tmp_path / "reset" / "run.log").write_text(multi_log())
+    assert mr.main(["x", str(tmp_path), "multi"]) == 0
+    assert capsys.readouterr().out.startswith("PASS multi:")
+    (tmp_path / "reset" / "run.log").write_text(multi_log(bad=(1, 2)))
+    assert mr.main(["x", str(tmp_path), "multi"]) == 1

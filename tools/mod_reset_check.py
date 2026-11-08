@@ -9,6 +9,9 @@ Judged here:
                 every state line has 4 wheels on asphalt and up.z > MIN_UP_Z; the car starts from rest, calm (every angular rate
                 under MAX_CALM_RATE in the first CALM_STEPS), holds the restored heading (within MAX_YAW_DRIFT over the first
                 YAW_STEPS) and drove (speed above MIN_DRIVE_SPEED);
+  multi run     (`multi`, the reset_multi route) at least MULTI_MIN_RESTORES restores; after every one the car stays on asphalt with
+                up.z > MIN_UP_Z from SETTLE_STEPS to LEAVE_STEPS (4 s) with no steering (the route steers only far later); the mod's
+                `AHEAD` lines (the look-ahead rule ran in the vblank tick) show it rejected some poses;
   quiet run     the mod installed, no button: no RESTORE and every frame byte-identical to the run without the mod;
   toggle run    the F9 menu turned the mod off before the button: `-> OFF` logged, no RESTORE, frames identical to the baseline.
 """
@@ -25,11 +28,14 @@ STATE = re.compile(TAG + rf"t=(-?\d+) step=(\d+) wheels=(\d) up_z=({NUM}) spd=({
                    rf"yaw=({NUM}) rates=((?:{NUM},){{4}}{NUM})(?: vel={NUM},{NUM},{NUM} fwdcos=({NUM}))? ring=(\d+) restores=(\d+)"
                    rf"(?: acc=({NUM}) thr=({NUM}) brk=({NUM}))?(?: pad=\d+/\d+/\d+)?")
 PADSEL = re.compile(TAG + r"PADSEL (down|up) step=(\d+)(?: tap=(\d))?")
+AHEAD = re.compile(TAG + r"AHEAD step=(-?\d+) pos=(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+) ok=([01]) checked=(\d+) rejected=(\d+)")
 RESTORE = re.compile(TAG + r"RESTORE step=(\d+) pos=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+)")
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
 FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
 TAP_PRESSES = 3            # the chase route's three SELECT presses
 TAIL_AFTER_VBLANKS = 150   # frames dumped this long after the route's last press: the camera view has settled
+LEAVE_STEPS = 240       # --multi: no restore may leave the asphalt within 4 s (the route does not steer that early after a restore)
+MULTI_MIN_RESTORES = 2  # --multi: fewer restores than this and the check proves nothing
 TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
 
 SETTLE_STEPS = 30       # the ~10-step settle transient after a restore (research e1), with margin
@@ -166,6 +172,33 @@ def judge_restore(text, calm_steps=CALM_STEPS):
                   f"up.z > {MIN_UP_Z}, heading drift {drift:.3f} rad, top speed {top:.1f} m/s")
 
 
+def judge_multi(text):
+    """The reset_multi route: several restores, none of which puts the car off the asphalt again within LEAVE_STEPS steps, and the
+    look-ahead rule rejected at least one pose (so it is the rule, not luck, that keeps the restores on the road). Returns (ok, message)."""
+    restores, states = parse_restores(text), parse_states(text)
+    if non_finite(states):
+        return False, f"nan/inf in the state log at step {non_finite(states)[0]['step']}"
+    if len(restores) < MULTI_MIN_RESTORES:
+        return False, f"{len(restores)} RESTORE lines (need at least {MULTI_MIN_RESTORES}: the route presses SELECT four times)"
+    for index, rs in enumerate(restores):
+        window = [s for s in states if s["t"] >= 0 and rs["step"] <= s["step"] <= rs["step"] + LEAVE_STEPS and s["restores"] == index + 1]
+        late = [s for s in window if s["t"] >= SETTLE_STEPS]
+        if not late or late[-1]["t"] < LEAVE_STEPS - 15:
+            return False, f"restore {index + 1} (step {rs['step']}): the log follows the car only {late[-1]['t'] if late else 0} steps (need ~{LEAVE_STEPS})"
+        for s in late:
+            if s["wheels"] != 4 or not s["up_z"] > MIN_UP_Z:
+                return False, (f"restore {index + 1} (step {rs['step']}) put the car out of bounds: t={s['t']}: {s['wheels']}/4 wheels on asphalt, "
+                               f"up.z {s['up_z']:.3f}, within {LEAVE_STEPS} steps and with no steering")
+    aheads = [m for m in AHEAD.finditer(text)]
+    rejected = int(aheads[-1].group(7)) if aheads else 0
+    if not aheads:
+        return False, "no AHEAD line: the look-ahead rule never ran (is the mod api 2 and GT_MOD_RESET_LOG=1?)"
+    if rejected == 0:
+        return False, f"the look-ahead rule checked {aheads[-1].group(6)} poses and rejected none: it proves nothing on this route"
+    return True, (f"{len(restores)} restores, each followed by {LEAVE_STEPS} steps on 4/4 asphalt, up.z > {MIN_UP_Z}; the look-ahead rule rejected "
+                  f"{rejected} of {aheads[-1].group(6)} candidate poses")
+
+
 def judge_no_restore(text, toggled=False):
     """A run where the mod must not reset, and must be shown to have run: no RESTORE line, nan/inf-free state lines; at least MIN_RING_LINES
     with a ring in use (the mod recorded poses) before the toggle (`toggled`: the `[mods] <id> -> OFF` line) and none after it.
@@ -245,6 +278,10 @@ def main(argv):
         calm = int(argv[3]) if len(argv) > 3 else CALM_STEPS  # optional: the calm window in steps (see judge_restore)
         ok, message = judge_restore(read(os.path.join(out, "reset", "run.log")), calm)
         print(("PASS " if ok else "FAIL ") + f"reset: {message}")
+        return 0 if ok else 1
+    if mode == "multi":
+        ok, message = judge_multi(read(os.path.join(out, "reset", "run.log")))
+        print(("PASS " if ok else "FAIL ") + f"multi: {message}")
         return 0 if ok else 1
     if mode == "tap":
         log = read(os.path.join(out, "tap", "run.log"))
