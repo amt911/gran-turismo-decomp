@@ -30,6 +30,8 @@ ACTED: dict[str, re.Pattern[str]] = {
     # moving fast enough on that route for a reset, so the pad hook is what acts)
     "reset-to-track": re.compile(r"^\[mod:reset-to-track\] PADSEL up step=\d+ tap=1", re.M),
     # GT_MOD_ROLLOVER_FAKE=<step>:5 + GT_MOD_ROLLOVER_LOG=1: a fake 5 m/s lateral velocity change at that step is answered with a roll impulse
+    # GT_MOD_CHEATS_SLOWMO=0.5 + GT_MOD_CHEATS_FREEZE_AI=1 + GT_MOD_CHEATS_LOG=1: the car log says both cheats are on (and the AI cars are still)
+    "cheats": re.compile(r"^\[mod:cheats\] st=[1-9]\d* slow=0\.5x freeze=1 P=", re.M),
     "rollover": re.compile(r"^\[mod:rollover\] IMPULSE st=[1-9]\d* held=-?[1-9]\d*\.\d\d", re.M),
 }
 

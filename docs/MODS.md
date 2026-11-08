@@ -4,7 +4,7 @@ Un **mod** es una biblioteca compartida (`.so`) más un `mod.toml`, cargada por 
 **funciones del juego por dirección** (la dirección de ejecución PSP = vaddr del ELF + `0x08804000`), lee y escribe la memoria
 del invitado y puede llamar a la función original. Solo `gt_play` carga mods; `gt_native`, la puerta diferencial, `--decomp diff` y
 los casos sintéticos nunca los cargan. Los mods del autor viven en el repo privado `gt-mods`
-(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `draw-distance`: plano lejano de la carrera x `far_scale`, comprobación `tools/mod_drawdist_check.sh`; `reset-to-track`: un botón devuelve el coche del jugador a la pista; `rollover`: el coche puede volcar, comprobación `tools/mod_rollover_check.sh`; ver su README).
+(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `draw-distance`: plano lejano de la carrera x `far_scale`, comprobación `tools/mod_drawdist_check.sh`; `reset-to-track`: un botón devuelve el coche del jugador a la pista; `rollover`: el coche puede volcar, comprobación `tools/mod_rollover_check.sh`; `cheats`: cámara lenta y IA congelada en carrera, filas en el menú F9, comprobación `tools/mod_cheats_check.sh`; ver su README).
 
 ## Dónde y cómo se carga
 
@@ -29,7 +29,7 @@ Arriba/Abajo eligen, Izquierda/Derecha/Intro cambian, F9 o Escape cierran (la p�
 así que un cambio a mitad de llamada no la deja a medias) y se guarda en su `mod.toml` (`enabled = true|false`, respetando
 comentarios y demás claves). Si no se puede escribir el fichero, la fila muestra `SAVE FAILED` pero el cambio sigue aplicado.
 Sin mods instalados dice `NO MODS INSTALLED`. Con `GT_NO_MODS=1`, `--decomp diff` o casos sintéticos no hay mods que mostrar.
-Solo teclado (como el panel F10). No se editan los ajustes del mod ni se descargan bibliotecas en caliente.
+Teclado y mando (ver «Menú con el mando»). No se editan los ajustes del mod ni se descargan bibliotecas en caliente. Un mod puede añadir sus propias filas (API v2).
 
 Un mod con `enabled = false` **se carga igualmente** (su `gt_mod_init` se ejecuta) y queda inactivo, para poder encenderlo
 sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de cada cadena). El
@@ -37,6 +37,51 @@ sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de ca
 
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
 del menú pasado ese tiempo (`[mods] <id> -> OFF`).
+
+## API v2 (filas de menú, tic por vblank, `call_guest`)
+
+`include/gt_mod/gt_mod_api.h`. La tabla v2 **añade campos al final** de `GtModApi`; el prefijo v1 no cambia. `GT_MOD_API_VERSION` sigue valiendo 1 (la
+versión base) y se añade `GT_MOD_API_VERSION_2`. El cargador acepta `api = 1` o `api = 2` en el `mod.toml` y entrega a cada mod una tabla cuyo `version`
+es lo que declaró: un mod v1 (binario o recompilado) sigue comprobando `api->version != GT_MOD_API_VERSION` y carga igual; los cinco mods anteriores
+no cambian. Las funciones v2 **rechazan** (devuelven distinto de 0 y dicen por qué en stderr) a un mod que declaró `api = 1`.
+- `add_menu_row(self, id, label_fn, activate_fn)`: una fila en la página MODS tras las de los mods. Solo durante `gt_mod_init`. `label_fn(self, out, capacidad)`
+  escribe el texto; `activate_fn(self, dirección)` recibe Intro (0), Izquierda (-1) o Derecha (+1). Se rechaza un `id` vacío, de más de 31 caracteres, funciones
+  nulas o el mismo `id` dos veces **en el mismo mod** (otro mod puede usar el mismo `id`: las filas se ordenan por orden de carga y conviven, sin «gana el último»).
+  Las dos funciones las llama el host desde otros hilos y varios a la vez (teclado en el bombeo de SDL, mando en una lectura del juego, la etiqueta al
+  dibujar): estado en atómicos, nunca tocar memoria del invitado ni llamar al juego desde ellas. La fila de un mod apagado dice `<id> mod OFF` y no hace nada.
+- `on_vblank(self, fn)`: un tic por mod (solo en `gt_mod_init`), una vez por vblank del juego (`host/gt_kernel.cpp`, el primer `sceDisplayWaitVblank*` que ve cada
+  vblank, en ese hilo del invitado). El tic de un mod apagado se salta.
+- `call_guest(ctx, dirección, args, n, &v0)`: llama a una función del juego (hasta 8 argumentos enteros). **Solo dentro del tic**: desde un gancho, con el
+  runtime parado o con argumentos malos devuelve distinto de 0 y no ejecuta nada (`host/tests/mod_services_test.cpp`). La función no puede bloquear (un cambio de hilo
+  fuera de fibra para el runtime) y se ejecuta con los demás hilos del invitado detenidos en un límite de llamada: solo funciones seguras entre dos llamadas cualesquiera del juego.
+
+## Menú con el mando
+
+`host/pad_menu.cpp` (lógica pura, `host/tests/pad_menu_test.cpp`) filtra la lectura del mando del juego (`sceCtrlReadBufferPositive`, `host/host_hooks.hpp`; el filtro y el tic
+solo se instalan en `gt_play` cuando hay al menos un mod instalado). **Acorde: SELECT+START** (variable `GT_PAD_MENU_CHORD`, p. ej. `L+R`, para probar otro): al completarse abre o cierra la página
+MODS; arriba/abajo mueven (con repetición a los 18 y cada 4 vblanks), cruz = Intro, izquierda/derecha cambian el valor, círculo cierra. Con el menú abierto
+(también si se abrió con F9) el juego no ve botones y ve el stick centrado; un botón que se pulsa con el menú abierto y los del acorde siguen ocultos hasta soltarlos
+(ni un Start que pause, ni un círculo suelto al cerrar); uno que ya estaba pulsado al abrir (el acelerador) vuelve a verse al cerrar. Sin acorde y con el menú
+cerrado el filtro es la identidad. **Por qué ese acorde:** ver «Acorde elegido» abajo. El overlay del host necesitó el parche `0061` de lcs-recomp (`HostExtraPage::adjust`:
+la página distingue Intro/Izquierda/Derecha).
+
+## Acorde elegido (SELECT+START)
+
+Se probó, sin mods, un acorde de 6 vblanks en plena carrera (ruta `cheats`, fotogramas contra una ejecución sin él): SELECT+START, L+R, TRIÁNGULO+CÍRCULO y L+R+SELECT+START
+cambian los fotogramas, así que ninguna pareja es «libre». Se eligió SELECT+START porque el filtro oculta los dos botones desde el vblank en que se completa (FACTS «Cheats»),
+Select ya es el botón de reset-to-track (que lee el mando después del filtro y no ve nunca ese Select oculto) y Start solo pausa. Límite: si un botón llega más de un vblank antes
+que el otro, el primero se filtra al juego (Select: un toque corto que cambia la vista; Start: pausa). `GT_PAD_MENU_CHORD` permite probar otro.
+
+## Comprobar `cheats` y el menú con el mando
+
+```bash
+GT_MODS_REPO=../gt-mods tools/mod_cheats_check.sh [--decomp off|on] [--keep-baseline]   # sin mod / mod apagado / mod encendido en reposo: fotogramas idénticos; cámara lenta 0.5x y 0.25x; IA congelada
+tools/mod_cheats_check.sh --pad [--decomp off|on]       # ruta cheats_pad: SELECT+START abre el menú, Abajo/Derecha cambian Slow motion y Freeze AI, el acorde lo cierra; sin acelerador mientras está abierto
+tools/mod_cheats_check.sh --sabotage-slowmo             # debe FALLAR (la cámara lenta no hace nada)
+tools/mod_cheats_check.sh --sabotage-freeze             # debe FALLAR
+tools/mod_cheats_check.sh --sabotage-chord              # recompila gt_play con -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=ON, debe FALLAR, y lo deja como estaba
+tools/mods_together_check.sh                            # los seis mods a la vez (cheats con GT_MOD_CHEATS_SLOWMO=0.5, FREEZE_AI=1)
+```
 
 ## `mod.toml`
 

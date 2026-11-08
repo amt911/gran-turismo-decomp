@@ -76,3 +76,11 @@ def test_rollover_must_show_an_impulse():
     assert not ok and problems[0].startswith("rollover: no log line")
     ok, problems = m.judge(good.replace("held=3.75", "held=0.00"), ids)  # a zero rate is no impulse
     assert not ok and problems[0].startswith("rollover: no log line")
+
+
+def test_cheats_rule():
+    log = GOOD.replace("orbit-camera skipped:", "orbit-camera cheats skipped:")
+    assert not m.judge(log, IDS + ["cheats"])[0]  # loaded but no log line of it acting
+    acted = log + "\n[mod:cheats] st=10 slow=0.5x freeze=1 P=1.000,2.000,3.000 spd=1.000 acc=0.00 A0=1.000,2.000,3.000"
+    assert m.judge(acted, IDS + ["cheats"]) == (True, [])
+    assert not m.judge(acted.replace("freeze=1", "freeze=0"), IDS + ["cheats"])[0]

@@ -581,3 +581,28 @@ stock). With `--decomp on` and the flag lifted for the whole body step, frames d
 frames from the race start); taking `0x08945F6C` out of the lifted extent (hook `on_contact_step`) makes the whole run identical. So the decompiled
 `func_08945F6C` (or what it calls) behaves differently from the original with the flag set: a path the differential gate never ran (its cases all have
 the flag at 0). Not investigated further here; the mod avoids it. **Follow-up for the decomp:** give `func_08945F6C` a flag-1 synthetic case.
+
+## Cheats: the world step, AI cars and the F9 pad menu (measured 2026-11-08, cheats mod and mod API v2)
+
+- **A hook on `0x0894DD9C` cannot read the state "after the step" with `--decomp off`.** A probe mod (hooks on the dispatched callees, enter/exit,
+  AI car 0's `K+0x10` read each time) showed `call_original` of the `0x0894DD9C` hook returning before any of the step's work: the calls of the body
+  (`0x08958AD8` per car, `0x08956DC8`, `0x0895F3BC`, `0x0895F7C0`, `0x08957154`, then `0x08B344E0`...) are dispatched **after** the hook returned, and AI car
+  0's x changed between the exit of `0x08958AD8` and the entry of `0x08956DC8`, i.e. inside the step. So a post-step read in the hook sees the pre-step state (a
+  first version of the cheats mod did nothing to AI cars because of this). What works in both modes: act at the **next** call's entry, where the state is the
+  previous step's result (the mod keeps what it left as `base`). *(measured: `--decomp off`; `--decomp on` runs the same mod and passes the same checks.)*
+- **The world step is a fixed step.** Its caller (`0x088E1F40..`) passes a float in `$f12` (`$f20`) and a 64-bit time in `a2/a3` to the object's virtual slot
+  `0x18` (`0x0894DD9C`), but `0x0894DD9C` saves only `$f20` and reads no argument but `a0` (asm): there is no time step to scale. Slow motion is therefore the
+  per-car interpolation `base + f*(now - base)` over position, basis rows, speed, velocity, angular rates and Euler angles (`K+0x10..0x18`, `0x1C..0x3C`,
+  `0x6C4`, `0x6CC..0x6D4`, `0x6E4/6E8/6F0/6F4/6F8`, `0x6FC..0x704`). *(inferred from the asm, then measured by the check.)*
+- **AI cars use the same body layout** as the player (K = word(car+8), no NaN in those fields in the 4-car `race` start; 3 AI cars, slots in `world+4`, driver entry
+  vtable != `0x08CC1F60`). Frozen from step 860 they stay within 0.05 m while the player drives; they start moving (rolling start) before the GO at step ~750.
+- **Slow motion is not a pure clock scale** (what the check measured): the speed->distance curve is within ~15% of the idle run's and the steps to climb between two
+  speeds are 1/F times as many within 10% (0.5x) / 20% (0.25x): the throttle ramp and engine state are not slowed. AI cars covered 153 m against 432 m idle at the
+  same step (0.5x) and 48 m (0.25x).
+- **Pad menu.** `sceCtrlReadBufferPositive` (HLE in `host/gt_kernel.cpp`) merges host + GT_PAD buttons; the filter runs there, once per vblank for edges.
+  The game's accelerator `K+0x530` follows a pad change with a lag of ~20 log lines (40 steps), so a judge must skip that settling.
+- **Which chord does the game not use? None of the pairs tried.** No-mod runs of the `cheats` route with one extra 6-vblank press at race +1800 (frames vs a run
+  without it, first difference at the press in every case): SELECT+START, L+R, TRIANGLE+CIRCLE and L+R+SELECT+START all change the frames. So any chord leaks into the
+  game when its buttons are not pressed in the same vblank; the filter hides both chord buttons from the vblank the chord completes (SELECT+START chosen: Select is
+  already the reset-to-track key, Start only pauses, and both are on the PSP's small-button side, so a simultaneous press is natural). Select pressed more than one vblank before Start leaks a short
+  Select to reset-to-track (a tap replay: the camera view changes); Start first leaks a pause.

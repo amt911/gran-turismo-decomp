@@ -3044,3 +3044,12 @@ before the abort. The mod's own reads are wrapped in try/catch (an unreadable ca
 the decomp:** find which node `func_08BD4270` dereferences (`0x3EEE1474` looks like a float, 0.4664, read as a pointer) and compare with the original.
 
 Found: 2026-11-08 · build/gt_play --decomp on, tools/mod_rollover_check.sh
+
+## A mod hook cannot see the result of the world step (2026-11-08)
+
+**Symptom.** The cheats mod's "freeze AI" did nothing: reading a car's position after `call_original` of the `0x0894DD9C` hook gave the pre-step value, so writing the
+pre-step value back changed nothing, while the AI cars kept moving.
+**Cause.** With `--decomp off` the recompiled unit finishes the hook's `call_original` before the body runs; the body's calls are dispatched after the hook has
+returned (probe, FACTS "Cheats"). The same goes for the mod docs' "hook before and after" for any function the recompiler reaches by a tail jump.
+**Fix / rule.** Do post-step work at the next call's entry (keep what you wrote as the base), which works in `--decomp off` and `on`; check a "post" hook with a probe
+in both modes before building on it.
