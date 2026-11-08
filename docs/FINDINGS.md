@@ -3030,3 +3030,17 @@ inert"). With the flag lifted only for the tilt clamp and the angle wrap, a mod-
 toggle check compares every frame.
 
 Found: 2026-11-08 · tools/mod_rollover_check.sh, gt-mods `rollover/src/mod.cpp`
+
+## `--decomp on` aborts in `func_08BD4270` ~100 s after the route's end when the car has been rolled by the rollover mod
+
+**Symptom.** `tools/mod_rollover_check.sh --decomp on` (200 s of wall time, no frame dump) exited 134 in about 2 of 5 roll runs, always at the same
+game time (player-car step ~14150, ~12000 steps after the barrier hit, well after `script done`): `terminate called after throwing an instance of
+'psprecomp::Error'`, `Guest memory access outside PSP RAM/EDRAM at 0x3EEE1474`. The core's backtrace (`coredumpctl gdb`): `GuestMemory::load32_checked`
+<- `gt::game::hot_batch_95::func_08BD4270` (decompiled) <- a `call_guest` chain through `hot_batch_63::walk_nodes_virtual` (a scene-node walk) <- `func_08AF23C0`
+<- `func_08AF24B0`; no frame of the mod. **Not reproduced:** `--decomp off` (5+ roll runs), `--decomp on` with no mod (4 runs, same duration, no frames), `on`
+with the mod's non-rolling sabotage builds (6 runs). So a decompiled function reads a stale pointer in a scene state that only the rolled car leaves
+behind (or only at that game time). **Mitigation:** the check's default is 150 s (the route ends at vblank ~17980, ~110 s with frames), which ends
+before the abort. The mod's own reads are wrapped in try/catch (an unreadable car = no player car), which is not what stopped this. **Follow-up for
+the decomp:** find which node `func_08BD4270` dereferences (`0x3EEE1474` looks like a float, 0.4664, read as a pointer) and compare with the original.
+
+Found: 2026-11-08 · build/gt_play --decomp on, tools/mod_rollover_check.sh

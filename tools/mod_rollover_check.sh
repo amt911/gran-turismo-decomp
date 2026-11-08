@@ -2,7 +2,7 @@
 # In-game check of the rollover mod (gt-mods repo): headless gt_play on the `rollover` pad route (the race, throttle held until the car runs off
 # the end of the straight and hits the barrier at a slant, then throttle and brake), the mod's state log (GT_MOD_ROLLOVER_LOG=1) and
 # tools/mod_rollover_check.py as judge.
-#   tools/mod_rollover_check.sh [--decomp off|on] [--seconds N] [--every N] [--roll-only] [--toggle-off] [--recover]
+#   tools/mod_rollover_check.sh [--decomp off|on] [--seconds N (default 150: the route ends at vblank ~17980, ~110 s; see docs/FINDINGS.md for why not longer)] [--every N] [--roll-only] [--toggle-off] [--recover]
 #                               [--without-mod|--sabotage-noflag|--sabotage-noimpulse|--sabotage-threshold0|--sabotage-flipflag]
 #   (default)    baseline (no mod, frames), disabled (the mod installed with enabled = false: frames byte-identical to the baseline, nothing
 #                logged), roll (mod enabled: quiet driving first, one impulse at the crash, the car tilts past the game's 35 deg clamp toward
@@ -18,7 +18,7 @@
 #   --sabotage-threshold0 (=3: an impulse in normal driving), --sabotage-flipflag (=4: the flag also lifted for the dormant flip state machine: the car sinks through the road)
 # Env: ROUTE (a pad route file, default config/pad_routes/rollover.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
 # GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_rollover_check, gitignored; never /tmp),
-# KEEP_BASELINE=1 (reuse the baseline of $OUT when --decomp, route and --every match). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that crashed, timed out
+# KEEP_BASELINE=1 (reuse the baseline of $OUT when --decomp, route, --every and --seconds match). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that crashed, timed out
 # or did not finish its route). Each run is a real-time job: inside the memory cgroup and its own hold of the shared CPU lock (tools/cpu_lock.sh).
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -26,7 +26,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_rollover_check}
-decomp=off seconds=200 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300
+decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300
 while [ $# -gt 0 ]; do
   case $1 in
     --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;;
@@ -82,8 +82,8 @@ run_one() {
 }
 mdir="$out/mods"
 py=.venv/bin/python
-# KEEP_BASELINE=1 reuses $out/baseline only when it was made with the same --decomp, route and --every (recorded in baseline/.config)
-cfg="decomp=$decomp route=$route every=$every"
+# KEEP_BASELINE=1 reuses $out/baseline only when it was made with the same --decomp, route, --every and --seconds (recorded in baseline/.config)
+cfg="decomp=$decomp route=$route every=$every seconds=$seconds"
 need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/baseline/frames" ] || [ "$(cat "$out/baseline/.config" 2>/dev/null)" != "$cfg" ]; }
 make_baseline() { run_one baseline "$out/nomods" - 1 "$1" && echo "$cfg" > "$out/baseline/.config"; }
 if [ $recover -eq 1 ]; then
