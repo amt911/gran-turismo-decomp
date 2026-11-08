@@ -1640,21 +1640,21 @@ void func_08945F6C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         put_float(rt, body + 0x48u, float_at(rt, point + 0xCu));
     } else {
         const float scale = float_at(rt, limits + 0x20u);
-        const float across = (part[2] - part[0]) * scale;
-        const float down = scale * (part[3] - part[1]);
+        const float across = psp_mul(part[2] - part[0], scale);
+        const float down = psp_mul(scale, part[3] - part[1]);
         const float first_sum = part[0] + part[1];
         const float second_sum = part[2] + part[3];
         const float x = part[0] + across;
         const float y = part[1] + down;
         const float width_scale = float_at(rt, limits + 0x18u);
         const float height_scale = float_at(rt, limits + 0x1Cu);
-        float width = width_scale * call_setf(rt, ctx, 0x08B499B8u, {}, {float_at(rt, body + 0x6FCu)}).f0;
-        float height = height_scale * call_setf(rt, ctx, 0x08B499B8u, {}, {float_at(rt, body + 0x700u)}).f0;
+        float width = psp_mul(width_scale, call_setf(rt, ctx, 0x08B499B8u, {}, {float_at(rt, body + 0x6FCu)}).f0);
+        float height = psp_mul(height_scale, call_setf(rt, ctx, 0x08B499B8u, {}, {float_at(rt, body + 0x700u)}).f0);
         if (width < 0.0f) width = -width;
         if (height < 0.0f) height = -height;
-        put_float(rt, body + 0x708u, call_setf(rt, ctx, 0x08B4A430u, {}, {(first_sum - second_sum) * 0.5f, width}).f0);
+        put_float(rt, body + 0x708u, call_setf(rt, ctx, 0x08B4A430u, {}, {psp_mul(first_sum - second_sum, 0.5f), width}).f0);
         put_float(rt, body + 0x70Cu, call_setf(rt, ctx, 0x08B4A430u, {}, {x - y, height}).f0);
-        put_float(rt, body + 0x48u, (x + y) * 0.5f);
+        put_float(rt, body + 0x48u, psp_mul(x + y, 0.5f));
     }
     tail_call(ctx, 0x0893C3E4u, {body + 0x4Cu, body + 0x58u, body + 0x64u, body + 0x708u, body + 0x70Cu, body + 0x704u});
 }
