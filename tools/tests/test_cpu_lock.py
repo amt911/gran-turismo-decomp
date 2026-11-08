@@ -57,3 +57,32 @@ def test_a_starved_waiter_does_not_stop_a_holder_that_took_the_lock_after_its_st
     assert first.wait(timeout=30) != 0  # the stale holder is stopped
     assert second.wait(timeout=60) == 0 and (tmp_path / "second").exists()
     assert waiter.wait(timeout=60) == 0
+
+
+def test_the_wait_limit_is_the_holders_age_not_the_waiters_wait(tmp_path):
+    """The bug (2026-11-08): a waiter that had waited past the limit behind earlier holders stopped a holder that had just
+    taken the lock. Here the first holder ends by itself at ~2.5 s, the second takes the lock at ~3 s and runs 3 s; the
+    waiter (limit 4 s, polling every 2 s) has waited 4 s at ~4 s, but the second hold is ~1 s old then: it must run on."""
+    first = hold(tmp_path, "first", 2.5, tmp_path / "first")
+    wait_for(tmp_path / "first")
+    second = subprocess.Popen(["sh", str(SCRIPT), "second", "sh", "-c", f"touch {tmp_path / 'second'}; sleep 3"],
+                              env=env(tmp_path, starve_s=1000, poll_s=1), stderr=subprocess.DEVNULL)
+    waiter = subprocess.Popen(["sh", str(SCRIPT), "waiter", "sleep", "0"], env=env(tmp_path, starve_s=4, poll_s=2),
+                              stderr=subprocess.DEVNULL)
+    assert first.wait(timeout=30) == 0  # ended by itself
+    assert second.wait(timeout=60) == 0 and (tmp_path / "second").exists()
+    assert waiter.wait(timeout=60) == 0
+
+
+def test_an_empty_owner_line_falls_back_to_the_waiters_wait(tmp_path):
+    """A job that ended leaves the owner line empty while a background child may still hold the descriptor: the hold's age
+    is unknown, so the waiter's own wait counts (an empty date used to parse as today's midnight: stopped at once)."""
+    holder = subprocess.Popen(["sh", "-c", f"exec 9>{tmp_path / 'cpu-heavy.lock'}; flock 9; touch {tmp_path / 'held'}; sleep 60"])
+    (tmp_path / "cpu-heavy.owner").write_text("")
+    wait_for(tmp_path / "held")
+    waiter = subprocess.Popen(["sh", str(SCRIPT), "waiter", "sleep", "0"], env=env(tmp_path, starve_s=4, poll_s=1),
+                              stderr=subprocess.DEVNULL)
+    time.sleep(2.5)
+    assert holder.poll() is None  # not stopped before the waiter's own 4 s
+    assert waiter.wait(timeout=40) == 0
+    assert holder.wait(timeout=20) != 0
