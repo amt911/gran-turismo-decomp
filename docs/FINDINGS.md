@@ -2995,3 +2995,20 @@ link, the last link runs the game's function; an inactive mod is skipped. `tools
 enabled and requires all loaded, the route finished and each mod's "acted" log line. Run it for every new mod.
 
 Found: 2026-11-07 · host/mod_hooks.cpp, tools/mods_together_check.sh
+
+## Setting the dormant rollover flag makes the car sink through the road, and `ra` names no caller under `--decomp on`
+
+**Symptom.** Forcing the word `0x08CF2F08` (what the tilt clamp reads) to 1 and kicking the roll rate rolled the car, but the car then fell
+~4 m *below* the road, was pushed back up 6.5 m in one step and did it three times before settling; `K+0x74B` went `00 -> 06 -> 02`.
+The flag also wakes the "flipped car" state machine of `0x08956930`, which skips the car's force/contact pipeline while the car is on its
+side (`docs/FACTS.md`, "Rollovers"). **Fix (mod).** The reader hook answers 0 to that one caller. Naming it by `ra` (call site + 8) works only
+in `--decomp off`: under `--decomp on` the callers are C++ and `ra` is a small site number (`0x140`, `0x150`, ...), so the first fix looked
+right in one mode and left the machine live in the other (`+0x74B` = 6 in the log). A hook on `0x08956930` itself, flagging "inside the
+machine" for the reader hook, works in both. The check asserts the flag byte stays 0 and the car never jumps in height.
+
+**Also learned.** (1) A car with the clamp lifted is not frame-identical to a run without the mod even before any hit (its first settling on
+the grid differs by a few pixels), so the toggle-off check compares frames only from the toggle on. (2) `up . lat` of the car's *own* basis is
+always 0: the side a car tips toward must be read against the lateral axis it had before the hit. (3) Do not edit a shell script that a
+batch is running (bash reads it by offset): kill the batch, edit, restart.
+
+Found: 2026-11-08 · docs/FACTS.md (Rollovers), tools/mod_rollover_check.sh, gt-mods `rollover/src/mod.cpp`

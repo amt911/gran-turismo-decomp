@@ -527,3 +527,43 @@ and `tools/mod_reset_check.sh`. Spec: `docs/superpowers/specs/2026-11-07-reset-t
   rates; the gear, engine rpm and the previous-position fields were not located (no Ghidra pass). Observation: from rest the automatic gearbox
   re-launches normally (the throttle held after a reset reaches > 15 m/s in ~330 steps, the same as a start from the grid), so the gap does not
   show; the check requires that speed (a bogged-down gear would fail it).
+
+## Rollovers: the dormant flag and the flip state machine (verified 2026-11-08, rollover mod)
+
+Read from the asm (`tools.disasm`, a text scan for `0x74B`/`0x74C` accesses and for `jal` callers) and measured in game with the mod's log
+(`tools/mod_rollover_check.sh`, `--decomp off` and `on` give the same numbers). **Observations** first, then **inferences**.
+
+**Observations.**
+- The flag word is `0x08CF2F08`; `0x0894CCB8` (3 instructions) returns it. Six callers, all `jal`: `0x0893E5A4` (in `0x0893E0FC`, the tilt clamp),
+  `0x08945FEC` (in `0x08945F6C`), `0x0894E200` (in the step `0x0894DD9C`), `0x08956950` (in `0x08956930`), `0x08956BE8` (in `0x08956B20`, the Euler
+  angle wrap to +-pi) and `0x08956F18` (in `0x08956EF4`, the contact-normal reset). A hook on `0x0894CCB8` sees them with `ra` = call site + 8
+  (`0x0893E5AC`, `0x08945FF4`, `0x0894E208`, `0x08956958`, `0x08956BF0`, `0x08956F20`) in `--decomp off`; with `--decomp on` the callers are C++ and `ra`
+  is a small site number (`0x140`, `0x150`, ...), so `ra` cannot name the caller there.
+- `+0x6F4` is the **roll** rate (body rate about the forward axis), `+0x6F0` the pitch rate: a positive `+0x6F4` tips the up vector (`K+0x34/38/3C`)
+  toward the **second basis row** `K+0x28/2C/30` (the lateral axis); the first row `K+0x1C/20/24` is the **forward** axis (the world velocity
+  points along it: `vel/|vel|` equals the first row to 2 digits at several logged steps). Normal driving changes the velocity along the lateral axis by ~0.1-0.2 m/s
+  per step; the `race` route's barrier hit at step ~1852 gives `-8.3` m/s lateral (and -14.6 forward) in one step.
+- `0x08956930(car)` (called once per car from the step, `0x0894E414`), with the flag **clear**: `0x0895469C(car)`, `0x08960EF0(car)`, tail
+  `0x0893C968(car)` (the normal pre-step pipeline). With the flag **set**: `f21` = the body's up vector dotted with `K+0x64/68/6C` (just `K+0x3C`
+  when `K+0x6C < 0.5`); byte `b = K+0x74B`. No bit 1 (mask 2) and `f21 < 0.1`, or `f21 < 0.15` and the four wheel loads (`0x08955300(car,i)+0x54`)
+  summing to 0: `b |= 6` and `0x089557CC(car, 120)` (sets the halfword `K+0x74C` to 120 only when it is <= 0). With mask 2 set: mask 4 is cleared
+  once `f21 > 0.5`, set again below 0.15. **While mask 4 is set the normal pre-step pipeline is skipped**: `0x0893E0A4` runs instead and only writes
+  `(K+0x10, -K+0x14, K+0x18 + 0.5)` into the first wheel contact record (`word(car+0x10)`, +0, +8, +4).
+- The countdown: `0x08956E9C` decrements `K+0x74C` while > 0 (a value of 0x7FFF is left alone); at 0 it **zeroes the whole byte `K+0x74B`**
+  and, when the world has two or more cars (`word(world+8) >= 2`), sets `K+0x74C = -180`; a negative value counts back up to 0. `0x08955774(car)`
+  (called twice from `0x0895F7C0`, the car-pair loop) answers 1 when `K[2] != 0` or `K+0x74C < 0`: such a car is skipped in car-vs-car
+  distance tests. **No caller of `0x08956E9C` was found (no `jal`/`j`), and in the flag-1 runs `K+0x74C` stays 120 and `K+0x74B` stays `02` for
+  thousands of steps: the countdown is never run.** `K+0x74B` is cleared on a car reset by `0x08940BF8` (with `K+0x74C = 0`).
+- `0x0894E200` (the step, flag set and mask 2 set): if `K+0x18 < K+0x48` then `K+0x18 = K+0x48 + 1e-4` and `K+0x6D4 = 0` (a ground-height clamp).
+- **Measured with the flag forced on and the flip machine live** (`--decomp off`, a 9 rad/s roll rate at the barrier hit): `0x74B` goes `00 -> 06` as the car passes on its side; the car
+  then **free-falls through the road** (height 6.8 -> 2.4 m with the road at ~5.5 m, velocity z to -9.4 m/s, no suspension: the pipeline is skipped);
+  when `f21` passes 0.5 the byte drops to `02` and the car is **pushed up ~6.5 m in one step** (z 2.38 -> 8.85) with its attitude snapped to
+  near upright; it repeated three times (each landing raised the roll rate 4.05 -> 6.59 -> 8.02 rad/s) before the car came to rest upright.
+- **Measured with the flip machine kept asleep** (the flag reads 1 everywhere except in `0x08956930`): the same hit rolls the car with
+  a 12 rad/s drive (up.z -0.75 at the lowest, i.e. well past upside down), no height jump, `K+0x74B` stays 0, the springs and the wheels bring
+  the car back upright and it drives on; `--decomp off` and `on` give the same lowest up.z.
+
+**Inferences** (not shown by a test): the `0x08956930` machine is a leftover "overturned car" mode (freeze the car's forces while it lies on its
+side, put it back on the ground, a 2 s timer, then 3 s of no car-car collisions) whose timer call and setter were removed from the shipped
+game; the free fall is what it does when its timer never runs. **It is harmful as it stands** (the car sinks under the road and pops back
+up), so the mod never lets it start (see the mod's README).
