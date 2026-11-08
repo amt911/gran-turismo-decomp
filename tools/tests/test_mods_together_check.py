@@ -65,3 +65,14 @@ def test_reset_to_track_must_show_the_replayed_tap():
     assert m.judge(good, ids) == (True, [])
     ok, problems = m.judge(good.replace("tap=1", "tap=0"), ids)  # a swallowed press: the camera would not change
     assert not ok and problems[0].startswith("reset-to-track: no log line")
+
+
+def test_rollover_must_show_an_impulse():
+    ids = IDS + ["rollover"]
+    good = GOOD.replace("orbit-camera skipped:", "orbit-camera rollover skipped:") + "\n[mod:rollover] IMPULSE st=900 held=3.75"
+    assert m.judge(good, ids) == (True, [])
+    assert m.judge(good.replace("held=3.75", "held=-3.75"), ids) == (True, [])  # either side
+    ok, problems = m.judge(good.replace("IMPULSE st=900 held=3.75", "st=900 imp=0"), ids)  # a state line is not a hit
+    assert not ok and problems[0].startswith("rollover: no log line")
+    ok, problems = m.judge(good.replace("held=3.75", "held=0.00"), ids)  # a zero rate is no impulse
+    assert not ok and problems[0].startswith("rollover: no log line")

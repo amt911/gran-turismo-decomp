@@ -1,0 +1,20 @@
+# Route rollover — the race (route A), throttle held until the car runs off the end of the straight and hits the barrier at a slant
+# (a hard side impact: the mod logs a lateral velocity change of ~8 m/s in one physics step, normal driving is ~0.2), then throttle again
+# (840 vblanks) and brake (300): the car tumbles, settles and drives on. For tools/mod_rollover_check.sh. This is `reset.pad` without its
+# SELECT item (the reset check's quiet run); with `reset.pad` itself the reset-to-track mod fires while the car is still rolling.
+# Timeline (measured 2026-11-08, `--decomp off`): race start at player-car step ~750, the barrier hit at step ~1852.
+# Pages: see chase.pad.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,3070:CROSS:360,3840:CROSS:840,4700:SQUARE:300
