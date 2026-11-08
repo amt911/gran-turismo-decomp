@@ -317,3 +317,23 @@ def test_main_restore_takes_the_calm_window(tmp_path):
     assert mr.main(["x", str(tmp_path), "restore"]) == 1
     assert mr.main(["x", str(tmp_path), "restore", "0"]) == 0
     assert mr.main(["x", str(tmp_path), "restore", "-1"]) == 0
+
+
+def _with_rates(log, at, rates):
+    return "\n".join(l.replace("rates=0.00,0.00,0.00,0.00,0.00", f"rates={rates}") if f" t={at} " in l else l for l in log.splitlines())
+
+
+def test_the_settle_transient_of_either_mode_passes_but_a_spin_or_a_lingering_rate_fails():
+    # --decomp off peaks at 0.25 and --decomp on at 0.37 on the springs after a zeroed restore: both are fine
+    assert mr.judge_restore(_with_rates(good_log(), 5, "0.37,-0.04,0.37,-0.04,-0.09"))[0]
+    assert mr.judge_restore(_with_rates(good_log(), 4, "0.25,0.04,0.25,0.05,-0.06"))[0]
+    # the crash's spin level at any time in the window, and a transient that has not decayed by t=60
+    ok, message = mr.judge_restore(_with_rates(good_log(), 30, "0.00,0.00,0.00,0.00,0.64"))
+    assert not ok and "crash's spin level" in message
+    ok, message = mr.judge_restore(_with_rates(good_log(), 60, "0.15,0.00,0.15,0.00,0.00"))
+    assert not ok and "decayed" in message
+    assert mr.judge_restore(_with_rates(good_log(), 60, "0.09,0.00,0.09,0.00,0.00"))[0]
+    # the first-steps limit
+    assert not mr.judge_restore(_with_rates(good_log(), 5, "0.46,0.00,0.00,0.00,0.00"))[0]
+    # a car reset out of a tumble (calm_steps 0 or -1) is exempt from the spin and decay rules
+    assert mr.judge_restore(_with_rates(good_log(), 30, "0.00,0.91,0.00,0.91,0.06"), calm_steps=0)[0]
