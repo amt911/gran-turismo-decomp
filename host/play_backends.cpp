@@ -11,8 +11,11 @@
 #include "lcs_lang.hpp"
 #include "lcs_render_config.hpp"
 #include "lcs_display_menu.hpp"
+#include "host_hooks.hpp"
 #include "mod_loader.hpp"
+#include "mod_services.hpp"
 #include "mod_menu.hpp"
+#include "pad_menu.hpp"
 #include "pad_script.hpp"
 
 #include <cstdio>
@@ -61,7 +64,62 @@ namespace {
 void mods_page_row(std::size_t index, char *out, std::size_t capacity) {
     std::snprintf(out, capacity, "%s", gt::mods::menu::row(index).c_str());
 }
-const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle};
+const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle, &gt::mods::menu::adjust};
+
+// The pad's way into the page (host/pad_menu.hpp): runs inside the game's pad read, once per vblank for the edges.
+lcs::HostSettingsKey overlay_key(gt::MenuKey key) {
+    switch (key) {
+    case gt::MenuKey::TogglePage: return lcs::HostSettingsKey::TogglePage;
+    case gt::MenuKey::Up: return lcs::HostSettingsKey::Up;
+    case gt::MenuKey::Down: return lcs::HostSettingsKey::Down;
+    case gt::MenuKey::Left: return lcs::HostSettingsKey::Left;
+    case gt::MenuKey::Right: return lcs::HostSettingsKey::Right;
+    case gt::MenuKey::Activate: return lcs::HostSettingsKey::Activate;
+    case gt::MenuKey::Close: return lcs::HostSettingsKey::Close;
+    }
+    return lcs::HostSettingsKey::Close;
+}
+const char *key_name(gt::MenuKey key) {
+    static const char *const names[] = {"chord", "up", "down", "left", "right", "activate", "close"};
+    return names[static_cast<int>(key)];
+}
+
+// GT_PAD_MENU_CHORD (default SELECT+START, names as GT_PAD uses them) changes the chord; a bad value is reported and ignored.
+gt::PadMenuConfig pad_menu_config() {
+    gt::PadMenuConfig config;
+    if (const char *text = std::getenv("GT_PAD_MENU_CHORD"); text != nullptr && *text != '\0') {
+        std::string error;
+        if (const std::uint32_t mask = gt::parse_pad_chord(text, error); mask != 0) config.chord = mask;
+        else std::cerr << "[mods] GT_PAD_MENU_CHORD ignored: " << error << "\n";
+    }
+#ifdef GT_PAD_MENU_SABOTAGE_IGNORE_CHORD  // verification only (tools/mod_cheats_check.sh --sabotage-chord must FAIL)
+    config.ignore_chord = true;
+#endif
+    return config;
+}
+
+void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t &analog_x, std::uint8_t &analog_y) {
+    static gt::PadMenuFilter filter(pad_menu_config());
+    static std::uint64_t polled = ~std::uint64_t{0};
+    if (vblank != polled) {  // the pad is read by several threads per vblank: the edges count once
+        polled = vblank;
+        const bool was_open = lcs::host_settings_open();
+        const gt::PadMenuKeys keys = filter.poll(buttons, was_open);
+        for (std::size_t i = 0; i < keys.count; ++i) {
+            std::cerr << "[padmenu] " << key_name(keys.keys[i]) << " at vblank " << vblank << "\n";
+            lcs::host_settings_handle(overlay_key(keys.keys[i]));
+        }
+        if (const bool open = lcs::host_settings_open(); open != was_open)
+            std::cerr << "[padmenu] menu " << (open ? "opened" : "closed") << " at vblank " << vblank << "\n";
+    }
+    const bool open = lcs::host_settings_open();
+    buttons = filter.visible(buttons, open);
+    if (open) analog_x = analog_y = 128u;  // centred stick: the game sees nothing
+}
+
+void mods_vblank_tick(psprecomp::Runtime &runtime, psprecomp::AllegrexContext &ctx, std::uint64_t) {
+    gt::mods::services::run_vblank_tick(runtime, ctx);
+}
 } // namespace
 
 void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed) {
@@ -72,6 +130,10 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
     const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0));
     gt::mods::menu::set_entries(report.entries);
     lcs::host_settings_set_extra_page(&kModsPage);
+    if (!report.entries.empty()) {  // no mods installed (or GT_NO_MODS): the pad and the vblank are the game's, untouched
+        gt::set_pad_filter(&pad_menu_filter);
+        gt::set_vblank_tick(&mods_vblank_tick);
+    }
     gt::mods::menu::start_test_toggle_from_env(&gt::pad_script_vblanks);
     if (report.loaded.empty() && report.skipped.empty()) return;  // no mods directory, or nothing in it: say nothing
     std::cerr << "[mods] loaded:";

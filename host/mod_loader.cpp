@@ -2,6 +2,7 @@
 
 #include "mod_hooks.hpp"
 #include "mod_manifest.hpp"
+#include "mod_services.hpp"
 
 #include <dlfcn.h>
 
@@ -76,8 +77,9 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
             skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
-        if (manifest->api != GT_MOD_API_VERSION) {
-            skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + ")");
+        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_2) {
+            skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + " to " +
+                 std::to_string(GT_MOD_API_VERSION_2) + ")");
             continue;
         }
         const std::filesystem::path library = mod_dir / manifest->library;
@@ -97,10 +99,13 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
         auto mod = std::make_unique<GtMod>();
         mod->id = manifest->id;
         mod->settings = manifest->settings;
+        mod->api_version = static_cast<int>(manifest->api);
         mod->manifest = mod_dir / "mod.toml";
         GtMod *self = mod.get();
         live_mods().push_back(std::move(mod));
-        const int status = init(&mod_api(), self);
+        services::begin_init(self);
+        const int status = init(&mod_api(self->api_version), self);  // a v1 mod is told version 1
+        services::end_init();
         if (status != 0) {
             remove_hooks_for(rt, self);  // a skipped mod must not stay partly active
             skip("gt_mod_init returned " + std::to_string(status));

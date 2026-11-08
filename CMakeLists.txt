@@ -187,7 +187,7 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
-        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/pad_menu.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -206,6 +206,11 @@ if(GT_PLAY)
     option(GT_MOD_SABOTAGE_IGNORE_ACTIVE "sabotage: mod hooks ignore the menu's on/off" OFF)
     if(GT_MOD_SABOTAGE_IGNORE_ACTIVE)
         set_source_files_properties(host/mod_hooks.cpp PROPERTIES COMPILE_DEFINITIONS GT_MOD_SABOTAGE_IGNORE_ACTIVE=1)
+    endif()
+    # Verification only: the pad chord that opens the F9 menu never fires (tools/mod_cheats_check.sh --sabotage-chord must FAIL).
+    option(GT_PAD_MENU_SABOTAGE_IGNORE_CHORD "sabotage: the pad chord never opens the mod menu" OFF)
+    if(GT_PAD_MENU_SABOTAGE_IGNORE_CHORD)
+        set_source_files_properties(host/play_backends.cpp PROPERTIES COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_IGNORE_CHORD=1)
     endif()
     if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
         target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")
@@ -270,23 +275,32 @@ set(CMAKE_C_STANDARD 99)
 add_executable(mod_manifest_tests host/tests/mod_manifest_test.cpp host/mod_manifest.cpp host/tests/mod_api_c_check.c)
 target_include_directories(mod_manifest_tests PRIVATE host include)
 add_test(NAME mod_manifest COMMAND mod_manifest_tests)
-add_executable(mod_hooks_tests host/tests/mod_hooks_test.cpp host/mod_hooks.cpp)
+# mod_hooks.cpp's API table reaches mod_services.cpp, which calls guest code through gt::call_guest
+set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
+add_executable(mod_hooks_tests host/tests/mod_hooks_test.cpp ${GT_MOD_CORE})
 target_include_directories(mod_hooks_tests PRIVATE host include)
 target_link_libraries(mod_hooks_tests PRIVATE psprecomp_core)
 add_test(NAME mod_hooks COMMAND mod_hooks_tests)
 add_library(test_mod MODULE host/tests/mods/test_mod.c)
 target_include_directories(test_mod PRIVATE include)
 set_target_properties(test_mod PROPERTIES PREFIX "" C_VISIBILITY_PRESET default)
-add_executable(mod_loader_tests host/tests/mod_loader_test.cpp host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp)
+add_executable(mod_loader_tests host/tests/mod_loader_test.cpp host/mod_loader.cpp host/mod_manifest.cpp ${GT_MOD_CORE})
 target_include_directories(mod_loader_tests PRIVATE host include)
 target_link_libraries(mod_loader_tests PRIVATE psprecomp_core ${CMAKE_DL_LIBS})
 target_compile_definitions(mod_loader_tests PRIVATE TEST_MOD_LIB="$<TARGET_FILE:test_mod>")
 add_dependencies(mod_loader_tests test_mod)
 add_test(NAME mod_loader COMMAND mod_loader_tests)
-add_executable(mod_menu_tests host/tests/mod_menu_test.cpp host/mod_menu.cpp host/mod_hooks.cpp host/mod_manifest.cpp)
+add_executable(mod_menu_tests host/tests/mod_menu_test.cpp host/mod_menu.cpp host/mod_manifest.cpp ${GT_MOD_CORE})
 target_include_directories(mod_menu_tests PRIVATE host include)
 target_link_libraries(mod_menu_tests PRIVATE psprecomp_core Threads::Threads)
 add_test(NAME mod_menu COMMAND mod_menu_tests)
+add_executable(mod_services_tests host/tests/mod_services_test.cpp ${GT_MOD_CORE})
+target_include_directories(mod_services_tests PRIVATE host include)
+target_link_libraries(mod_services_tests PRIVATE psprecomp_core)
+add_test(NAME mod_services COMMAND mod_services_tests)
+add_executable(pad_menu_tests host/tests/pad_menu_test.cpp host/pad_menu.cpp host/pad_sequence.cpp)
+target_include_directories(pad_menu_tests PRIVATE host)
+add_test(NAME pad_menu COMMAND pad_menu_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
 target_include_directories(ps_demux_tests PRIVATE host)
 add_test(NAME ps_demux COMMAND ps_demux_tests)

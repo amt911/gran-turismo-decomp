@@ -1,6 +1,7 @@
 // Tests for the native mod loader (host/mod_loader.cpp) with a real shared library (host/tests/mods/test_mod.c).
 #include "mod_hooks.hpp"
 #include "mod_loader.hpp"
+#include "mod_services.hpp"
 
 #include "psprecomp/runtime.hpp"
 
@@ -70,10 +71,17 @@ std::string copy_lib(const fs::path &root, const std::string &dir) {
     return to.string();
 }
 
+constexpr std::uint32_t kGuest = 0x08901000u;  // what the test mod's tick calls: v0 = a0 * 10 + a1
+void fake_guest(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[2] = ctx.gpr[4] * 10u + ctx.gpr[5];
+    ctx.pc = ctx.gpr[31];
+}
+
 psprecomp::Runtime &fresh_runtime(std::unique_ptr<psprecomp::Runtime> &holder) {
     gt::mods::clear_hooks_for_tests();
     holder = std::make_unique<psprecomp::Runtime>();
     holder->register_function(kAddr, &fake_original, "orig");
+    holder->register_function(kGuest, &fake_guest, "guest");
     return *holder;
 }
 } // namespace
@@ -110,7 +118,7 @@ int main() {
         fs::create_directories(root / "a_no_manifest");
         write(root / "b_bad_toml" / "mod.toml", "this is not toml\n");
         make_mod(root, "c_missing_lib", "c", true, "1", "1", (root / "nope.so").string());
-        make_mod(root, "d_api2", "d", true, "1", "2");
+        make_mod(root, "d_api3", "d", true, "1", "3");
         write(root / "stray_file.txt", "not a directory");
         const LoadReport r = load_mods(rt, root);
         check(r.loaded.empty(), "loader_skips_broken_mods: nothing loaded");
@@ -181,6 +189,54 @@ int main() {
                   r.skipped[0].find("a_first") != std::string::npos && r.skipped[0].find("b_second") != std::string::npos,
               "duplicate_id: reason names the id and both dirs");
         check(call(rt, 5) == 5u + 1u + 1u, "duplicate_id: the first one is the active hook");
+    }
+    {
+        // API v2: a v1 mod is told version 1 and loads; a v2 mod is told 2 and its row, tick and call_guest work.
+        auto &rt = fresh_runtime(holder);
+        const fs::path root = fresh_dir("v2");
+        make_mod(root, "a_v1", "v1_mod", true, "1", "1", copy_lib(root, "a_v1"), "expect_version = \"1\"\n");
+        make_mod(root, "b_v2", "v2_mod", true, "20", "2", copy_lib(root, "b_v2"), "expect_version = \"2\"\nrow_id = \"speed\"\n");
+        make_mod(root, "c_v2", "v2_other", true, "300", "2", copy_lib(root, "c_v2"), "expect_version = \"2\"\nrow_id = \"speed\"\nrow_twice = \"1\"\n");
+        const LoadReport r = load_mods(rt, root);
+        check(r.loaded.size() == 3 && r.skipped.empty(), "api_v2: v1 mod told version 1, v2 mods told 2, all three loaded");
+        using gt::mods::services::menu_row_activate;
+        using gt::mods::services::menu_row_count;
+        using gt::mods::services::menu_row_text;
+        check(menu_row_count() == 2, "api_v2: rows of two mods coexist (the same row id in different mods), a duplicate in one mod is refused");
+        char text[160] = {};
+        check(menu_row_text(0, text, sizeof text) && std::string(text).rfind("v2 act=0 dir=0 ticks=0", 0) == 0, "api_v2: first row's label");
+        check(menu_row_activate(0, -1) && menu_row_activate(1, 1) && menu_row_activate(1, 0), "api_v2: activation reaches the mods");
+        menu_row_text(0, text, sizeof text);
+        check(std::string(text).find("act=1 dir=-1") != std::string::npos, "api_v2: Left reaches row 0 as -1");
+        menu_row_text(1, text, sizeof text);
+        check(std::string(text).find("act=2 dir=0") != std::string::npos, "api_v2: row 1 got Right then Enter, last direction 0");
+        check(gt::mods::services::menu_row_mod_id(0) == "v2_mod" && gt::mods::services::menu_row_mod_id(1) == "v2_other", "api_v2: rows in load order");
+        // the tick: call_guest works there (v0 = 7 * 10 + 8) ...
+        psprecomp::AllegrexContext tick_ctx;
+        gt::mods::services::run_vblank_tick(rt, tick_ctx);
+        menu_row_text(0, text, sizeof text);
+        check(std::string(text).find("ticks=1 tickcall=0/78") != std::string::npos, "api_v2: the vblank tick ran and call_guest returned 78");
+        // ... and is refused from a hook (hookcall=2), the guest function not run
+        call(rt, 5);
+        menu_row_text(0, text, sizeof text);
+        check(std::string(text).find("hookcall=2") != std::string::npos, "api_v2: call_guest refused from a hook");
+        // a switched-off mod: its row reads "<id> mod OFF", activation is ignored, the tick is skipped
+        set_active(r.entries[1].mod, false);
+        check(menu_row_text(0, text, sizeof text) && std::string(text) == "v2_mod mod OFF", "api_v2: row of an OFF mod");
+        check(!menu_row_activate(0, 1), "api_v2: an OFF mod's row ignores activation");
+        gt::mods::services::run_vblank_tick(rt, tick_ctx);
+        set_active(r.entries[1].mod, true);
+        menu_row_text(0, text, sizeof text);
+        check(std::string(text).find("ticks=1 ") != std::string::npos, "api_v2: an OFF mod's tick is skipped");
+    }
+    {
+        // a mod that declared api 1 and calls the v2 functions anyway is refused: its init fails and it is skipped
+        auto &rt = fresh_runtime(holder);
+        const fs::path root = fresh_dir("v1_uses_v2");
+        make_mod(root, "x", "v1_cheat", true, "1", "1", TEST_MOD_LIB, "row_id = \"r\"\n");
+        const LoadReport r = load_mods(rt, root);
+        check(r.loaded.empty() && r.skipped.size() == 1, "api_v2: a v1 mod cannot add rows (refused, skipped)");
+        check(gt::mods::services::menu_row_count() == 0 && call(rt, 5) == 6u, "api_v2: nothing of it stays registered");
     }
     {
         auto &rt = fresh_runtime(holder);

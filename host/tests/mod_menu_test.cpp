@@ -2,6 +2,7 @@
 #include "mod_hooks.hpp"
 #include "mod_manifest.hpp"
 #include "mod_menu.hpp"
+#include "mod_services.hpp"
 
 #include <unistd.h>
 
@@ -122,6 +123,34 @@ int main() {
         ::setenv("GT_MOD_MENU_TEST_TOGGLE", "pedals@vabc", 1);
         menu::start_test_toggle_from_env([] { return fake_vblank.load(); });  // ignored: bad delay
         ::unsetenv("GT_MOD_MENU_TEST_TOGGLE");
+    }
+    {  // rows added by mods (API v2) follow the mod rows; Left/Right/Enter reach the mod with their direction
+        static int last_direction = 99, activations = 0;
+        gt::mods::clear_hooks_for_tests();
+        GtMod owner;
+        owner.id = "cheats";
+        owner.api_version = 2;
+        const GtModApi &api = mod_api(2);
+        gt::mods::services::begin_init(&owner);
+        api.add_menu_row(
+            &owner, "slow", [](GtMod *, char *out, std::uint32_t cap) { std::snprintf(out, cap, "Slow motion OFF"); },
+            [](GtMod *, int direction) { last_direction = direction; ++activations; });
+        gt::mods::services::end_init();
+        const auto p = write_file("rows.toml", "id = \"cheats\"\nenabled = true\n");
+        ModEntry entry{"Cheats", ModState::Active, "", p, &owner};
+        menu::set_entries({entry});
+        check(menu::count() == 2, "rows: one mod row + one added row");
+        check(menu::row(1) == "Slow motion OFF", "rows: the added row's label");
+        check(menu::adjust(1, -1) && last_direction == -1 && menu::adjust(1, 1) && last_direction == 1 && menu::adjust(1, 0) && last_direction == 0 && activations == 3,
+              "rows: adjust passes Left/Right/Enter as -1/1/0");
+        check(menu::toggle(1) && activations == 4, "rows: toggle() on an added row is Enter");
+        check(menu::adjust(0, -1) && !owner.active.load() && activations == 4, "rows: adjust on the mod's row flips the mod, whatever the key");
+        check(menu::row(1) == "cheats mod OFF" && !menu::adjust(1, 1) && activations == 4, "rows: with the mod OFF the row says so and does nothing");
+        check(menu::adjust(0, 1) && owner.active.load(), "rows: mod back on");
+        check(!menu::adjust(2, 0) && menu::row(2).empty(), "rows: out of range");
+        menu::set_entries({});
+        gt::mods::clear_hooks_for_tests();
+        check(menu::count() == 1 && menu::row(0) == "NO MODS INSTALLED", "rows: no mods, no rows: the placeholder");
     }
     fs::remove_all(scratch());
     if (failures == 0) std::puts("mod_menu tests passed");
