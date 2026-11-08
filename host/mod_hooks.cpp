@@ -1,5 +1,7 @@
 #include "mod_hooks.hpp"
 
+#include "mod_services.hpp"
+
 #include "psprecomp/runtime.hpp"
 
 #include <algorithm>
@@ -7,14 +9,6 @@
 #include <cstring>
 #include <unordered_map>
 #include <vector>
-
-// What a hook receives: the runtime and CPU state it runs against, the address it wraps and its link in that address's chain.
-struct GtModCtx {
-    psprecomp::Runtime *rt;
-    psprecomp::AllegrexContext *ctx;
-    std::uint32_t address;
-    std::size_t link;
-};
 
 namespace gt::mods {
 namespace {
@@ -54,7 +48,7 @@ void run_chain(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, const Ch
                std::size_t from) {
     for (std::size_t i = from; i < chain.links.size(); ++i) {
         if (!link_on(chain.links[i])) continue;
-        GtModCtx mod_ctx{&rt, &ctx, address, i};
+        GtModCtx mod_ctx{&rt, &ctx, address, i, false, chain.links[i].owner.mod};
         chain.links[i].fn(&mod_ctx);
         return;
     }
@@ -147,11 +141,19 @@ bool install_hook(psprecomp::Runtime &rt, std::uint32_t address, GtHookFn fn, Ho
     return true;
 }
 
-const GtModApi &mod_api() {
-    static const GtModApi api{GT_MOD_API_VERSION, api_hook,   api_call_original, api_gpr,    api_set_gpr,
-                              api_read8,          api_read16, api_read32,        api_readf,  api_write8,
-                              api_write16,        api_write32, api_writef,       api_config, api_log};
-    return api;
+const GtModApi &mod_api(int version) {
+    // Two tables with the same functions: only `version` differs (a v1 mod compares it with 1).
+    static const GtModApi v1{GT_MOD_API_VERSION, api_hook,    api_call_original, api_gpr,         api_set_gpr,
+                             api_read8,          api_read16,  api_read32,        api_readf,       api_write8,
+                             api_write16,        api_write32, api_writef,        api_config,      api_log,
+                             services::api_add_menu_row, services::api_on_vblank, services::api_call_guest,
+                             services::api_is_menu_open, services::api_vblank_index};
+    static const GtModApi v2{GT_MOD_API_VERSION_2, api_hook,   api_call_original, api_gpr,         api_set_gpr,
+                             api_read8,            api_read16, api_read32,        api_readf,       api_write8,
+                             api_write16,          api_write32, api_writef,       api_config,      api_log,
+                             services::api_add_menu_row, services::api_on_vblank, services::api_call_guest,
+                             services::api_is_menu_open, services::api_vblank_index};
+    return version == GT_MOD_API_VERSION ? v1 : v2;
 }
 
 void set_active(GtMod *mod, bool on) {
@@ -159,6 +161,7 @@ void set_active(GtMod *mod, bool on) {
 }
 
 void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod) {
+    services::remove_for(mod);  // its menu rows and vblank tick go too
     for (auto it = chains().begin(); it != chains().end();) {
         auto &links = it->second.links;
         links.erase(std::remove_if(links.begin(), links.end(), [mod](const Link &l) { return l.owner.mod == mod; }), links.end());
@@ -175,6 +178,7 @@ void bind_runtime(psprecomp::Runtime &rt) { g_runtime = &rt; }
 
 void clear_hooks_for_tests() {
     chains().clear();
+    services::clear_for_tests();
     g_runtime = nullptr;
 }
 

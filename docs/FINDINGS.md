@@ -3044,3 +3044,25 @@ before the abort. The mod's own reads are wrapped in try/catch (an unreadable ca
 the decomp:** find which node `func_08BD4270` dereferences (`0x3EEE1474` looks like a float, 0.4664, read as a pointer) and compare with the original.
 
 Found: 2026-11-08 · build/gt_play --decomp on, tools/mod_rollover_check.sh
+
+## A mod hook cannot see the result of the world step (2026-11-08)
+
+**Symptom.** The cheats mod's "freeze AI" did nothing: reading a car's position after `call_original` of the `0x0894DD9C` hook gave the pre-step value, so writing the
+pre-step value back changed nothing, while the AI cars kept moving.
+**Cause.** With `--decomp off` the recompiled unit finishes the hook's `call_original` before the body runs; the body's calls are dispatched after the hook has
+returned (probe, FACTS "Cheats"). The same goes for the mod docs' "hook before and after" for any function the recompiler reaches by a tail jump.
+**Fix / rule.** Do post-step work at the next call's entry (keep what you wrote as the base), which works in `--decomp off` and `on`; check a "post" hook with a probe
+in both modes before building on it.
+
+## The pad menu's hold-back makes "mod installed" frames differ from "no mod" frames (2026-11-08)
+
+**Symptom.** After the pad menu held a lone Select/Start back for 8 vblanks (review fix M1), the cheats mod installed but idle no longer gave frames byte-identical to a run without it
+(165 of 271 frames from the title screen on: the route presses START there, and the game saw it 8 vblanks later).
+**Cause.** Not the mod: with an API-2 mod installed the host delays every lone Select/Start by the window. Identity checks compare a run with the pad menu against one without it.
+**Fix.** The identity runs of `tools/mod_cheats_check.sh` set `GT_PAD_MENU_HOLD_BACK=0` (host/play_backends.cpp); `--pad` and `--pad-reset` run with the real 8. Any new identity check with an API-2 mod must do the same.
+
+## reset-to-track check with the pad menu installed, `--decomp on`: wobble 0.41 rad/s (2026-11-08)
+
+`WITH_CHEATS=1 tools/mod_reset_check.sh --decomp on --reset-only` (cheats installed, so Select reaches reset-to-track 8 vblanks late) fails "an angular rate of 0.41 rad/s in the first 10 steps (max 0.3)";
+the same run with `GT_PAD_MENU_HOLD_BACK=0` passes, and `--decomp off` passes either way. The restore zeroes the rates; with the later Select it lands at another moment of the crash tumble and the
+springs still oscillate (cf. the rollover `--recover` note). A timing sensitivity of the check's calm criterion, not a restore bug; not investigated further.

@@ -143,7 +143,7 @@ int main() {
         check(api.hook(&b, kAddr, hook_noop) == 0, "api.hook chains a second mod's hook");
         check(api.hook(&b, kAddr, hook_noop) != 0, "api.hook refuses the same mod twice on one address");
         check(std::string(api.config(&a, "k")) == "v" && api.config(&a, "x") == nullptr, "api.config");
-        check(api.version == GT_MOD_API_VERSION, "api version");
+        check(api.version == GT_MOD_API_VERSION_2 && mod_api(1).version == GT_MOD_API_VERSION && mod_api(2).version == GT_MOD_API_VERSION_2, "api versions: v1 table says 1, v2 says 2");
     }
     {
         clear_hooks_for_tests();

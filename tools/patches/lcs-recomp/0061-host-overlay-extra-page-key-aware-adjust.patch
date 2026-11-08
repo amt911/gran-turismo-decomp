@@ -1,0 +1,37 @@
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -17,12 +17,14 @@
+ };
+ 
+ // An extra page the host program registers (GT: the MODS page). Rows are text; `toggle` flips the row's setting and
+-// returns true if it changed anything. `title` must outlive the registration (a string literal).
++// returns true if it changed anything. `title` must outlive the registration (a string literal). `adjust`, when set, replaces
++// `toggle` and tells the keys apart: direction 0 = Enter, -1 = Left, +1 = Right.
+ struct HostExtraPage {
+     const char *title;
+     std::size_t (*count)();
+     void (*row)(std::size_t index, char *out, std::size_t capacity);
+     bool (*toggle)(std::size_t index);
++    bool (*adjust)(std::size_t index, int direction) = nullptr;
+ };
+ 
+ struct HostSettingsView {
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -304,9 +304,13 @@
+         if (count <= 0) return true;
+         if (key == HostSettingsKey::Up) g_extra_selected = step_index(g_extra_selected, count, -1);
+         else if (key == HostSettingsKey::Down) g_extra_selected = step_index(g_extra_selected, count, 1);
+-        else if ((key == HostSettingsKey::Left || key == HostSettingsKey::Right || key == HostSettingsKey::Activate) &&
+-                 g_extra->toggle != nullptr)
+-            g_extra->toggle(static_cast<std::size_t>(g_extra_selected));
++        else if (key == HostSettingsKey::Left || key == HostSettingsKey::Right || key == HostSettingsKey::Activate) {
++            if (g_extra->adjust != nullptr)
++                g_extra->adjust(static_cast<std::size_t>(g_extra_selected),
++                                key == HostSettingsKey::Left ? -1 : (key == HostSettingsKey::Right ? 1 : 0));
++            else if (g_extra->toggle != nullptr)
++                g_extra->toggle(static_cast<std::size_t>(g_extra_selected));
++        }
+         follow_extra_selection();
+         return true;
+     }

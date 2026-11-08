@@ -1,0 +1,18 @@
+# Route cheats_off — cheats.pad plus a pad visit that steps Slow motion OFF -> 0.5x -> 0.25x -> OFF (three Right presses on its row), for
+# tools/mod_cheats_check.sh --pad-off: the car's distance per step per m/s must follow each factor and be normal again after OFF. +1800 chord opens
+# the menu, +1900 Down, +2000 / +2300 / +2600 Right, +2900 the chord closes it. The throttle (held to +2950) is hidden while the menu is open.
+# Pages: see chase.pad. Waits for the game, not for a time (host/pad_sequence.hpp); times after the last WAIT count from the race's own pages.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,1800:SELECT:6,1800:START:6,1900:DOWN:6,2000:RIGHT:6,2300:RIGHT:6,2600:RIGHT:6,2900:SELECT:6,2900:START:6

@@ -14,6 +14,8 @@
 #   Each of these must FAIL (--sabotage-notap with --tap): --without-mod (nothing resets), --sabotage-rates (-DRESET_SABOTAGE=1: rates not zeroed), --sabotage-newest
 #   (=2: newest pose, off-track included), --sabotage-norewind (=3: newest good pose, no rewind), --sabotage-notap (=4: the short
 #   press is not replayed to the game)
+# WITH_CHEATS=1 also installs the cheats mod (enabled): the pad menu is then active, so a lone Select reaches reset-to-track 8 vblanks late (use with --reset-only and --tap; the quiet run's
+# byte-identity does not hold with the delay).
 # Env: ROUTE (a pad route file, default config/pad_routes/reset.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
 # GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_reset_check, gitignored; frames on disk there,
 # never /tmp), KEEP_BASELINE=1 (reuse the baseline of $OUT, same --decomp). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that
@@ -44,10 +46,13 @@ if [ $without -eq 0 ]; then
   mbuild="$out/mod-build-s$sabotage"
   flags=""; [ $sabotage -ne 0 ] && flags="-DRESET_SABOTAGE=$sabotage"
   { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" "-DCMAKE_CXX_FLAGS=$flags" \
-      && cmake --build "$mbuild" -j2 --target reset_to_track; } > "$out/mod-build-s$sabotage.log" 2>&1 \
+      && cmake --build "$mbuild" -j2 --target reset_to_track ${WITH_CHEATS:+cheats}; } > "$out/mod-build-s$sabotage.log" 2>&1 \
     || { echo "mod_reset_check: mod build failed (log $out/mod-build-s$sabotage.log)" >&2; exit 2; }
   cp "$mbuild/reset-to-track/libreset_to_track.so" "$out/mods/reset-to-track/" || exit 2
   # rewind_ms 4500 (the default is 2500): the restored car is ~130 m before the barrier, room to reach 15 m/s and stop
+  if [ -n "${WITH_CHEATS:-}" ]; then  # an API-2 mod installed too: the host's pad menu (and its 8-vblank hold-back of a lone Select/Start) is then active
+    mkdir -p "$out/mods/cheats" && cp "$mbuild/cheats/libcheats.so" "$out/mods/cheats/" && sed 's/^enabled = false/enabled = true/' "$mods_repo/cheats/mod.toml" > "$out/mods/cheats/mod.toml" || exit 2
+  fi
   sed 's/^enabled = false/enabled = true/; s/^rewind_ms *=.*/rewind_ms = 4500/' "$mods_repo/reset-to-track/mod.toml" > "$out/mods/reset-to-track/mod.toml"
 fi
 # the same route without the SELECT hold (the quiet run: no button), and the camera-tap route

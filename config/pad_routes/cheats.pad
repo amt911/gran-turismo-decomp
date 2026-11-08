@@ -1,0 +1,17 @@
+# Route cheats — the race (route A), throttle held from +1500 for 1450 vblanks (the car accelerates down the straight and never reaches the
+# barrier: reset.pad's crash is at +3690), for tools/mod_cheats_check.sh (slow motion, freeze AI). The race starts (GO) at player-car step ~750.
+# Pages: see chase.pad. Waits for the game, not for a time (host/pad_sequence.hpp); times after the last WAIT count from the race's own pages.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450

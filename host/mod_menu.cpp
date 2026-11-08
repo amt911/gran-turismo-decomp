@@ -2,6 +2,7 @@
 
 #include "mod_hooks.hpp"
 #include "mod_manifest.hpp"
+#include "mod_services.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -31,13 +32,18 @@ void set_entries(std::vector<ModEntry> entries) {
 
 std::size_t count() {
     std::lock_guard<std::mutex> lock(g_mutex);
-    return g_rows.empty() ? 1 : g_rows.size();
+    const std::size_t total = g_rows.size() + services::menu_row_count();
+    return total == 0 ? 1 : total;
 }
 
 std::string row(std::size_t index) {
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_rows.empty()) return index == 0 ? "NO MODS INSTALLED" : "";
-    if (index >= g_rows.size()) return "";
+    if (g_rows.empty() && services::menu_row_count() == 0) return index == 0 ? "NO MODS INSTALLED" : "";
+    if (index >= g_rows.size()) {  // a row a mod added (API v2): its own label, cut to the page width
+        char text[kRowWidth + 1];
+        if (!services::menu_row_text(index - g_rows.size(), text, sizeof text)) return "";
+        return text;
+    }
     const Row &r = g_rows[index];
     std::string name = r.entry.name;
     if (r.entry.state == ModState::Error) {
@@ -55,7 +61,19 @@ std::string row(std::size_t index) {
     return name + " " + tail;
 }
 
-bool toggle(std::size_t index) {
+bool adjust(std::size_t index, int direction) {
+    std::size_t mods = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        mods = g_rows.size();
+    }
+    if (index < mods) return toggle_mod(index);  // a mod's own row: Enter, Left and Right all flip it
+    return services::menu_row_activate(index - mods, direction);  // an added row: the mod decides what each key does
+}
+
+bool toggle(std::size_t index) { return adjust(index, 0); }
+
+bool toggle_mod(std::size_t index) {
     // The flag flips under the lock; the file is written outside it (the renderer reads rows under the same lock every
     // frame, so disk I/O must not hold it). Saves are serialised and write the state current at save time.
     std::filesystem::path manifest;

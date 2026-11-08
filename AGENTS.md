@@ -317,10 +317,7 @@ tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idemp
 # .venv/bin/python -m tools.trace_compare recomp/analysis/ppsspp.log recomp/analysis/gt.trace
 # tools/gpu_gate.sh build recomp/analysis/gpu/run [SCALE] ["race:600 ..."]   GPU vs software GE gate (gt_play headless)
 # ctest --test-dir build
-# tools/mod_pedals_check.sh [--without-mod|--sabotage|--toggle-off] [--decomp off|on]   analog-pedals mod check (needs ../gt-mods; docs/MODS.md); --toggle-off = F9 toggle mid-race
-# tools/mod_camera_check.sh [--without-mod|--sabotage|--toggle-off] [--yaws "0 90 180"] [--decomp off|on]   orbit-camera mod in-game check on the `chase` route (frames vs a run without the mod; needs ../gt-mods; docs/MODS.md)
-# tools/mod_reset_check.sh [flags]   reset-to-track check (docs/MODS.md)
-# tools/mod_drawdist_check.sh [--without-mod|--sabotage|--toggle-off] [--decomp off|on]   draw-distance mod in-game check (frames, route chase; needs ../gt-mods)
+# tools/mod_{pedals,camera,reset,drawdist,rollover,cheats}_check.sh [--without-mod|--sabotage*|--toggle-off|--pad] [--decomp off|on]   mod in-game checks (needs ../gt-mods; flags per mod in docs/MODS.md; cheats = mod API v2 + pad menu)
 # .venv/bin/python -m tools.disasm 08B54FB8 [ADDR:N]   asm of a function: relocations applied, branches as `-> ADDRESS` (read targets here, never count them by hand)
 # .venv/bin/python -m tools.frame_audit [FILE.cpp ...]   body GuestFrame sizes vs the original prologue (the gate can't see them)
 # Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):

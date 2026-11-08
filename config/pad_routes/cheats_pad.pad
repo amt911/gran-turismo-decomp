@@ -1,0 +1,18 @@
+# Route cheats_pad — cheats.pad plus a visit to the F9 menu with the PAD, for tools/mod_cheats_check.sh --pad. The throttle (CROSS) is held from
+# +1500 to +2950; at +1800 the chord SELECT+START opens the menu (the throttle must disappear for the game), +1900 DOWN (row 1: slow motion),
+# +2000 RIGHT (-> 0.5x), +2100 DOWN (row 2: freeze AI), +2200 RIGHT (-> ON), +2300 the chord again closes it (the throttle is back, still held).
+# Pages: see chase.pad. Waits for the game, not for a time (host/pad_sequence.hpp); times after the last WAIT count from the race's own pages.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,1800:SELECT:6,1800:START:6,1900:DOWN:6,2000:RIGHT:6,2100:DOWN:6,2200:RIGHT:6,2300:SELECT:6,2300:START:6

@@ -26,6 +26,7 @@
 #include "kirk_slot_keys.hpp"
 #include "diff_harness.hpp"
 #include "pad_script.hpp"
+#include "host_hooks.hpp"
 #include "psp_savedata_crypto.hpp"
 #include "vblank_pacer.hpp"
 #include "lcs_profile.hpp"
@@ -79,6 +80,17 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+namespace gt {
+namespace {
+std::atomic<PadFilterFn> g_pad_filter{nullptr};
+std::atomic<VblankTickFn> g_vblank_tick{nullptr};
+}  // namespace
+void set_pad_filter(PadFilterFn filter) { g_pad_filter.store(filter, std::memory_order_release); }
+PadFilterFn pad_filter() { return g_pad_filter.load(std::memory_order_acquire); }
+void set_vblank_tick(VblankTickFn tick) { g_vblank_tick.store(tick, std::memory_order_release); }
+VblankTickFn vblank_tick() { return g_vblank_tick.load(std::memory_order_acquire); }
+}  // namespace gt
 
 namespace lcs {
 namespace {
@@ -4389,13 +4401,15 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                 }
             }
             const HostInputState host = display_window_input();
-            const std::uint32_t buttons = host.buttons | gt::scripted_buttons();  // + GT_PAD
+            std::uint32_t buttons = host.buttons | gt::scripted_buttons();  // + GT_PAD
+            std::uint8_t analog_x = host.analog_x, analog_y = host.analog_y;
+            if (const gt::PadFilterFn filter = gt::pad_filter()) filter(display_vblank_index, buttons, analog_x, analog_y);  // gt_play: the pad menu
             for (std::uint32_t index = 0u; index < count; ++index) {
                 const std::uint32_t sample = destination + index * sample_size;
                 rt.memory().store32(sample, static_cast<std::uint32_t>(system_time_microseconds()));
                 rt.memory().store32(sample + 4u, buttons);
-                rt.memory().store8(sample + 8u, host.analog_x);
-                rt.memory().store8(sample + 9u, host.analog_y);
+                rt.memory().store8(sample + 8u, analog_x);
+                rt.memory().store8(sample + 9u, analog_y);
                 rt.memory().store8(sample + 10u, 128u);
                 rt.memory().store8(sample + 11u, 128u);
                 rt.memory().zero(sample + 12u, 4u);
@@ -4557,6 +4571,13 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
         }
         gt::pad_script_note_virtual_time(virtual_time_us);
         gt::pad_script_tick(rt);
+        if (const gt::VblankTickFn tick = gt::vblank_tick()) {  // once per game vblank (two threads wait for each): the mod API v2 tick
+            static std::uint64_t ticked_vblank = ~std::uint64_t{0};
+            if (display_vblank_index != ticked_vblank) {
+                ticked_vblank = display_vblank_index;
+                tick(rt, ctx, display_vblank_index);
+            }
+        }
         if (display_window_closed()) {
             ge_worker_wait_idle();
             rt.stop("Display window closed");
