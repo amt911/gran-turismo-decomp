@@ -552,14 +552,14 @@ Read from the asm (`tools.disasm`, a text scan for `0x74B`/`0x74C` accesses and 
 - The countdown: `0x08956E9C` decrements `K+0x74C` while > 0 (a value of 0x7FFF is left alone); at 0 it **zeroes the whole byte `K+0x74B`**
   and, when the world has two or more cars (`word(world+8) >= 2`), sets `K+0x74C = -180`; a negative value counts back up to 0. `0x08955774(car)`
   (called twice from `0x0895F7C0`, the car-pair loop) answers 1 when `K[2] != 0` or `K+0x74C < 0`: such a car is skipped in car-vs-car
-  distance tests. **No caller of `0x08956E9C` was found (no `jal`/`j`), and in the flag-1 runs `K+0x74C` stays 120 and `K+0x74B` stays `02` for
+  distance tests. **No caller of `0x08956E9C` was found (a text scan of `.text` for `jal`/`j`, for an address built by a `lui`/`addiu` relocation pair and for the address as a data word, 2026-11-08: none, for the flag setter `0x0894CC9C` neither; a jump through a computed register would not show), and in the flag-1 runs `K+0x74C` stays 120 and `K+0x74B` stays `02` for
   thousands of steps: the countdown is never run.** `K+0x74B` is cleared on a car reset by `0x08940BF8` (with `K+0x74C = 0`).
 - `0x0894E200` (the step, flag set and mask 2 set): if `K+0x18 < K+0x48` then `K+0x18 = K+0x48 + 1e-4` and `K+0x6D4 = 0` (a ground-height clamp).
 - **Measured with the flag forced on and the flip machine live** (`--decomp off`, a 9 rad/s roll rate at the barrier hit): `0x74B` goes `00 -> 06` as the car passes on its side; the car
   then **free-falls through the road** (height 6.8 -> 2.4 m with the road at ~5.5 m, velocity z to -9.4 m/s, no suspension: the pipeline is skipped);
   when `f21` passes 0.5 the byte drops to `02` and the car is **pushed up ~6.5 m in one step** (z 2.38 -> 8.85) with its attitude snapped to
   near upright; it repeated three times (each landing raised the roll rate 4.05 -> 6.59 -> 8.02 rad/s) before the car came to rest upright.
-- **Measured with the flip machine kept asleep** (the flag reads 1 everywhere except in `0x08956930`): the same hit rolls the car with
+- **Measured with the flip machine kept asleep** (first version: the flag read 1 everywhere except in `0x08956930`; final: 1 only inside the body step `0x08956DC8`): the same hit rolls the car with
   a 12 rad/s drive (up.z -0.75 at the lowest, i.e. well past upside down), no height jump, `K+0x74B` stays 0, the springs and the wheels bring
   the car back upright and it drives on; `--decomp off` and `on` give the same lowest up.z.
 
@@ -567,3 +567,17 @@ Read from the asm (`tools.disasm`, a text scan for `0x74B`/`0x74C` accesses and 
 side, put it back on the ground, a 2 s timer, then 3 s of no car-car collisions) whose timer call and setter were removed from the shipped
 game; the free fall is what it does when its timer never runs. **It is harmful as it stands** (the car sinks under the road and pops back
 up), so the mod never lets it start (see the mod's README).
+
+**Hook mechanics measured for the rollover mod (2026-11-08).** `0x08956DC8` (body motion, once per car per step) and `0x08956930` are dispatched
+to hooks in `--decomp off` and `on`, but a hook on `0x0893E0FC` (the clamp) never fires in `--decomp off` (its caller is in the same recompiled
+unit). A hook that sets a flag for its function's extent covers the callees' reader calls in `--decomp on` (C++ calls), **not** in `--decomp off`
+(no reader ever saw the flag set), where `ra` (call site + 8: clamp `0x0893E5AC`, wrap `0x08956BF0`) is the working discriminator. The mod uses
+both. **Lifting the flag for every reader (first version) changed pixels of a car settling on the grid before any hit** (the contact-normal
+reset and the angle wrap take other paths with the flag set, not the tilt clamp: a car on the grid never reaches 35 degrees); lifting it only for
+the body-step readers made a mod-on run with no hit byte-identical to no mod (`tools/mod_rollover_check.sh --toggle-off`, whole run, both modes).
+**`0x08945F6C` is not inert under `--decomp on` with the flag set (2026-11-08).** In the asm its flag branch only matters when the flip state's mask 4 is
+set (both paths reach `0x0894600C`), and `--decomp off` agrees (lifting only the clamp's and the wrap's readers gives a mod-on run byte-identical to
+stock). With `--decomp on` and the flag lifted for the whole body step, frames differ from stock before any hit (a few pixels at ~vblank 13500, whole
+frames from the race start); taking `0x08945F6C` out of the lifted extent (hook `on_contact_step`) makes the whole run identical. So the decompiled
+`func_08945F6C` (or what it calls) behaves differently from the original with the flag set: a path the differential gate never ran (its cases all have
+the flag at 0). Not investigated further here; the mod avoids it. **Follow-up for the decomp:** give `func_08945F6C` a flag-1 synthetic case.

@@ -3,7 +3,7 @@
 # the end of the straight and hits the barrier at a slant, then throttle and brake), the mod's state log (GT_MOD_ROLLOVER_LOG=1) and
 # tools/mod_rollover_check.py as judge.
 #   tools/mod_rollover_check.sh [--decomp off|on] [--seconds N] [--every N] [--roll-only] [--toggle-off] [--recover]
-#                               [--without-mod|--sabotage-noflag|--sabotage-noimpulse|--sabotage-threshold0]
+#                               [--without-mod|--sabotage-noflag|--sabotage-noimpulse|--sabotage-threshold0|--sabotage-flipflag]
 #   (default)    baseline (no mod, frames), disabled (the mod installed with enabled = false: frames byte-identical to the baseline, nothing
 #                logged), roll (mod enabled: quiet driving first, one impulse at the crash, the car tilts past the game's 35 deg clamp toward
 #                the side it hit, the dormant flip machine stays asleep, no height jump, ends upright or upside down at rest); PASS only if all pass
@@ -13,12 +13,12 @@
 #                (the crash included: it does not roll) identical to the baseline
 #   --recover    rollover + reset-to-track enabled together on the `rollover_reset` route (SELECT held so that the reset fires ~20 steps after
 #                the crash): the car is upside down, still tumbling, when the reset fires; PASS = rolled before the RESTORE line (rollover judge) and the reset judge (tools/mod_reset_check.py restore) passes
-#   Each of these must FAIL: --without-mod (nothing rolls), --sabotage-noflag (-DROLLOVER_SABOTAGE=1: the impulse without the flag, the game's
+#   Each of these must FAIL: --without-mod (-DROLLOVER_SABOTAGE=5: stock physics, the mod only logs: nothing rolls; with --recover the car is not upside down at the reset), --sabotage-noflag (-DROLLOVER_SABOTAGE=1: the impulse without the flag, the game's
 #   clamp holds the tilt), --sabotage-noimpulse (=2: the flag without any impulse: the barrier alone does not roll the car),
-#   --sabotage-threshold0 (=3: an impulse in normal driving)
+#   --sabotage-threshold0 (=3: an impulse in normal driving), --sabotage-flipflag (=4: the flag also lifted for the dormant flip state machine: the car sinks through the road)
 # Env: ROUTE (a pad route file, default config/pad_routes/rollover.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
 # GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_rollover_check, gitignored; never /tmp),
-# KEEP_BASELINE=1 (reuse the baseline of $OUT, same --decomp). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that crashed, timed out
+# KEEP_BASELINE=1 (reuse the baseline of $OUT when --decomp, route and --every match). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that crashed, timed out
 # or did not finish its route). Each run is a real-time job: inside the memory cgroup and its own hold of the shared CPU lock (tools/cpu_lock.sh).
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -26,10 +26,10 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_rollover_check}
-decomp=off seconds=200 every=30 without=0 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300
+decomp=off seconds=200 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) without=1;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;;
+    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --roll-only) roll_only=1;; --recover) recover=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_rollover_check: unknown argument $1" >&2; exit 2;;
@@ -41,7 +41,7 @@ route=${ROUTE:-config/pad_routes/rollover.pad}
 [ $recover -eq 1 ] && route=${ROUTE:-config/pad_routes/rollover_reset.pad}
 [ -f "$route" ] || { echo "mod_rollover_check: no pad route $route" >&2; exit 2; }
 mkdir -p "$out/nomods" "$out/mods/rollover" "$out/mods_disabled/rollover" "$out/mods_recover/rollover" "$out/mods_recover/reset-to-track" || exit 2
-if [ $without -eq 0 ]; then
+if true; then
   mbuild="$out/mod-build-s$sabotage"
   flags=""; [ $sabotage -ne 0 ] && flags="-DROLLOVER_SABOTAGE=$sabotage"
   { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" "-DCMAKE_CXX_FLAGS=$flags" \
@@ -80,12 +80,14 @@ run_one() {
   cp "$out/$label/run.log" "$out/$label-s$sabotage-$decomp.log"  # kept: the next run of the same label removes $out/$label
   grep -ah '^\[mods\]' "$out/$label/run.log"; grep -ah 'script done' "$out/$label/run.log"
 }
-mdir="$out/mods"; [ $without -eq 1 ] && mdir="$out/nomods"
+mdir="$out/mods"
 py=.venv/bin/python
-need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/baseline/frames" ]; }
+# KEEP_BASELINE=1 reuses $out/baseline only when it was made with the same --decomp, route and --every (recorded in baseline/.config)
+cfg="decomp=$decomp route=$route every=$every"
+need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/baseline/frames" ] || [ "$(cat "$out/baseline/.config" 2>/dev/null)" != "$cfg" ]; }
+make_baseline() { run_one baseline "$out/nomods" - 1 "$1" && echo "$cfg" > "$out/baseline/.config"; }
 if [ $recover -eq 1 ]; then
-  rmdir "$out/nomods" 2>/dev/null; mrd="$out/mods_recover"; [ $without -eq 1 ] && mrd="$out/nomods"
-  run_one recover "$mrd" - 0 "$route" || exit 2
+  run_one recover "$out/mods_recover" - 0 "$route" || exit 2
   rc=0
   $py -I tools/mod_rollover_check.py "$out" recover || rc=1
   mkdir -p "$out/rr" && ln -sfn ../recover "$out/rr/reset"   # the reset judge reads <dir>/reset/run.log
@@ -95,17 +97,17 @@ if [ $recover -eq 1 ]; then
   exit $rc
 fi
 if [ $toggle -eq 1 ]; then
-  need_baseline && { run_one baseline "$out/nomods" - 1 "$route" || exit 2; }
+  need_baseline && { make_baseline "$route" || exit 2; }
   run_one toggle "$mdir" "rollover@v$toggle_at" 1 "$route" || exit 2
   $py -I tools/mod_rollover_check.py "$out" toggle "$toggle_at"
   exit $?
 fi
-if [ $sabotage -ne 0 ] || [ $without -eq 1 ] || [ $roll_only -eq 1 ]; then  # a failing run is all that is asked of a sabotage: no baseline needed
+if [ $sabotage -ne 0 ] || [ $roll_only -eq 1 ]; then  # a failing run is all that is asked of a sabotage: no baseline needed
   run_one roll "$mdir" - 0 "$route" || exit 2
   $py -I tools/mod_rollover_check.py "$out" roll
   exit $?
 fi
-need_baseline && { run_one baseline "$out/nomods" - 1 "$route" || exit 2; }
+need_baseline && { make_baseline "$route" || exit 2; }
 run_one disabled "$out/mods_disabled" - 1 "$route" || exit 2
 run_one roll "$mdir" - 0 "$route" || exit 2
 rc=0

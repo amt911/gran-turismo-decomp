@@ -43,3 +43,16 @@ without a crash, `--decomp off`/`on`; mod off → frames byte-identical; sabotag
 
 Wanted ("sí, lo quiero"), in every mode. Built after reset-to-track (needs it to recover). First step stays: read
 `0x08956930` / `0x0894CCB8` before tuning the impulse.
+
+## Implementation notes (deviations from the proposal above, 2026-11-08)
+
+- **No write to `0x08CF2F08`.** The mod hooks the reader `0x0894CCB8` and returns 1; a toggled-off mod is bypassed by the host, so the game reads its
+  real 0 with nothing to restore.
+- **The flag is not global.** With the flag set, `0x08956930` wakes the dormant flip state machine, which skips the car's force pipeline (the car sinks
+  ~4 m through the road and is pushed back up ~6.5 m: measured). The flag is also read by the contact-normal reset and the step's ground clamp, whose
+  flag-1 paths changed a car's pixels before any hit. The final mod returns 1 only to the readers inside the body step `0x08956DC8` (clamp, angle
+  wrap) and the real 0 to the rest; a mod-on run with no hit is byte-identical to no mod (`docs/FACTS.md`, "Rollovers").
+- **The impulse** is a roll rate held 40 steps with a linear decay (a one-step kick is undone by the springs), toward the side hit, on the lateral axis
+  (second basis row); `+0x6F4` is the roll rate. `style = realistic|arcade` scales threshold and gain.
+- **Recovery.** A rolling car always recovers (no roof collision). `tools/mod_rollover_check.sh --recover` resets it with reset-to-track while it is upside down.
+- **Not covered:** AI cars lose the clamp too (no impulses; none was seen past 35 degrees); with two human players nobody gets impulses.

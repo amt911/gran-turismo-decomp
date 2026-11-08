@@ -2,19 +2,18 @@
 
 The mod logs the player car's state (GT_MOD_ROLLOVER_LOG=1): `[mod:rollover] st=<player-car step> imp=<impulses so far> since=<steps since
 the last> pos=x,y,z vel=x,y,z fwd=x,y,z lat=x,y,z up=x,y,z tilt=<+0x6FC>,<+0x700> rate=<+0x6F4> flag=<+0x74B hex>/<+0x74C> held=<steps
-left>(<held roll rate>) flipmachine_calls=<n>`, plus one `IMPULSE st=<step> held=<signed rate>` line per hit it answered (positive rate
-= toward the car's lateral axis `lat`) and `FLAGREAD ra=<addr>` once per caller of the flag reader. The route (config/pad_routes/rollover.pad)
+left>(<held roll rate>) body_calls=<n>`, plus one `IMPULSE st=<step> held=<signed rate>` line per hit it answered (positive rate
+= toward the car's lateral axis `lat`) and `FLAGREAD ra=<addr> lifted=<0|1>` once per caller of the flag reader and value it got (`ra` is the guest return address in --decomp off only). The route (config/pad_routes/rollover.pad)
 drives the car into the barrier at the end of the straight at a slant.
 Judged here:
   roll run      normal driving first (>= MIN_QUIET_LINES lines, flag byte 0, upright, tilt under the game's own 35 deg clamp, no impulse before
                 MIN_CRASH_STEP); an impulse at the crash; the car then tilts past the clamp (up.z under MAX_ROLLED_UP_Z or a tilt angle over
                 MIN_ROLLED_TILT), toward the side it hit; the dormant flip state machine never wakes (flag byte stays 0, the car never jumps in
                 height: it would sink through the road and be pushed up); no nan; the car ends upright or upside down at rest;
+                the flag is lifted only for the clamp's and the wrap's readers (judge_flag_scope);
   identity run  the mod installed but disabled: frames byte-identical to the run without it; the toggle run (switched off from the F9 menu
-                before the crash): the mod ran before the toggle and logged nothing after, and the frames from TOGGLE_MARGIN vblanks after the
-                toggle to the end of the route (the crash included: no roll) are byte-identical to the run without the mod (the frames before
-                the toggle are not: with the clamp lifted the car's first settling on the grid differs by a few pixels; under --decomp on the
-                frames are not compared at all, see judge_toggle_frames);
+                before the crash): the mod ran before the toggle and logged nothing after, and EVERY frame, the mod's active part and the
+                crash after the toggle included, is byte-identical to the run without the mod (no hit before the crash: the mod changes nothing);
   recover run   (rollover + reset-to-track) the car rolled before the reset's RESTORE line; the reset judge (tools/mod_reset_check.py) says the rest.
 """
 import math
@@ -26,19 +25,18 @@ TAG = r"\[mod:rollover\] "
 NUM = r"-?(?:[\d.]+|nan|inf)"
 VEC = rf"({NUM}),({NUM}),({NUM})"
 STATE = re.compile(TAG + rf"st=(\d+) imp=(\d+) since=(-?\d+) pos={VEC} vel={VEC} fwd={VEC} lat={VEC} up={VEC} tilt=({NUM}),({NUM}) "
-                   rf"rate=({NUM}) flag=([0-9A-Fa-f]{{2}})/(-?\d+) held=(\d+)\(({NUM})\)(?: flipmachine_calls=(\d+))?")
-IMPULSE = re.compile(TAG + rf"IMPULSE st=(\d+) held=({NUM})")
+                   rf"rate=({NUM}) flag=([0-9A-Fa-f]{{2}})/(-?\d+) held=(\d+)\(({NUM})\)(?: (?:body|flipmachine)_calls=(\d+))?")
+IMPULSE = re.compile(TAG + rf"IMPULSE st=(\d+) held=({NUM})(?: lat={VEC})?")
+FLAGREAD = re.compile(TAG + r"FLAGREAD ra=([0-9A-Fa-f]{8}) lifted=([01])")
+LIFTED_OK = {0x0893E5AC, 0x08956BF0}  # the tilt clamp's and the angle wrap's call sites (+ 8): the only readers that may get 1 (--decomp off)
 RESTORE = re.compile(r"\[mod:reset-to-track\] RESTORE step=(\d+)")
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
 TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
 FRAME = re.compile(r"frame_(\d+)\.ppm$")
-DECOMP_LINE = re.compile(r"^\[decomp\] ", re.M)
-FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
-TOGGLE_MARGIN = 120      # vblanks after the toggle before frames must equal the baseline's again (a step or two of settling)
 
 CLAMP_TILT = 0.611        # rad: the game's own tilt clamp (35 deg), which the mod lifts
 MAX_QUIET_TILT = 0.35     # rad: normal driving stays well inside it
-MIN_QUIET_LINES = 60      # state lines before the first impulse (the mod ran, in normal driving)
+MIN_QUIET_LINES = 40      # state lines before the first impulse (one per 30 steps: the hit is at step ~1860 = ~60 lines; margin for a different timing)
 MIN_CRASH_STEP = 1500     # no impulse before this player-car step: the race starts at ~750 and the route hits the barrier at ~1850
 MAX_INVERTED_UP_Z = 0.0   # upside down: past 90 degrees (the recover run resets the car while it is tumbling on its roof)
 MAX_ROLLED_UP_Z = 0.6     # past the clamp for sure: the clamp alone leaves up.z above ~0.67 even with both angles at the limit
@@ -67,7 +65,13 @@ def parse_states(text):
 
 
 def parse_impulses(text):
-    return [{"st": int(m.group(1)), "held": float(m.group(2))} for m in IMPULSE.finditer(text)]
+    return [{"st": int(m.group(1)), "held": float(m.group(2)), "lat": tuple(float(x) for x in m.groups()[2:5]) if m.group(3) is not None else None}
+            for m in IMPULSE.finditer(text)]
+
+
+def parse_flagreads(text):
+    """[(ra, lifted)] for the `FLAGREAD` lines with a real guest address (--decomp on logs site numbers, not addresses)."""
+    return [(int(m.group(1), 16), m.group(2) == "1") for m in FLAGREAD.finditer(text) if int(m.group(1), 16) >= 0x08000000]
 
 
 def finite(s):
@@ -76,6 +80,18 @@ def finite(s):
 
 def speed(s):
     return math.sqrt(sum(v * v for v in s["vel"]))
+
+
+def judge_flag_scope(text):
+    """The flag is lifted only for the readers that need it: no real-address reader but the clamp's and the wrap's ever got 1, and (when the log
+    names readers at all, i.e. --decomp off) the clamp's did. Returns (ok, message)."""
+    reads = parse_flagreads(text)
+    wrong = sorted({ra for ra, lifted in reads if lifted and ra not in LIFTED_OK})
+    if wrong:
+        return False, "the flag was lifted for a reader that does not need it: " + " ".join(f"{ra:08X}" for ra in wrong)
+    if reads and not any(lifted and ra == 0x0893E5AC for ra, lifted in reads):
+        return False, "the tilt clamp's reader (ra 0893E5AC) never got the flag: the clamp is not lifted"
+    return True, f"flag lifted only for the clamp/wrap readers ({len(reads)} reader logs)"
 
 
 def judge_roll(text, expected_flipcalls=True):
@@ -107,11 +123,14 @@ def judge_roll(text, expected_flipcalls=True):
                        f"largest tilt {top_tilt:.3f} rad)")
     # the direction is read right after the hit (a car that keeps rolling swings through both sides later), against the lateral axis the car had
     # BEFORE the hit (the body's own axis turns with it: up . lat is always 0)
-    lat0 = before[-1]["lat"]
+    lat0 = first["lat"] if first["lat"] is not None else before[-1]["lat"]
     early = [s for s in window if s["st"] <= first["st"] + DIRECTION_STEPS] or window[:1]
     tip = max((sum(u * l for u, l in zip(s["up"], lat0)) for s in early), key=abs)
     if tip * first["held"] <= 0:
         return False, f"the car tipped toward {'+' if tip > 0 else '-'}lat but the impulse was {first['held']:+.1f}: not toward the side that was hit"
+    ok, message = judge_flag_scope(text)
+    if not ok:
+        return False, message
     if any(s["flag"] & FLIP_FLAG_BITS for s in states):
         return False, "the flip state machine woke (+0x74B bits set): the car would sink through the road and be pushed back up"
     for a, b in zip(states, states[1:]):
@@ -119,7 +138,7 @@ def judge_roll(text, expected_flipcalls=True):
         if 0 < dst <= 30 and abs(b["pos"][2] - a["pos"][2]) / dst > MAX_Z_STEP:
             return False, f"the car jumped {b['pos'][2] - a['pos'][2]:+.2f} m in height between steps {a['st']} and {b['st']}"
     if expected_flipcalls and not any((s["flipcalls"] or 0) > 0 for s in states):
-        return False, "the hook on the flip state machine (0x08956930) never fired: the dispatch check is blind"
+        return False, "the hook on the body step (0x08956DC8) never fired: the dispatch check is blind"
     final = [s for s in states if s["st"] >= first["st"] + SETTLE_STEPS]
     if not final:
         return False, f"the log ends before {SETTLE_STEPS} steps after the impulse"
@@ -204,24 +223,14 @@ def judge_identity(base_frames, mod_frames, min_frames=6):
     return True, f"{len(common)} frames byte-identical to the run without the mod"
 
 
-def frames_between(text, start, end):
-    """Frame numbers the run log dumped at a vblank in [start, end]."""
-    return [int(f) for f, v in FRAME_DUMP.findall(text) if start <= int(v) <= end]
-
-
-def judge_toggle_frames(log, base_frames, mod_frames, toggle_at, min_frames=20):
-    """The frames from TOGGLE_MARGIN vblanks after the toggle to the route's end equal the run without the mod. Returns (ok, message).
-    Under `--decomp on` (the run log has `[decomp]` lines) the frames are not compared: with the mod's hooks active the decomposed build is slow
-    enough that the game runs a little behind the pad script's vblanks (whole-frame differences from the race start on, at the same physics:
-    the same crash step and lowest up.z as `--decomp off`), and the offset does not heal after the toggle."""
-    done = SCRIPT_DONE.search(log)
-    if done is None:
+def judge_toggle_frames(log, base_frames, mod_frames, toggle_at=None, min_frames=20):
+    """With the flag lifted only where the roll needs it, a mod that makes no hit changes nothing: EVERY frame of the toggle run, from the first
+    (the mod is on until the toggle) to the route's end (the crash after it included: it must not roll), equals the run without the mod.
+    Returns (ok, message). `toggle_at` is kept for the command line."""
+    if SCRIPT_DONE.search(log) is None:
         return False, "no `script done` line"
-    if DECOMP_LINE.search(log):
-        return True, "frames not compared under --decomp on (the active hooks shift the game against the pad script's vblanks)"
-    wanted = frames_between(log, toggle_at + TOGGLE_MARGIN, int(done.group(1)))
-    ok, message = judge_identity({i: base_frames[i] for i in wanted if i in base_frames}, {i: mod_frames[i] for i in wanted if i in mod_frames}, min_frames)
-    return ok, message.replace("frames", f"frames after the toggle (to the route's end)", 1)
+    ok, message = judge_identity(base_frames, mod_frames, min_frames)
+    return ok, message.replace("frames", "frames (the whole run, the mod on until the toggle)", 1)
 
 
 def read(path):

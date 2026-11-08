@@ -3001,14 +3001,32 @@ Found: 2026-11-07 · host/mod_hooks.cpp, tools/mods_together_check.sh
 **Symptom.** Forcing the word `0x08CF2F08` (what the tilt clamp reads) to 1 and kicking the roll rate rolled the car, but the car then fell
 ~4 m *below* the road, was pushed back up 6.5 m in one step and did it three times before settling; `K+0x74B` went `00 -> 06 -> 02`.
 The flag also wakes the "flipped car" state machine of `0x08956930`, which skips the car's force/contact pipeline while the car is on its
-side (`docs/FACTS.md`, "Rollovers"). **Fix (mod).** The reader hook answers 0 to that one caller. Naming it by `ra` (call site + 8) works only
-in `--decomp off`: under `--decomp on` the callers are C++ and `ra` is a small site number (`0x140`, `0x150`, ...), so the first fix looked
-right in one mode and left the machine live in the other (`+0x74B` = 6 in the log). A hook on `0x08956930` itself, flagging "inside the
-machine" for the reader hook, works in both. The check asserts the flag byte stays 0 and the car never jumps in height.
+side (`docs/FACTS.md`, "Rollovers"). **Fix (mod).** The reader hook answers 1 only to the readers inside the body step `0x08956DC8` (tilt clamp, angle wrap) and the game's real 0
+to the rest, flip machine included. A first version answered 1 to everyone but `0x08956930`, named by `ra` (call site + 8): that works only in
+`--decomp off`; under `--decomp on` the callers are C++ and `ra` is a small site number (`0x140`, `0x150`, ...), so the machine stayed live there
+(`+0x74B` = 6 in the log). A hook on the function that sets a flag for its extent works in `--decomp on` but not in `--decomp off` (no reader sees it
+set there), so the final mod uses `ra` for off and the extent for on. The check asserts the flag byte stays 0, the car never jumps in height and
+no reader but the clamp's and the wrap's got 1 (`ROLLOVER_SABOTAGE=4` lifts the flag for the flip machine and must fail in both modes).
 
-**Also learned.** (1) A car with the clamp lifted is not frame-identical to a run without the mod even before any hit (its first settling on
-the grid differs by a few pixels), so the toggle-off check compares frames only from the toggle on. (2) `up . lat` of the car's *own* basis is
-always 0: the side a car tips toward must be read against the lateral axis it had before the hit. (3) Do not edit a shell script that a
-batch is running (bash reads it by offset): kill the batch, edit, restart.
+**Also learned.** (1) Lifting the flag for *every* reader made the mod-on car differ from stock by a few pixels on the grid before any hit; that
+is the contact-normal reset and the angle wrap taking their flag-1 paths (the tilt clamp cannot matter below 35 degrees), not the clamp as
+this entry first said; narrowing the flag made a mod-on run with no hit frame-identical to no mod, `--decomp off` and `on`. (2) `up . lat` of
+the car's *own* basis is always 0: the side a car tips toward must be read against the lateral axis it had before the hit (the IMPULSE line logs
+it). (3) Do not edit a shell script that a batch is running (bash reads it by offset): kill the batch, edit, restart.
 
 Found: 2026-11-08 · docs/FACTS.md (Rollovers), tools/mod_rollover_check.sh, gt-mods `rollover/src/mod.cpp`
+
+## "The active mod slows `--decomp on`" was wrong: the frame differences were the flag's, not the hooks' (rollover mod)
+
+**Symptom.** In the first rollover check the `--decomp on` toggle run differed from stock in whole frames from the race start on (a few pixels earlier),
+while the `disabled` run was byte-identical; the cause written down was "the active hooks make the decomposed build slow, so the game runs behind the
+pad script". **Measured 2026-11-08** (`gt_play --decomp on`, rollover route, frame dump every 30, vblank/s between vblank 14000 and the end of the
+route, one run each, ±5 % noise between identical configurations): no mod 166.1, mod disabled 153.9, mod on without log 163.7, mod on with
+`GT_MOD_ROLLOVER_LOG` 150.8, step hook only 163.5, log-only observer build 163.6. `--decomp off`: 163.8, 163.1, 162.2, 160.3, 150.1, 162.7. No
+slowdown beyond noise. The player-car step at a given vblank is the same with the mod acting and with the log-only observer (`--decomp on`: step 750,
+1260, 1770, 2250 at vblank 14502, 15522, 16542, 17502 in both). **Cause.** Lifting the flag for every reader (first version), then for the whole body
+step, changed the game before any hit; in `--decomp on` the flag-1 path of `func_08945F6C` differs from the original (FACTS, "`0x08945F6C` is not
+inert"). With the flag lifted only for the tilt clamp and the angle wrap, a mod-on run with no hit is byte-identical to stock in both modes and the
+toggle check compares every frame.
+
+Found: 2026-11-08 · tools/mod_rollover_check.sh, gt-mods `rollover/src/mod.cpp`

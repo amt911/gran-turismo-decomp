@@ -9,7 +9,7 @@ def state(st, up=(0.0, 0.0, 1.0), tilt=(0.0, 0.0), flag=0, pos=(-300.0, 250.0, 2
           held=0, imp=0, flipcalls=100):
     f = lambda v: ",".join(f"{x:.3f}" for x in v)  # noqa: E731
     return (f"[mod:rollover] st={st} imp={imp} since={-1 if imp == 0 else 3} pos={f(pos)} vel={f(vel)} fwd=-1.000,0.000,0.000 lat={f(lat)} up={f(up)} "
-            f"tilt={tilt[0]:.3f},{tilt[1]:.3f} rate={rate:.2f} flag={flag:02X}/0 held={held}({held * 0.3:.2f}) flipmachine_calls={flipcalls}")
+            f"tilt={tilt[0]:.3f},{tilt[1]:.3f} rate={rate:.2f} flag={flag:02X}/0 held={held}({held * 0.3:.2f}) body_calls={flipcalls}")
 
 
 def impulse(st=1864, held=12.0):
@@ -32,9 +32,9 @@ def good_log(held=12.0, end_up=1.0, end_speed=1.0, **kw):
 def test_parse_states_and_impulses():
     s = mr.parse_states(state(10, up=(0.1, 0.2, 0.9), flag=2) + "\n" + impulse(5, -3.5))[0]
     assert s["st"] == 10 and s["up"] == (0.1, 0.2, 0.9) and s["flag"] == 2 and s["flipcalls"] == 100
-    assert mr.parse_impulses(impulse(5, -3.5)) == [{"st": 5, "held": -3.5}]
+    assert mr.parse_impulses(impulse(5, -3.5)) == [{"st": 5, "held": -3.5, "lat": None}]
     assert mr.parse_states("garbage") == [] and mr.parse_impulses("garbage") == []
-    old = state(1).replace(" flipmachine_calls=100", "")
+    old = state(1).replace(" body_calls=100", "")
     assert mr.parse_states(old)[0]["flipcalls"] is None
 
 
@@ -112,11 +112,38 @@ def test_height_jump_fails():
     assert "jumped" in mr.judge_roll("\n".join(lines))[1]
 
 
+def flagread(ra, lifted):
+    return f"[mod:rollover] FLAGREAD ra={ra:08X} lifted={lifted}"
+
+
+def test_flag_scope():
+    good = "\n".join([flagread(0x0893E5AC, 1), flagread(0x08956BF0, 1), flagread(0x08956958, 0), flagread(0x08956F20, 0), flagread(0x198, 1)])
+    ok, message = mr.judge_flag_scope(good)
+    assert ok, message
+    assert mr.parse_flagreads(good) == [(0x0893E5AC, True), (0x08956BF0, True), (0x08956958, False), (0x08956F20, False)]  # site numbers skipped
+    assert mr.judge_flag_scope("[mods] nothing")[0]  # --decomp on logs no real addresses: nothing to judge
+    ok, message = mr.judge_flag_scope(good + "\n" + flagread(0x08956958, 1))  # the flip machine got the flag
+    assert not ok and "08956958" in message
+    ok, message = mr.judge_flag_scope(flagread(0x08956F20, 0))
+    assert not ok and "never got the flag" in message
+    assert not mr.judge_roll(good_log() + "\n" + flagread(0x08956F20, 1))[0]
+
+
+def test_impulse_lat_axis_is_used_when_logged():
+    # the pre-hit line carries a stale axis; the IMPULSE line's own axis decides the side
+    log = good_log().replace(impulse(), impulse() + " lat=0.000,1.000,0.000")
+    assert mr.parse_impulses(log)[0]["lat"] == (0.0, 1.0, 0.0)
+    assert mr.judge_roll(log)[0]
+    flipped = good_log().replace(impulse(), impulse() + " lat=0.000,-1.000,0.000")
+    assert "not toward the side" in mr.judge_roll(flipped)[1]
+
+
 def test_blind_dispatch_check_fails_and_can_be_waived():
     log = good_log(flipcalls=0)
     assert "never fired" in mr.judge_roll(log)[1]
     assert mr.judge_roll(log, expected_flipcalls=False)[0]
-    assert "never fired" in mr.judge_roll(good_log().replace(" flipmachine_calls=100", ""))[1]
+    assert "never fired" in mr.judge_roll(good_log().replace(" body_calls=100", ""))[1]
+    assert mr.judge_roll(good_log().replace(" body_calls=100", " flipmachine_calls=100"))[0]  # the old field name still parses
 
 
 def test_end_state_and_short_log_fail():
@@ -216,33 +243,26 @@ def test_main_roll_and_recover(tmp_path, capsys):
     assert mr.main(["x", out, "recover"]) == 1
 
 
-def dump_lines(n=40, first_vblank=16000, step=60):
-    """A run log's frame dump lines (frame i at vblank first_vblank + i * step) and the route's end."""
-    return "\n".join(f"[frame-dump] frame {i:06d} vblank {first_vblank + i * step}" for i in range(n)) + f"\n[pad] script done at vblank {first_vblank + (n - 1) * step}\n"
-
-
-def test_frames_between_and_toggle_frames(tmp_path):
-    log = dump_lines()
-    assert mr.frames_between(log, 16300, 16500) == [5, 6, 7, 8]
+def test_toggle_frames_compare_the_whole_run(tmp_path):
+    log = "[pad] script done at vblank 18000\n"
     a, b = tmp_path / "a", tmp_path / "b"
     a.mkdir()
     b.mkdir()
     for i in range(40):
         ppm(a / f"frame_{i:06d}.ppm", i)
-        ppm(b / f"frame_{i:06d}.ppm", i if i >= 8 else 99)  # differs only before the toggle window
+        ppm(b / f"frame_{i:06d}.ppm", i)
     base, mod = mr.frames_of(str(a)), mr.frames_of(str(b))
-    ok, message = mr.judge_toggle_frames(log, base, mod, 16000 + 8 * 60 - mr.TOGGLE_MARGIN)
-    assert ok and "after the toggle" in message
-    ok, message = mr.judge_toggle_frames(log, base, mod, 16000)  # a window that includes frames 4..: they differ
-    assert not ok and "differs" in message
-    assert not mr.judge_toggle_frames("no end", base, mod, 16000)[0]
-    ok, message = mr.judge_toggle_frames("[decomp] gt::game::x: replaced\n" + log, base, mod, 16000)  # --decomp on: not compared, even though they differ
-    assert ok and "not compared" in message
+    ok, message = mr.judge_toggle_frames(log, base, mod, 16300)
+    assert ok and "whole run" in message
+    ppm(b / "frame_000002.ppm", 99)  # a difference before the toggle now fails too
+    ok, message = mr.judge_toggle_frames(log, base, mod)
+    assert not ok and "frame 2 differs" in message
+    assert not mr.judge_toggle_frames("no end", base, mod)[0]
 
 
 @pytest.mark.parametrize("mode", ["disabled", "toggle"])
 def test_main_identity_modes(tmp_path, capsys, mode):
-    text = "[mods] loaded:" if mode == "disabled" else "\n".join(state(750 + i * 15) for i in range(30)) + "\n[mods] rollover -> OFF\n" + dump_lines()
+    text = "[mods] loaded:" if mode == "disabled" else "\n".join(state(750 + i * 15) for i in range(30)) + "\n[mods] rollover -> OFF\n[pad] script done at vblank 18000\n"
     out = make_out(tmp_path, quiet=text, quiet_label=mode)
     for label in ("baseline", mode):
         (tmp_path / label / "frames").mkdir(parents=True, exist_ok=True)

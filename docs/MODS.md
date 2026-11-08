@@ -161,22 +161,27 @@ no cuentan como golpe. README del mod: `gt-mods/rollover/README.md`.
 **La máquina de vuelco latente.** Con la bandera puesta, `0x08956930` también despierta una máquina de estados «coche volcado» que nadie activó nunca
 (byte `K+0x74B`, cuenta atrás `K+0x74C = 120`): mientras el coche está de lado se salta todo el pipeline de fuerzas, así que el coche **se hunde a
 través de la carretera** (medido: de 6,8 a 2,4 m con la pista a ~5,5 m) y al soltarse **sube de golpe ~6,5 m**; la cuenta atrás (`0x08956E9C`) no tiene
-llamante. Detalle y evidencia en FACTS («Rollovers»). Por eso el mod hace que ese único lector devuelva 0 (por `ra` en `--decomp off`; en `--decomp on` el `ra` no
-sirve, así que también se engancha `0x08956930` y mientras corre sus lecturas valen 0). Con eso el coche da vueltas completas sin hundirse.
+llamante. Detalle y evidencia en FACTS («Rollovers»). Por eso el mod solo da la bandera (1) a los lectores del paso de movimiento del cuerpo `0x08956DC8` (solo el recorte de inclinación y el ajuste de ángulos de Euler; `0x08945F6C` queda fuera aunque corre dentro: con la bandera puesta cambia los fotogramas en `--decomp on`, FACTS) y
+el valor real del juego (0) a todos los demás, la máquina de vuelco incluida: en `--decomp off` se distingue por `ra` (dirección de retorno, `0x0893E5AC` recorte,
+`0x08956BF0` ajuste); en `--decomp on` el `ra` es un número de sitio y vale el alcance dinámico de un gancho en `0x08956DC8` (en off ese alcance no cubre a los
+llamados: medido). Una primera versión daba 1 a todos: con ella el coche en la parrilla ya difería unos píxeles del juego original antes de cualquier golpe (rutas de
+contacto y ajuste de ángulos con la bandera puesta, no el recorte); con la bandera estrecha, una partida con el mod y sin golpe es idéntica byte a byte al juego sin mod.
+Con eso el coche da vueltas completas sin hundirse.
 
-**Límites conocidos.** No hay colisión de techo en el juego: el coche siempre se recupera (no se queda boca abajo); la bandera es global (los coches de la IA
-también pierden el recorte, pero no reciben impulsos); el balanceo es una velocidad mantenida, no una simulación del golpe (calibrada con un solo choque contra la barrera).
+**Límites conocidos.** No hay colisión de techo en el juego: el coche siempre se recupera (no se queda boca abajo); el recorte se levanta para todos los coches (los de la IA también, aunque no reciben impulsos y ninguno
+superó 35° en las pruebas; no está demostrado para todas las pistas); solo el jugador recibe impulsos y se le busca como único humano (con dos humanos, nadie); el balanceo es una velocidad mantenida, no una simulación del golpe (calibrada con un solo choque contra la barrera).
 
 Comprobación en juego (ruta `rollover`: el coche se sale al final de la recta y choca contra la barrera en diagonal; log del mod en
 `recomp/analysis/mod_rollover_check`; cada ejecución toma su propio turno del bloqueo de CPU):
 
 ```bash
 GT_MODS_REPO=../gt-mods-rollover tools/mod_rollover_check.sh [--decomp off|on]   # sin mod / mod desactivado: fotogramas idénticos; con mod: conducción normal sin impulso, un impulso en el choque, inclinación > 35° hacia el lado golpeado, máquina de vuelco dormida (+0x74B = 0), sin saltos de altura, termina derecho o boca abajo parado
-tools/mod_rollover_check.sh --toggle-off          # el menú apaga el mod antes del choque: el mod funcionó antes y calló después, fotogramas idénticos al run sin mod
+tools/mod_rollover_check.sh --toggle-off          # el menú apaga el mod antes del choque: el mod funcionó antes y calló después, TODOS los fotogramas idénticos al run sin mod (off y on)
 tools/mod_rollover_check.sh --recover             # rollover + reset-to-track en la ruta `rollover_reset`: el coche está boca abajo, aún rodando, cuando se dispara el reset; el juez de reset-to-track pasa (sin su ventana de calma: tras una voltereta los muelles oscilan ~15 pasos) y la velocidad de balanceo se calma a los 20 pasos
 tools/mod_rollover_check.sh --sabotage-noflag     # el impulso sin la bandera (el recorte de 35° lo frena): debe FALLAR
 tools/mod_rollover_check.sh --sabotage-noimpulse  # la bandera sin impulso: la barrera sola no vuelca el coche: debe FALLAR
 tools/mod_rollover_check.sh --sabotage-threshold0 # umbral 0: impulso en conducción normal: debe FALLAR
-tools/mod_rollover_check.sh --without-mod         # sin mod: debe FALLAR (nada vuelca)
+tools/mod_rollover_check.sh --sabotage-flipflag  # la bandera también para la máquina de vuelco (-DROLLOVER_SABOTAGE=4): el coche se hunde: debe FALLAR
+tools/mod_rollover_check.sh --without-mod         # física original, el mod solo registra (-DROLLOVER_SABOTAGE=5): nada vuelca, debe FALLAR (con --recover: el coche no está boca abajo al reset)
 ```
 
