@@ -85,7 +85,9 @@ alone. Builds, `pytest` and `ctest` only get slower under load; they share the C
   goes through `SendMessage` (find it with `ListAgents`).
 - **Holds stay under 30 min** and run under `timeout 1800`; split longer work (one sabotage file per hold).
 - **Nobody waits forever:** a waiter goes ahead at once when the holder or its agent session is gone (a stopped session
-  leaves its job behind), and after 30 min in any case (the user's rule; a peer may run niced instead of killing).
+  leaves its job behind), and once the current hold is 30 min old in any case (the user's rule; a peer may run niced
+  instead of killing). The age is the owner line's start, not the waiter's own wait: a waiter that queued behind earlier
+  holders must not stop a hold that just began (2026-11-08); an empty owner line counts the waiter's wait.
 - **Never rewrite the script while a job uses it** — a running shell reads it as it goes; a chain started under the old
   file died with a syntax error. It lives in the repo for that reason.
 - Before debugging a real-time failure, read `uptime`/`top`: foreign load is a rerun under the lock, not a bug.
