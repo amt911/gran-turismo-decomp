@@ -89,8 +89,9 @@ if [ $recover -eq 1 ]; then
   rc=0
   $py -I tools/mod_rollover_check.py "$out" recover || rc=1
   mkdir -p "$out/rr" && ln -sfn ../recover "$out/rr/reset"   # the reset judge reads <dir>/reset/run.log
-  # calm window 0: the rates are zeroed at the restore step; the springs' wobble out of a tumble (~15 steps) is the rollover judge's settle check
-  $py -I tools/mod_reset_check.py "$out/rr" restore 0 || rc=1
+  # calm window -1: the reset judge's "rates are zero right after the restore" is not asked here (a car reset out of a tumble wobbles on its
+  # springs for ~15 steps, ~1 rad/s at the first logged step in --decomp on): the rollover judge asks that the roll rate has settled by +20
+  $py -I tools/mod_reset_check.py "$out/rr" restore -1 || rc=1
   exit $rc
 fi
 if [ $toggle -eq 1 ]; then

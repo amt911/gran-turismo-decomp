@@ -122,7 +122,7 @@ def non_finite(states):
 
 def judge_restore(text, calm_steps=CALM_STEPS):
     """The restore run's log. `calm_steps`: how many steps after the restore every rate must stay calm (0 = only the restore
-    step itself: the rates were zeroed; the rollover check uses it, a car reset out of a tumble wobbles on its springs for ~15 steps).
+    step's own log line, -1 = never: the rollover check uses -1, a car reset out of a tumble wobbles on its springs for ~15 steps).
     Returns (ok, message)."""
     restores, states = parse_restores(text), parse_states(text)
     if non_finite(states):

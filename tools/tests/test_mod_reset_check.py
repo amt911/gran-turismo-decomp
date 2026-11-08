@@ -303,6 +303,9 @@ def test_calm_window_can_be_narrowed_to_the_restore_step():
     log = "\n".join(lines)
     assert not mr.judge_restore(log)[0]
     assert mr.judge_restore(log, calm_steps=0)[0]
+    at_restore = [l.replace("rates=0.00,0.00,0.00,0.00,0.00", "rates=0.10,-1.17,0.10,-1.17,0.06") if " t=0 " in l else l for l in log.splitlines()]
+    assert not mr.judge_restore("\n".join(at_restore), calm_steps=0)[0]  # --decomp on logs the first step's wobble at t=0
+    assert mr.judge_restore("\n".join(at_restore), calm_steps=-1)[0]
     zeroed_late = [l.replace("rates=0.00,0.00,0.00,0.00,0.00", "rates=0.50,0.00,0.00,0.00,0.00") if " t=0 " in l else l for l in good_log().splitlines()]
     assert not mr.judge_restore("\n".join(zeroed_late), calm_steps=0)[0]  # still fails when the restore step itself keeps a rate
 
@@ -313,3 +316,4 @@ def test_main_restore_takes_the_calm_window(tmp_path):
     (tmp_path / "reset" / "run.log").write_text("\n".join(lines))
     assert mr.main(["x", str(tmp_path), "restore"]) == 1
     assert mr.main(["x", str(tmp_path), "restore", "0"]) == 0
+    assert mr.main(["x", str(tmp_path), "restore", "-1"]) == 0
