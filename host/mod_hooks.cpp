@@ -146,11 +146,13 @@ const GtModApi &mod_api(int version) {
     static const GtModApi v1{GT_MOD_API_VERSION, api_hook,    api_call_original, api_gpr,         api_set_gpr,
                              api_read8,          api_read16,  api_read32,        api_readf,       api_write8,
                              api_write16,        api_write32, api_writef,        api_config,      api_log,
-                             services::api_add_menu_row, services::api_on_vblank, services::api_call_guest};
+                             services::api_add_menu_row, services::api_on_vblank, services::api_call_guest,
+                             services::api_is_menu_open, services::api_vblank_index};
     static const GtModApi v2{GT_MOD_API_VERSION_2, api_hook,   api_call_original, api_gpr,         api_set_gpr,
                              api_read8,            api_read16, api_read32,        api_readf,       api_write8,
                              api_write16,          api_write32, api_writef,       api_config,      api_log,
-                             services::api_add_menu_row, services::api_on_vblank, services::api_call_guest};
+                             services::api_add_menu_row, services::api_on_vblank, services::api_call_guest,
+                             services::api_is_menu_open, services::api_vblank_index};
     return version == GT_MOD_API_VERSION ? v1 : v2;
 }
 

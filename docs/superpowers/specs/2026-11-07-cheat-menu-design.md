@@ -60,3 +60,9 @@ Online/adhoc play, editing the save file offline, PS2-style memory-code lists.
 Approved: mod API v2 (menu rows, vblank tick, `call_guest`); **all** cheats wanted, money included (so the money probe runs
 first, and money ships only once its path is proven); every cheat that touches the save makes a backup copy first; the menu
 must work with the **pad** too, not only the keyboard.
+
+## Implementation note (2026-11-08, piece 1)
+
+The spec's "velocity scaling" (slow motion) and "AI cars skip their step" (freeze) were not built literally: the world step is a fixed step with no dt to scale, and a hook cannot
+observe the step's result in `--decomp off` (FACTS "Cheats"). Both are the same operation instead: at each call's entry the mod writes `base + f * (state - base)` over every car's kinematic
+state (f = 0.5 / 0.25, or 0 for a frozen AI car). That also keeps accelerations consistent, which a plain velocity multiplier does not. Time Trial ghosts: untested (a ghost may be treated like an AI car).

@@ -35,8 +35,14 @@ bool menu_row_activate(std::size_t index, int direction);
 // The mod's id of the row (for logs); empty when out of range.
 const std::string &menu_row_mod_id(std::size_t index);
 
-// Runs every active mod's vblank tick with a ctx that may call_guest. Called by the kernel once per game vblank.
-void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx);
+// Runs every active mod's vblank tick with a ctx that may call_guest. Called by the kernel once per game vblank (`vblank` = the count).
+void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint64_t vblank);
+// True when any loaded mod registered a menu row or a tick (the host installs the pad menu and the tick only then).
+bool any_registered();
+// Behind GtModApi::is_menu_open / vblank_index. The host sets the query (gt_play: lcs::host_settings_open); null = never open.
+void set_menu_open_query(bool (*query)());
+int api_is_menu_open(GtMod *self);
+std::uint64_t api_vblank_index(GtMod *self);
 
 // A failed init: forget this mod's rows and tick.
 void remove_for(const GtMod *mod);

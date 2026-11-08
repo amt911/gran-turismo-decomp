@@ -5,6 +5,7 @@
 #include "psprecomp/runtime.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -27,6 +28,8 @@ struct Tick {
 std::vector<Row> g_rows;
 std::vector<Tick> g_ticks;
 GtMod *g_initializing = nullptr;
+std::atomic<std::uint64_t> g_vblank{0};
+std::atomic<bool (*)()> g_menu_open{nullptr};
 
 constexpr unsigned kArgumentRegisters[] = {4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u};
 
@@ -135,7 +138,16 @@ bool menu_row_activate(std::size_t index, int direction) {
 
 const std::string &menu_row_mod_id(std::size_t index) { return index < g_rows.size() ? g_rows[index].mod->id : kEmpty; }
 
-void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+bool any_registered() { return !g_rows.empty() || !g_ticks.empty(); }
+void set_menu_open_query(bool (*query)()) { g_menu_open.store(query, std::memory_order_release); }
+int api_is_menu_open(GtMod *) {
+    const auto query = g_menu_open.load(std::memory_order_acquire);
+    return query != nullptr && query() ? 1 : 0;
+}
+std::uint64_t api_vblank_index(GtMod *) { return g_vblank.load(std::memory_order_acquire); }
+
+void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {
+    g_vblank.store(vblank, std::memory_order_release);
     for (const Tick &t : g_ticks) {
         if (!is_on(t.mod)) continue;
         GtModCtx tick_ctx{&rt, &ctx, 0u, 0u, true, t.mod};
@@ -152,6 +164,8 @@ void clear_for_tests() {
     g_rows.clear();
     g_ticks.clear();
     g_initializing = nullptr;
+    g_vblank.store(0);
+    g_menu_open.store(nullptr);
 }
 
 }  // namespace gt::mods::services

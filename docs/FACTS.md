@@ -599,10 +599,12 @@ the flag at 0). Not investigated further here; the mod avoids it. **Follow-up fo
 - **Slow motion is not a pure clock scale** (what the check measured): the speed->distance curve is within ~15% of the idle run's and the steps to climb between two
   speeds are 1/F times as many within 10% (0.5x) / 20% (0.25x): the throttle ramp and engine state are not slowed. AI cars covered 153 m against 432 m idle at the
   same step (0.5x) and 48 m (0.25x).
+- **Threads.** The tick runs on whichever guest thread first reaches a vblank wait; guest threads are cooperative on one OS thread, but a parked fiber can sit in the middle of a decompiled function and the GE worker thread reads guest memory meanwhile (docs/MODS.md). `call_guest` from the tick was exercised in game with a read-only native only (`0x0894CCB8`, answered 0); no setter has been called that way.
 - **Pad menu.** `sceCtrlReadBufferPositive` (HLE in `host/gt_kernel.cpp`) merges host + GT_PAD buttons; the filter runs there, once per vblank for edges.
   The game's accelerator `K+0x530` follows a pad change with a lag of ~20 log lines (40 steps), so a judge must skip that settling.
 - **Which chord does the game not use? None of the pairs tried.** No-mod runs of the `cheats` route with one extra 6-vblank press at race +1800 (frames vs a run
   without it, first difference at the press in every case): SELECT+START, L+R, TRIANGLE+CIRCLE and L+R+SELECT+START all change the frames. So any chord leaks into the
   game when its buttons are not pressed in the same vblank; the filter hides both chord buttons from the vblank the chord completes (SELECT+START chosen: Select is
-  already the reset-to-track key, Start only pauses, and both are on the PSP's small-button side, so a simultaneous press is natural). Select pressed more than one vblank before Start leaks a short
-  Select to reset-to-track (a tap replay: the camera view changes); Start first leaks a pause.
+  already the reset-to-track key, Start only pauses, and both are on the PSP's small-button side, so a simultaneous press is natural). Review fix (2026-11-08): a hand presses the two buttons a few
+  vblanks apart, so a lone chord button is held back 8 vblanks (and replayed late, with its real length, if released first; docs/MODS.md); only a stagger past the window leaks
+  (Select: a tap for reset-to-track, the camera view changes; Start: a pause).

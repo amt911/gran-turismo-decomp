@@ -92,12 +92,16 @@ gt::PadMenuConfig pad_menu_config() {
         if (const std::uint32_t mask = gt::parse_pad_chord(text, error); mask != 0) config.chord = mask;
         else std::cerr << "[mods] GT_PAD_MENU_CHORD ignored: " << error << "\n";
     }
+    // GT_PAD_MENU_HOLD_BACK=<vblanks> (default 8; 0 = off) is for the identity checks: a run with the pad menu installed must be compared with a run without it,
+    // and the hold-back delays a lone Select/Start by design (docs/MODS.md); everything else in those runs is the mod's own effect.
+    if (const char *text = std::getenv("GT_PAD_MENU_HOLD_BACK"); text != nullptr && *text != '\0') config.hold_back = static_cast<unsigned>(std::strtoul(text, nullptr, 10));
 #ifdef GT_PAD_MENU_SABOTAGE_IGNORE_CHORD  // verification only (tools/mod_cheats_check.sh --sabotage-chord must FAIL)
     config.ignore_chord = true;
 #endif
     return config;
 }
 
+// Plain statics: guest threads are scheduled cooperatively on one OS thread, so the pad reads never overlap.
 void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t &analog_x, std::uint8_t &analog_y) {
     static gt::PadMenuFilter filter(pad_menu_config());
     static std::uint64_t polled = ~std::uint64_t{0};
@@ -113,13 +117,17 @@ void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t 
             std::cerr << "[padmenu] menu " << (open ? "opened" : "closed") << " at vblank " << vblank << "\n";
     }
     const bool open = lcs::host_settings_open();
+#ifdef GT_PAD_MENU_SABOTAGE_NO_HIDE  // verification only (tools/mod_cheats_check.sh --sabotage-hide must FAIL): the game keeps seeing the pad
+    return;
+#endif
     buttons = filter.visible(buttons, open);
     if (open) analog_x = analog_y = 128u;  // centred stick: the game sees nothing
 }
 
-void mods_vblank_tick(psprecomp::Runtime &runtime, psprecomp::AllegrexContext &ctx, std::uint64_t) {
-    gt::mods::services::run_vblank_tick(runtime, ctx);
+void mods_vblank_tick(psprecomp::Runtime &runtime, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {
+    gt::mods::services::run_vblank_tick(runtime, ctx, vblank);
 }
+bool overlay_open() { return lcs::host_settings_open(); }
 } // namespace
 
 void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed) {
@@ -130,7 +138,10 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
     const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0));
     gt::mods::menu::set_entries(report.entries);
     lcs::host_settings_set_extra_page(&kModsPage);
-    if (!report.entries.empty()) {  // no mods installed (or GT_NO_MODS): the pad and the vblank are the game's, untouched
+    gt::mods::services::set_menu_open_query(&overlay_open);
+    // Only when a loaded mod registered menu rows or a tick (API v2; a switched-off one counts: the pad chord is how it is switched on):
+    // with no such mod (none installed, GT_NO_MODS, only API-1 mods) the pad and the vblank are the game's, untouched.
+    if (gt::mods::services::any_registered()) {
         gt::set_pad_filter(&pad_menu_filter);
         gt::set_vblank_tick(&mods_vblank_tick);
     }

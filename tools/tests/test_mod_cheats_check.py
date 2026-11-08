@@ -210,3 +210,80 @@ def test_main_modes(tmp_path, capsys):
     assert mc.main(["x", out, "nonsense", "pad"]) == 2
     assert mc.main(["x"]) == 2
     assert capsys.readouterr().out.count("PASS") == 3
+
+
+def test_callguest_judge():
+    ok_line = "[mod:cheats] CALLGUEST status=0 v0=0\n"
+    assert mc.judge_callguest(ok_line * 3)[0]
+    assert "CALLGUEST lines" in mc.judge_callguest(ok_line)[1]
+    assert not mc.judge_callguest(ok_line * 3 + "[mod:cheats] CALLGUEST status=2 v0=0\n")[0]
+    assert not mc.judge_callguest(ok_line * 3 + "[mod:cheats] CALLGUEST status=0 v0=1\n")[0]
+
+
+def test_toggle_judge():
+    before = log(steps=range(2, 40, 2))
+    ok, message = mc.judge_toggle(before + "\n[mods] cheats -> OFF\n")
+    assert ok, message
+    assert "no `[mods] cheats -> OFF`" in mc.judge_toggle(before)[1]
+    assert "only" in mc.judge_toggle(log(steps=range(2, 8, 2)) + "\n[mods] cheats -> OFF\n")[1]
+    assert "while switched off" in mc.judge_toggle(before + "\n[mods] cheats -> OFF\n" + log(steps=range(40, 44, 2)))[1]
+    assert "while switched off" in mc.judge_toggle(before + "\n[mods] cheats -> OFF\n[mod:cheats] CALLGUEST status=0 v0=0\n")[1]
+
+
+def phased(rates, per=30, base_spd=12.0):
+    """Log lines whose distance per step per m/s follows `rates` (one per phase), phases OFF, 0.5x, 0.25x, OFF."""
+    lines, st, x = [], 0, 0.0
+    for name, rate in zip(("OFF", "0.5x", "0.25x", "OFF"), rates):
+        for _ in range(per):
+            st += 2
+            x -= rate * 2 * base_spd
+            lines.append(f"[mod:cheats] st={st} slow={name} freeze=0 P={x:.4f},250.000,2.000 spd={base_spd:.3f} acc=0.00 A0=-100.000,20.000,2.000")
+    return "\n".join(lines)
+
+
+def test_padoff_judge():
+    ok, message = mc.judge_padoff(phased((0.033, 0.0165, 0.00825, 0.033)))
+    assert ok, message
+    assert "expected 0.5" in mc.judge_padoff(phased((0.033, 0.033, 0.00825, 0.033)))[1]
+    assert "expected 1.0" in mc.judge_padoff(phased((0.033, 0.0165, 0.00825, 0.0165)))[1]  # still slow after OFF
+    assert "phases" in mc.judge_padoff(phased((0.033, 0.0165, 0.00825, 0.033)).replace("0.25x", "0.5x"))[1]
+    assert "measurable" in mc.judge_padoff(phased((0.033, 0.0165, 0.00825, 0.033), base_spd=1.0))[1]
+
+
+def test_padreset_judge():
+    text = good_pad()
+    assert mc.judge_padreset(text)[0]
+    assert "saw Select" in mc.judge_padreset(text + "\n[mod:reset-to-track] PADSEL up step=5 tap=1\n")[1]
+    assert not mc.judge_padreset("")[0]
+    longer = text.replace("[padmenu] down at vblank 110", "[padmenu] down at vblank 108\n[padmenu] down at vblank 110")
+    assert mc.judge_pad(longer)[0]
+
+
+def test_measure_and_main_modes(tmp_path, capsys):
+    m = mc.measure_slowmo(log(), log(0.5, name="0.5x", steps=range(2, 4000, 2)), 0.5)
+    assert m is not None and m["curve"] < 0.01 and m["time"] < 0.02 and m["ai"] < 0.5
+    assert mc.measure_slowmo("", "", 0.5) is None
+    for name, text in (("idle", log()), ("slowm", log(0.5, name="0.5x", steps=range(2, 4000, 2))), ("callguest", "[mod:cheats] CALLGUEST status=0 v0=0\n" * 3),
+                       ("toggle", log(steps=range(2, 40, 2)) + "\n[mods] cheats -> OFF\n"), ("padoff", phased((0.033, 0.0165, 0.00825, 0.033))),
+                       ("padreset", good_pad())):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "run.log").write_text(text)
+    out = str(tmp_path)
+    assert mc.main(["x", out, "measure", "slowm", "0.5"]) == 0 and "MEASURE" in capsys.readouterr().out
+    assert mc.main(["x", out, "callguest", "callguest"]) == 0
+    assert mc.main(["x", out, "padoff", "padoff"]) == 0
+    assert mc.main(["x", out, "padreset", "padreset"]) == 0
+    make = tmp_path / "t"
+    make.mkdir()
+    base = tmp_path / "baseline" / "frames"
+    base.mkdir(parents=True)
+    (tmp_path / "toggle" / "frames").mkdir()
+    for i in range(25):
+        write_ppm(base / f"frame_{i * 30:06d}.ppm", 3)
+        write_ppm(tmp_path / "toggle" / "frames" / f"frame_{i * 30:06d}.ppm", 3)
+    assert mc.main(["x", out, "toggle", "toggle"]) == 0
+    write_ppm(tmp_path / "toggle" / "frames" / "frame_000030.ppm", 4)
+    assert mc.main(["x", out, "toggle", "toggle"]) == 1
+    (tmp_path / "unusable").mkdir()
+    (tmp_path / "unusable" / "run.log").write_text("")
+    assert mc.main(["x", out, "measure", "unusable", "0.5"]) == 1

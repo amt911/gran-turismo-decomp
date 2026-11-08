@@ -48,8 +48,8 @@ int main() {
     {  // closed, no chord: buttons pass through unchanged
         Driver d;
         bool same = true;
-        for (std::uint32_t raw : {0u, kPadCross, kPadCross | kPadSquare, kPadSelect, kPadStart, kPadSelect, 0u, kPadL | kPadR}) same = same && d.step(raw) == raw;
-        check(same && d.keys.empty() && !d.open, "closed menu: identity, no keys (Select alone, Start alone, L+R are the game's)");
+        for (std::uint32_t raw : {0u, kPadCross, kPadCross | kPadSquare, kPadL | kPadR, kPadL, 0u}) same = same && d.step(raw) == raw;
+        check(same && d.keys.empty() && !d.open, "closed menu: identity for every other button (L+R, Cross, Square pass unchanged)");
     }
     {  // the chord opens the menu; the game sees nothing; the chord buttons stay hidden until released; the same chord closes
         Driver d;
@@ -63,7 +63,8 @@ int main() {
         check(!d.open && count_of(d.keys, MenuKey::TogglePage) == 2, "the chord again closes");
         check(d.step(kChord | kPadCross) == kPadCross, "after closing: the chord buttons stay hidden while held; the throttle is visible");
         check(d.step(kPadStart | kPadCross) == kPadCross && d.step(kPadCross) == kPadCross, "releasing the chord one button at a time: still hidden");
-        check(d.step(kPadStart) == kPadStart, "released, then pressed again alone (Start is the game's pause again)");
+        d.step(0);
+        check(d.step(kPadStart) == 0u, "Start pressed alone is held back (the hold-back window), not lost");
     }
     {  // navigation: D-pad, repeat, Cross activates, Left/Right, Circle closes; presses made while open stay hidden after
         Driver d;
@@ -101,16 +102,18 @@ int main() {
     }
     {  // pressing the chord's buttons one frame apart: the first leaks (documented), the second fires and hides both
         Driver d;
-        check(d.step(kPadSelect) == kPadSelect && d.step(kChord) == 0u && d.open, "Select, then Start a frame later: fires on the second");
+        check(d.step(kPadSelect) == 0u && d.step(kChord) == 0u && d.open, "Select, then Start a frame later: fires, the game saw neither");
     }
     {  // another chord, and the sabotage
         std::string error;
         const std::uint32_t lr = parse_pad_chord("L+R", error);
         check(lr == (kPadL | kPadR) && error.empty(), "parse: L+R");
         Driver d(PadMenuConfig{lr});
-        check(d.step(kChord) == kChord && !d.open && d.step(kPadL | kPadR) == 0u && d.open, "chord L+R: Select+Start no longer opens it");
-        Driver sab(PadMenuConfig{kChord, 18, 4, true});
-        check(sab.step(kChord) == kChord && !sab.open && sab.keys.empty(), "ignore_chord: never opens");
+        check(!d.open && d.step(kChord) == kChord && !d.open, "chord L+R: Select+Start passes through and does not open");
+        Driver d2(PadMenuConfig{lr});
+        check(d2.step(kPadL | kPadR) == 0u && d2.open, "chord L+R opens it");
+        Driver sab(PadMenuConfig{kChord, 18, 4, 8, true});
+        check(sab.step(kChord) == kChord && !sab.open && sab.keys.empty(), "ignore_chord: never opens, nothing held back");
     }
     {
         std::string error;
@@ -118,6 +121,60 @@ int main() {
         check(parse_pad_chord("FOO", error) == 0u && error.find("FOO") != std::string::npos, "parse: unknown name");
         error.clear();
         check(parse_pad_chord("", error) == 0u && !error.empty(), "parse: empty");
+    }
+    {  // the hold-back window: staggered chords, plain taps and holds of Select and Start
+        const auto run = [](std::vector<std::uint32_t> raws, bool *opened = nullptr) {
+            Driver d;
+            std::vector<std::uint32_t> seen;
+            for (const std::uint32_t r : raws) seen.push_back(d.step(r));
+            if (opened != nullptr) *opened = d.open;
+            return seen;
+        };
+        for (unsigned gap : {1u, 3u, 7u}) {  // the second button arrives inside the window: either order, the game sees neither
+            for (const std::uint32_t first : {kPadSelect, kPadStart}) {
+                std::vector<std::uint32_t> raws;
+                for (unsigned i = 0; i < gap; ++i) raws.push_back(first);
+                for (int i = 0; i < 4; ++i) raws.push_back(kChord);
+                raws.push_back(0);
+                bool opened = false;
+                const auto seen = run(raws, &opened);
+                bool none = true;
+                for (const std::uint32_t v : seen) none = none && v == 0u;
+                check(opened && none, "stagger inside the window: the menu opens and the game sees neither button");
+            }
+        }
+        {  // the second button arrives after the window: the first went through (late), the chord still opens the menu
+            std::vector<std::uint32_t> raws(9, kPadSelect);
+            raws.push_back(kChord);
+            bool opened = false;
+            const auto seen = run(raws, &opened);
+            check(opened && seen[7] == 0u && seen[8] == kPadSelect, "stagger of 9 polls: Select is forwarded from the 9th poll (late) ...");
+        }
+        {  // a plain Select tap of 3 polls comes back late with the same length (reset-to-track still sees a tap)
+            const auto seen = run({kPadSelect, kPadSelect, kPadSelect, 0, 0, 0, 0, 0, 0});
+            check(seen == std::vector<std::uint32_t>({0, 0, 0, kPadSelect, kPadSelect, kPadSelect, 0, 0, 0}), "Select tap: held back, then replayed with its real length (3)");
+        }
+        {  // a one-poll tap
+            const auto seen = run({kPadStart, 0, 0, 0});
+            check(seen == std::vector<std::uint32_t>({0, kPadStart, 0, 0}), "Start tap of 1 poll: replayed 1 poll later, length 1");
+        }
+        {  // a hold longer than the window: forwarded from the end of the window until released (reset-to-track measures its hold from there)
+            std::vector<std::uint32_t> raws(20, kPadSelect);
+            raws.push_back(0);
+            const auto seen = run(raws);
+            check(seen[7] == 0u && seen[8] == kPadSelect && seen[19] == kPadSelect && seen[20] == 0u, "Select hold: delayed by the window, released with the real release");
+        }
+        {  // a Select pressed while the menu is open is not replayed when the menu closes
+            Driver d;
+            d.step(kChord);
+            d.step(0);
+            d.step(kPadSelect);
+            d.step(0);
+            d.step(0);
+            d.step(kChord);
+            const std::uint32_t after = d.step(0);
+            check(!d.open && after == 0u && d.step(0) == 0u && d.step(0) == 0u, "nothing is replayed after the menu closes");
+        }
     }
     if (failures == 0) std::puts("pad_menu tests passed");
     return failures == 0 ? 0 : 1;

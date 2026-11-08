@@ -213,7 +213,7 @@ int main() {
         check(gt::mods::services::menu_row_mod_id(0) == "v2_mod" && gt::mods::services::menu_row_mod_id(1) == "v2_other", "api_v2: rows in load order");
         // the tick: call_guest works there (v0 = 7 * 10 + 8) ...
         psprecomp::AllegrexContext tick_ctx;
-        gt::mods::services::run_vblank_tick(rt, tick_ctx);
+        gt::mods::services::run_vblank_tick(rt, tick_ctx, 77);
         menu_row_text(0, text, sizeof text);
         check(std::string(text).find("ticks=1 tickcall=0/78") != std::string::npos, "api_v2: the vblank tick ran and call_guest returned 78");
         // ... and is refused from a hook (hookcall=2), the guest function not run
@@ -224,7 +224,7 @@ int main() {
         set_active(r.entries[1].mod, false);
         check(menu_row_text(0, text, sizeof text) && std::string(text) == "v2_mod mod OFF", "api_v2: row of an OFF mod");
         check(!menu_row_activate(0, 1), "api_v2: an OFF mod's row ignores activation");
-        gt::mods::services::run_vblank_tick(rt, tick_ctx);
+        gt::mods::services::run_vblank_tick(rt, tick_ctx, 77);
         set_active(r.entries[1].mod, true);
         menu_row_text(0, text, sizeof text);
         check(std::string(text).find("ticks=1 ") != std::string::npos, "api_v2: an OFF mod's tick is skipped");

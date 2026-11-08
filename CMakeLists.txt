@@ -209,8 +209,12 @@ if(GT_PLAY)
     endif()
     # Verification only: the pad chord that opens the F9 menu never fires (tools/mod_cheats_check.sh --sabotage-chord must FAIL).
     option(GT_PAD_MENU_SABOTAGE_IGNORE_CHORD "sabotage: the pad chord never opens the mod menu" OFF)
+    option(GT_PAD_MENU_SABOTAGE_NO_HIDE "sabotage: the game keeps seeing the pad while the mod menu is open" OFF)
     if(GT_PAD_MENU_SABOTAGE_IGNORE_CHORD)
-        set_source_files_properties(host/play_backends.cpp PROPERTIES COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_IGNORE_CHORD=1)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_IGNORE_CHORD=1)
+    endif()
+    if(GT_PAD_MENU_SABOTAGE_NO_HIDE)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_NO_HIDE=1)
     endif()
     if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
         target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")

@@ -32,6 +32,41 @@ std::uint32_t parse_pad_chord(const std::string &text, std::string &error) {
     return mask;
 }
 
+// The hold-back window of the chord buttons (see pad_menu.hpp). `age_` counts the polls a pending button has been down, which is also the
+// length of the late tap it gets if it is released first.
+void PadMenuFilter::update_hold_back(std::uint32_t raw, std::uint32_t pressed, bool chord_fire, bool menu_open) {
+    replay_ = 0;
+    if (config_.chord == 0 || config_.hold_back == 0 || config_.ignore_chord) return;
+    for (unsigned bit = 0; bit < 16; ++bit) {
+        const std::uint32_t mask = 1u << bit;
+        if ((config_.chord & mask) == 0) continue;
+        if (chord_fire || menu_open) {  // the chord completed, or the menu is up: nothing is replayed or held back
+            pending_ &= ~mask;
+            replay_left_[bit] = 0;
+            continue;
+        }
+        if (replay_left_[bit] != 0) {
+            replay_ |= mask;
+            --replay_left_[bit];
+        }
+        if ((pressed & mask) != 0) {
+            pending_ |= mask;
+            age_[bit] = 0;
+        } else if ((pending_ & mask) != 0) {
+            if ((raw & mask) == 0) {  // released inside the window: give the game the press late, as long as it really lasted
+                pending_ &= ~mask;
+                replay_left_[bit] = age_[bit] + 1;  // age counts the polls after the first
+                if (replay_left_[bit] != 0) {
+                    replay_ |= mask;
+                    --replay_left_[bit];
+                }
+            } else if (++age_[bit] >= config_.hold_back) {  // the window is over: the press goes through from now on
+                pending_ &= ~mask;
+            }
+        }
+    }
+}
+
 PadMenuKeys PadMenuFilter::poll(std::uint32_t raw, bool menu_open) {
     PadMenuKeys out;
     const std::uint32_t pressed = raw & ~previous_;
@@ -45,6 +80,7 @@ PadMenuKeys PadMenuFilter::poll(std::uint32_t raw, bool menu_open) {
         suppressed_ |= config_.chord;
         out.push(MenuKey::TogglePage);
     }
+    update_hold_back(raw, pressed, chord_fire, menu_open);
 
     static constexpr std::uint32_t kDirections[4] = {kPadUp, kPadDown, kPadLeft, kPadRight};
     static constexpr MenuKey kDirectionKeys[4] = {MenuKey::Up, MenuKey::Down, MenuKey::Left, MenuKey::Right};

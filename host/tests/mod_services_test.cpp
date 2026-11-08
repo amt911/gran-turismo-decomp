@@ -108,12 +108,29 @@ int main() {
     api.on_vblank(&v2a, [](GtModCtx *c) { ticks += c->tick ? 1 : 100; });
     end_init();
     psprecomp::Runtime rt2;
-    run_vblank_tick(rt2, ctx);
+    run_vblank_tick(rt2, ctx, 5);
     set_active(&v2a, false);
-    run_vblank_tick(rt2, ctx);
+    run_vblank_tick(rt2, ctx, 5);
     set_active(&v2a, true);
-    run_vblank_tick(rt2, ctx);
+    run_vblank_tick(rt2, ctx, 5);
     check(ticks == 2, "tick runs for an active mod (ctx.tick true), skipped while off");
+
+    // is_menu_open and vblank_index
+    clear_for_tests();
+    check(api.is_menu_open(&v2a) == 0, "no query set: the menu is never open");
+    static bool open_now = false;
+    set_menu_open_query([] { return open_now; });
+    check(api.is_menu_open(&v2a) == 0 && api.is_menu_open(&v1) == 0, "menu closed");
+    open_now = true;
+    check(api.is_menu_open(&v2a) == 1 && api.is_menu_open(&v1) == 1, "menu open: answered for any api version");
+    check(api.vblank_index(&v2a) == 0 && !any_registered(), "vblank 0 before the first tick, nothing registered");
+    run_vblank_tick(rt2, ctx, 1234);
+    check(api.vblank_index(&v2a) == 1234, "vblank_index follows the tick (also with no tick registered)");
+    begin_init(&v2a);
+    api.on_vblank(&v2a, tick_noop);
+    end_init();
+    check(any_registered(), "any_registered after a tick is registered");
+    clear_for_tests();
 
     // a failed init forgets rows and tick
     clear_for_tests();

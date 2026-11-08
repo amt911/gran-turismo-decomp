@@ -1,0 +1,17 @@
+# Route cheats_pad_stagger — cheats_pad.pad with the chord pressed the way a hand does: SELECT first, START 3 vblanks later (inside the pad menu's
+# 8-vblank hold-back window), both held 12; two Downs because reset-to-track adds a mod row before the cheats rows; for tools/mod_cheats_check.sh --pad-reset (reset-to-track enabled: it must never see that Select).
+# Pages: see chase.pad. Waits for the game, not for a time (host/pad_sequence.hpp); times after the last WAIT count from the race's own pages.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,1800:SELECT:12,1803:START:12,1900:DOWN:6,2000:DOWN:6,2100:RIGHT:6,2200:DOWN:6,2300:RIGHT:6,2400:SELECT:12,2403:START:12
