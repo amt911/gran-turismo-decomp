@@ -11,6 +11,11 @@ Judged here:
                 MIN_ROLLED_TILT), toward the side it hit; the dormant flip state machine never wakes (flag byte stays 0, the car never jumps in
                 height: it would sink through the road and be pushed up); no nan; the car ends upright or upside down at rest;
                 the flag is lifted only for the clamp's and the wrap's readers (judge_flag_scope);
+  box judge     (body_box, 0.2.0; every roll run) the tumbling car's body stays above the ground: the deepest of the box's 8 corners
+                (`BOX` lines, the log measures even with the box off) never below MAX_BODY_DEPTH while tilted, the origin never rises more than
+                MAX_TUMBLE_RISE over the ground (the box rolls over its edge at 1.17 m; it must not hop beyond that), the box never touched the car while upright (BOXSTAT);
+  box compare   the box run and a run with body_box = false: every state line before the first impulse is byte-identical (the box is
+                invisible until the car touches the ground with its body), and the box-off run does sink (the premise);
   identity run  the mod installed but disabled: frames byte-identical to the run without it; the toggle run (switched off from the F9 menu
                 before the crash): the mod ran before the toggle and logged nothing after, and EVERY frame, the mod's active part and the
                 crash after the toggle included, is byte-identical to the run without the mod (no hit before the crash: the mod changes nothing);
@@ -29,6 +34,8 @@ STATE = re.compile(TAG + rf"st=(\d+) imp=(\d+) since=(-?\d+) pos={VEC} vel={VEC}
 IMPULSE = re.compile(TAG + rf"IMPULSE st=(\d+) held=({NUM})(?: lat={VEC})?")
 FLAGREAD = re.compile(TAG + r"FLAGREAD ra=([0-9A-Fa-f]{8}) lifted=([01])")
 LIFTED_OK = {0x0893E5AC, 0x08956BF0}  # the tilt clamp's and the angle wrap's call sites (+ 8): the only readers that may get 1 (--decomp off)
+BOX = re.compile(TAG + rf"BOX st=(\d+) box=([01]) upn=({NUM}) z-g=({NUM}) clear=({NUM}) roof=({NUM}) contacts=(\d+) depth=({NUM}) push=({NUM}) dv=({NUM}) vz=({NUM})")
+BOXSTAT = re.compile(TAG + rf"BOXSTAT st=(\d+) steps=(\d+) touch=(\d+) touch_upright=(\d+) tilted=(\d+) min_clear=({NUM}) min_roof_tilted=({NUM})")
 RESTORE = re.compile(r"\[mod:reset-to-track\] RESTORE step=(\d+)")
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
 TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
@@ -49,6 +56,11 @@ MIN_UPRIGHT_Z = 0.9
 MAX_REST_SPEED = 3.0      # m/s: "upside down at rest"
 FLIP_FLAG_BITS = 0x06     # +0x74B bits the flip state machine sets
 MIN_PRE_TOGGLE_LINES = 10
+MAX_BODY_DEPTH = 0.25     # m: the deepest box corner of the tumbling car below the ground (the box off: 1.3 m; the first tilted step is already ~0.2 m low)
+MAX_TUMBLE_RISE = 1.35    # m: highest the origin gets above the ground while tumbling. A box rolling over its roof edge puts the origin at the half-diagonal of its
+                          # cross-section (sqrt(0.84^2 + 0.8^2) = 1.16 m, measured 1.17): the stock 0.64 m is only possible because the roof sinks into the road.
+                          # A rigid box without the kick cap hopped to 1.5-2.0 m (zt 1.15: diagonal 1.42 m, measured 1.56 and 2.04)
+MIN_PREMISE_DEPTH = 0.5   # m: the box-off run must sink at least this deep, or the depth assertion proves nothing
 SETTLE_AFTER_RESET = 20   # steps after a reset out of a tumble in which the springs settle (0.9 rad/s of wobble at 10, 0.1 at 17)
 MAX_SETTLED_RATE = 0.3
 
@@ -149,6 +161,59 @@ def judge_roll(text, expected_flipcalls=True):
                   f"tilt {top_tilt:.2f} rad toward the side hit; flip machine dormant, no height jump; ends up.z {end['up'][2]:.2f} at {speed(end):.1f} m/s")
 
 
+def parse_box(text):
+    return [{"st": int(m.group(1)), "box": m.group(2) == "1", "upn": float(m.group(3)), "zg": float(m.group(4)), "clear": float(m.group(5)),
+             "roof": float(m.group(6)), "contacts": int(m.group(7)), "push": float(m.group(9))} for m in BOX.finditer(text)]
+
+
+def judge_box(text):
+    """The roll run's BOX lines. Returns (ok, message)."""
+    impulses, lines = parse_impulses(text), parse_box(text)
+    if not impulses:
+        return False, "no IMPULSE line: no tumble to judge"
+    tumble = [b for b in lines if b["st"] >= impulses[0]["st"] and b["upn"] < 0.77]
+    if not tumble:
+        return False, "no BOX line of a tilted car after the impulse: the mod did not measure the body (is GT_MOD_ROLLOVER_LOG=1 set?)"
+    if not all(math.isfinite(v) for b in tumble for v in (b["zg"], b["clear"], b["roof"])):
+        return False, "nan/inf in the BOX lines"
+    deepest = min(b["clear"] for b in tumble)
+    if deepest < -MAX_BODY_DEPTH:
+        return False, f"the car's body sank {-deepest:.2f} m into the ground while tumbling (max {MAX_BODY_DEPTH} m; roof {min(b['roof'] for b in tumble):.2f})"
+    rise = max(b["zg"] for b in tumble)
+    if rise > MAX_TUMBLE_RISE:
+        return False, f"the origin rose {rise:.2f} m over the ground in the tumble (max {MAX_TUMBLE_RISE} m): the box hopped the car"
+    if not any(b["box"] and b["push"] > 0 for b in tumble):
+        return False, "the box never acted (no BOX line with box=1 and a push): body_box is off or the tumble never touched the ground"
+    stats = [(int(m.group(4)), int(m.group(3))) for m in BOXSTAT.finditer(text)]
+    if stats and stats[-1][0] != 0:
+        return False, f"the box touched the car {stats[-1][0]} steps while it was upright (it must stay invisible)"
+    return True, (f"tumble: deepest body corner {-deepest:.2f} m below the ground (max {MAX_BODY_DEPTH}), origin rose {rise:.2f} m (max {MAX_TUMBLE_RISE}), "
+                  f"{sum(1 for b in tumble if b['push'] > 0)} steps pushed, 0 upright touches")
+
+
+def judge_box_compare(box_text, off_text):
+    """The box run against a run with body_box = false: the state lines before the first impulse are byte-identical, and the box-off tumble sinks."""
+    imp = parse_impulses(box_text)
+    imp_off = parse_impulses(off_text)
+    if not imp or not imp_off:
+        return False, "an IMPULSE line is missing in one of the runs"
+    if imp[0]["st"] != imp_off[0]["st"]:
+        return False, f"the first impulse is at step {imp[0]['st']} with the box and {imp_off[0]['st']} without it"
+    def before(text, first):
+        return [m.group(0) for m in STATE.finditer(text) if int(m.group(1)) < first]
+    a, b = before(box_text, imp[0]["st"]), before(off_text, imp[0]["st"])
+    if len(a) < MIN_QUIET_LINES:
+        return False, f"only {len(a)} state lines before the impulse (need {MIN_QUIET_LINES})"
+    if a != b:
+        first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+        return False, f"the box changed the car before the first impact: state line {first + 1} of {len(a)} differs (or the counts differ: {len(a)} vs {len(b)})"
+    tumble = [x for x in parse_box(off_text) if x["st"] >= imp_off[0]["st"] and x["upn"] < 0.77]
+    sink = -min((x["clear"] for x in tumble), default=0.0)
+    if sink < MIN_PREMISE_DEPTH:
+        return False, f"the box-off run sank only {sink:.2f} m (need {MIN_PREMISE_DEPTH}): the comparison proves nothing"
+    return True, f"{len(a)} state lines before the impact byte-identical with and without the box; without it the body sinks {sink:.2f} m"
+
+
 def judge_recover(text, reset_text):
     """The rollover + reset-to-track run: the car rolled (impulse, tilt past the clamp) before the reset's RESTORE line."""
     states, impulses = parse_states(text), parse_impulses(text)
@@ -241,8 +306,15 @@ def read(path):
 def main(argv):
     out, mode = argv[1], argv[2]
     if mode == "roll":
-        ok, message = judge_roll(read(os.path.join(out, "roll", "run.log")))
+        text = read(os.path.join(out, "roll", "run.log"))
+        ok, message = judge_roll(text)
         print(("PASS " if ok else "FAIL ") + f"roll: {message}")
+        okb, messageb = judge_box(text)
+        print(("PASS " if okb else "FAIL ") + f"box: {messageb}")
+        return 0 if ok and okb else 1
+    if mode == "boxcmp":
+        ok, message = judge_box_compare(read(os.path.join(out, "roll", "run.log")), read(os.path.join(out, "nobox", "run.log")))
+        print(("PASS " if ok else "FAIL ") + f"boxcmp: {message}")
         return 0 if ok else 1
     if mode == "recover":
         ok, message = judge_recover(read(os.path.join(out, "recover", "run.log")), read(os.path.join(out, "recover", "run.log")))
