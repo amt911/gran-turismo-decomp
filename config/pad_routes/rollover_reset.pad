@@ -1,0 +1,18 @@
+# Route rollover_reset — `reset.pad` with the SELECT press ~40 vblanks later (3730 instead of 3690), for `tools/mod_rollover_check.sh --recover`: the car
+# hits the barrier at step ~1864, the rollover mod rolls it, and the reset-to-track mod's hold (30 steps) completes at step ~1895, while the car is
+# upside down (up.z ~ -0.7). Deterministic: the same route gives the same steps (measured 2026-11-08, `--decomp off`).
+# Pages and the rest of the timeline: see reset.pad and chase.pad.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,3070:CROSS:360,3730:SELECT:80,3840:CROSS:840,4700:SQUARE:300

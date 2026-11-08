@@ -4,7 +4,7 @@ Un **mod** es una biblioteca compartida (`.so`) más un `mod.toml`, cargada por 
 **funciones del juego por dirección** (la dirección de ejecución PSP = vaddr del ELF + `0x08804000`), lee y escribe la memoria
 del invitado y puede llamar a la función original. Solo `gt_play` carga mods; `gt_native`, la puerta diferencial, `--decomp diff` y
 los casos sintéticos nunca los cargan. Los mods del autor viven en el repo privado `gt-mods`
-(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `draw-distance`: plano lejano de la carrera x `far_scale`, comprobación `tools/mod_drawdist_check.sh`; `reset-to-track`: un botón devuelve el coche del jugador a la pista; ver su README).
+(`analog-pedals`: gatillos/teclas analógicos; `orbit-camera`: cámara orbital con el stick derecho, estilo GT7; `draw-distance`: plano lejano de la carrera x `far_scale`, comprobación `tools/mod_drawdist_check.sh`; `reset-to-track`: un botón devuelve el coche del jugador a la pista; `rollover`: el coche puede volcar, comprobación `tools/mod_rollover_check.sh`; ver su README).
 
 ## Dónde y cómo se carga
 
@@ -146,3 +146,37 @@ tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (
 tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR
 tools/mod_reset_check.sh --without-mod        # sin mod: debe FALLAR (nada se restaura)
 ```
+
+## Construir e instalar `rollover`
+
+Mismo esquema (README de `gt-mods`; copiar `rollover/` con `librollover.so`; `enabled = false` por defecto, también desde el menú F9). El juego no deja
+volcar: `0x0893E0FC` recorta los dos ángulos de inclinación a ±35° y anula sus velocidades salvo que la palabra `0x08CF2F08` (que lee `0x0894CCB8`) sea
+distinta de cero; nada del binario la escribe. El mod engancha esa lectura y devuelve 1 mientras está activo (no escribe memoria: al apagarlo en F9 el
+juego vuelve a leer 0). Sola no basta (los muelles enderezan el coche): en un golpe lateral fuerte (cambio de velocidad en el eje lateral del coche,
+`K+0x28`, mayor que `threshold` en UN paso de física) le da una velocidad de balanceo `K+0x6F4` hacia el lado golpeado, `gain` × exceso (máx. `cap`),
+mantenida 40 pasos con caída lineal. Ajustes: `style = realistic|arcade` (arcade: umbral a la mitad, ganancia ×1,5), `threshold` (3,0 m/s), `gain` (2,5),
+`cap` (12 rad/s). En conducción normal el cambio lateral es ~0,2 m/s por paso: no escribe nada. Saltos del coche (> 3 m por paso: reset-to-track, aparición)
+no cuentan como golpe. README del mod: `gt-mods/rollover/README.md`.
+
+**La máquina de vuelco latente.** Con la bandera puesta, `0x08956930` también despierta una máquina de estados «coche volcado» que nadie activó nunca
+(byte `K+0x74B`, cuenta atrás `K+0x74C = 120`): mientras el coche está de lado se salta todo el pipeline de fuerzas, así que el coche **se hunde a
+través de la carretera** (medido: de 6,8 a 2,4 m con la pista a ~5,5 m) y al soltarse **sube de golpe ~6,5 m**; la cuenta atrás (`0x08956E9C`) no tiene
+llamante. Detalle y evidencia en FACTS («Rollovers»). Por eso el mod hace que ese único lector devuelva 0 (por `ra` en `--decomp off`; en `--decomp on` el `ra` no
+sirve, así que también se engancha `0x08956930` y mientras corre sus lecturas valen 0). Con eso el coche da vueltas completas sin hundirse.
+
+**Límites conocidos.** No hay colisión de techo en el juego: el coche siempre se recupera (no se queda boca abajo); la bandera es global (los coches de la IA
+también pierden el recorte, pero no reciben impulsos); el balanceo es una velocidad mantenida, no una simulación del golpe (calibrada con un solo choque contra la barrera).
+
+Comprobación en juego (ruta `rollover`: el coche se sale al final de la recta y choca contra la barrera en diagonal; log del mod en
+`recomp/analysis/mod_rollover_check`; cada ejecución toma su propio turno del bloqueo de CPU):
+
+```bash
+GT_MODS_REPO=../gt-mods-rollover tools/mod_rollover_check.sh [--decomp off|on]   # sin mod / mod desactivado: fotogramas idénticos; con mod: conducción normal sin impulso, un impulso en el choque, inclinación > 35° hacia el lado golpeado, máquina de vuelco dormida (+0x74B = 0), sin saltos de altura, termina derecho o boca abajo parado
+tools/mod_rollover_check.sh --toggle-off          # el menú apaga el mod antes del choque: el mod funcionó antes y calló después, fotogramas idénticos al run sin mod
+tools/mod_rollover_check.sh --recover             # rollover + reset-to-track en la ruta `reset`: el coche aún rueda cuando se dispara el reset; el juez de reset-to-track pasa
+tools/mod_rollover_check.sh --sabotage-noflag     # el impulso sin la bandera (el recorte de 35° lo frena): debe FALLAR
+tools/mod_rollover_check.sh --sabotage-noimpulse  # la bandera sin impulso: la barrera sola no vuelca el coche: debe FALLAR
+tools/mod_rollover_check.sh --sabotage-threshold0 # umbral 0: impulso en conducción normal: debe FALLAR
+tools/mod_rollover_check.sh --without-mod         # sin mod: debe FALLAR (nada vuelca)
+```
+

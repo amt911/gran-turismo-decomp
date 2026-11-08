@@ -295,3 +295,21 @@ def test_judge_same_view(tmp_path):
     ok, message = mr.judge_same_view(base, far)
     assert not ok and "frame 7" in message and "another camera view" in message
     assert "common frames" in mr.judge_same_view(base, {0: near[0]})[1]
+
+
+def test_calm_window_can_be_narrowed_to_the_restore_step():
+    # a car reset out of a tumble wobbles on its springs: 0.9 rad/s at t=10, calm again by t=15 (the rollover check's `recover` run)
+    lines = [l.replace("rates=0.00,0.00,0.00,0.00,0.00", "rates=0.13,0.91,0.13,0.91,0.06") if " t=5 " in l or " t=10 " in l else l for l in good_log().splitlines()]
+    log = "\n".join(lines)
+    assert not mr.judge_restore(log)[0]
+    assert mr.judge_restore(log, calm_steps=0)[0]
+    zeroed_late = [l.replace("rates=0.00,0.00,0.00,0.00,0.00", "rates=0.50,0.00,0.00,0.00,0.00") if " t=0 " in l else l for l in good_log().splitlines()]
+    assert not mr.judge_restore("\n".join(zeroed_late), calm_steps=0)[0]  # still fails when the restore step itself keeps a rate
+
+
+def test_main_restore_takes_the_calm_window(tmp_path):
+    (tmp_path / "reset").mkdir()
+    lines = [l.replace("rates=0.00,0.00,0.00,0.00,0.00", "rates=0.13,0.91,0.13,0.91,0.06") if " t=5 " in l else l for l in good_log().splitlines()]
+    (tmp_path / "reset" / "run.log").write_text("\n".join(lines))
+    assert mr.main(["x", str(tmp_path), "restore"]) == 1
+    assert mr.main(["x", str(tmp_path), "restore", "0"]) == 0

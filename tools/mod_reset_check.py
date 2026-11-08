@@ -120,8 +120,10 @@ def non_finite(states):
     return [s for s in states if not all(math.isfinite(v) for v in (s["up_z"], s["spd"], s["yaw"], *s["pos"], *s["rates"]))]
 
 
-def judge_restore(text):
-    """The restore run's log. Returns (ok, message)."""
+def judge_restore(text, calm_steps=CALM_STEPS):
+    """The restore run's log. `calm_steps`: how many steps after the restore every rate must stay calm (0 = only the restore
+    step itself: the rates were zeroed; the rollover check uses it, a car reset out of a tumble wobbles on its springs for ~15 steps).
+    Returns (ok, message)."""
     restores, states = parse_restores(text), parse_states(text)
     if non_finite(states):
         return False, f"nan/inf in the state log at step {non_finite(states)[0]['step']}"
@@ -137,9 +139,9 @@ def judge_restore(text):
         return False, "the car was not off the asphalt before the restore (the premise of the check)"
     if not after or after[-1]["t"] < WINDOW_STEPS:
         return False, f"the log follows the car only {after[-1]['t'] if after else 0} steps after the restore (need {WINDOW_STEPS})"
-    spin = max((abs(r) for s in after if s["t"] <= CALM_STEPS for r in s["rates"]), default=0.0)
+    spin = max((abs(r) for s in after if s["t"] <= calm_steps for r in s["rates"]), default=0.0)
     if spin > MAX_CALM_RATE:
-        return False, f"an angular rate of {spin:.2f} rad/s in the first {CALM_STEPS} steps (max {MAX_CALM_RATE}): the rates were not zeroed"
+        return False, f"an angular rate of {spin:.2f} rad/s in the first {calm_steps} steps (max {MAX_CALM_RATE}): the rates were not zeroed"
     for s in after:
         if s["t"] > WINDOW_STEPS:
             break
@@ -240,7 +242,8 @@ def read(path):
 def main(argv):
     out, mode = argv[1], argv[2]
     if mode == "restore":
-        ok, message = judge_restore(read(os.path.join(out, "reset", "run.log")))
+        calm = int(argv[3]) if len(argv) > 3 else CALM_STEPS  # optional: the calm window in steps (see judge_restore)
+        ok, message = judge_restore(read(os.path.join(out, "reset", "run.log")), calm)
         print(("PASS " if ok else "FAIL ") + f"reset: {message}")
         return 0 if ok else 1
     if mode == "tap":
