@@ -608,3 +608,18 @@ the flag at 0). Not investigated further here; the mod avoids it. **Follow-up fo
   already the reset-to-track key, Start only pauses, and both are on the PSP's small-button side, so a simultaneous press is natural). Review fix (2026-11-08): a hand presses the two buttons a few
   vblanks apart, so a lone chord button is held back 8 vblanks (and replayed late, with its real length, if released first; docs/MODS.md); only a stagger past the window leaks
   (Select: a tap for reset-to-track, the camera view changes; Start: a pause).
+
+## Money and cars: probe findings so far (2026-11-08, piece 2 of the cheat menu; WIP)
+
+Scratch probe mods (not committed) scanning guest RAM from the vblank tick, `--decomp off`, API-v2 host, save copies only.
+- **The live balance is the word at `0x08F6AC00`.** An empty save starts with 100000 there; after `buy.pad` (DeLorean, 42,440 Cr) the same word reads 57560 (scans every 600 vblanks:
+  100000 up to vblank 11400, 57560 at 12000). The user's save (copy) reads `0x3B9AC9FF` = 999,999,999 there after loading. Layout around it (words from `0x08F6ABE0`): `+0` value (low word of a 64-bit value),
+  `+4` 0 (high word), `+8` `0x00020100` (type/flags of the script value), `+0xC` 1, `+0x10` 2 or 3 (a reference count?). The earlier candidate `0x09069E3C` is **not** a mirror: it holds unrelated, changing heap data
+  (scrambled-looking words with the save loaded, strings later). Other words equal to 100000 (`0x08C93968`, `0x08C93A14`, `0x08EF6B5C`, `0x0939A518`...) are constants and never changed on the purchase. The address was the same in an empty-save and in the user's-save
+  run (deterministic heap), but that is not proof for every path: a mod must check `+4 == 0`, `+8 == 0x00020100` and value <= 999,999,999 before writing. **Not proven yet:** that a value the mod writes survives the game's autosave and a reload, and that it is what the dealer reads on the next purchase
+  (the purchase path did write it: 100000 -> 57560, then the game wrote `GAME.DAT` in `GT_SAVEDATA_DIR` by itself).
+- **Engine add for cars: `0x0881B758(core, 0, code_low, code_high, colour)`** (`core` = `0x0881B068(collection)`, the engine object whose `+0x30` is the record array): refuses (returns 0) when the car already has 10 (`0x0881A8C0`), otherwise sets the record's halfword `+0` to the code, increments the byte `colour + 2`,
+  and the counters `core+4` (types, only for a first car of that type) and `core+8` (all cars), and returns 1. The native `MCarCollection::addCar` (`0x0881CDC4`) wraps it and then calls `0x0881AC84` (the newly-gained list). Car code of index i: `0x0893119C(i, buf, 0x100)` writes the label, `0x08930170(buf)` returns the code pair in v0/v1;
+  `0x08931090()` is the number of cars. A guest scratch buffer is needed for `buf`: idea, lower the tick context's `sp` by 1 KiB for the tick and offer the space through the API (not built).
+- **`0x0894DD9C` (world step) and `0x0890E41C` (world draw) run in the garage as well as in races** (the `save_garage` route: both called in two segments, vblanks 15010..16245 and 17030..17646 on that run), so they cannot tell a race from a menu. In a race the step stops being called when the game is paused (`cheats.pad` + START: the last call came ~10 vblanks after the pause).
+  "Never mid-race" therefore needs another signal; not found yet.
