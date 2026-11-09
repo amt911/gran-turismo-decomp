@@ -240,3 +240,69 @@ def test_main_toggle_label(tmp_path, capsys):
     # chase start = 1000 + 150; toggle at vblank 2000, margin 150: before = vblank in [1150, 1850) (frames 10..40... ), after >= 2150
     assert mc.main(["x", str(tmp_path), "toggle_90", "--toggle-at", "1900"]) == 0
     assert "PASS toggle_90" in capsys.readouterr().out
+
+
+WHITE = (250, 250, 250)
+
+
+def with_timer(frame_bytes, tenths):
+    """The frame with a lap-timer reading drawn as white pixels in TIMER: `tenths` lit columns (two frames with different counts
+    are different game frames)."""
+    head = len(b"P6\n480 272\n255\n")
+    buf = bytearray(frame_bytes)
+    x0, _x1, y0, y1 = mc.TIMER
+    for y in range(y0, y1):
+        for x in range(x0, x0 + tenths):
+            i = head + (y * mc.WIDTH + x) * 3
+            buf[i:i + 3] = bytes(WHITE)
+    return bytes(buf)
+
+
+def test_same_game_frame_reads_the_lap_timer(tmp_path):
+    a = mc.read_ppm(str(_write(tmp_path, "a", with_timer(make_frame(), 3))))
+    b = mc.read_ppm(str(_write(tmp_path, "b", with_timer(make_frame(car_at=(240, 140)), 3))))
+    c = mc.read_ppm(str(_write(tmp_path, "c", with_timer(make_frame(), 4))))
+    assert mc.same_game_frame(a, b)          # the picture differs, the timer does not: same game frame
+    assert not mc.same_game_frame(a, c)      # one step of pacing slip between two real-time runs
+
+
+def test_identity_skips_a_pacing_slip_but_not_a_real_change(tmp_path):
+    base_frames = {i: with_timer(make_frame(car_at=(240, 140)), i // 10) for i in INDICES}
+    base = write_run(tmp_path, "base", base_frames)
+    slipped = dict(base_frames)
+    slipped[50] = with_timer(make_frame(car_at=(300, 140)), 9)  # the run slipped one step at frame 50: other timer, other picture
+    assert mc.judge_identity(base, write_run(tmp_path, "slip", slipped))[0]
+    changed = dict(base_frames)
+    changed[50] = with_timer(make_frame(car_at=(300, 140)), 5)  # same game frame, different picture: the mod wrote something
+    ok, message = mc.judge_identity(base, write_run(tmp_path, "changed", changed))
+    assert not ok and "frame 50" in message
+
+
+def test_identity_fails_when_most_frames_are_not_the_same_game_frame(tmp_path):
+    # a vacuous pass is not a pass: a run whose timer never matches the baseline compares nothing
+    base = write_run(tmp_path, "base", {i: with_timer(make_frame(), 1) for i in INDICES})
+    other = write_run(tmp_path, "other", {i: with_timer(make_frame(car_at=(300, 140)), 2) for i in INDICES})
+    ok, message = mc.judge_identity(base, other)
+    assert not ok and "same game frame" in message
+
+
+def test_orbit_skips_the_car_check_beside_the_car(tmp_path):
+    # yaw 90: the camera sits beside the car, where the trackside wall may hide it; the car check runs from CAR_CENTRE_MIN_YAW up
+    base = write_run(tmp_path, "base", baseline_frames())
+    hidden = write_run(tmp_path, "hidden", {i: make_frame(sky=(30, 120, 30)) for i in baseline_frames()})
+    ok, message = mc.judge_orbit(base, hidden, INDICES, yaw=90.0)
+    assert ok, message
+    assert not mc.judge_orbit(base, hidden, INDICES, yaw=180.0)[0]
+    assert not mc.judge_orbit(base, write_run(tmp_path, "same", baseline_frames()), INDICES, yaw=90.0)[0]  # still must orbit
+
+
+def test_toggle_tolerates_sprite_noise_but_not_an_orbit(tmp_path):
+    idx = [10 * i for i in range(1, 17)]
+    base = write_run(tmp_path, "base", {i: make_frame(car_at=(240, 140)) for i in idx})
+    flicker = make_frame(car_at=(240, 140), car_size=(62, 40))  # a few hundred pixels at the car's edge: < TOGGLE_NOISE
+    mixed = {i: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if i <= 80 else flicker) for i in idx}
+    log = "[mods] orbit-camera -> OFF\n"
+    ok, message = mc.judge_toggle(base, write_run(tmp_path, "mod", mixed), idx[:8], idx[9:], log)
+    assert ok, message
+    still = {i: make_frame(car_at=(250, 135), sky=(30, 120, 30)) for i in idx}
+    assert "still edits" in mc.judge_toggle(base, write_run(tmp_path, "still", still), idx[:8], idx[9:], log)[1]

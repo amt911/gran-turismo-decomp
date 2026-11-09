@@ -3066,3 +3066,13 @@ in both modes before building on it.
 `WITH_CHEATS=1 tools/mod_reset_check.sh --decomp on --reset-only` (cheats installed, so Select reaches reset-to-track 8 vblanks late) fails "an angular rate of 0.41 rad/s in the first 10 steps (max 0.3)";
 the same run with `GT_PAD_MENU_HOLD_BACK=0` passes, and `--decomp off` passes either way. The restore zeroes the rates; with the later Select it lands at another moment of the crash tumble and the
 springs still oscillate (cf. the rollover `--recover` note). A timing sensitivity of the check's calm criterion, not a restore bug; not investigated further.
+
+## Two real-time gt_play runs on the same pad route can slip one game step apart, for the rest of the run (2026-11-09)
+
+The orbit-camera check failed with gt-mods main too, on the HUD's speed digits and on frames after the F9 toggle. The cause was
+pacing, not the mod: at frame 10440 the lap timer read 0'58.300 in the baseline and 0'58.316 in the mod run, one game frame apart.
+The frame-to-vblank mapping is identical in both runs, so the dump is not at fault: the game itself stepped once less or more, and
+the offset lasts to the end of the run. Pixel comparisons between two runs must first check that both frames show the same game
+frame (`tools/mod_camera_check.py` reads the lap timer's pixels), with a minimum number of frames compared so a run that is always
+off by a step cannot pass vacuously. A related trap: once the orbit is applied to the layer view, the game draws the trackside wall
+on the camera's side at yaw 90 and it can hide the car, so the car-centring check only holds from yaw 135 up.

@@ -8,7 +8,12 @@ done` line to the end of the run (frame -> vblank from the `[frame-dump]` lines 
   yaw != 0  on the chase frames the 3D area (rows above HUD_TOP) differs from the baseline, the HUD's speed digits (the mask of
             their cyan pixels in HUD_DIGITS) are identical (the strip itself is translucent over the 3D picture, so it is not
             compared pixel by pixel), and the car (orange pixels) is still there, its centroid within CENTRE_TOL_X / CENTRE_TOL_Y of
-            the baseline's (the pivot is the car: the car does not swing out of the picture).
+            the baseline's (the pivot is the car: the car does not swing out of the picture). The car check runs from
+            CAR_CENTRE_MIN_YAW up: beside the car (yaw 90) the camera may sit beyond the trackside wall, which the game draws (and
+            which hides the car) since the orbit is applied to the layer view (the wall is no longer culled for the unorbited heading).
+Two real-time runs can slip one game step apart (the lap timer shows it), and the slip lasts to the end of the run: frames whose
+lap-timer pixels (TIMER) differ from the baseline's are different game frames and are not compared pixel by pixel (identity, HUD
+digits, after the toggle); at least MIN_RACE_FRAMES (identity) / MIN_CAR_FRAMES (after the toggle) must be on the same game frame.
 """
 import os
 import re
@@ -30,6 +35,9 @@ DIFF_MIN_FRAMES = 0.8      # share of race frames that must differ that much
 MIN_RACE_FRAMES = 6
 CAR_BAD_FRAMES = 0.1       # share of car frames allowed outside the car tolerances (the chase camera wobbles, shade changes the colours)
 MIN_CAR_FRAMES = 3
+CAR_CENTRE_MIN_YAW = 135  # below this the camera sits beside the car, where the game now draws (and the car is hidden by) the trackside wall
+TIMER = (205, 295, 33, 50)  # x0, x1, y0, y1 of the lap timer (white digits); two frames showing different times are different game frames
+TOGGLE_NOISE = 0.01  # share of pixels that may differ after the toggle (the car's rear sprite flickers by a few levels; a mod still editing changes tens of percent)
 MIN_TOGGLE_BEFORE = 6     # orbited frames needed before the toggle
 
 FRAME = re.compile(r"frame_(\d+)\.ppm$")
@@ -102,10 +110,17 @@ def judge_identity(base_frames, mod_frames):
     common = sorted(set(base_frames) & set(mod_frames))
     if len(common) < MIN_RACE_FRAMES:
         return False, f"only {len(common)} common frames"
+    same = 0
     for index in common:
-        if read_ppm(base_frames[index])[2] != read_ppm(mod_frames[index])[2]:
+        base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
+        if not same_game_frame(base, mod):
+            continue
+        same += 1
+        if base[2] != mod[2]:
             return False, f"frame {index} differs from the baseline at yaw 0 (the mod must write nothing at the identity)"
-    return True, f"{len(common)} frames byte-identical to the baseline"
+    if same < MIN_RACE_FRAMES:  # a count, not a share: a one-step slip between two real-time runs persists to the end of the run
+        return False, f"only {same}/{len(common)} frames show the baseline's same game frame (lap timer): nothing proved"
+    return True, f"{same}/{len(common)} frames on the same game frame byte-identical to the baseline (the rest slipped a step)"
 
 
 def digits_mask(frame):
@@ -121,6 +136,18 @@ def digits_mask(frame):
             if 100 < r < 205 and g > 200 and b > 215:
                 out.append((x, y))
     return out
+
+
+def timer_mask(frame):
+    """Positions of the lap timer's white digit pixels: equal masks = the same game frame (a one-step pacing slip between two real-time runs is not the mod)."""
+    width, _height, pixels = frame
+    x0, x1, y0, y1 = TIMER
+    return [(x, y) for y in range(y0, y1) for x in range(x0, x1)
+            if min(pixels[(y * width + x) * 3:(y * width + x) * 3 + 3]) > 235]
+
+
+def same_game_frame(base, mod):
+    return timer_mask(base) == timer_mask(mod)
 
 
 def chase_frame_indices(log_text):
@@ -153,13 +180,20 @@ def judge_toggle(base_frames, mod_frames, before, after, run_log):
     orbited = sum(1 for i in before if diff_fraction(read_ppm(base_frames[i]), read_ppm(mod_frames[i]), 0, HUD_TOP) >= DIFF_MIN_FRACTION)
     if orbited < DIFF_MIN_FRAMES * len(before):
         return False, f"before the toggle only {orbited}/{len(before)} frames are orbited"
+    same = 0
     for i in after:
-        if read_ppm(base_frames[i])[2] != read_ppm(mod_frames[i])[2]:
+        base, mod = read_ppm(base_frames[i]), read_ppm(mod_frames[i])
+        if not same_game_frame(base, mod):
+            continue
+        same += 1
+        if diff_fraction(base, mod, 0, base[1]) > TOGGLE_NOISE:
             return False, f"frame {i} after the toggle differs from the baseline: the mod still edits while inactive"
-    return True, f"{orbited}/{len(before)} frames orbited before the toggle, {len(after)} frames identical to the baseline after it"
+    if same < MIN_CAR_FRAMES:  # the same floor as the frames needed after the toggle
+        return False, f"after the toggle only {same}/{len(after)} frames show the baseline's same game frame: nothing proved"
+    return True, f"{orbited}/{len(before)} frames orbited before the toggle, {same}/{len(after)} frames after it on the same game frame within TOGGLE_NOISE of the baseline"
 
 
-def judge_orbit(base_frames, mod_frames, indices):
+def judge_orbit(base_frames, mod_frames, indices, yaw=180.0):
     """yaw != 0 on the frames `indices` (those present in both runs). Returns (ok, message)."""
     frames = [i for i in indices if i in base_frames and i in mod_frames]
     if len(frames) < MIN_RACE_FRAMES:
@@ -170,10 +204,10 @@ def judge_orbit(base_frames, mod_frames, indices):
         base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
         if diff_fraction(base, mod, 0, HUD_TOP) >= DIFF_MIN_FRACTION:
             differing += 1
-        if digits_mask(base) != digits_mask(mod):
+        if digits_mask(base) != digits_mask(mod) and same_game_frame(base, mod):
             problems.append(f"frame {index}: the HUD's speed digits changed")
         count, cx, cy, bw, bh = car_box(base)
-        if count >= CAR_MIN_PIXELS:
+        if count >= CAR_MIN_PIXELS and abs(yaw) >= CAR_CENTRE_MIN_YAW:
             car_frames += 1
             mcount, mx, my, mw, mh = car_box(mod)
             if mx is None or mcount < CAR_RATIO[0] * count:
@@ -183,7 +217,7 @@ def judge_orbit(base_frames, mod_frames, indices):
                 car_problems.append(f"frame {index}: the car-coloured area is not car-sized ({mcount} px, {mw}x{mh}; baseline {count} px, {bw}x{bh})")
             elif abs(mx - cx) > CENTRE_TOL_X or abs(my - cy) > CENTRE_TOL_Y:
                 car_problems.append(f"frame {index}: the car moved to ({mx:.0f},{my:.0f}), baseline ({cx:.0f},{cy:.0f})")
-    if car_frames < MIN_CAR_FRAMES:
+    if car_frames < MIN_CAR_FRAMES and abs(yaw) >= CAR_CENTRE_MIN_YAW:
         return False, f"the car is visible on only {car_frames} baseline chase frames (need {MIN_CAR_FRAMES})"
     if differing < DIFF_MIN_FRAMES * len(frames):
         return False, f"the 3D area changed on only {differing}/{len(frames)} chase frames: the mod did not orbit"
@@ -222,7 +256,7 @@ def main(argv):
             after = frames_in_vblanks(base_log, toggle_at + TOGGLE_MARGIN, 10 ** 9)
             ok, message = judge_toggle(base, mod, before, after, run_log)
         else:
-            ok, message = judge_identity(base, mod) if yaw == 0 else judge_orbit(base, mod, indices)
+            ok, message = judge_identity(base, mod) if yaw == 0 else judge_orbit(base, mod, indices, yaw)
         print(("PASS " if ok else "FAIL ") + f"{label}: {message}")
         failed = failed or not ok
     return 1 if failed else 0
