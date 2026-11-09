@@ -3,11 +3,11 @@
 # the end of the straight and hits the barrier at a slant, then throttle and brake), the mod's state log (GT_MOD_ROLLOVER_LOG=1) and
 # tools/mod_rollover_check.py as judge.
 #   tools/mod_rollover_check.sh [--decomp off|on] [--seconds N (default 150: the route ends at vblank ~17980, ~110 s; see docs/FINDINGS.md for why not longer)] [--every N] [--roll-only] [--toggle-off] [--recover]
-#                               [--without-mod|--sabotage-noflag|--sabotage-noimpulse|--sabotage-threshold0|--sabotage-flipflag|--sabotage-nobox]
+#                               [--without-mod|--sabotage-noflag|--sabotage-noimpulse|--sabotage-threshold0|--sabotage-flipflag|--sabotage-nobox|--sabotage-pushupright|--sabotage-nocap]
 #   (default)    baseline (no mod, frames), disabled (the mod installed with enabled = false: frames byte-identical to the baseline, nothing
 #                logged), roll (mod enabled: quiet driving first, one impulse at the crash, the car tilts past the game's 35 deg clamp toward
 #                the side it hit, the dormant flip machine stays asleep, no height jump, ends upright or upside down at rest); PASS only if all pass
-#   (the roll run also judges the body box, mod 0.2.0: `BOX` lines: the deepest box corner of the tumbling car above -0.25 m, the origin not launched past 0.8 m, no
+#   (the roll run also judges the body box, mod 0.2.0: `BOX` lines: the deepest box corner of the tumbling car above -0.25 m, the origin not launched past MAX_TUMBLE_RISE = 1.6 m (mod_rollover_check.py), no
 #                touch while upright; and the default flow adds a `nobox` run, the mod with body_box = false: the state lines before the first impact must be
 #                byte-identical with and without the box, and without it the body must sink > 0.5 m)
 #   --frames     one more run with the box on and a frame every 3 vblanks, pruned to the vblanks around the crash (--frames-window FROM:TO, default auto: 60 vblanks before the first impulse to 300 after): PPMs in $OUT/tumble/frames (tumble_nobox with --without-box) for a person to look at (no judge); with --without-box the same for the box off
@@ -20,7 +20,9 @@
 #   Each of these must FAIL: --without-mod (-DROLLOVER_SABOTAGE=5: stock physics, the mod only logs: nothing rolls; with --recover the car is not upside down at the reset), --sabotage-noflag (-DROLLOVER_SABOTAGE=1: the impulse without the flag, the game's
 #   clamp holds the tilt), --sabotage-noimpulse (=2: the flag without any impulse: the barrier alone does not roll the car),
 #   --sabotage-threshold0 (=3: an impulse in normal driving), --sabotage-flipflag (=4: the flag also lifted for the dormant flip state machine: the car sinks through the road),
-#   --sabotage-nobox (=6: body_box off, the log still measures: the body sinks 1.3 m, the box judge fails on the depth)
+#   --sabotage-nobox (=6: body_box off, the log still measures: the body sinks 1 m, the box judge fails on the depth),
+#   --sabotage-pushupright (=7: the box ground 0.6 m too high with floor corners always on: it pushes an upright car; the box judge fails on the upright touches and boxcmp on the state lines before the impact),
+#   --sabotage-nocap (=8: box_kick_cap 20: the rise judge must fail)
 # Env: ROUTE (a pad route file, default config/pad_routes/rollover.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
 # GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_rollover_check, gitignored; never /tmp),
 # KEEP_BASELINE=1 (reuse the baseline of $OUT when --decomp, route, --every and --seconds match). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that crashed, timed out
@@ -34,7 +36,7 @@ out=${OUT:-recomp/analysis/mod_rollover_check}
 decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;; --sabotage-nobox) sabotage=6;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
+    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --roll-only) roll_only=1;; --recover) recover=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_rollover_check: unknown argument $1" >&2; exit 2;;
@@ -138,8 +140,13 @@ PY
 fi
 if [ $sabotage -ne 0 ] || [ $roll_only -eq 1 ]; then  # a failing run is all that is asked of a sabotage: no baseline needed
   run_one roll "$mdir" - 0 "$route" || exit 2
-  $py -I tools/mod_rollover_check.py "$out" roll
-  exit $?
+  rc=0
+  $py -I tools/mod_rollover_check.py "$out" roll || rc=1
+  if [ $sabotage -eq 7 ]; then  # the identity check on the same build: the nobox run is this build with body_box = false
+    run_one nobox "$out/mods_nobox" - 0 "$route" || exit 2
+    $py -I tools/mod_rollover_check.py "$out" boxcmp || rc=1
+  fi
+  exit $rc
 fi
 need_baseline && { make_baseline "$route" || exit 2; }
 run_one disabled "$out/mods_disabled" - 1 "$route" || exit 2

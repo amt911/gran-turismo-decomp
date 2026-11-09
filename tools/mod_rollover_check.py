@@ -170,6 +170,11 @@ def parse_box(text):
 def judge_box(text):
     """The roll run's BOX lines. Returns (ok, message)."""
     impulses, lines = parse_impulses(text), parse_box(text)
+    # before the first impact (normal driving; with no impulse at all: the whole run) the box must never push: the car is upright and the wheels own the contact
+    first_hit = impulses[0]["st"] if impulses else 10 ** 9
+    upright = [b for b in lines if b["st"] < first_hit and b["upn"] > 0.9 and b["push"] > 0]
+    if upright:
+        return False, f"the box pushed the car {len(upright)} times before the first impact (first at step {upright[0]['st']}, up.n {upright[0]['upn']:.2f}): it must stay invisible while driving"
     if not impulses:
         return False, "no IMPULSE line: no tumble to judge"
     tumble = [b for b in lines if b["st"] >= impulses[0]["st"] and b["upn"] < 0.77]
@@ -177,42 +182,38 @@ def judge_box(text):
         return False, "no BOX line of a tilted car after the impulse: the mod did not measure the body (is GT_MOD_ROLLOVER_LOG=1 set?)"
     if not all(math.isfinite(v) for b in tumble for v in (b["zg"], b["clear"], b["roof"])):
         return False, "nan/inf in the BOX lines"
-    deepest = min(b["clear"] for b in tumble)
-    if deepest < -MAX_BODY_DEPTH:
-        return False, f"the car's body sank {-deepest:.2f} m into the ground while tumbling (max {MAX_BODY_DEPTH} m; roof {min(b['roof'] for b in tumble):.2f})"
     rise = max(b["zg"] for b in tumble)
     if rise > MAX_TUMBLE_RISE:
         return False, f"the origin rose {rise:.2f} m over the ground in the tumble (max {MAX_TUMBLE_RISE} m): the box launched the car"
+    deepest = min(b["clear"] for b in tumble)
+    if deepest < -MAX_BODY_DEPTH:
+        return False, f"the car's body sank {-deepest:.2f} m into the ground while tumbling (max {MAX_BODY_DEPTH} m; roof {min(b['roof'] for b in tumble):.2f})"
     if not any(b["box"] and b["push"] > 0 for b in tumble):
         return False, "the box never acted (no BOX line with box=1 and a push): body_box is off or the tumble never touched the ground"
-    stats = [(int(m.group(4)), int(m.group(3))) for m in BOXSTAT.finditer(text)]
-    if stats and stats[-1][0] != 0:
-        return False, f"the box touched the car {stats[-1][0]} steps while it was upright (it must stay invisible)"
     return True, (f"tumble: deepest body corner {-deepest:.2f} m below the ground (max {MAX_BODY_DEPTH}), origin rose {rise:.2f} m (max {MAX_TUMBLE_RISE}), "
                   f"{sum(1 for b in tumble if b['push'] > 0)} steps pushed, 0 upright touches")
 
 
 def judge_box_compare(box_text, off_text):
-    """The box run against a run with body_box = false: the state lines before the first impulse are byte-identical, and the box-off tumble sinks."""
-    imp = parse_impulses(box_text)
+    """The box run against a run with body_box = false: the state lines before the first impulse of the box-off run (the reference: the stock tumble) are
+    byte-identical in the box run, and the box-off tumble sinks. Returns (ok, message)."""
     imp_off = parse_impulses(off_text)
-    if not imp or not imp_off:
-        return False, "an IMPULSE line is missing in one of the runs"
-    if imp[0]["st"] != imp_off[0]["st"]:
-        return False, f"the first impulse is at step {imp[0]['st']} with the box and {imp_off[0]['st']} without it"
-    def before(text, first):
-        return [m.group(0) for m in STATE.finditer(text) if int(m.group(1)) < first]
-    a, b = before(box_text, imp[0]["st"]), before(off_text, imp[0]["st"])
-    if len(a) < MIN_QUIET_LINES:
-        return False, f"only {len(a)} state lines before the impulse (need {MIN_QUIET_LINES})"
+    if not imp_off:
+        return False, "no IMPULSE line in the box-off run"
+    cut = imp_off[0]["st"]
+    def before(text):
+        return [m.group(0) for m in STATE.finditer(text) if int(m.group(1)) < cut]
+    a, b = before(box_text), before(off_text)
+    if len(b) < MIN_QUIET_LINES:
+        return False, f"only {len(b)} state lines before the impulse (need {MIN_QUIET_LINES})"
     if a != b:
         first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-        return False, f"the box changed the car before the first impact: state line {first + 1} of {len(a)} differs (or the counts differ: {len(a)} vs {len(b)})"
-    tumble = [x for x in parse_box(off_text) if x["st"] >= imp_off[0]["st"] and x["upn"] < 0.77]
+        return False, f"the box changed the car before the first impact: state line {first + 1} of {len(b)} differs (or the counts differ: {len(a)} vs {len(b)})"
+    tumble = [x for x in parse_box(off_text) if x["st"] >= cut and x["upn"] < 0.77]
     sink = -min((x["clear"] for x in tumble), default=0.0)
     if sink < MIN_PREMISE_DEPTH:
         return False, f"the box-off run sank only {sink:.2f} m (need {MIN_PREMISE_DEPTH}): the comparison proves nothing"
-    return True, f"{len(a)} state lines before the impact byte-identical with and without the box; without it the body sinks {sink:.2f} m"
+    return True, f"{len(b)} state lines before the impact byte-identical with and without the box; without it the body sinks {sink:.2f} m"
 
 
 def judge_recover(text, reset_text):

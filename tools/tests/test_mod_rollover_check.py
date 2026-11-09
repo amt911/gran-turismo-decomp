@@ -314,13 +314,16 @@ def test_box_judge_needs_lines_a_push_and_no_upright_touch():
     assert "did not measure" in mr.judge_box(good_log())[1]
     assert "never acted" in mr.judge_box(box_log(push=0.0))[1]
     assert "no IMPULSE" in mr.judge_box("")[1]
-    ok, message = mr.judge_box(good_log() + "\n" + box_line(1870) + "\n" + boxstat(upright=3))
-    assert not ok and "upright" in message
+    # a push at up.n > 0.9 AFTER the hit (the car rolling back upright) is fine; before it, never
+    assert mr.judge_box(good_log() + "\n" + box_line(1900, upn=0.95) + "\n" + box_line(1870))[0]
+    # a push at up.n > 0.9 fails even when the car never reached the impulse (the push-upright sabotage)
+    ok, message = mr.judge_box("\n".join(state(750 + i * 15) for i in range(10)) + "\n" + box_line(900, upn=0.99, push=0.1))
+    assert not ok and "before the first impact" in message
     assert not mr.judge_box(box_log(clear=float("nan")))[0]
 
 
 def test_box_judge_ignores_upright_lines():
-    text = good_log() + "\n" + box_line(1870, upn=0.95, clear=-1.0, zg=2.0) + "\n" + box_line(1872) + "\n" + boxstat()
+    text = good_log() + "\n" + box_line(1870, upn=0.95, clear=-1.0, zg=2.0, push=0.0) + "\n" + box_line(1872) + "\n" + boxstat()
     assert mr.judge_box(text)[0]
 
 
@@ -344,8 +347,9 @@ def test_box_compare_fails_when_the_box_changed_the_car_before_the_impact():
 def test_box_compare_needs_a_sinking_baseline_and_impulses():
     assert "proves nothing" in mr.judge_box_compare(box_log(), with_box_off(good_log(), sink=0.1))[1]
     assert "IMPULSE" in mr.judge_box_compare("x", "y")[1]
-    off = with_box_off(good_log()).replace("IMPULSE st=1864", "IMPULSE st=1900")
-    assert "first impulse" in mr.judge_box_compare(box_log(), off)[1]
+    # the box run lost its impulse (the box pushed the car before the hit): judged against the box-off run's state lines
+    ok, message = mr.judge_box_compare("\n".join(state(750 + i * 15, pos=(-300.0 + i, 250.0, 2.0)) for i in range(70)), with_box_off(good_log()))
+    assert not ok and "before the first impact" in message
 
 
 def test_main_box_modes(tmp_path, capsys):

@@ -608,3 +608,17 @@ the flag at 0). Not investigated further here; the mod avoids it. **Follow-up fo
   already the reset-to-track key, Start only pauses, and both are on the PSP's small-button side, so a simultaneous press is natural). Review fix (2026-11-08): a hand presses the two buttons a few
   vblanks apart, so a lone chord button is held back 8 vblanks (and replayed late, with its real length, if released first; docs/MODS.md); only a stagger past the window leaks
   (Select: a tap for reset-to-track, the camera view changes; Start: a pause).
+
+## Rollover body box (research 2026-11-08, rollover mod 0.2.0; runtime addresses)
+
+Evidence: the research worktree `build/gt_play` runs on the `rollover` pad route (`--decomp off`), `tools/mod_rollover_check.sh` (`BOX`, `BOXSIZE`, `WMEAS` log lines).
+- **Ground under the car.** The four wheel road-query records `word(car + 0x10) + 0x38 * i` (layout: FACTS "Road query and the wheel contact records") keep a valid ground height while the car is on its roof:
+  during the tumble `K+0x48` (mean ground height under the body, set in `0x08945F6C` from the four wheel heights at `+0xBC` of `K+0x70+0x118*i`) follows the real road (3.0 -> 3.3 m with the origin at 3.6-3.9 m).
+  The mod uses the records whose byte `+0x2C` is 0 (the low byte of the surface word: 0 on asphalt and on off-track terrain `0x0300`, which has a height too; 1 = no road found).
+- **Car record** `word(car + 0xC)`: `+0x08` 1.783 (the radius the car-car pair test averages), `+0x18` 2.442 wheel base, `+0x1C` 1.434 track, `+0x30..+0x3C` = +-0.719 (half track), `+0x40/+0x44` = +0.879 (front axle ahead of the
+  origin), `+0x48/+0x4C` = -1.563 (rear axle behind it) on the logged car. The wheel records agree (axle midpoint 0.342 m behind the origin). **No body length, width or height was found**: the box (length 0.8 x wheel base clamped
+  1.7-2.6, width track/2+0.12 clamped 0.75-1.1, floor -0.03, roof +0.8 over the origin) is a heuristic, not a game fact. The front/rear order of the wheel records (0,1 front; 2,3 rear) is inferred from the first two sharing the larger axle x.
+- **Body rates.** `+0x6F4` = roll about the forward row (FACTS "Rollovers"). Pitch `+0x6F0` and yaw `+0x6F8`: the research measured the rotation of the basis rows over one step against the three rates (`WMEAS` lines: measured
+  world angular velocity projected on f, l, u against roll, pitch, yaw) — result below. The basis (f, l = right, u) is left-handed.
+- **Box response** (measured, shipped defaults): deepest of the 8 box corners vs the ground plane, in the tumble: stock (box off, log measuring only) -1.02 m, box on -0.20 m (the first tilted step; the roof then -0.05..-0.10); origin height over the
+  plane 0.64 m stock, 1.43 m with the box (geometry: half-diagonal of the cross-section 1.16 m, a nose corner higher); 62 state lines before the first impact byte-identical with and without the box.
