@@ -2422,7 +2422,7 @@ void present_frame(psprecomp::Runtime &rt, const PresentRequest &request) {
                            request.vblank, gpu.game_frame_rgba_vblank);
     }
     if (!presented_gpu_frame && (stale == nullptr || !stale->load())) {
-        gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height);
+        gt::frame_dump(rt, present_buffer, present_stride, request.pixel_format, present_width, present_height, request.vblank);
         display_window_present(rt, present_buffer, present_stride, request.pixel_format,
                                present_width, present_height);
     }

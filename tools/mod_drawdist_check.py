@@ -23,7 +23,7 @@ HUD_DIGITS = (200, 340, 234, 268)  # x0, x1, y0, y1 of the speed readout
 NEAR_ROWS = (190, 232)             # the road in front of / under the car, in the 3D area
 RACE_AFTER_VBLANKS = 150
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
-FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
+FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)(?: present_vblank (\d+))?")
 CAR_WINDOW = (110, 330, 100, 232)
 CAR_MIN_PIXELS = 150
 CAR_KEEP_RATIO = 0.9               # the far-plane frame keeps at least this share of the baseline's car pixels (and at most 1/ratio)
@@ -102,6 +102,23 @@ def diff_fraction(a, b, y0, y1):
     return sum(1 for i in range(0, len(pa), 3) if pa[i:i + 3] != pb[i:i + 3]) / n
 
 
+def _key(frame, present_vblank):
+    """A frame's key: the vblank its present was requested at when the log carries it, else its dump number (old logs)."""
+    return int(present_vblank) if present_vblank else int(frame)
+
+
+def keyed_frames(directory, log_text):
+    """{key: path} of a run's frames. With `present_vblank` in the run's log the key is that vblank, so two runs pair the same game
+    frame even when one of them dropped a present (dump numbers count presents: one drop shifts every later number). Without it (an
+    old build, no log) the key is the dump number. The `vblank` label itself is no key: it is read when the GE worker dumps, which
+    lags the game under load (docs/FINDINGS.md, 2026-11-09)."""
+    frames = frames_of(directory)
+    keys = {int(f): int(p) for f, _v, p in FRAME_DUMP.findall(log_text or "") if p}
+    if not keys:
+        return frames
+    return {keys[n]: path for n, path in frames.items() if n in keys}
+
+
 def frames_of(directory):
     out = {}
     for name in os.listdir(directory):
@@ -117,11 +134,11 @@ def race_frame_indices(log_text):
     if done is None:
         return []
     start = int(done.group(1)) + RACE_AFTER_VBLANKS
-    return [int(f) for f, v in FRAME_DUMP.findall(log_text) if int(v) >= start]
+    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if int(v) >= start]
 
 
 def frames_in_vblanks(log_text, lo, hi):
-    return [int(f) for f, v in FRAME_DUMP.findall(log_text) if lo <= int(v) < hi]
+    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if lo <= int(v) < hi]
 
 
 def timer_mask(frame):
@@ -254,13 +271,13 @@ def main(argv):
     if not args:
         print("mod_drawdist_check: no run labels given", file=sys.stderr)
         return 2
-    base = frames_of(os.path.join(out, "baseline", "frames"))
     base_log = read_log(os.path.join(out, "baseline", "run.log"))
+    base = keyed_frames(os.path.join(out, "baseline", "frames"), base_log)
     indices = race_frame_indices(base_log)
     failed = False
     for label in args:
-        mod = frames_of(os.path.join(out, label, "frames"))
         run_log = read_log(os.path.join(out, label, "run.log"))
+        mod = keyed_frames(os.path.join(out, label, "frames"), run_log)
         ok, message = judge_mod_loaded(run_log)
         if ok and label.startswith("toggle_"):
             done = SCRIPT_DONE.search(base_log)

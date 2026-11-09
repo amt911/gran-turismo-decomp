@@ -245,3 +245,12 @@ def test_toggle_skips_slipped_frames_after_it(tmp_path):
     assert ok, message
     mixed[13] = with_timer(make_frame(far_block=True), 13)  # same game frame and still edited
     assert "still edits" in mc.judge_toggle(base, run(tmp_path, "still", mixed), idx[:6], idx[8:], log)[1]
+
+
+def test_frames_pair_by_present_vblank_when_the_log_has_it(tmp_path):
+    run(tmp_path, "b", {1: b"x", 2: b"y"})
+    log = "[frame-dump] frame 000001 vblank 101 present_vblank 100\n[frame-dump] frame 000002 vblank 205 present_vblank 200\n"
+    assert set(mc.keyed_frames(str(tmp_path / "b"), log)) == {100, 200}
+    assert set(mc.keyed_frames(str(tmp_path / "b"), "[frame-dump] frame 000001 vblank 101\n")) == {1, 2}
+    log += "[pad] script done at vblank 0\n"
+    assert mc.race_frame_indices("[pad] script done at vblank 0\n" + log) == [200]

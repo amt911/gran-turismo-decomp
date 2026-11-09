@@ -306,3 +306,21 @@ def test_toggle_tolerates_sprite_noise_but_not_an_orbit(tmp_path):
     assert ok, message
     still = {i: make_frame(car_at=(250, 135), sky=(30, 120, 30)) for i in idx}
     assert "still edits" in mc.judge_toggle(base, write_run(tmp_path, "still", still), idx[:8], idx[9:], log)[1]
+
+
+def test_frames_pair_by_present_vblank_when_the_log_has_it(tmp_path):
+    # a dropped present shifts the dump numbers of one run: dump 20 of the mod run is the baseline's dump 30 (same present vblank)
+    write_run(tmp_path, "b", {10: b"x", 20: b"y", 30: b"z"})
+    log = "[frame-dump] frame 000010 vblank 101 present_vblank 100\n[frame-dump] frame 000020 vblank 205 present_vblank 200\n"
+    keyed = mc.keyed_frames(str(tmp_path / "b" / "frames"), log)
+    assert keyed == {100: str(tmp_path / "b" / "frames" / "frame_000010.ppm"), 200: str(tmp_path / "b" / "frames" / "frame_000020.ppm")}
+    old_log = "[frame-dump] frame 000010 vblank 101\n"  # an old build's log: the dump numbers stay the keys
+    assert set(mc.keyed_frames(str(tmp_path / "b" / "frames"), old_log)) == {10, 20, 30}
+    assert set(mc.keyed_frames(str(tmp_path / "b" / "frames"), None)) == {10, 20, 30}  # no run.log
+
+
+def test_indices_are_keys_when_the_log_has_present_vblanks():
+    log = ("[frame-dump] frame 000030 vblank 101 present_vblank 100\n[pad] script done at vblank 1000\n"
+           "[frame-dump] frame 000600 vblank 1101 present_vblank 1100\n[frame-dump] frame 000660 vblank 1203 present_vblank 1200\n")
+    assert mc.chase_frame_indices(log) == [1200]
+    assert mc.frames_in_vblanks(log, 1100, 1300) == [1100, 1200]

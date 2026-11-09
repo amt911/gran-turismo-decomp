@@ -3067,12 +3067,15 @@ in both modes before building on it.
 the same run with `GT_PAD_MENU_HOLD_BACK=0` passes, and `--decomp off` passes either way. The restore zeroes the rates; with the later Select it lands at another moment of the crash tumble and the
 springs still oscillate (cf. the rollover `--recover` note). A timing sensitivity of the check's calm criterion, not a restore bug; not investigated further.
 
-## Two real-time gt_play runs on the same pad route can slip one game step apart, for the rest of the run (2026-11-09)
+## Frame dumps of two runs on the same pad route drift apart after one dropped present (2026-11-09)
 
-The orbit-camera check failed with gt-mods main too, on the HUD's speed digits and on frames after the F9 toggle. The cause was
-pacing, not the mod: at frame 10440 the lap timer read 0'58.300 in the baseline and 0'58.316 in the mod run, one game frame apart.
-The frame-to-vblank mapping is identical in both runs, so the dump is not at fault: the game itself stepped once less or more, and
-the offset lasts to the end of the run. Pixel comparisons between two runs must first check that both frames show the same game
-frame (`tools/mod_camera_check.py` reads the lap timer's pixels), with a minimum number of frames compared so a run that is always
-off by a step cannot pass vacuously. A related trap: once the orbit is applied to the layer view, the game draws the trackside wall
-on the camera's side at yaw 90 and it can hide the car, so the car-centring check only holds from yaw 135 up.
+The orbit-camera and draw-distance checks failed with gt-mods main too: HUD digits "changed", frames after the F9 toggle
+"differed", draw-distance 2.5 changed "38 % of the picture". The game was not at fault: tick counts, virtual time, the game's
+frame counter and flip counts match exactly between two runs (25k vblanks, scale 1.0 vs 2.5). The dumps were. `frame_dump`
+numbers *presented* frames, and a present is dropped when the GE worker is still busy, so one drop in one run shifts every later
+dump number by one: frame N of the two runs is no longer the same game frame (the lap timer shows it, 0'58.300 vs 0'58.316). The
+`vblank` label on the `[frame-dump]` line does not help either: it is read when the GE worker dumps, which lags under load. The
+dump line now also carries `present_vblank` (the vblank the present was requested at) and the checkers pair frames by it, and as a
+second guard compare pixels only where the lap-timer pixels match, with a floor on how many frames were compared. Related: once
+the orbit is applied to the layer view the game draws the trackside wall on the camera's side at yaw 90 and it can hide the car,
+so the car-centring check only holds from yaw 135 up.

@@ -24,7 +24,7 @@ HUD_TOP = 232          # rows >= HUD_TOP are the bottom HUD strip (speed, gear, 
 HUD_DIGITS = (200, 340, 234, 268)  # x0, x1, y0, y1 of the speed readout
 CHASE_AFTER_VBLANKS = 150
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
-FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
+FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)(?: present_vblank (\d+))?")
 CAR_WINDOW = (110, 330, 100, 232)  # x0, x1, y0, y1 where the player's car sits in the chase view (the orange TRD banner is right of x = 340)
 CAR_MIN_PIXELS = 150   # fewer orange pixels = no car in this frame
 CAR_RATIO = (0.2, 3.0)   # the orbited frame's car pixel count over the baseline's (a side view shows more body, a far car less)
@@ -96,6 +96,23 @@ def diff_fraction(a, b, y0, y1):
     return differing / n
 
 
+def _key(frame, present_vblank):
+    """A frame's key: the vblank its present was requested at when the log carries it, else its dump number (old logs)."""
+    return int(present_vblank) if present_vblank else int(frame)
+
+
+def keyed_frames(directory, log_text):
+    """{key: path} of a run's frames. With `present_vblank` in the run's log the key is that vblank, so two runs pair the same game
+    frame even when one of them dropped a present (dump numbers count presents: one drop shifts every later number). Without it (an
+    old build, no log) the key is the dump number. The `vblank` label itself is no key: it is read when the GE worker dumps, which
+    lags the game under load (docs/FINDINGS.md, 2026-11-09)."""
+    frames = frames_of(directory)
+    keys = {int(f): int(p) for f, _v, p in FRAME_DUMP.findall(log_text or "") if p}
+    if not keys:
+        return frames
+    return {keys[n]: path for n, path in frames.items() if n in keys}
+
+
 def frames_of(directory):
     out = {}
     for name in os.listdir(directory):
@@ -156,12 +173,12 @@ def chase_frame_indices(log_text):
     if done is None:
         return []
     start = int(done.group(1)) + CHASE_AFTER_VBLANKS
-    return [int(f) for f, v in FRAME_DUMP.findall(log_text) if int(v) >= start]
+    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if int(v) >= start]
 
 
 def frames_in_vblanks(log_text, lo, hi):
     """Frame numbers dumped at a vblank in [lo, hi)."""
-    return [int(f) for f, v in FRAME_DUMP.findall(log_text) if lo <= int(v) < hi]
+    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if lo <= int(v) < hi]
 
 
 TOGGLE_MARGIN = 150  # vblanks around the toggle that are not judged (the frame in flight, the list already built)
@@ -231,9 +248,9 @@ def judge_orbit(base_frames, mod_frames, indices, yaw=180.0):
 
 def main(argv):
     out = argv[1]
-    base = frames_of(os.path.join(out, "baseline", "frames"))
-    with open(os.path.join(out, "baseline", "run.log"), errors="replace") as handle:
-        indices = chase_frame_indices(handle.read())
+    base_log = open(os.path.join(out, "baseline", "run.log"), errors="replace").read()
+    base = keyed_frames(os.path.join(out, "baseline", "frames"), base_log)
+    indices = chase_frame_indices(base_log)
     failed = False
     args = argv[2:]
     toggle_at = None
@@ -241,16 +258,16 @@ def main(argv):
         at = args.index("--toggle-at")
         toggle_at = int(args[at + 1])
         del args[at:at + 2]
-    base_log = open(os.path.join(out, "baseline", "run.log"), errors="replace").read()
     orbit_labels = [label for label in args if not label.startswith("toggle_")]
     if orbit_labels and "yaw_0" not in orbit_labels:  # the determinism control: yaw 0 must be byte-identical to the baseline
         print("FAIL: no yaw_0 run among the labels (the determinism control is mandatory)")
         failed = True
     for label in args:
         yaw = float(label.split("_", 1)[1])
-        mod = frames_of(os.path.join(out, label, "frames"))
+        log_path = os.path.join(out, label, "run.log")
+        run_log = open(log_path, errors="replace").read() if os.path.exists(log_path) else ""
+        mod = keyed_frames(os.path.join(out, label, "frames"), run_log)
         if label.startswith("toggle_"):
-            run_log = open(os.path.join(out, label, "run.log"), errors="replace").read()
             start = int(SCRIPT_DONE.search(base_log).group(1)) + CHASE_AFTER_VBLANKS
             before = frames_in_vblanks(base_log, start, toggle_at - TOGGLE_MARGIN)
             after = frames_in_vblanks(base_log, toggle_at + TOGGLE_MARGIN, 10 ** 9)
