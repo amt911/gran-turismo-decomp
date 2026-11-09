@@ -76,3 +76,50 @@ def test_toggle_fails_when_pedals_before_are_off_target():
     rows = [(s, 0.0, pb, at, ab) for s, _, pb, at, ab in GOOD]
     ok, message = judge_toggle(lines(rows) + "\n" + TOGGLE + "\n")
     assert not ok and "before" in message
+
+
+from tools.mod_pedals_check import judge_replay  # noqa: E402
+
+
+def replay_lines(rows):
+    return "\n".join(f"[mod:analog-pedals] replay step={s} thr={t} brk=0.0000 eff={t} speed={v}" for s, t, v in rows)
+
+
+REPLAY_GOOD = [(60 * i, 0.6002, 0.0 if i < 7 else 2.5 * (i - 6)) for i in range(1, 15)]
+
+
+def test_replay_passes_when_recorded_throttle_drives_the_car():
+    ok, message = judge_replay(GOOD_TEXT_LIVE + "\n" + replay_lines(REPLAY_GOOD))
+    assert ok, message
+
+
+GOOD_TEXT_LIVE = "\n".join(
+    f"[mod:analog-pedals] step={s} player thr=0.6002 brk=0.0 eff=0.6002 ai thr=0.9 brk=0.0" for s in range(660, 1100, 60))
+
+
+def test_replay_fails_when_the_replay_shows_no_throttle():
+    # The bug: the replay played only the digital presses -- no throttle, the car stands still.
+    ok, message = judge_replay(GOOD_TEXT_LIVE + "\n" + replay_lines([(60 * i, 0.0, 0.0) for i in range(1, 15)]))
+    assert not ok and "throttle" in message
+
+
+def test_replay_fails_when_the_car_never_moves():
+    ok, message = judge_replay(GOOD_TEXT_LIVE + "\n" + replay_lines([(60 * i, 0.6002, 0.0) for i in range(1, 15)]))
+    assert not ok and "moved" in message
+
+
+def test_replay_fails_without_a_replay():
+    ok, message = judge_replay(GOOD_TEXT_LIVE)
+    assert not ok and "replay" in message
+
+
+def test_replay_fails_when_live_pedals_are_off():
+    live = GOOD_TEXT_LIVE.replace("player thr=0.6002", "player thr=0.0000")
+    ok, message = judge_replay(live + "\n" + replay_lines(REPLAY_GOOD))
+    assert not ok and "live" in message
+
+
+def test_replay_fails_on_lines_without_speed():
+    old = "\n".join(f"[mod:analog-pedals] replay step={60 * i} thr=0.6002 brk=0.0000 eff=0.6002" for i in range(1, 15))
+    ok, message = judge_replay(GOOD_TEXT_LIVE + "\n" + old)
+    assert not ok and "speed" in message

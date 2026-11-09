@@ -3067,6 +3067,40 @@ in both modes before building on it.
 the same run with `GT_PAD_MENU_HOLD_BACK=0` passes, and `--decomp off` passes either way. The restore zeroes the rates; with the later Select it lands at another moment of the crash tumble and the
 springs still oscillate (cf. the rollover `--recover` note). A timing sensitivity of the check's calm criterion, not a restore bug; not investigated further.
 
+### func_08945F6C: a host multiply where the asm has `mul.s` (inf * 0 gives the host's NaN)
+
+**Symptom.** With the flag word at `0x08CF2F08` set, the rollover mod saw `--decomp on` frames differ from `--decomp off`. No route or synthetic case ever ran the function with the flag set.
+**Cause.** The decompiled C wrote `a * b` for the asm's `mul.s`; `inf * 0` (and NaN operands through it) is `0xFFC00000` on the host, `0x7FC00000` on the PSP: `psp_mul` exists for that. 1 of 46 comparable cases of 256 with the flag set showed `RAM at 0x09ED830B: original FF, decompiled 7F` (body + 0x708, the atan2 argument's NaN sign).
+**Fix / workaround.** `psp_mul` on every multiply of the function. The synthetic generator now has per-function scene pokes (`host/synth_case.cpp: scene_pokes`; odd cases set the flag word, restored after each case) and edge floats (NaNs of both signs, -0, denormals, infinities) for the two atan2/sine helpers it calls. 256 cases: 46/46 equal after the fix. The default 8 cases per function do not reach the NaN: use `tools.decomp_gate synth --only 0x08945F6C --cases 256` to see it. **Other decompiled floats:** any `*` on floats the asm does with `mul.s` can do the same; `tools.progress`-style audit of `src/` for plain float multiplies is open.
+
+Found: 2026-11-08 · host/synth_case.cpp, src/game/unsorted/hot_batch_112.cpp
+
+### `--decomp on` and `--decomp off` follow different timelines on a pad route (reset check "failed" in `on` only)
+
+**Symptom.** `tools/mod_reset_check.sh --decomp on` failed (rate 0.37 rad/s in the first 10 steps, max 0.3) on main after batch 333 while `off` passed; subsets of batch 333's registrations passed or failed in combinations (A+C fails, A+B, A1+C, A2+C, C alone pass).
+**Cause.** Not a decompiled function: all 11 candidate functions are never called on the reset route (`GT_DECOMP_DENSE`, `--decomp diff`: calls 0). The two modes follow different timelines before the reset: at game step 30, with the car at rest, the pad counter reads 6230 (`on`) vs 6642 (`off`) and the rates differ in the sign of ~0.00; the restore picks another pose (x = -297 vs -305). The springs' transient after a zeroed restore is 0.25 (`off`) to 0.37 (`on`), above the old 0.3 limit.
+**Fix / workaround.** `tools/mod_reset_check.py` judges what the mod promises: no rate at 0.6 (the crash's spin) in the window, every rate below 0.1 from t=60 to t=120 (0.04 at most in the runs), the first 10 steps below 0.45 (clean runs peak at 0.25-0.37, the rates-not-zeroed sabotage at 0.50 in `on`). The restore step's own line cannot be judged alone: `--decomp on` logs the first integration step at t=0. A check whose margin is this small is a smell: judge what a mod promises, not one run's transient.
+
+Found: 2026-11-08 · tools/mod_reset_check.py
+
+## `call_guest` of the road query from a mod tick is not frame-neutral (2026-11-09, reset-to-track research)
+
+**Symptom.** A reset-to-track build that called the game's road query from the API v2 tick (~30 queries per candidate pose, never pressing the button) diverged from the
+stock game in the check's byte-identity run, at a different vblank in each run (3630, 5100, 5580, 8220 off; 9540 on). With the same tick and a block allocated but **no query** the 691
+frames were identical.
+**What it is not (measured).** The query writes nothing in guest RAM outside the callee's own stack: a full diff of RAM (`0x08800000..0x0A000000`, 6.3 M words) around 6 queries found 0
+changed words outside `[sp - 0x8000, sp + 0x100)` (17-230 stack words), the 14-word record excluded.
+**Suspects (not tested).** `gt::call_guest` (`host/guest_call.cpp`) runs `dispatch_boundary` after every callee function, so virtual time advances and a poll runs; and it copies the callee's VFPU
+state back into the thread (`host/mod_services.cpp:110`), which the interrupted thread may still use. Either perturbs a run chaotically. **Rule:** a mod whose frames must stay identical to the stock game must
+not call guest code from the tick; the shipped reset-to-track therefore decides from the car's own path (API 1) and never calls the game. Reviving the query needs a host-side time/VFPU-neutral `call_guest`.
+
+## Same-build runs diverge after the route and, under load, mid-run (2026-11-09)
+
+Two runs of the same build and route (`tools/mod_reset_check.sh`, baseline against a toggle run) have identical frames until the route ends and then differ from vblank 21654 vs 21656 (route end 18825:
+the first difference is 2829 vblanks after it, in the idle phase). On a loaded machine (other sessions on the CPU) two baselines also diverged mid-run (frame 5100 of 700; 402 instead of 700 frames dumped),
+so the identity verdict is not reproducible then. Not investigated. The reset check therefore compares frames up to `POST_ROUTE_VBLANKS` = 2500 after `script done` (just before the measured divergence) and
+fails by itself when the log has no `script done`; re-run on a quiet machine when a baseline-vs-mod difference shows mid-route.
+
 ## Frame dumps of two runs on the same pad route drift apart after one dropped present (2026-11-09)
 
 The orbit-camera and draw-distance checks failed with gt-mods main too: HUD digits "changed", frames after the F9 toggle

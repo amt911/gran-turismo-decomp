@@ -608,3 +608,45 @@ the flag at 0). Not investigated further here; the mod avoids it. **Follow-up fo
   already the reset-to-track key, Start only pauses, and both are on the PSP's small-button side, so a simultaneous press is natural). Review fix (2026-11-08): a hand presses the two buttons a few
   vblanks apart, so a lone chord button is held back 8 vblanks (and replayed late, with its real length, if released first; docs/MODS.md); only a stagger past the window leaks
   (Select: a tap for reset-to-track, the camera view changes; Start: a pause).
+
+## Road query and the wheel contact records (research 2026-11-08, `reset-to-track` 0.2.0 design; runtime addresses)
+
+Observed in the research worktree (`call_guest` of the query from a vblank tick, values compared with the game's own records):
+- `word(car + 0x10) + 0x38 * i` (i = 0..3) are the four wheel road-query records: floats `+0x00` x, `+0x04` height the query starts from, `+0x08` **-y** (Y-up frame), **`+0x0C` ground height there**; word `+0x2C` = surface:
+  low byte `+0x2C` 1 = no road found (the height is a fallback), byte `+0x2D` = surface type (0 asphalt, 2/3 off-track terrain, which has a real height), `+0x2E/+0x2F` flags; words `+0x30/+0x34` = the hint pair that is
+  also `K+0x690/+0x694`. The surface word is `0` on asphalt and `0x0300` off track (above), so its low byte is 0 for both.
+- The query is `fn = word(word(obj) + 8)` with `obj = word(word(car) + 0x14)`, called `fn(obj, record)` once per wheel from `0x0894DD9C` (`0x0894DE90`), by the placement `0x0894106C` and by `0x08956EF4`; v0 = 1 hit / 0 no road;
+  it is a vertical ray down from the given height (from below the road: no hit). From the tick its results matched the game's (-0.267 vs -0.267 m at the grid).
+- Body rows: first row `K+0x1C` forward, second `K+0x28` right, third `K+0x34` up; the basis is left-handed (FACTS "Rollovers": f x l = -u).
+Not verified: block-size or lifetime guarantees of anything the query touches (see FINDINGS: not frame-neutral from a tick).
+
+## Rollover body box (research 2026-11-08, rollover mod 0.2.0; runtime addresses)
+
+Evidence: the research worktree `build/gt_play` runs on the `rollover` pad route (`--decomp off`), `tools/mod_rollover_check.sh` (`BOX`, `BOXSIZE`, `WMEAS` log lines).
+- **Ground under the car.** The four wheel road-query records `word(car + 0x10) + 0x38 * i` (layout: FACTS "Road query and the wheel contact records") keep a valid ground height while the car is on its roof:
+  during the tumble `K+0x48` (mean ground height under the body, set in `0x08945F6C` from the four wheel heights at `+0xBC` of `K+0x70+0x118*i`) follows the real road (3.0 -> 3.3 m with the origin at 3.6-3.9 m).
+  The mod uses the records whose byte `+0x2C` is 0 (the low byte of the surface word: 0 on asphalt and on off-track terrain `0x0300`, which has a height too; 1 = no road found).
+- **Car record** `word(car + 0xC)`: `+0x08` 1.783 (the radius the car-car pair test averages), `+0x18` 2.442 wheel base, `+0x1C` 1.434 track, `+0x30..+0x3C` = +-0.719 (half track), `+0x40/+0x44` = +0.879 (front axle ahead of the
+  origin), `+0x48/+0x4C` = -1.563 (rear axle behind it) on the logged car. The wheel records agree (axle midpoint 0.342 m behind the origin). **No body length, width or height was found**: the box (length 0.8 x wheel base clamped
+  1.7-2.6, width track/2+0.12 clamped 0.75-1.1, floor -0.03, roof +0.8 over the origin) is a heuristic, not a game fact. The front/rear order of the wheel records (0,1 front; 2,3 rear) is inferred from the first two sharing the larger axle x.
+- **Body rates.** `+0x6F4` = roll about the forward row (FACTS "Rollovers"). Pitch `+0x6F0` and yaw `+0x6F8`: **not established.** The mod logs `WMEAS` lines (world angular velocity from the change of the basis rows over one step,
+  projected on f, l, u, next to the three rates). Least squares over 2129 steps of the rollover tumble (2026-11-09): roll rate = 1.46 f + 1.37 u (R2 0.96; the rates are not plain body-axis components), pitch rate = 0.52 l - 0.75 u (R2 0.73),
+  yaw rate = -0.22 f - 0.64 u (R2 0.37; |pitch|, |yaw| <= 1.6 rad/s against 10.5 for roll). No clean axis or sign for pitch and yaw; the mod assumes l and u with sign + and writes them back (without those writes the same tumble ends with the origin
+  2.57 m up instead of 1.43 m). The basis (f, l = right, u) is left-handed; `bodybox_test` runs the drops with a left-handed basis too.
+- **Box response** (measured, shipped defaults): deepest of the 8 box corners vs the ground plane, in the tumble: stock (box off, log measuring only) -1.02 m, box on -0.20 m (the first tilted step; the roof then -0.05..-0.10); origin height over the
+  plane 0.64 m stock, 1.43 m with the box (geometry: half-diagonal of the cross-section 1.16 m, a nose corner higher); 62 state lines before the first impact byte-identical with and without the box. Without the speed cap (`box_kick_cap` 20) the origin rises 2.5 m and the body sinks 0.75 m; with the cap the car ends on its roof (stock and no-cap runs end upright).
+
+## Replay recording of the player's input (measured 2026-11-09, analog-pedals 0.2.0; runtime addresses)
+
+Evidence: `tools.disasm 08896780`, the mod's log on the `circuit_analog` route (`tools/mod_pedals_check.sh --replay`).
+- `0x08896780(entry, temp, index)` (driver entry vtable slot 0x64) fills the step's input record: live (`entry+0xA8 == 0`) it gets the pad
+  record (`0x0892BB10`) and copies it into `temp` with `0x0892B4B0(dest, src)` (calls at `0x088967D4`, `0x08896804`, `0x0889682C`; the
+  first two also run `0x0892B440(temp)` and force `+0xE` / `+0xA` to 1). While `entry+0xA9` is set it records `temp` into the replay
+  stream `entry+0x70` (`0x08895A88` at `0x08896848`); in a replay (`+0xA8 != 0`) `0x08895544` plays the stream back instead.
+- So a value written into the record later (the clamp `0x08948B78`, where analog-pedals 0.1.0 injected) drives the live car but is not
+  in the replay. Measured: injected 0.6 throttle, live 0.6; replay 0.0 and the car stands still; injecting into `temp` right after the
+  copy: replay 0.6, the car moves (top 14.3 m/s).
+- In the recompiled build a hook on `0x08896780` does not wrap the body's calls (a flag set before `call_original` is already clear
+  when the copy's hook runs), and hooks on `0x08895A88` / `0x0889608C` never fire (0 calls in the run). With `--decomp off` the copy's
+  `$ra` is `0x08896834` (also `0x088967DC` / `0x0889680C` on the other paths); with `--decomp on` it is junk (`0x188`: the decompiled
+  `0x08896780` does not set `$ra`), so the mod recognises the copy by its destination only (`temp` of the human's fill, once per fill).

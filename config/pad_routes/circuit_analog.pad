@@ -1,0 +1,18 @@
+# Route circuit_analog — the circuit route (circuit.pad: race on a street circuit, leave from the pause menu, its replay plays) without its
+# digital accelerator hold (CROSS:1800): only an analog throttle (analog-pedals, GT_MOD_PEDALS_FAKE) drives the car, so its replay
+# shows whether the replay recorded the analog throttle (tools/mod_pedals_check.sh --replay).
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:RIGHT,500:RIGHT,700:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:LEFT:90,1900:RIGHT:90,2300:LEFT:90,2700:RIGHT:90,
+2900:START,3600:RIGHT,3800:RIGHT,4000:CROSS,4700:CROSS,
