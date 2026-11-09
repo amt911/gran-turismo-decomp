@@ -111,6 +111,7 @@ if [ $toggle -eq 1 ]; then
 fi
 if [ $frames -eq 1 ]; then  # the tumble in pictures, for a person: the box on (or off with --without-box), a frame every 3 vblanks around the crash
   fm="$out/mods"; [ $nobox_frames -eq 1 ] && fm="$out/mods_nobox"
+  seconds=$((seconds * 3))  # a frame every 3 vblanks makes the run several times slower
   every=3 run_one tumble "$fm" - 1 "$route" || exit 2
   $py -I - "$out/tumble" "$fwindow" <<'PY'
 import os, re, sys
