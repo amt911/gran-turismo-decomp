@@ -8,7 +8,7 @@
 #   tools/mod_camera_check.sh [--without-mod] [--sabotage] [--yaws "0 90 180"] [--decomp off|on] [--seconds N] [--every N] [--keep-baseline]
 #   --without-mod  empty mods dir for the "mod" runs too (must FAIL: nothing changes the picture)
 #   --sabotage     builds the mod with ORBIT_CAMERA_SABOTAGE=1 (pivot at the eye, not at the car; must FAIL the centred-car check)
-#   --toggle-off   the F9 menu's toggle turns the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE=orbit-camera@v<--toggle-at>, default v18700):
+#   --toggle-off   (dumps every present, --every 2, unless --every is given: the check pairs frames by their lap timer) the F9 menu's toggle turns the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE=orbit-camera@v<--toggle-at>, default v18700):
 #                  one run with yaw 90 (--yaws is ignored); PASS = orbited before, byte-identical to the baseline after (an inactive mod writes nothing)
 #   --keep-baseline  reuse $OUT/baseline from an earlier run (same --decomp)
 # Env: MOD_CHECK_NO_LOCK=1 (the caller already holds tools/cpu_lock.sh), GT_MODS_REPO (default ../gt-mods), BUILD (default build),
@@ -21,15 +21,18 @@ mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_camera_check}
 orig_args=("$@")  # the parse below shifts them away; the lock re-exec needs them
-decomp=off seconds=300 every=30 without=0 sabotage=0 yaws="0 90 180" keep=0 toggle=0 toggle_at=18700
+decomp=off seconds=300 every=30 every_given=0 without=0 sabotage=0 yaws="0 90 180" keep=0 toggle=0 toggle_at=18700
 while [ $# -gt 0 ]; do
   case $1 in
     --without-mod) without=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage) sabotage=1;; --keep-baseline) keep=1;;
-    --yaws) yaws=$2; shift;; --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
+    --yaws) yaws=$2; shift;; --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; every_given=1; shift;;
     *) echo "mod_camera_check: unknown argument $1" >&2; exit 2;;
   esac
   shift
 done
+# --toggle-off pairs each frame after the toggle with the baseline frame showing the same lap timer (tools/mod_camera_check.py pair_by_timer):
+# dumping every present (--every 2, the game presents every second vblank) gives the pairing a frame to find when a run is a game step off.
+[ $toggle -eq 1 ] && [ $every_given -eq 0 ] && every=2
 # The determinism control is mandatory: a yaw 0 run (byte-identical to the baseline) always runs, even when --yaws omits it.
 case " $yaws " in *" 0 "*) ;; *) yaws="0 $yaws";; esac
 [ -x "$build/gt_play" ] || { echo "mod_camera_check: no $build/gt_play" >&2; exit 2; }

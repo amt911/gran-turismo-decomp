@@ -160,6 +160,7 @@ tools/mod_camera_check.sh [--decomp off|on] [--yaws "90 180"]   # yaw 0 (control
 tools/mod_camera_check.sh --sabotage                              # pivote en el ojo: debe FALLAR
 tools/mod_camera_check.sh --without-mod                           # sin mod: debe FALLAR (nada cambia)
 tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
+# (--toggle-off vuelca todos los presentes, --every 2, salvo que se dé --every: los fotogramas se emparejan por el cronómetro de vuelta, tolerando un paso de juego de desfase)
 ```
 
 ## Comprobar `draw-distance`

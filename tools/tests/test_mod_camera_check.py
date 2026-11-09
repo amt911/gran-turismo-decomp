@@ -324,3 +324,38 @@ def test_indices_are_keys_when_the_log_has_present_vblanks():
            "[frame-dump] frame 000600 vblank 1101 present_vblank 1100\n[frame-dump] frame 000660 vblank 1203 present_vblank 1200\n")
     assert mc.chase_frame_indices(log) == [1200]
     assert mc.frames_in_vblanks(log, 1100, 1300) == [1100, 1200]
+
+
+def _toggle_runs(tmp_path, base_keys_and_timers, mod_keys_and_timers):
+    base = write_run(tmp_path, "tb", {k: with_timer(make_frame(car_at=(240, 140)), t) for k, t in base_keys_and_timers})
+    # the first 8 mod frames (keys below 1000) are orbited, the rest show the baseline's picture
+    mod = write_run(tmp_path, "tm", {k: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if k < 1000 else with_timer(make_frame(car_at=(240, 140)), t))
+                                    for k, t in mod_keys_and_timers})
+    return base, mod
+
+
+def test_toggle_pairs_a_one_step_offset_frame_by_its_timer(tmp_path):
+    before = [(100 + 10 * i, 1) for i in range(8)]
+    base_after = [(2000, 5), (2002, 6), (2004, 7), (2006, 8), (2008, 9)]
+    # the mod run is one step behind: at present vblank 2003 it shows the game frame the baseline showed at 2002, etc.
+    mod_after = [(2003, 6), (2005, 7), (2007, 8)]
+    base, mod = _toggle_runs(tmp_path, before + base_after, before + mod_after)
+    ok, message = mc.judge_toggle(base, mod, [k for k, _ in before], [k for k, _ in mod_after], "[mods] orbit-camera -> OFF\n")
+    assert ok, message
+    assert "3/3 frames after it" in message
+
+
+def test_toggle_does_not_pair_an_unrelated_frame_and_keeps_the_floor(tmp_path):
+    before = [(100 + 10 * i, 1) for i in range(8)]
+    base_after = [(2000, 5), (2002, 6), (2004, 7)]
+    far_in_time = [(2003, 20), (2005, 21), (2007, 22)]   # timers the baseline never showed within PAIR_WINDOW
+    base, mod = _toggle_runs(tmp_path, before + base_after, before + far_in_time)
+    ok, message = mc.judge_toggle(base, mod, [k for k, _ in before], [k for k, _ in far_in_time], "[mods] orbit-camera -> OFF\n")
+    assert not ok and "nothing proved" in message
+    # a frame whose timer matches only a baseline frame outside the window does not pair either
+    assert mc.pair_by_timer(base, 2003 + 2 * mc.PAIR_WINDOW, mc.read_ppm(mod[2003])) is None
+    # ... and an offset frame that still differs from its partner (the mod keeps editing) is caught
+    edited = write_run(tmp_path, "te", {k: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if k < 1000 else with_timer(make_frame(car_at=(250, 135), sky=(30, 120, 30)), t))
+                                        for k, t in before + [(2003, 6), (2005, 7), (2007, 7)]})
+    ok, message = mc.judge_toggle(base, edited, [k for k, _ in before], [2003, 2005, 2007], "[mods] orbit-camera -> OFF\n")
+    assert not ok and "still edits" in message

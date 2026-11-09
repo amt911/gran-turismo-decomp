@@ -37,6 +37,7 @@ CAR_BAD_FRAMES = 0.1       # share of car frames allowed outside the car toleran
 MIN_CAR_FRAMES = 3
 CAR_CENTRE_MIN_YAW = 135  # below this the camera sits beside the car, where the game now draws (and the car is hidden by) the trackside wall
 TIMER = (205, 295, 33, 50)  # x0, x1, y0, y1 of the lap timer (white digits); two frames showing different times are different game frames
+PAIR_WINDOW = 4  # present vblanks around a frame inside which its baseline partner is looked for (the run may be a game step ahead or behind)
 TOGGLE_NOISE = 0.01  # share of pixels that may differ after the toggle (the car's rear sprite flickers by a few levels; a mod still editing changes tens of percent)
 MIN_TOGGLE_BEFORE = 6     # orbited frames needed before the toggle
 
@@ -185,13 +186,26 @@ TOGGLE_MARGIN = 150  # vblanks around the toggle that are not judged (the frame 
 TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
 
 
+def pair_by_timer(base_frames, key, frame):
+    """The baseline frame within PAIR_WINDOW of `key` whose lap-timer pixels are the same as `frame`'s (the nearest first), as (key, pixels); None
+    when there is none. The timer identifies the game frame (1/60 s), so a run that is a step ahead or behind the baseline at the same present
+    vblank still pairs with the baseline frame showing the same game frame; a frame of another moment pairs with nothing."""
+    for distance in sorted(range(-PAIR_WINDOW, PAIR_WINDOW + 1), key=abs):
+        other = key + distance
+        if other in base_frames:
+            candidate = read_ppm(base_frames[other])
+            if same_game_frame(candidate, frame):
+                return other, candidate
+    return None
+
+
 def judge_toggle(base_frames, mod_frames, before, after, run_log):
     """The F9 menu turned the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE): frames before differ from the baseline (orbited), frames
     after are byte-identical to it (an inactive mod's hooks pass straight to the original). Returns (ok, message)."""
     if TOGGLE_LINE.search(run_log) is None:
         return False, "no `[mods] <id> -> OFF` line in the run log: the menu did not toggle the mod"
     before = [i for i in before if i in base_frames and i in mod_frames]
-    after = [i for i in after if i in base_frames and i in mod_frames]
+    after = [i for i in after if i in mod_frames]
     if len(before) < MIN_TOGGLE_BEFORE or len(after) < MIN_CAR_FRAMES:
         return False, f"too few frames around the toggle ({len(before)} before, {len(after)} after)"
     orbited = sum(1 for i in before if diff_fraction(read_ppm(base_frames[i]), read_ppm(mod_frames[i]), 0, HUD_TOP) >= DIFF_MIN_FRACTION)
@@ -199,9 +213,11 @@ def judge_toggle(base_frames, mod_frames, before, after, run_log):
         return False, f"before the toggle only {orbited}/{len(before)} frames are orbited"
     same = 0
     for i in after:
-        base, mod = read_ppm(base_frames[i]), read_ppm(mod_frames[i])
-        if not same_game_frame(base, mod):
+        mod = read_ppm(mod_frames[i])
+        paired = pair_by_timer(base_frames, i, mod)
+        if paired is None:
             continue
+        base = paired[1]
         same += 1
         if diff_fraction(base, mod, 0, base[1]) > TOGGLE_NOISE:
             return False, f"frame {i} after the toggle differs from the baseline: the mod still edits while inactive"
@@ -270,7 +286,7 @@ def main(argv):
         if label.startswith("toggle_"):
             start = int(SCRIPT_DONE.search(base_log).group(1)) + CHASE_AFTER_VBLANKS
             before = frames_in_vblanks(base_log, start, toggle_at - TOGGLE_MARGIN)
-            after = frames_in_vblanks(base_log, toggle_at + TOGGLE_MARGIN, 10 ** 9)
+            after = frames_in_vblanks(run_log if FRAME_DUMP.search(run_log) else base_log, toggle_at + TOGGLE_MARGIN, 10 ** 9)  # the run's own frames: they pair by timer
             ok, message = judge_toggle(base, mod, before, after, run_log)
         else:
             ok, message = judge_identity(base, mod) if yaw == 0 else judge_orbit(base, mod, indices, yaw)
