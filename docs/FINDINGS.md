@@ -3100,3 +3100,29 @@ Two runs of the same build and route (`tools/mod_reset_check.sh`, baseline again
 the first difference is 2829 vblanks after it, in the idle phase). On a loaded machine (other sessions on the CPU) two baselines also diverged mid-run (frame 5100 of 700; 402 instead of 700 frames dumped),
 so the identity verdict is not reproducible then. Not investigated. The reset check therefore compares frames up to `POST_ROUTE_VBLANKS` = 2500 after `script done` (just before the measured divergence) and
 fails by itself when the log has no `script done`; re-run on a quiet machine when a baseline-vs-mod difference shows mid-route.
+
+## Frame dumps of two runs on the same pad route drift apart after one dropped present (2026-11-09)
+
+The orbit-camera and draw-distance checks failed with gt-mods main too: HUD digits "changed", frames after the F9 toggle
+"differed", draw-distance 2.5 changed "38 % of the picture". The game was not at fault: tick counts, virtual time, the game's
+frame counter and flip counts match exactly between two runs (25k vblanks, scale 1.0 vs 2.5). The dumps were. `frame_dump`
+numbers *presented* frames, and a present is dropped when the GE worker is still busy, so one drop in one run shifts every later
+dump number by one: frame N of the two runs is no longer the same game frame (the lap timer shows it, 0'58.300 vs 0'58.316). The
+`vblank` label on the `[frame-dump]` line does not help either: it is read when the GE worker dumps, which lags under load. Which presents
+are dumped is now decided by the vblank too: the first present of each bucket of `GT_FRAME_EVERY` vblanks (`host/dump_bucket.hpp`, ctest
+`dump_bucket`), not every Nth present (a drop would shift the count and two runs would dump disjoint vblanks) and not `vblank % N == 0`
+(the game presents every 2 vblanks, on odd vblanks for whole stretches, and the modulo would never fire). The
+dump line now also carries `present_vblank` (the vblank the present was requested at) and the checkers pair frames by it, and as a
+second guard compare pixels only where the lap-timer pixels match, with a floor on how many frames were compared. Related: once
+the orbit is applied to the layer view the game draws the trackside wall on the camera's side at yaw 90 and it can hide the car,
+so the car-centring check only holds from yaw 135 up.
+
+Follow-up (same day, review of the checkers): the pairing key is exact, so two runs only pair where both dumped the same present vblank. The bucket rule makes
+that the normal case, but a run that presents on odd vblanks where the other presents on even ones (a 30 fps phase shifted by one vblank) shares almost no key:
+the verdict is then "only N common frames", a false FAIL and not a weakening of any gate. The lap timer is the identifier of a game frame
+(`tools/lap_timer.py`): its mask is the digit STROKES only (short horizontal and vertical runs of white), so the scene behind it, which has no backing, does not
+change it (on real frames the pairs with different masks differ only in the last digits, a game step); an empty or frozen timer identifies nothing and never counts
+toward a floor. After the toggle the residual differences were explained, not absorbed: for ~500 vblanks the picture still holds pixels of the orbited frames (nothing clears the colour buffer,
+blended draws keep it), hence `TOGGLE_MARGIN = 600`; after that every pair is byte-identical outside the car window except a few at four moments (vblanks 22156, 29352, 36544, 43736: 7 200 apart), where the
+only differing pixels are the HUD clock (bottom right), whose digit flips at an instant that moves by one frame between runs (the clock is not locked to the game frame: probably guest virtual time,
+which the dispatch-count starvation tick moves with the game's CPU work); inside the car window the rear sprite flickers by up to 2 % of the window (cause not identified).

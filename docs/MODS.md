@@ -160,7 +160,8 @@ cámara trasera con el coche visible; un run sin mod y uno por ángulo `GT_MOD_C
 tools/mod_camera_check.sh [--decomp off|on] [--yaws "90 180"]   # yaw 0 (control de determinismo, siempre se ejecuta) idéntico al run sin mod; yaw != 0: 3D distinto, dígitos del HUD iguales, coche centrado
 tools/mod_camera_check.sh --sabotage                              # pivote en el ojo: debe FALLAR
 tools/mod_camera_check.sh --without-mod                           # sin mod: debe FALLAR (nada cambia)
-tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
+tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 fotogramas orbitados antes; después, a partir de 600 vblanks (la imagen se asienta: no hay borrado de color) cada fotograma emparejado por cronómetro con uno del run sin mod es idéntico byte a byte fuera de la ventana del coche y del reloj del HUD (abajo a la derecha), y como mucho un 3 % de la ventana del coche distinto; >= 30 y la mitad de los utilizables deben emparejar)
+# (--toggle-off vuelca todos los presentes, --every 2, salvo que se dé --every: los fotogramas se emparejan por el cronómetro de vuelta, tolerando un paso de juego de desfase)
 ```
 
 ## Comprobar `draw-distance`
