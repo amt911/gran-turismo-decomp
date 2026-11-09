@@ -635,3 +635,17 @@ Evidence: the research worktree `build/gt_play` runs on the `rollover` pad route
   2.57 m up instead of 1.43 m). The basis (f, l = right, u) is left-handed; `bodybox_test` runs the drops with a left-handed basis too.
 - **Box response** (measured, shipped defaults): deepest of the 8 box corners vs the ground plane, in the tumble: stock (box off, log measuring only) -1.02 m, box on -0.20 m (the first tilted step; the roof then -0.05..-0.10); origin height over the
   plane 0.64 m stock, 1.43 m with the box (geometry: half-diagonal of the cross-section 1.16 m, a nose corner higher); 62 state lines before the first impact byte-identical with and without the box. Without the speed cap (`box_kick_cap` 20) the origin rises 2.5 m and the body sinks 0.75 m; with the cap the car ends on its roof (stock and no-cap runs end upright).
+
+## Replay recording of the player's input (measured 2026-11-09, analog-pedals 0.2.0; runtime addresses)
+
+Evidence: `tools.disasm 08896780`, the mod's log on the `circuit_analog` route (`tools/mod_pedals_check.sh --replay`).
+- `0x08896780(entry, temp, index)` (driver entry vtable slot 0x64) fills the step's input record: live (`entry+0xA8 == 0`) it gets the pad
+  record (`0x0892BB10`) and copies it into `temp` with `0x0892B4B0(dest, src)` (calls at `0x088967D4`, `0x08896804`, `0x0889682C`; the
+  first two also run `0x0892B440(temp)` and force `+0xE` / `+0xA` to 1). While `entry+0xA9` is set it records `temp` into the replay
+  stream `entry+0x70` (`0x08895A88` at `0x08896848`); in a replay (`+0xA8 != 0`) `0x08895544` plays the stream back instead.
+- So a value written into the record later (the clamp `0x08948B78`, where analog-pedals 0.1.0 injected) drives the live car but is not
+  in the replay. Measured: injected 0.6 throttle, live 0.6; replay 0.0 and the car stands still; injecting into `temp` right after the
+  copy: replay 0.6, the car moves (top 14.3 m/s).
+- In the recompiled build a hook on `0x08896780` does not wrap the body's calls (a flag set before `call_original` is already clear
+  when the copy's hook runs), and hooks on `0x08895A88` / `0x0889608C` never fire (0 calls in the run). The mod recognises the copy by
+  its return address (`0x088967DC`, `0x0889680C`, `0x08896834`) and destination (`temp` of the human's fill).
