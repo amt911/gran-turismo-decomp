@@ -9,34 +9,21 @@ para que el juego corra en PC desde el principio, y después cada función tradu
 código decompilado a mano, comprobando que se comporta exactamente igual que la original. No se busca
 un binario idéntico byte a byte (los compiladores exactos de Sony no son públicos).
 
-> **Estado (2026-10-10, madrugada) — para leer mañana.**
+> **Estado (2026-11-09)**
 >
-> - **🏁 ¡SE JUEGA UNA CARRERA!** `gt_native` (sin GPU, renderer por software) arranca el juego,
->   reproduce el vídeo de intro, llega al menú (con sus textos) y, pulsando botones simulados, entra en
->   **Single Player → Single Race → elige coche (Peugeot 206 S16 '99) → pista (Apricot Hill Raceway) →
->   parrilla de salida → carrera en 3D** con el HUD (mapa, posición, vuelta).
-> - **Verlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md) §5 tiene la línea exacta (`GT_PAD=…`,
->   `GT_FRAME_DUMP=recomp/frames`); las imágenes se quedan en tu disco, no se suben. Las fuentes de la
->   PSP las baja `tools/setup.sh` (de PPSSPP, fijadas por hash): **no hace falta instalar PPSSPP**.
-> - **🎮 Ya se puede jugar en ventana:** `build/gt_play` (ventana SDL, teclado o mando, a la velocidad de la PSP)
->   llega igual hasta la carrera. Controles y ajustes: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
-> - **🔊 Con sonido:** efectos y motor (la mezcla SAS) y la **música** (Atrac3+ decodificada desde los
->   datos que el juego lee de GT.VOL). `GT_AUDIO_DUMP=<dir>` la vuelca a WAV.
-> - **💾 Las partidas se guardan y se cargan** (`gt_play` las conserva en `build/savedata/`).
-> - **Pendiente visible:** el audio de los vídeos; el backend Vulkan de la GE (hoy se dibuja por software).
-> - **Decompilación (Fase 3-4):** 16.863 funciones decompiladas (9.421 de ellas, código que ninguna ruta alcanza, verificadas con casos sintéticos) y probadas contra el original con el
->   harness diferencial (libc: `memset`, `memcmp`, `memcpy`, `memmove`, `strlen`, `strcmp`,
->   `strchrnul`, `bsearch`, la familia printf (`sprintf`, `snprintf`, `vsprintf`, `vsnprintf` y sus «sinks»), y el asignador de memoria entero (`malloc`, `memalign`, `free` y sus 8 auxiliares); motor: el recuento de referencias, el puntero inteligente y los tipos de valor de los scripts;
->   scripts: `MUnit` (8), `MRandom.GetValue`, `Object.toInt/toFloat/defined`, `Math.clamp`,
->   `Module.clearStatic`, `MSystemBGM.getContextSize`, `Array.resize`, `MManager.registerClass`, la
->   interfaz (`setFocus`, `doCopy`, `pushEvent`, `appendChild`…) y el juego (`MOrganizer`,
->   `MRaceOperator`, `MSpecDB.getCarCode`, récords…) y, por la ruta de la carrera, `MCarParameter`,
->   `CarSettings`, `Math.sqrt/abs`, `MSpecDB.isDirt`, `MSound.stopMusic`, menús de opciones,
->   `MCarCollection.hasCar`…), 261 «thunks» de salto (`src/core/thunks.cpp`), 357 funciones triviales de plantilla: vacías, lectores de globales y accesores de miembro (`src/core/trivial.cpp`, `src/core/accessors.cpp`), 138 reenvíos y fábricas de objetos (`src/core/forwarders.cpp`, `src/core/factories.cpp`), 93 constructores, bucles de destrucción y conversiones (`src/core/constructors.cpp`, `src/game/adhoc/try_cast.cpp`) 57 cadenas de llamadas, destructores y listas libres (`src/core/chains.cpp`, `destructors.cpp`, `containers.cpp`) 93 hojas de una o dos instrucciones (`src/core/leaves.cpp`, `chained.cpp`) 13 llamadas virtuales a través de un holder (`src/core/virtuals.cpp`) y 791 funciones pequeñas muy llamadas en la carrera, escritas a mano (`src/game/unsorted/hot_leaves.cpp`: `crc32` de zlib, decodificador UTF-8, reserva alineada, cerrojo anidado, una caché hash de 2048 entradas, un búfer dinámico, accesores…). Todas iguales al
->   original en tres recorridos (carrera, concesionario y garaje/Theatre; `config/pad_routes/`; 0 discrepancias).
->   **1.313 funciones ya tienen su nombre real** (los nativos que usan los scripts Adhoc:
->   `config/symbol_addrs.txt`). Informe: `.venv/bin/python -m tools.progress`.
-> - **Probarlo tú:** [`docs/COMPILAR.md`](docs/COMPILAR.md). Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> - **🎮 El juego se juega en PC:** `build/gt_play` (ventana SDL, teclado o mando, sonido y música, partidas
+>   guardadas): carreras, contrarreloj, concesionario y garaje. Dibuja con
+>   la GPU (Vulkan) o por software. Controles y ajustes: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
+> - **🧩 Decompilación:** 16.783 de 23.208 funciones (72 %) ya son C/C++ legible (a mano o con plantilla), comprobado contra el
+>   original con el harness diferencial: cada una deja la misma salida y la misma memoria que la recompilada en
+>   las rutas de prueba (carrera, concesionario, garaje, opciones, Trial Mountain…) o, si ninguna ruta la alcanza,
+>   en casos sintéticos. 1.534 funciones tienen ya su nombre real, cada uno con su evidencia en
+>   `config/symbol_addrs.txt`. Barras y mapa abajo; informe: `.venv/bin/python -m tools.progress`.
+> - **🔧 Mods nativos** al estilo Dusklight, sin tocar el código del juego: en
+>   [amt911/gt-mods](https://github.com/amt911/gt-mods) (pedales analógicos, cámara orbital, distancia de
+>   dibujado, volver a la pista, vuelcos, trucos). Menú en juego con F9. Cómo escribirlos: [`docs/MODS.md`](docs/MODS.md).
+> - **Siguiente:** seguir decompilando por lotes, descargador de mods dentro del juego, más de 60 fps con
+>   interpolación, deformación por choques. Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Mapa de lo que queda
 
@@ -56,8 +43,8 @@ del código del juego por dirección, y aparte el SDK y las librerías de Sony (
 Todas las decompiladas están verificadas contra la original con el harness diferencial.
 
 **Versión interactiva** (pasa el ratón por encima para ver nombre, dirección, tamaño y estado, o busca
-una función): [`docs/progress/index.html`](docs/progress/index.html) — ábrela en el navegador tras
-clonar. Se regenera todo (mapa, página y barras) con `.venv/bin/python -m tools.progress_map`; solo
+una función): [mapa interactivo en línea](https://claude.ai/artifact/V93Bh8ZWDTAUGfWaoZa5hq), o
+[`docs/progress/index.html`](docs/progress/index.html) en el navegador tras clonar. Se regenera todo (mapa, página y barras) con `.venv/bin/python -m tools.progress_map`; solo
 contiene direcciones, tamaños y nombres propios del proyecto.
 
 ## Qué hay y qué no
@@ -106,9 +93,9 @@ Retroceso = atrás, Escape = START, F10 = ajustes, F11 = pantalla completa (mand
 `build/gt_native` es la versión sin ventana para pruebas y el harness diferencial.
 
 **Mods nativos** (solo `gt_play`): bibliotecas `.so` con un `mod.toml` en `build/mods/<id>/` (o `GT_MODS_DIR`), cargadas con el
-SDK `include/gt_mod/gt_mod_api.h`; `GT_NO_MODS=1` los desactiva. Los mods viven en el repo privado `gt-mods`; el primero,
-`analog-pedals`, da acelerador y freno analógicos (gatillos del mando o teclas con rampa). Comprobación en juego:
-`tools/mod_pedals_check.sh`. Cómo escribir e instalar mods: [`docs/MODS.md`](docs/MODS.md).
+SDK `include/gt_mod/gt_mod_api.h`; `GT_NO_MODS=1` los desactiva. Los mods viven en el repo público
+[amt911/gt-mods](https://github.com/amt911/gt-mods); F9 abre su menú en juego (también con el mando: Select + Start).
+Comprobaciones en juego: `tools/mod_*_check.sh`. Cómo escribir e instalar mods: [`docs/MODS.md`](docs/MODS.md).
 
 ## Para agentes (Claude Code / Codex)
 
