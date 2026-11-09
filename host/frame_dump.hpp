@@ -1,4 +1,4 @@
-// GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N): write every Nth presented guest frame as a PPM;
+// GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N): write the first present of each bucket of N vblanks as a PPM (dump_bucket.hpp);
 // GT_GPU_DUMP=<dir>: the GPU gate's paired frames.
 #pragma once
 

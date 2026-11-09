@@ -3074,7 +3074,10 @@ The orbit-camera and draw-distance checks failed with gt-mods main too: HUD digi
 frame counter and flip counts match exactly between two runs (25k vblanks, scale 1.0 vs 2.5). The dumps were. `frame_dump`
 numbers *presented* frames, and a present is dropped when the GE worker is still busy, so one drop in one run shifts every later
 dump number by one: frame N of the two runs is no longer the same game frame (the lap timer shows it, 0'58.300 vs 0'58.316). The
-`vblank` label on the `[frame-dump]` line does not help either: it is read when the GE worker dumps, which lags under load. The
+`vblank` label on the `[frame-dump]` line does not help either: it is read when the GE worker dumps, which lags under load. Which presents
+are dumped is now decided by the vblank too: the first present of each bucket of `GT_FRAME_EVERY` vblanks (`host/dump_bucket.hpp`, ctest
+`dump_bucket`), not every Nth present (a drop would shift the count and two runs would dump disjoint vblanks) and not `vblank % N == 0`
+(the game presents every 2 vblanks, on odd vblanks for whole stretches, and the modulo would never fire). The
 dump line now also carries `present_vblank` (the vblank the present was requested at) and the checkers pair frames by it, and as a
 second guard compare pixels only where the lap-timer pixels match, with a floor on how many frames were compared. Related: once
 the orbit is applied to the layer view the game draws the trackside wall on the camera's side at yaw 90 and it can hide the car,
