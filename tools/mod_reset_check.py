@@ -43,7 +43,14 @@ MIN_UP_Z = 0.9
 YAW_STEPS = 120         # the heading is compared over this many steps after the restore
 MAX_YAW_DRIFT = 0.03    # rad from the restored heading; a restore that keeps the spin drifts ~0.08 (the sabotage), one from rest ~0.005
 CALM_STEPS = 10         # the first steps after the restore ...
-MAX_CALM_RATE = 0.3     # ... have every angular rate below this (rad/s): zeroed rates stay under ~0.15, the crash's spin is ~0.65
+MAX_CALM_RATE = 0.45    # ... have every angular rate below this (rad/s): the car dropped on its springs after a zeroed restore peaks at 0.25 (--decomp off)
+                        # to 0.37 (--decomp on, another restore pose: the two modes follow different timelines on a pad route, FINDINGS), the
+                        # crash's spin that the sabotage leaves is >= 0.6 (see MAX_ANY_RATE); the restore step's own line (what the mod writes) cannot be
+                        # judged alone: --decomp on logs the first integration step at t=0
+MAX_ANY_RATE = 0.6      # no angular rate at or above this at any time after the restore: the spin of the crash itself
+SETTLED_STEP = 60       # from here ...
+SETTLED_END = 120       # ... to here (the car is not yet driving hard: steering rates reach 0.09 later) ...
+MAX_SETTLED_RATE = 0.1  # ... the suspension transient has decayed: every rate is below this (0.04 at most in the runs, both modes)
 MIN_DRIVE_SPEED = 15.0  # m/s reached with the throttle held after the restore: a car restarted in the wrong gear does not get here
 REST_SPEED = 1.0        # m/s right after the restore: it restarts from rest
 REWIND_S = 1.5          # the restored pose is at least this many seconds of travel back (at the speed the car had)
@@ -148,6 +155,12 @@ def judge_restore(text, calm_steps=CALM_STEPS):
     spin = max((abs(r) for s in after if s["t"] <= calm_steps for r in s["rates"]), default=0.0)
     if spin > MAX_CALM_RATE:
         return False, f"an angular rate of {spin:.2f} rad/s in the first {calm_steps} steps (max {MAX_CALM_RATE}): the rates were not zeroed"
+    wild = max(((abs(r), s["t"]) for s in after if s["t"] <= WINDOW_STEPS for r in s["rates"]), default=(0.0, 0))
+    if calm_steps > 0 and wild[0] >= MAX_ANY_RATE:
+        return False, f"an angular rate of {wild[0]:.2f} rad/s at t={wild[1]} (the crash's spin level, max {MAX_ANY_RATE}): the rates were not zeroed"
+    late = max(((abs(r), s["t"]) for s in after if SETTLED_STEP <= s["t"] <= SETTLED_END for r in s["rates"]), default=(0.0, 0))
+    if calm_steps > 0 and late[0] >= MAX_SETTLED_RATE:
+        return False, f"an angular rate of {late[0]:.2f} rad/s at t={late[1]} (the transient must have decayed below {MAX_SETTLED_RATE} from t={SETTLED_STEP})"
     for s in after:
         if s["t"] > WINDOW_STEPS:
             break

@@ -946,6 +946,12 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             for (unsigned index = 0; index < g_cases && !rt.stopped(); ++index) {
                 const SynthInputs inputs = make_synth_case(address, index, seed, layout);
                 std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
+                const std::vector<ScenePoke> pokes = scene_pokes(address, index);
+                std::vector<std::uint32_t> poked_before;
+                for (const ScenePoke &poke : pokes) {
+                    poked_before.push_back(rt.memory().load32(poke.address));
+                    rt.memory().store32(poke.address, poke.value);
+                }
                 psprecomp::AllegrexContext ctx = thread;
                 for (unsigned r = 0; r < 8u; ++r) ctx.gpr[4u + r] = inputs.gpr[r];
                 for (unsigned r = 0; r < 8u; ++r) ctx.fpr[12u + r] = std::bit_cast<float>(inputs.fpr[r]);
@@ -958,6 +964,7 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 } catch (...) {
                 }
                 g_synthetic_call = false;
+                for (std::size_t k = 0; k < pokes.size(); ++k) rt.memory().store32(pokes[k].address, poked_before[k]);
                 // a stop inside the original's run ends only that case (not comparable)
                 if (rt.stopped()) rt.clear_stop();
             }

@@ -51,6 +51,14 @@ struct Arena {
 
 } // namespace
 
+std::vector<ScenePoke> scene_pokes(std::uint32_t function, unsigned index) {
+    if ((index & 1u) == 0u) return {};
+    switch (function) {
+    case 0x08945F6Cu: return {{0x08CF2F08u, 1u}};  // the flag func_0894CCB8 reads: set, so the body's mask-4 branch is taken
+    default: return {};
+    }
+}
+
 SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout) {
     Random random{seed * 0x100000001B3ull ^ (static_cast<std::uint64_t>(function) << 20) ^ index};
     const Arena arena{layout};
@@ -78,6 +86,18 @@ SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_
                            : outside_code(random.next() << 16 | random.next());
     }
     for (std::uint32_t &reg : inputs.fpr) reg = kFloats[random.below(8u)];
+    // Edge floats the generator never makes (NaNs of both signs, -0, denormals, infinities), for the functions whose float
+    // results depend on them: the odd cases of those functions replace f12/f13 by a pair drawn from the table without
+    // touching the random stream (so every other function's inputs stay as they were). func_08B4A430 (atan2): a NaN
+    // y or x went through a sign flip in the decompiled run only (FINDINGS: the 0x08945F6C flag-1 mismatch).
+    if ((index & 1u) != 0u && (function == 0x08B4A430u || function == 0x08B499B8u)) {
+        constexpr std::uint32_t kEdges[] = {0xFFC00000u, 0x7FC00000u, 0x80000000u, 0x00000001u, 0x00800000u, 0x7F800000u, 0xFF800000u,
+                                            0x894A612Au, 0x3F800000u, 0xBF800000u, 0x00000000u};
+        const unsigned n = static_cast<unsigned>(sizeof kEdges / sizeof kEdges[0]);
+        const unsigned pair = index / 2u;
+        inputs.fpr[0] = kEdges[pair % n];
+        inputs.fpr[1] = kEdges[(pair / n + pair) % n];
+    }
     return inputs;
 }
 
