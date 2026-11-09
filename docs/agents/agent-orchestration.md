@@ -91,3 +91,7 @@ alone. Builds, `pytest` and `ctest` only get slower under load; they share the C
 - **Never rewrite the script while a job uses it** — a running shell reads it as it goes; a chain started under the old
   file died with a syntax error. It lives in the repo for that reason.
 - Before debugging a real-time failure, read `uptime`/`top`: foreign load is a rerun under the lock, not a bug.
+- **Kill only the exact PIDs you started** (saved from `$!` or the owner line) — never `pkill`, `killall` or
+  `kill $(pgrep -f PATTERN)`: every worktree runs the same script names (`mod_*_check.sh`, `gt_play`), so a pattern also
+  matches other sessions' jobs. On 2026-11-09 an agent's `pkill -f mod_rollover_check.sh` killed another session's
+  check mid-run.
