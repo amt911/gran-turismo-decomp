@@ -3100,3 +3100,12 @@ Two runs of the same build and route (`tools/mod_reset_check.sh`, baseline again
 the first difference is 2829 vblanks after it, in the idle phase). On a loaded machine (other sessions on the CPU) two baselines also diverged mid-run (frame 5100 of 700; 402 instead of 700 frames dumped),
 so the identity verdict is not reproducible then. Not investigated. The reset check therefore compares frames up to `POST_ROUTE_VBLANKS` = 2500 after `script done` (just before the measured divergence) and
 fails by itself when the log has no `script done`; re-run on a quiet machine when a baseline-vs-mod difference shows mid-route.
+
+## The GE stencil is the framebuffer alpha, and GT uses it (Time Trial ghost)
+
+The software GE renderer ignored the stencil (0x24 enable, 0xDC func/ref/mask, 0xDD fail/zfail/zpass ops) until patch 0063, so
+every stencil-tested draw covered every pixel. GT's Time Trial ghost is screen-door translucency: a through-mode sprite with a
+4x2 8888 texture, alpha test > 0x7F and colour masked off (0xE8 = 0xFFFFFF) writes 0xFF into the alpha of every other pixel
+(stencil ALWAYS, zpass REPLACE ref 0xFF); the ghost is then drawn with stencil EQUAL ref 0x80 mask 0x80, so it lands on half
+the pixels. Found with the F8 trace's per-prim `set` line (the fixed detail fields showed nothing). Races also use the stencil
+(an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). The GPU backend (NativeGE) still lacks it.
