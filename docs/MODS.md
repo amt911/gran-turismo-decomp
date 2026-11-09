@@ -146,6 +146,7 @@ tools/mod_pedals_check.sh [--decomp off|on]        # PASS = los pedales del juga
 tools/mod_pedals_check.sh --sabotage-brake         # debe FALLAR
 tools/mod_pedals_check.sh --toggle-off [--decomp on]   # el menú apaga el mod a mitad de carrera: inyecta antes, nada después
 tools/mod_pedals_check.sh --disabled               # enabled = false al arrancar: mismo `script done at vblank` que --without-mod
+tools/mod_pedals_check.sh --replay               # ruta circuit_analog (sin acelerador digital): PASS = la repetición reproduce el 0.6 analógico y el coche se mueve (mod >= 0.2.0; 0.1.0 FALLA)
 # sabotaje del menú: cmake -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON, recompilar gt_play, --toggle-off --sabotage-active debe FALLAR
 ```
 
