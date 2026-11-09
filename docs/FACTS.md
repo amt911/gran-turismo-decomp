@@ -647,5 +647,6 @@ Evidence: `tools.disasm 08896780`, the mod's log on the `circuit_analog` route (
   in the replay. Measured: injected 0.6 throttle, live 0.6; replay 0.0 and the car stands still; injecting into `temp` right after the
   copy: replay 0.6, the car moves (top 14.3 m/s).
 - In the recompiled build a hook on `0x08896780` does not wrap the body's calls (a flag set before `call_original` is already clear
-  when the copy's hook runs), and hooks on `0x08895A88` / `0x0889608C` never fire (0 calls in the run). The mod recognises the copy by
-  its return address (`0x088967DC`, `0x0889680C`, `0x08896834`) and destination (`temp` of the human's fill).
+  when the copy's hook runs), and hooks on `0x08895A88` / `0x0889608C` never fire (0 calls in the run). With `--decomp off` the copy's
+  `$ra` is `0x08896834` (also `0x088967DC` / `0x0889680C` on the other paths); with `--decomp on` it is junk (`0x188`: the decompiled
+  `0x08896780` does not set `$ra`), so the mod recognises the copy by its destination only (`temp` of the human's fill, once per fill).
