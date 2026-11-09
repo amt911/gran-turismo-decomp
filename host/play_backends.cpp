@@ -4,6 +4,7 @@
 
 #include "display_phase.hpp"
 #include "frame_log.hpp"
+#include "ge_trace.hpp"
 #include "display_window.hpp"
 #include "frontend.hpp"
 #include "ge_gpu_backend.hpp"
@@ -43,6 +44,7 @@ void gt::frontend_init(const std::filesystem::path &executable_directory) {
     for (const std::string &warning : lcs::lcs_render_configuration().warnings)  // lcs-recomp keeps them silent
         std::cerr << "[config] " << warning << "\n";
     lcs::display_window_init();
+    lcs::host_set_debug_key_handler(&gt::request_ge_trace);  // F8: trace the next frame's GE lists to a file (host/ge_trace.hpp)
     // The screen-side times (VK_KHR_present_wait, when the device has it): the vblank pacer locks to them
     // (host/display_phase.hpp), and GT_FRAME_LOG records them.
     lcs::ge_gpu_backend_set_display_hook([](std::uint64_t present_id) {
