@@ -56,6 +56,9 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
     std::uint32_t trx_src = 0u, trx_src_w = 0u, trx_dst = 0u, trx_dst_w = 0u, trx_pos = 0u, trx_dpos = 0u, trx_size = 0u;
     std::vector<std::uint32_t> stack;
     std::array<std::uint32_t, 256> state{};
+    std::array<bool, 256> sent{};               // commands this list sent (state[] of the others is 0, not the GE's)
+    std::array<std::uint32_t, 256> printed{};   // state at the previous prim's `set` line
+    std::array<bool, 256> printed_sent{};
     std::uint32_t pc = list & 0x0FFFFFFFu;
     std::fprintf(out, "[ge] list %08x (vblank %llu)\n", list, static_cast<unsigned long long>(vblank));
     for (int steps = 0; steps < 200000 && memory.contains(pc, 4u); ++steps) {
@@ -63,6 +66,7 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
         pc += 4u;
         const std::uint32_t op = word >> 24u, arg = word & 0xFFFFFFu;
         state[op] = arg;  // every command's last argument, for GT_GE_LOG_DETAIL
+        sent[op] = true;
         const std::uint32_t target = (base | arg) & 0x0FFFFFFCu;
         switch (op) {
         case 0x10: base = (arg << 8u) & 0x0F000000u; break;
@@ -165,6 +169,21 @@ void trace_ge_list(const psprecomp::GuestMemory &memory, std::uint32_t list, std
                              state[0x12], state[0x17] & 1u, state[0xC9], state[0xCA], state[0xC0], (state[0xC0] >> 8u) & 3u, state[0xC1],
                              state[0x5E], state[0xDF], state[0xE0], state[0xE1], state[0x22] & 1u, state[0xDB],
                              state[0x23] & 1u, state[0xDE], state[0xE7], state[0x55], state[0x58] & 0xFFu);
+            // GT_GE_LOG_DETAIL / F8: every render-state command sent in this list that changed since the previous prim,
+            // as `op=arg` (hex). Flow, address, prim and matrix/bone data commands are left out.
+            if (detail) {
+                const auto skipped = [](std::uint32_t c) {
+                    return c <= 0x11u || c == 0x2Au || c == 0x2Bu || (c >= 0x3Au && c <= 0x43u) || c == 0xEAu;
+                };
+                std::fprintf(out, "[ge]   set");
+                for (std::uint32_t c = 0; c < 256u; ++c) {
+                    if (!sent[c] || skipped(c) || (printed_sent[c] && printed[c] == state[c])) continue;
+                    std::fprintf(out, " %02x=%06x", c, state[c]);
+                }
+                std::fprintf(out, "\n");
+                printed = state;
+                printed_sent = sent;
+            }
             std::fprintf(out,
                          "[ge] prim %u n %u through %u fb %06x tex %d @%08x fmt %u tbw %u %ux%u swz %u clut "
                          "@%08x mode %06x blend %d\n",

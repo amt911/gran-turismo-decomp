@@ -56,6 +56,25 @@ int main() {
     gt::trace_ge_list(memory, kList, 13u);
     check(std::filesystem::exists("ge_trace_vblank12.txt"), "a second press traces again");
 
+    // The detail lists every state command that changed since the previous prim (here the global ambient alpha 0x5D,
+    // which no fixed field shows), and not the unchanged ones again.
+    constexpr std::uint32_t kStates = 0x08901000u;
+    const std::uint32_t words[] = {0x21000001u, 0x5D000040u, 0x04030003u, 0x5D000080u, 0x04030003u, 0x0F000000u};
+    for (std::uint32_t i = 0; i < 6u; ++i) memory.store32(kStates + i * 4u, words[i]);
+    gt::request_ge_trace();
+    gt::trace_ge_list(memory, kStates, 20u);
+    gt::trace_ge_list(memory, kStates, 21u);
+    const std::string states = read("ge_trace_vblank20.txt");
+    const std::size_t first = states.find("[ge]   set"), second = states.find("[ge]   set", first + 1u);
+    check(first != std::string::npos && second != std::string::npos, "a set line before each prim");
+    if (first != std::string::npos && second != std::string::npos) {
+        const std::string one = states.substr(first, states.find('\n', first) - first);
+        const std::string two = states.substr(second, states.find('\n', second) - second);
+        check(one.find("21=000001") != std::string::npos && one.find("5d=000040") != std::string::npos, "first set line has 21 and 5d");
+        check(two.find("5d=000080") != std::string::npos, "second set line has the new 5d");
+        check(two.find("21=") == std::string::npos, "an unchanged command is not listed again");
+    }
+
     std::filesystem::current_path(std::filesystem::temp_directory_path());
     std::filesystem::remove_all(dir);
     if (failures == 0) std::puts("ge_trace: all checks passed");
