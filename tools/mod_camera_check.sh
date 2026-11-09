@@ -30,9 +30,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-# --toggle-off pairs each frame after the toggle with the baseline frame showing the same lap timer (tools/mod_camera_check.py pair_by_timer):
+# The checks pair frames by their lap timer (tools/mod_camera_check.py pair_by_timer); the toggle check with the baseline frame showing the same lap timer (tools/mod_camera_check.py pair_by_timer):
 # dumping every present (--every 2, the game presents every second vblank) gives the pairing a frame to find when a run is a game step off.
-[ $toggle -eq 1 ] && [ $every_given -eq 0 ] && every=2
+[ $every_given -eq 0 ] && every=2  # every present is dumped: the checks pair frames by lap timer within a few vblanks (a run is often a game step off)
 # The determinism control is mandatory: a yaw 0 run (byte-identical to the baseline) always runs, even when --yaws omits it.
 case " $yaws " in *" 0 "*) ;; *) yaws="0 $yaws";; esac
 [ -x "$build/gt_play" ] || { echo "mod_camera_check: no $build/gt_play" >&2; exit 2; }

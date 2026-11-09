@@ -273,14 +273,15 @@ def judge_orbit(base_frames, mod_frames, indices, yaw=180.0):
         return False, f"only {len(frames)} chase frames (the run is too short or the log has no `script done`)"
     differing = car_frames = digits_compared = 0
     problems, car_problems = [], []
-    base_timers, mod_timers = run_timers({i: base_frames[i] for i in frames}), run_timers({i: mod_frames[i] for i in frames})
+    base_timers, mod_timers = run_timers(base_frames), run_timers({i: mod_frames[i] for i in frames})
     for index in frames:
         base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
         if diff_fraction(base, mod, 0, HUD_TOP) >= DIFF_MIN_FRACTION:
             differing += 1
-        if lap_timer.same_game_frame(base_timers[index], mod_timers[index]):  # the HUD digits are compared only on the same game frame
+        partner = pair_by_timer(base_timers, index, mod_timers[index])  # the HUD digits are compared with the baseline frame on the same game frame
+        if partner is not None:                                          # (matching timer strokes within PAIR_WINDOW present vblanks)
             digits_compared += 1
-            if digits_mask(base) != digits_mask(mod):
+            if digits_mask(read_ppm(base_frames[partner])) != digits_mask(mod):
                 problems.append(f"frame {index}: the HUD's speed digits changed")
         count, cx, cy, bw, bh = car_box(base)
         if count >= CAR_MIN_PIXELS and abs(yaw) >= CAR_CENTRE_MIN_YAW:

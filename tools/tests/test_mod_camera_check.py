@@ -462,3 +462,31 @@ def test_the_timer_gate_does_not_depend_on_the_scene_behind_it(tmp_path):
     ok, message = mc.judge_orbit(base, timed_run(tmp_path, "m", bright), INDICES)
     assert ok, message
     assert "HUD digits identical" in message
+
+
+def dense_run(tmp_path, label, picture, timer_of):
+    """Frames at present vblanks 200, 202, ..., 214 (the chase frames), game frame `timer_of(i)` at the i-th one."""
+    return write_run(tmp_path, label, {200 + 2 * i: with_timer(picture(i), timer_of(i)) for i in range(8)})
+
+
+KEYS = [200 + 2 * i for i in range(8)]
+ORBIT = lambda i: make_frame(car_at=(250, 135), sky=(30, 120, 30))
+PLAIN = lambda i: make_frame(car_at=(240, 140))
+
+
+def test_orbit_pairs_the_digits_of_an_offset_frame_by_its_timer(tmp_path):
+    base = dense_run(tmp_path, "b", PLAIN, lambda i: 10 + i)
+    # the run is two game steps behind (one present): its frame at key 202 shows the game frame the baseline showed at 200
+    mod = dense_run(tmp_path, "m", ORBIT, lambda i: 10 + i - 1)
+    ok, message = mc.judge_orbit(base, mod, KEYS, yaw=180.0)
+    assert ok, message
+    # the HUD changed on those frames: caught on the paired frames
+    bad = write_run(tmp_path, "bad", {200 + 2 * i: with_timer(make_frame(car_at=(250, 135), hud=(10, 10, 200), sky=(30, 120, 30)), 10 + i - 1) for i in range(8)})
+    assert "HUD" in mc.judge_orbit(base, bad, KEYS, yaw=180.0)[1]
+
+
+def test_orbit_does_not_pair_an_unrelated_frame(tmp_path):
+    base = dense_run(tmp_path, "b", PLAIN, lambda i: 10 + i)
+    mod = dense_run(tmp_path, "m", ORBIT, lambda i: 500 + i)       # game frames the baseline never showed within PAIR_WINDOW
+    ok, message = mc.judge_orbit(base, mod, KEYS, yaw=180.0)
+    assert not ok and "digits were compared on only 0/8" in message
