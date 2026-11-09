@@ -375,7 +375,7 @@ def render_html(groups: Sequence[Group], *, document: bool, width: int = 1000, h
                      ["NAMED", sum(1 for f in functions if f.name), len(functions)]]}
     page = _PAGE.replace("__DATA__", json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
     if document:
-        return ('<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n'
+        return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                 '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
                 + page.replace("<main>", "</head>\n<body>\n<main>", 1) + "</body>\n</html>\n")
     return page

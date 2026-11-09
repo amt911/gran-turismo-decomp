@@ -35,7 +35,7 @@ NAMED       ███░░░░░░░░░░░░░░░░░░░�
 ```
 <!-- progress:end -->
 
-[![Decompilation map — click for the interactive version](docs/progress_map.svg)](https://claude.ai/artifact/V93Bh8ZWDTAUGfWaoZa5hq)
+[![Decompilation map — click for the interactive version](docs/progress_map.svg)](https://amt911.github.io/gran-turismo-decomp/progress/)
 
 Each rectangle is a function of the executable, its area proportional to its bytes: green = decompiled by
 hand, teal = decompiled from a template, grey = to do. Groups are 256 KiB slices of the game code by
@@ -43,7 +43,7 @@ address, plus the SDK and Sony libraries apart (approximate boundary). Every dec
 verified against the original with the differential harness.
 
 **Interactive version** (hover for name, address, size and state, or search a function):
-**[online decompilation map](https://claude.ai/artifact/V93Bh8ZWDTAUGfWaoZa5hq)**, or
+**[online decompilation map](https://amt911.github.io/gran-turismo-decomp/progress/)**, or
 [`docs/progress/index.html`](docs/progress/index.html) in a browser after cloning. Everything (map, page and
 bars) is regenerated with `.venv/bin/python -m tools.progress_map`; it holds only addresses, sizes and the
 project's own names.
