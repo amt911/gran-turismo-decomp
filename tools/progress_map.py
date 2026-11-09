@@ -208,8 +208,8 @@ def render_svg(groups: Sequence[Group], *, width: int = 1200, height: int = 720)
     return "\n".join(parts) + "\n"
 
 
-_PAGE = """<title>GT decomp map</title>
-<meta name="description" content="Gran Turismo (PSP): every function of the executable, by size, and how much is decompiled.">
+_PAGE = """<title>Mapa decompilación GT</title>
+<meta name="description" content="Gran Turismo (PSP): cada función del ejecutable, por tamaño, y cuánto está decompilado.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
