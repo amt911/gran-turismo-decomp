@@ -192,3 +192,56 @@ def test_main_toggle_without_script_done_is_a_verdict_not_a_traceback(tmp_path, 
     assert "script done" in capsys.readouterr().out
     (out / "baseline" / "run.log").write_text("[pad] script done at vblank 0\n")
     assert mc.main(["x", str(out), "toggle_2.5"]) == 1  # no --toggle-at either
+
+
+WHITE = (250, 250, 250)
+
+
+def with_timer(frame_bytes, tenths):
+    """The frame with `tenths` lit white columns in the lap timer's box: a different count = a different game frame."""
+    buf = bytearray(frame_bytes)
+    x0, _x1, y0, y1 = mc.TIMER
+    for y in range(y0, y1):
+        for x in range(x0, x0 + tenths):
+            i = len(HEADER) + (y * mc.WIDTH + x) * 3
+            buf[i:i + 3] = bytes(WHITE)
+    return bytes(buf)
+
+
+def test_a_pacing_slip_is_not_judged_but_a_real_change_is(tmp_path):
+    base = run(tmp_path, "base", {i: with_timer(make_frame(), i) for i in range(1, 9)})
+    far = {i: with_timer(make_frame(far_block=True), i) for i in range(1, 9)}
+    far[8] = with_timer(make_frame(car_at=(300, 120), sky=LIGHT), 20)  # one step later: another picture, not judged
+    ok, message = mc.judge_far(base, run(tmp_path, "slip", far), list(range(1, 9)))
+    assert ok, message
+    far[8] = with_timer(make_frame(car_at=(300, 120), sky=LIGHT), 8)  # same game frame, another picture: judged, fails
+    assert not mc.judge_far(base, run(tmp_path, "real", far), list(range(1, 9)))[0]
+
+
+def test_far_and_identity_fail_when_no_frame_is_the_same_game_frame(tmp_path):
+    base = run(tmp_path, "base", {i: with_timer(make_frame(), 1) for i in range(1, 9)})
+    other = run(tmp_path, "other", {i: with_timer(make_frame(far_block=True), 2) for i in range(1, 9)})
+    ok, message = mc.judge_far(base, other, list(range(1, 9)))
+    assert not ok and "same game frame" in message
+    ok, message = mc.judge_identity(base, other)
+    assert not ok and "same game frame" in message
+
+
+def test_identity_skips_a_slipped_frame(tmp_path):
+    frames = {i: with_timer(make_frame(), i) for i in range(1, 9)}
+    base = run(tmp_path, "base", frames)
+    slipped = dict(frames)
+    slipped[8] = with_timer(make_frame(car_at=(300, 120)), 20)
+    assert mc.judge_identity(base, run(tmp_path, "slip", slipped))[0]
+
+
+def test_toggle_skips_slipped_frames_after_it(tmp_path):
+    idx = list(range(1, 15))
+    base = run(tmp_path, "base", {i: with_timer(make_frame(), i) for i in idx})
+    mixed = {i: with_timer(make_frame(far_block=True) if i <= 6 else make_frame(), i) for i in idx}
+    mixed[14] = with_timer(make_frame(car_at=(300, 120)), 30)  # slipped after the toggle: not judged
+    log = "[mods] draw-distance -> OFF\n"
+    ok, message = mc.judge_toggle(base, run(tmp_path, "mod", mixed), idx[:6], idx[8:], log)
+    assert ok, message
+    mixed[13] = with_timer(make_frame(far_block=True), 13)  # same game frame and still edited
+    assert "still edits" in mc.judge_toggle(base, run(tmp_path, "still", mixed), idx[:6], idx[8:], log)[1]
