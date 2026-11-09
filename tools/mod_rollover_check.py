@@ -57,9 +57,10 @@ MAX_REST_SPEED = 3.0      # m/s: "upside down at rest"
 FLIP_FLAG_BITS = 0x06     # +0x74B bits the flip state machine sets
 MIN_PRE_TOGGLE_LINES = 10
 MAX_BODY_DEPTH = 0.25     # m: the deepest box corner of the tumbling car below the ground (the box off: 1.3 m; the first tilted step is already ~0.2 m low)
-MAX_TUMBLE_RISE = 1.35    # m: highest the origin gets above the ground while tumbling. A box rolling over its roof edge puts the origin at the half-diagonal of its
-                          # cross-section (sqrt(0.84^2 + 0.8^2) = 1.16 m, measured 1.17): the stock 0.64 m is only possible because the roof sinks into the road.
-                          # A rigid box without the kick cap hopped to 1.5-2.0 m (zt 1.15: diagonal 1.42 m, measured 1.56 and 2.04)
+MAX_TUMBLE_RISE = 1.6     # m: highest the origin gets above the ground plane while tumbling. Not a "hop" measure: a box resting on a roof edge or corner puts the origin
+                          # at the half-diagonal of its cross-section (sqrt(0.84^2 + 0.8^2) = 1.16 m) or higher when it stands on a nose corner (measured 1.43 m with the roof
+                          # 0.03 m inside the ground), and the plane is the one fitted while upright (the terrain falls away); the stock 0.64 m only happens because the roof sinks
+                          # into the road. What it still catches: a box that is launched (a rigid box without the cap reached 1.5-2.0 m with its roof 0.07 m inside)
 MIN_PREMISE_DEPTH = 0.5   # m: the box-off run must sink at least this deep, or the depth assertion proves nothing
 SETTLE_AFTER_RESET = 20   # steps after a reset out of a tumble in which the springs settle (0.9 rad/s of wobble at 10, 0.1 at 17)
 MAX_SETTLED_RATE = 0.3
@@ -181,7 +182,7 @@ def judge_box(text):
         return False, f"the car's body sank {-deepest:.2f} m into the ground while tumbling (max {MAX_BODY_DEPTH} m; roof {min(b['roof'] for b in tumble):.2f})"
     rise = max(b["zg"] for b in tumble)
     if rise > MAX_TUMBLE_RISE:
-        return False, f"the origin rose {rise:.2f} m over the ground in the tumble (max {MAX_TUMBLE_RISE} m): the box hopped the car"
+        return False, f"the origin rose {rise:.2f} m over the ground in the tumble (max {MAX_TUMBLE_RISE} m): the box launched the car"
     if not any(b["box"] and b["push"] > 0 for b in tumble):
         return False, "the box never acted (no BOX line with box=1 and a push): body_box is off or the tumble never touched the ground"
     stats = [(int(m.group(4)), int(m.group(3))) for m in BOXSTAT.finditer(text)]

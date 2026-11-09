@@ -306,8 +306,8 @@ def test_box_judge_fails_a_deep_sinking_car():
 
 
 def test_box_judge_fails_a_launched_car():
-    ok, message = mr.judge_box(box_log(zg=1.6))
-    assert not ok and "hopped" in message
+    ok, message = mr.judge_box(box_log(zg=1.8))
+    assert not ok and "launched" in message
 
 
 def test_box_judge_needs_lines_a_push_and_no_upright_touch():
