@@ -36,7 +36,7 @@ _REGISTRATION = re.compile(
     r"^[ \t]*(?:GT_DECOMP(_[A-Z0-9_]+)?\(\s*0x([0-9A-Fa-f]+)u?\s*[,)]|" + SHORTHAND_REGISTRATION + ")", re.MULTILINE
 )
 _SYMBOL = re.compile(r"^([^/\s][^=]*?) = 0x([0-9A-Fa-f]+);", re.MULTILINE)
-_STATE_LABEL = {"hand": "decompilada a mano", "template": "decompilada (plantilla)", None: "pendiente"}
+_STATE_LABEL = {"hand": "decompiled by hand", "template": "decompiled (template)", None: "to do"}
 
 
 @dataclass(frozen=True)
@@ -157,7 +157,7 @@ def bars(functions: Sequence[Function]) -> str:
     done_n = sum(1 for f in functions if f.state)
     done_b = sum(f.size for f in functions if f.state)
     named = sum(1 for f in functions if f.name)
-    rows = [("FUNCIONES", done_n, total_n), ("BYTES", done_b, total_b), ("CON NOMBRE", named, total_n)]
+    rows = [("FUNCTIONS", done_n, total_n), ("BYTES", done_b, total_b), ("NAMED", named, total_n)]
     lines = [f"{label:<11} {_bar(n / d if d else 0.0)} {100 * n / d if d else 0.0:6.2f} %  {n} / {d}"
              for label, n, d in rows]
     return "```text\n" + "\n".join(lines) + "\n```"
@@ -186,11 +186,11 @@ def render_svg(groups: Sequence[Group], *, width: int = 1200, height: int = 720)
         f'viewBox="0 0 {width} {height + top}" font-family="sans-serif">',
         f'<rect width="{width}" height="{height + top}" fill="#1d2129"/>',
         '<text x="6" y="16" fill="#e6e8ec" font-size="13" font-weight="bold">'
-        'Gran Turismo (PSP) — progreso de la decompilación</text>',
+        'Gran Turismo (PSP) — decompilation progress</text>',
         f'<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: {done} / {len(functions)} '
         f'({100 * done / max(len(functions), 1):.2f} %) · bytes: {done_b} / {total_b} ({100 * done_b / total_b:.2f} %) · '
-        'cada rectángulo es una función, por tamaño en bytes · verde = a mano, turquesa = plantilla, '
-        'gris = pendiente</text>',
+        'each rectangle is a function, sized by its bytes · green = by hand, teal = template, '
+        'grey = to do</text>',
         f'<g transform="translate(0,{top})">',
     ]
     for group, (gx, gy, gw, gh), placed in layout(groups, width, height):
@@ -201,15 +201,15 @@ def render_svg(groups: Sequence[Group], *, width: int = 1200, height: int = 720)
                          f'fill="{_FILL[function.state]}"/>')
         if gh > 42:
             share = 100 * group.done / group.size if group.size else 0.0
-            label = "SDK y librerías" if group.label == "SDK" else group.label
+            label = "SDK and libraries" if group.label == "SDK" else group.label
             parts.append(f'<text x="{gx + 3:.1f}" y="{gy + 10:.1f}" fill="#e6e8ec" font-size="9">'
                          f'{label} {share:.1f} %</text>')
     parts.append("</g></svg>")
     return "\n".join(parts) + "\n"
 
 
-_PAGE = """<title>Mapa decompilación GT</title>
-<meta name="description" content="Gran Turismo (PSP): cada función del ejecutable, por tamaño, y cuánto está decompilado.">
+_PAGE = """<title>GT decomp map</title>
+<meta name="description" content="Gran Turismo (PSP): every function of the executable, by size, and how much is decompiled.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
@@ -254,25 +254,25 @@ canvas { display: block; width: 100%; touch-action: manipulation; }
 </style>
 <main>
   <header>
-    <h1>Gran Turismo (PSP) · mapa de la decompilación</h1>
-    <p class="sub">UCES-01245 v2.00 · ejecutable PDIAPP · cada rectángulo es una función, con área proporcional a sus bytes</p>
+    <h1>Gran Turismo (PSP) · decompilation map</h1>
+    <p class="sub">UCES-01245 v2.00 · executable PDIAPP · each rectangle is a function, its area proportional to its bytes</p>
   </header>
   <div class="strip">
     <div class="bars" id="bars"></div>
     <div class="legend">
-      <span><i class="sw" style="background:var(--hand)"></i>decompilada a mano</span>
-      <span><i class="sw" style="background:var(--template)"></i>decompilada (plantilla)</span>
-      <span><i class="sw" style="background:var(--todo)"></i>pendiente</span>
+      <span><i class="sw" style="background:var(--hand)"></i>decompiled by hand</span>
+      <span><i class="sw" style="background:var(--template)"></i>decompiled (template)</span>
+      <span><i class="sw" style="background:var(--todo)"></i>to do</span>
     </div>
-    <label for="q">Buscar función o dirección
+    <label for="q">Search a function or address
       <input id="q" type="search" placeholder="crc32, 0x08A76F20…" autocomplete="off">
     </label>
   </div>
   <div class="map" id="map"><canvas id="c"></canvas><div id="tip" hidden></div></div>
-  <p class="note">Grupos: el código del juego en tramos de 256 KiB por dirección, y aparte el SDK y las librerías de
-  Sony enlazadas estáticamente (frontera aproximada). Cada función decompilada se ha comparado con la original en el
-  harness diferencial. Generado por <code>tools/progress_map.py</code>; solo contiene direcciones, tamaños y nombres
-  propios del proyecto.</p>
+  <p class="note">Groups: the game code in 256 KiB slices by address, plus the statically linked SDK and Sony libraries
+  apart (approximate boundary). Every decompiled function has been compared with the original in the
+  differential harness. Generated by <code>tools/progress_map.py</code>; it holds only addresses, sizes and the project's
+  own names.</p>
 </main>
 <script>
 const DATA = __DATA__;
@@ -280,7 +280,7 @@ const DATA = __DATA__;
   const canvas = document.getElementById("c"), map = document.getElementById("map"), tip = document.getElementById("tip");
   const q = document.getElementById("q"), ctx = canvas.getContext("2d");
   const F = DATA.functions, G = DATA.groups, W = DATA.width, H = DATA.height;
-  const names = DATA.names, states = ["pendiente", "decompilada a mano", "decompilada (plantilla)"];
+  const names = DATA.names, states = ["to do", "decompiled by hand", "decompiled (template)"];
   let scale = 1, hover = -1, matches = null;
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const hex = a => "0x" + (a >>> 0).toString(16).toUpperCase().padStart(8, "0");
@@ -323,7 +323,7 @@ const DATA = __DATA__;
     if (i < 0) { tip.hidden = true; return; }
     const f = F[i], name = f[7] >= 0 ? names[f[7]] : "func_" + hex(f[5]).slice(2);
     tip.innerHTML = `<strong>${name.replace(/[<&]/g, c => c === "<" ? "&lt;" : "&amp;")}</strong><br>${hex(f[5])} · ${f[6]} bytes<br>` +
-      `${states[f[4]]} · grupo ${G[f[8]].label}`;
+      `${states[f[4]]} · group ${G[f[8]].label}`;
     tip.hidden = false;
     const mr = map.getBoundingClientRect(); let tx = e.clientX - mr.left + 14, ty = e.clientY - mr.top + 14;
     if (tx + tip.offsetWidth > mr.width) tx = Math.max(4, e.clientX - mr.left - tip.offsetWidth - 14);
@@ -364,15 +364,15 @@ def render_html(groups: Sequence[Group], *, document: bool, width: int = 1000, h
             state = {"hand": 1, "template": 2}.get(function.state, 0)
             rows.append([round(x, 2), round(y, 2), round(w, 2), round(h, 2), state, LOAD_BASE + function.entry,
                          function.size, n, g_index])
-        label = "SDK y librerías" if group.label == "SDK" else group.label
+        label = "SDK and libraries" if group.label == "SDK" else group.label
         group_rows.append({"label": label, "x": round(gx, 2), "y": round(gy, 2), "w": round(gw, 2), "h": round(gh, 2),
                            "share": 100 * group.done / group.size if group.size else 0.0, "first": first, "last": len(rows)})
     functions = [f for g in groups for f in g.functions]
     total_b = sum(f.size for f in functions)
     data = {"width": width, "height": height, "functions": rows, "groups": group_rows, "names": names,
-            "bars": [["FUNCIONES", sum(1 for f in functions if f.state), len(functions)],
+            "bars": [["FUNCTIONS", sum(1 for f in functions if f.state), len(functions)],
                      ["BYTES", sum(f.size for f in functions if f.state), total_b],
-                     ["CON NOMBRE", sum(1 for f in functions if f.name), len(functions)]]}
+                     ["NAMED", sum(1 for f in functions if f.name), len(functions)]]}
     page = _PAGE.replace("__DATA__", json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
     if document:
         return ('<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n'
