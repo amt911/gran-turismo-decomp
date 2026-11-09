@@ -13,7 +13,7 @@
 #   --keep-baseline  reuse $OUT/baseline from an earlier run (same --decomp)
 # Env: MOD_CHECK_NO_LOCK=1 (the caller already holds tools/cpu_lock.sh), GT_MODS_REPO (default ../gt-mods), BUILD (default build),
 # OUT (default recomp/analysis/mod_camera_check, gitignored; frames are on disk there, never /tmp). Exit: 0 pass, 1 check failed, 2 setup/run problem.
-# Each run is a real-time job: inside the memory cgroup and the shared CPU lock (tools/cpu_lock.sh).
+# Each run is a real-time job: inside the memory cgroup and its own hold of the shared CPU lock (tools/cpu_lock.sh; holds are limited to 30 min).
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo" || exit 2
@@ -49,10 +49,6 @@ if [ $without -eq 0 ]; then
   sed 's/^enabled = false/enabled = true/' "$mods_repo/orbit-camera/mod.toml" > "$out/mods/orbit-camera/mod.toml"
 fi
 pad=$(grep -v '^#' config/pad_routes/chase.pad)
-# One lock hold for all the runs (each is real-time; the whole check stays well under the lock's 30 min): re-run this script under it.
-if [ -z "${MOD_CHECK_NO_LOCK:-}" ]; then
-  exec env MOD_CHECK_NO_LOCK=1 tools/cpu_lock.sh mod_camera_check "$0" "${orig_args[@]}"
-fi
 toggle_env=""; [ $toggle -eq 1 ] && toggle_env="orbit-camera@v$toggle_at"
 # run_one LABEL MODS_DIR [FAKE]: one gt_play run, frames in $out/LABEL/frames
 run_one() {
@@ -66,14 +62,21 @@ run_one() {
   if [ $rc -ne 0 ]; then echo "mod_camera_check: gt_play exited $rc (log $out/$label/run.log)" >&2; return 2; fi
   grep -h '^\[mods\]' "$out/$label/run.log"; grep -h 'script done' "$out/$label/run.log"
 }
-if [ $keep -eq 0 ] || [ ! -d "$out/baseline/frames" ]; then run_one baseline "$out/nomods" || exit 2; fi
+# Each run is real-time and takes minutes: every one runs in its OWN cpu_lock hold (the shared lock's limit is 30 min; the whole check is longer). The script
+# re-runs itself for one run (MOD_CHECK_ONLY="LABEL MODS_DIR [FAKE]") under tools/cpu_lock.sh; the verdict is one mod_camera_check.py call over all the runs.
+if [ -n "${MOD_CHECK_ONLY:-}" ]; then set -- $MOD_CHECK_ONLY; run_one "$@"; exit $?; fi
+locked_run_one() {
+  if [ -n "${MOD_CHECK_NO_LOCK:-}" ]; then run_one "$@"; return $?; fi  # the caller already holds the lock
+  tools/cpu_lock.sh "mod_camera_check:$1" env MOD_CHECK_ONLY="$*" "$0" "${orig_args[@]}"
+}
+if [ $keep -eq 0 ] || [ ! -d "$out/baseline/frames" ]; then locked_run_one baseline "$out/nomods" || exit 2; fi
 mdir="$out/mods"; [ $without -eq 1 ] && mdir="$out/nomods"
 if [ $toggle -eq 1 ]; then
-  run_one toggle_90 "$mdir" 90 || exit 2
+  locked_run_one toggle_90 "$mdir" 90 || exit 2
   .venv/bin/python -I tools/mod_camera_check.py "$out" toggle_90 --toggle-at "$toggle_at"
   exit $?
 fi
-for y in $yaws; do run_one "yaw_$y" "$mdir" "$y" || exit 2; done
+for y in $yaws; do locked_run_one "yaw_$y" "$mdir" "$y" || exit 2; done
 args=""
 for y in $yaws; do args="$args yaw_$y"; done
 .venv/bin/python -I tools/mod_camera_check.py "$out" $args
