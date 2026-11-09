@@ -232,7 +232,7 @@ def make_out(tmp_path, roll=None, recover=None, quiet=None, quiet_label="disable
 
 
 def test_main_roll_and_recover(tmp_path, capsys):
-    out = make_out(tmp_path, roll=good_log(), recover=recover_log())
+    out = make_out(tmp_path, roll=box_log(), recover=recover_log())
     assert mr.main(["x", out, "roll"]) == 0
     assert "PASS roll" in capsys.readouterr().out
     assert mr.main(["x", out, "recover"]) == 0
@@ -273,3 +273,93 @@ def test_main_identity_modes(tmp_path, capsys, mode):
     assert f"PASS {mode}" in capsys.readouterr().out
     ppm(tmp_path / mode / "frames" / "frame_000030.ppm", 200)
     assert mr.main(args) == 1
+
+
+# --- body box ----------------------------------------------------------------------------------------------------------------------
+def box_line(st, upn=0.5, zg=0.3, clear=-0.1, roof=-0.05, contacts=1, push=0.05, box=1):
+    return (f"[mod:rollover] BOX st={st} box={box} upn={upn:.3f} z-g={zg:.3f} clear={clear:.3f} roof={roof:.3f} contacts={contacts} "
+            f"depth={-clear:.3f} push={push:.3f} dv=1.00 vz=0.50")
+
+
+def boxstat(upright=0):
+    return f"[mod:rollover] BOXSTAT st=1800 steps=1800 touch=8 touch_upright={upright} tilted=40 min_clear=-0.2 min_roof_tilted=-0.1"
+
+
+def box_log(**kw):
+    return good_log() + "\n" + "\n".join(box_line(1864 + i * 2, **kw) for i in range(10)) + "\n" + boxstat()
+
+
+def test_parse_box():
+    boxes = mr.parse_box(box_log(clear=-0.12))
+    assert len(boxes) == 10 and boxes[0]["clear"] == -0.12 and boxes[0]["box"] and boxes[0]["push"] == 0.05
+
+
+def test_box_judge_passes_a_shallow_low_tumble():
+    ok, message = mr.judge_box(box_log())
+    assert ok, message
+    assert "0.10 m below" in message
+
+
+def test_box_judge_fails_a_deep_sinking_car():
+    ok, message = mr.judge_box(box_log(clear=-1.3, push=0.0, box=0))
+    assert not ok and "sank 1.30 m" in message  # the depth is judged before whether the box acted: the box-off sabotage fails here
+
+
+def test_box_judge_fails_a_launched_car():
+    ok, message = mr.judge_box(box_log(zg=1.8))
+    assert not ok and "launched" in message
+
+
+def test_box_judge_needs_lines_a_push_and_no_upright_touch():
+    assert "did not measure" in mr.judge_box(good_log())[1]
+    assert "never acted" in mr.judge_box(box_log(push=0.0))[1]
+    assert "no IMPULSE" in mr.judge_box("")[1]
+    # a push at up.n > 0.9 AFTER the hit (the car rolling back upright) is fine; before it, never
+    assert mr.judge_box(good_log() + "\n" + box_line(1900, upn=0.95) + "\n" + box_line(1870))[0]
+    # a push at up.n > 0.9 fails even when the car never reached the impulse (the push-upright sabotage)
+    ok, message = mr.judge_box("\n".join(state(750 + i * 15) for i in range(10)) + "\n" + box_line(900, upn=0.99, push=0.1))
+    assert not ok and "before the first impact" in message
+    assert not mr.judge_box(box_log(clear=float("nan")))[0]
+
+
+def test_box_judge_ignores_upright_lines():
+    text = good_log() + "\n" + box_line(1870, upn=0.95, clear=-1.0, zg=2.0, push=0.0) + "\n" + box_line(1872) + "\n" + boxstat()
+    assert mr.judge_box(text)[0]
+
+
+def with_box_off(text, sink=1.3):
+    return text + "\n" + "\n".join(box_line(1864 + i * 2, clear=-sink, push=0.0, box=0) for i in range(10))
+
+
+def test_box_compare_identical_before_the_impact():
+    on = box_log()
+    ok, message = mr.judge_box_compare(on, with_box_off(good_log()))
+    assert ok, message
+    assert "byte-identical" in message
+
+
+def test_box_compare_fails_when_the_box_changed_the_car_before_the_impact():
+    on = box_log().replace("pos=-300.000,250.000,2.000", "pos=-300.000,250.000,2.001", 1)
+    ok, message = mr.judge_box_compare(on, with_box_off(good_log()))
+    assert not ok and "before the first impact" in message
+
+
+def test_box_compare_needs_a_sinking_baseline_and_impulses():
+    assert "proves nothing" in mr.judge_box_compare(box_log(), with_box_off(good_log(), sink=0.1))[1]
+    assert "IMPULSE" in mr.judge_box_compare("x", "y")[1]
+    # the box run lost its impulse (the box pushed the car before the hit): judged against the box-off run's state lines
+    ok, message = mr.judge_box_compare("\n".join(state(750 + i * 15, pos=(-300.0 + i, 250.0, 2.0)) for i in range(70)), with_box_off(good_log()))
+    assert not ok and "before the first impact" in message
+
+
+def test_main_box_modes(tmp_path, capsys):
+    for label, text in (("roll", box_log()), ("nobox", with_box_off(good_log()))):
+        (tmp_path / label).mkdir()
+        (tmp_path / label / "run.log").write_text(text)
+    assert mr.main(["x", str(tmp_path), "roll"]) == 0
+    out = capsys.readouterr().out
+    assert "PASS roll:" in out and "PASS box:" in out
+    assert mr.main(["x", str(tmp_path), "boxcmp"]) == 0
+    (tmp_path / "roll" / "run.log").write_text(good_log() + "\n" + "\n".join(box_line(1864 + i, clear=-1.3, push=0.0, box=0) for i in range(5)))
+    assert mr.main(["x", str(tmp_path), "roll"]) == 1  # the box off: the roll judge passes, the box judge fails
+    assert "PASS roll:" in capsys.readouterr().out
