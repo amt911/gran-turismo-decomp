@@ -11,7 +11,7 @@
 #                touch while upright; and the default flow adds a `nobox` run, the mod with body_box = false: the state lines before the first impact must be
 #                byte-identical with and without the box, and without it the body must sink > 0.5 m)
 #   --frames     one more run with the box on and a frame every 3 vblanks, pruned to the vblanks around the crash (--frames-window FROM:TO, default
-#                16250:16700): PPMs in $OUT/tumble/frames for a person to look at (no judge); with --without-box the same for the box off
+#                16250:16700): PPMs in $OUT/tumble/frames (tumble_nobox with --without-box) for a person to look at (no judge); with --without-box the same for the box off
 #   --roll-only  just the roll run (no baseline, no disabled run)
 #   --toggle-off the F9 menu's toggle turns the mod off (GT_MOD_MENU_TEST_TOGGLE=rollover@v<--toggle-at>, default v16300) before the crash:
 #                PASS = the mod ran before `-> OFF` and logged nothing after, the frames from 120 vblanks after the toggle to the route's end
@@ -110,10 +110,10 @@ if [ $toggle -eq 1 ]; then
   exit $?
 fi
 if [ $frames -eq 1 ]; then  # the tumble in pictures, for a person: the box on (or off with --without-box), a frame every 3 vblanks around the crash
-  fm="$out/mods"; [ $nobox_frames -eq 1 ] && fm="$out/mods_nobox"
+  fm="$out/mods" tl=tumble; [ $nobox_frames -eq 1 ] && { fm="$out/mods_nobox"; tl=tumble_nobox; }
   seconds=$((seconds * 3))  # a frame every 3 vblanks makes the run several times slower
-  every=3 run_one tumble "$fm" - 1 "$route" || exit 2
-  $py -I - "$out/tumble" "$fwindow" <<'PY'
+  every=3 run_one $tl "$fm" - 1 "$route" || exit 2
+  $py -I - "$out/$tl" "$fwindow" <<'PY'
 import os, re, sys
 d, window = sys.argv[1], sys.argv[2]
 lo, hi = (int(x) for x in window.split(":"))
