@@ -68,9 +68,9 @@ def test_bars_report_functions_bytes_and_names():
     functions = [Function(0x28, 30, "hand", "f"), Function(0x48, 10, "template", None),
                  Function(0x58, 60, None, "g")]
     text = bars(functions)
-    assert "FUNCIONES" in text and "2 / 3" in text and "66.67 %" in text
+    assert "FUNCTIONS" in text and "2 / 3" in text and "66.67 %" in text
     assert "BYTES" in text and "40 / 100" in text and "40.00 %" in text
-    assert "CON NOMBRE" in text and "2 / 3" in text
+    assert "NAMED" in text and "2 / 3" in text
 
 
 def test_replace_between_markers_rewrites_only_the_marked_block():

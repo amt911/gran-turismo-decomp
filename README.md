@@ -1,116 +1,116 @@
 # gran-turismo-decomp
 
-Decompilación de **Gran Turismo para PSP** (2009), versión europea **UCES-01245 v2.00**: reconstruir el
-ejecutable del juego (`EBOOT.BIN`, módulo `PDIAPP`) como **C/C++ legible que compila y corre en otras
-plataformas** (PC primero), para poder **modificar el juego** desde su código fuente.
+Decompilation of **Gran Turismo for the PSP** (2009), European release **UCES-01245 v2.00**: rebuilding the
+game's executable (`EBOOT.BIN`, module `PDIAPP`) as **readable C/C++ that compiles and runs on other
+platforms** (PC first), so the game can be **modded** from its source code.
 
-Cómo: el ejecutable se traduce entero a C++ con [PSPRecomp](https://github.com/jessicanataliagta/PSPRecomp)
-para que el juego corra en PC desde el principio, y después cada función traducida se sustituye por
-código decompilado a mano, comprobando que se comporta exactamente igual que la original. No se busca
-un binario idéntico byte a byte (los compiladores exactos de Sony no son públicos).
+How: the whole executable is first translated to C++ with [PSPRecomp](https://github.com/jessicanataliagta/PSPRecomp)
+so the game runs on PC from day one; then each translated function is replaced by hand-decompiled code,
+checked to behave exactly like the original. A byte-identical binary is not the goal (Sony's exact
+compilers are not public).
 
-> **Estado (2026-11-09)**
+> **Status (2026-11-09)**
 >
-> - **🎮 El juego se juega en PC:** `build/gt_play` (ventana SDL, teclado o mando, sonido y música, partidas
->   guardadas): carreras, contrarreloj, concesionario y garaje. Dibuja con
->   la GPU (Vulkan) o por software. Controles y ajustes: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
-> - **🧩 Decompilación:** 16.783 de 23.208 funciones (72 %) ya son C/C++ legible (a mano o con plantilla), comprobado contra el
->   original con el harness diferencial: cada una deja la misma salida y la misma memoria que la recompilada en
->   las rutas de prueba (carrera, concesionario, garaje, opciones, Trial Mountain…) o, si ninguna ruta la alcanza,
->   en casos sintéticos. 1.534 funciones tienen ya su nombre real, cada uno con su evidencia en
->   `config/symbol_addrs.txt`. Barras y mapa abajo; informe: `.venv/bin/python -m tools.progress`.
-> - **🔧 Mods nativos** al estilo Dusklight, sin tocar el código del juego: en
->   [amt911/gt-mods](https://github.com/amt911/gt-mods) (pedales analógicos, cámara orbital, distancia de
->   dibujado, volver a la pista, vuelcos, trucos). Menú en juego con F9. Cómo escribirlos: [`docs/MODS.md`](docs/MODS.md).
-> - **Siguiente:** seguir decompilando por lotes, descargador de mods dentro del juego, más de 60 fps con
->   interpolación, deformación por choques. Detalle en [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> - **🎮 The game is playable on PC:** `build/gt_play` (SDL window, keyboard or controller, sound and music,
+>   saves): races, Time Trial, dealer and garage. It draws with the GPU (Vulkan) or in software. Controls and
+>   settings: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
+> - **🧩 Decompilation:** 16,783 of 23,208 functions (72 %) are already readable C/C++ (by hand or from a
+>   template), checked against the original with the differential harness: each one leaves the same output and
+>   the same memory as the recompiled original on the test routes (race, dealer, garage, options, Trial
+>   Mountain…) or, where no route reaches it, on synthetic cases. 1,534 functions have their real name, each
+>   with its evidence in `config/symbol_addrs.txt`. Bars and map below; report: `.venv/bin/python -m tools.progress`.
+> - **🔧 Native mods** in the style of Dusklight, without touching the game's code: in
+>   [amt911/gt-mods](https://github.com/amt911/gt-mods) (analog pedals, orbit camera, draw distance, reset to
+>   track, rollovers, cheats). In-game menu on F9. How to write one: [`docs/MODS.md`](docs/MODS.md).
+> - **Next:** keep decompiling in batches, an in-game mod downloader, above 60 fps with interpolation, crash
+>   deformation. Details in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-## Mapa de lo que queda
+## Map of what is left
 
 <!-- progress:start -->
 ```text
-FUNCIONES   █████████████████████████████░░░░░░░░░░░  72.32 %  16783 / 23208
+FUNCTIONS   █████████████████████████████░░░░░░░░░░░  72.32 %  16783 / 23208
 BYTES       ██████████████████████░░░░░░░░░░░░░░░░░░  55.49 %  2316932 / 4175084
-CON NOMBRE  ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   6.61 %  1534 / 23208
+NAMED       ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   6.61 %  1534 / 23208
 ```
 <!-- progress:end -->
 
-![Mapa de la decompilación](docs/progress_map.svg)
+[![Decompilation map — click for the interactive version](docs/progress_map.svg)](https://claude.ai/artifact/V93Bh8ZWDTAUGfWaoZa5hq)
 
-Cada rectángulo es una función del ejecutable, con área proporcional a sus bytes: verde = decompilada
-a mano, turquesa = decompilada con una plantilla, gris = pendiente. Los grupos son tramos de 256 KiB
-del código del juego por dirección, y aparte el SDK y las librerías de Sony (frontera aproximada).
-Todas las decompiladas están verificadas contra la original con el harness diferencial.
+Each rectangle is a function of the executable, its area proportional to its bytes: green = decompiled by
+hand, teal = decompiled from a template, grey = to do. Groups are 256 KiB slices of the game code by
+address, plus the SDK and Sony libraries apart (approximate boundary). Every decompiled function is
+verified against the original with the differential harness.
 
-**Versión interactiva** (pasa el ratón por encima para ver nombre, dirección, tamaño y estado, o busca
-una función): [mapa interactivo en línea](https://claude.ai/artifact/V93Bh8ZWDTAUGfWaoZa5hq), o
-[`docs/progress/index.html`](docs/progress/index.html) en el navegador tras clonar. Se regenera todo (mapa, página y barras) con `.venv/bin/python -m tools.progress_map`; solo
-contiene direcciones, tamaños y nombres propios del proyecto.
+**Interactive version** (hover for name, address, size and state, or search a function):
+**[online decompilation map](https://claude.ai/artifact/V93Bh8ZWDTAUGfWaoZa5hq)**, or
+[`docs/progress/index.html`](docs/progress/index.html) in a browser after cloning. Everything (map, page and
+bars) is regenerated with `.venv/bin/python -m tools.progress_map`; it holds only addresses, sizes and the
+project's own names.
 
-## Qué hay y qué no
+## What is here and what is not
 
-- **Este repo no contiene datos del juego** — ni ISO, ni ejecutables (cifrados o no), ni assets, ni
-  el C++ que genera el recompilador, ni compiladores propietarios. Necesitas **tu propio volcado** del
-  UMD.
-- El volcado se verifica por hash. El esperado es:
+- **This repo holds no game data** — no ISO, no executables (encrypted or not), no assets, no C++
+  generated by the recompiler, no proprietary compilers. You need **your own dump** of the UMD.
+- The dump is verified by hash. The expected ones are:
 
-  | Fichero | SHA1 |
+  | File | SHA1 |
   | --- | --- |
   | `Gran Turismo (v2.0) [UCES-01245].iso` | `c84473375e3cd000d8f14c5905e6514389fd6a40` |
-  | `EBOOT.BIN` descifrado (ELF) | `8746583fa8298f6447132988a01b236a8c5994b0` |
+  | Decrypted `EBOOT.BIN` (ELF) | `8746583fa8298f6447132988a01b236a8c5994b0` |
 
-- **Fuera del alcance**: los scripts Adhoc (ya cubiertos al 100 % por
-  [OpenAdhoc](https://github.com/Nenkai/OpenAdhoc)), los assets de `GT.VOL`
-  ([GTPSPVolTools](https://github.com/Nenkai/GTPSPVolTools)) y los módulos PRX de Sony.
+- **Out of scope**: the Adhoc scripts (already 100 % covered by
+  [OpenAdhoc](https://github.com/Nenkai/OpenAdhoc)), the `GT.VOL` assets
+  ([GTPSPVolTools](https://github.com/Nenkai/GTPSPVolTools)) and Sony's PRX modules.
 
-## Empezar
+## Getting started
 
-Guía rápida (Arch Linux; detalle y otros usos en [`docs/COMPILAR.md`](docs/COMPILAR.md)):
+Quick guide (Arch Linux; details and other uses in [`docs/COMPILAR.md`](docs/COMPILAR.md), in Spanish):
 
 ```bash
-# 0. Una vez: dependencias del sistema
+# 0. Once: system dependencies
 sudo pacman -S --needed git curl unzip 7zip clang cmake ninja uv pkgconf ffmpeg openssl zlib \
                         sdl2 vulkan-icd-loader glslang
 
-# 1. Tu ISO (UCES-01245 v2.00) en game_files/ — se comprueba por hash
-cp "/ruta/Gran Turismo (v2.0) [UCES-01245].iso" game_files/
+# 1. Your ISO (UCES-01245 v2.00) in game_files/ — checked by hash
+cp "/path/Gran Turismo (v2.0) [UCES-01245].iso" game_files/
 
-# 2. Herramientas fijadas, extraer el EBOOT y recompilarlo a C++ (todo queda fuera de git)
+# 2. Pinned tools, extract the EBOOT and recompile it to C++ (all of it stays out of git)
 tools/setup.sh
-.venv/bin/python -m tools.extract --full     # --full: también GT.VOL, que el juego necesita
+.venv/bin/python -m tools.extract --full     # --full: also GT.VOL, which the game needs
 .venv/bin/python -m tools.recomp
 
-# 3. Compilar (≈ 4 min la primera vez; con tope de memoria)
+# 3. Build (≈ 4 min the first time; with a memory cap)
 systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
   sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ && cmake --build build -j8'
 
-# 4. Jugar desde la raíz del repo (ventana, teclado o mando, sonido; partidas en build/savedata/)
+# 4. Play from the repo root (window, keyboard or controller, sound; saves in build/savedata/)
 build/gt_play
 ```
 
-Controles por defecto: W / Enter = acelerar y aceptar, S = frenar, A / D = girar, flechas = menús,
-Retroceso = atrás, Escape = START, F10 = ajustes, F11 = pantalla completa (mando: gatillos + stick).
-`build/gt_native` es la versión sin ventana para pruebas y el harness diferencial.
+Default controls: W / Enter = accelerate and accept, S = brake, A / D = steer, arrows = menus,
+Backspace = back, Escape = START, F10 = settings, F11 = fullscreen (controller: triggers + stick).
+`build/gt_native` is the windowless build for tests and the differential harness.
 
-**Mods nativos** (solo `gt_play`): bibliotecas `.so` con un `mod.toml` en `build/mods/<id>/` (o `GT_MODS_DIR`), cargadas con el
-SDK `include/gt_mod/gt_mod_api.h`; `GT_NO_MODS=1` los desactiva. Los mods viven en el repo público
-[amt911/gt-mods](https://github.com/amt911/gt-mods); F9 abre su menú en juego (también con el mando: Select + Start).
-Comprobaciones en juego: `tools/mod_*_check.sh`. Cómo escribir e instalar mods: [`docs/MODS.md`](docs/MODS.md).
+**Native mods** (`gt_play` only): `.so` libraries with a `mod.toml` in `build/mods/<id>/` (or `GT_MODS_DIR`), loaded through
+the SDK `include/gt_mod/gt_mod_api.h`; `GT_NO_MODS=1` turns them off. The mods live in the public repo
+[amt911/gt-mods](https://github.com/amt911/gt-mods); F9 opens their in-game menu (also on the controller: Select + Start).
+In-game checks: `tools/mod_*_check.sh`. How to write and install mods: [`docs/MODS.md`](docs/MODS.md).
 
-## Para agentes (Claude Code / Codex)
+## For agents (Claude Code / Codex)
 
-- [`AGENTS.md`](AGENTS.md) es la guía canónica; [`CLAUDE.md`](CLAUDE.md) solo la importa y añade lo
-  exclusivo de Claude Code (REA MCP con Ghidra).
-- Detalle por tema en [`docs/agents/`](docs/agents/): flujo de decompilación, toolchain, ingeniería inversa,
-  testing, verificación en runtime, depuración, orquestación, verificación de PRs.
-- Memoria compartida: [`docs/FACTS.md`](docs/FACTS.md) (hechos verificados) y
-  [`docs/FINDINGS.md`](docs/FINDINGS.md) (trampas no obvias).
+- [`AGENTS.md`](AGENTS.md) is the canonical guide; [`CLAUDE.md`](CLAUDE.md) only imports it and adds what is
+  specific to Claude Code (REA MCP with Ghidra).
+- Detail per topic in [`docs/agents/`](docs/agents/): decompilation workflow, toolchain, reverse engineering,
+  testing, runtime verification, debugging, orchestration, PR verification.
+- Shared memory: [`docs/FACTS.md`](docs/FACTS.md) (verified facts) and
+  [`docs/FINDINGS.md`](docs/FINDINGS.md) (non-obvious gotchas).
 
-## Créditos y referencias
+## Credits and references
 
-Trabajo previo de la comunidad en el que se apoya: PSPRecomp (jessicanataliagta) y lcs-recomp
+Prior community work this builds on: PSPRecomp (jessicanataliagta) and lcs-recomp
 (elmasas), Nenkai (GT Modding Hub, OpenAdhoc, GTAdhocToolchain, GTPSPVolTools), rabbitizer
 (Decompollaborate), m2c, ghidra-allegrex (kotcrab), pspdecrypt (John-K), PPSSPP, decomp.me.
 
-Proyecto de investigación sin ánimo de lucro, sin afiliación con Sony Interactive Entertainment ni con
-Polyphony Digital. *Gran Turismo* es marca de Sony Interactive Entertainment.
+Non-profit research project, not affiliated with Sony Interactive Entertainment or Polyphony
+Digital. *Gran Turismo* is a trademark of Sony Interactive Entertainment.
