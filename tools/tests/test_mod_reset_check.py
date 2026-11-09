@@ -377,3 +377,10 @@ def test_main_multi_mode(tmp_path, capsys):
     assert capsys.readouterr().out.startswith("PASS multi:")
     (tmp_path / "reset" / "run.log").write_text(multi_log(bad=(1, 2)))
     assert mr.main(["x", str(tmp_path), "multi"]) == 1
+
+
+def test_frames_until_route_end():
+    log = "[frame-dump] frame 000001 vblank 100\n[frame-dump] frame 000002 vblank 900\n[frame-dump] frame 000003 vblank 1100\n[pad] script done at vblank 800\n"
+    frames = {1: "a", 2: "b", 3: "c"}
+    assert mr.frames_until_route_end(log, frames, margin=150) == {1: "a", 2: "b"}  # vblank 900 <= 950 < 1100
+    assert mr.frames_until_route_end("no marker", frames) == frames

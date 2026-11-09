@@ -267,6 +267,17 @@ def judge_same_view(base_frames, mod_frames, min_frames=6):
     return True, f"{len(common)} frames show the same view as the run without the mod (largest block difference {worst:.0f})"
 
 
+def frames_until_route_end(log, frames, margin=TAIL_AFTER_VBLANKS):
+    """The frames dumped up to `margin` vblanks after the route's `script done` line. After the route the car idles and the game runs on its own: those frames
+    differ between two runs of the same build (a baseline against a toggle run: from vblank 21654 vs 21656, 2800 vblanks after the route end), so they say nothing about the mod."""
+    done = SCRIPT_DONE.search(log)
+    if done is None:
+        return frames
+    limit = int(done.group(1)) + margin
+    keep = {int(f) for f, v in FRAME_DUMP.findall(log) if int(v) <= limit}
+    return {i: p for i, p in frames.items() if i in keep}
+
+
 def read(path):
     with open(path, errors="replace") as handle:
         return handle.read()
@@ -299,7 +310,7 @@ def main(argv):
     label = "quiet" if mode == "quiet" else "toggle"
     log = read(os.path.join(out, label, "run.log"))
     ok1, m1 = judge_no_restore(log, toggled=(mode == "toggle"))
-    ok2, m2 = judge_identity(base, frames_of(os.path.join(out, label, "frames")))
+    ok2, m2 = judge_identity(frames_until_route_end(log, base), frames_until_route_end(log, frames_of(os.path.join(out, label, "frames"))))
     ok = ok1 and ok2
     print(("PASS " if ok else "FAIL ") + f"{label}: {m1}; {m2}")
     return 0 if ok else 1
