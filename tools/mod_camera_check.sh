@@ -9,7 +9,7 @@
 #   --without-mod  empty mods dir for the "mod" runs too (must FAIL: nothing changes the picture)
 #   --sabotage     builds the mod with ORBIT_CAMERA_SABOTAGE=1 (pivot at the eye, not at the car; must FAIL the centred-car check)
 #   --toggle-off   (dumps every present, --every 2, unless --every is given: the check pairs frames by their lap timer) the F9 menu's toggle turns the mod off mid-chase (GT_MOD_MENU_TEST_TOGGLE=orbit-camera@v<--toggle-at>, default v18700):
-#                  one run with yaw 90 (--yaws is ignored); PASS = orbited before, byte-identical to the baseline after (an inactive mod writes nothing)
+#                  one run with yaw 90 (--yaws is ignored); PASS = orbited before; after it (from 600 vblanks on, the picture settles: no colour clear) each frame paired by lap timer with a baseline frame is byte-identical to it outside the car window and the HUD clock box (bottom right), at most 3 % of the car window different (the car sprite flickers); at least 30 and half of the usable frames must pair
 #   --keep-baseline  reuse $OUT/baseline from an earlier run (same --decomp)
 # Env: MOD_CHECK_NO_LOCK=1 (the caller already holds tools/cpu_lock.sh), GT_MODS_REPO (default ../gt-mods), BUILD (default build),
 # OUT (default recomp/analysis/mod_camera_check, gitignored; frames are on disk there, never /tmp). Exit: 0 pass, 1 check failed, 2 setup/run problem.

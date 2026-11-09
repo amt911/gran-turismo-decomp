@@ -11,11 +11,14 @@ vblank from the `[frame-dump]` lines of the baseline's run.log). Per run:
   toggle     the F9 menu turned the mod off mid-race: frames before it differ from the baseline (the mod edited), frames after it are
              byte-identical (an inactive mod's hooks pass straight to the original).
 Two real-time runs can slip one game step apart for the rest of the run (docs/FINDINGS.md, 2026-11-09): only frames whose lap-timer
-pixels (TIMER) match the baseline's are compared pixel by pixel, and at least MIN_RACE_FRAMES (MIN_CAR_FRAMES after the toggle) must be.
+pixels (TIMER) match the baseline's are compared pixel by pixel, and at least MIN_RACE_FRAMES (MIN_TOGGLE_AFTER and TOGGLE_MIN_SHARE after the toggle) must be; a missing or frozen timer identifies nothing.
 """
 import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I does not put the script directory on the path
+import lap_timer  # noqa: E402
 
 WIDTH, HEIGHT = 480, 272
 HUD_TOP = 232                      # rows >= HUD_TOP are the bottom HUD strip
@@ -33,8 +36,10 @@ FAR_MIN_FRAMES = 0.3          # share of race frames that must change that much 
 FAR_MAX_FRACTION = 0.05            # more than this share of the 3D area changing is a different picture, not a farther one (measured worst 0.1 %)
 NEAR_MAX_FRACTION = 0.001          # depth speckles allowed in the near field (measured worst 0.01 %; a larger far/near ratio thins the depth buffer)
 MIN_RACE_FRAMES = 6
-TIMER = (205, 295, 33, 50)         # x0, x1, y0, y1 of the lap timer (white digits): different times = different game frames
+TIMER = lap_timer.TIMER            # the lap timer box; its digit strokes identify the game frame (tools/lap_timer.py)
 MIN_CAR_FRAMES = 3
+MIN_TOGGLE_AFTER = 30              # frames after the toggle that must be on the same game frame as the baseline (a count) ...
+TOGGLE_MIN_SHARE = 0.5             # ... and this share of the usable ones: edits that break the pairing cannot pass on a handful of frames
 TOGGLE_MARGIN = 150                # vblanks around the toggle that are not judged
 TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
 FRAME = re.compile(r"frame_(\d+)\.ppm$")
@@ -134,23 +139,26 @@ def race_frame_indices(log_text):
     if done is None:
         return []
     start = int(done.group(1)) + RACE_AFTER_VBLANKS
-    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if int(v) >= start]
+    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if int(p or v) >= start]
 
 
 def frames_in_vblanks(log_text, lo, hi):
-    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if lo <= int(v) < hi]
+    return [_key(f, p) for f, v, p in FRAME_DUMP.findall(log_text) if lo <= int(p or v) < hi]
 
 
 def timer_mask(frame):
-    """Positions of the lap timer's white digit pixels."""
-    width, _height, pixels = frame
-    x0, x1, y0, y1 = TIMER
-    return [(x, y) for y in range(y0, y1) for x in range(x0, x1) if min(pixels[(y * width + x) * 3:(y * width + x) * 3 + 3]) > 235]
+    return lap_timer.timer_mask(frame)
 
 
 def same_game_frame(base, mod):
-    """Equal lap-timer pixels: both runs show the same game frame (a one-step pacing slip between two real-time runs is not the mod)."""
-    return timer_mask(base) == timer_mask(mod)
+    """Both frames show a usable lap timer (enough digit strokes) and the same one: the same game frame (a one-step pacing slip between two real-time runs is not the mod)."""
+    a, b = lap_timer.timer_mask(base), lap_timer.timer_mask(mod)
+    return len(a) >= lap_timer.MIN_PIXELS and a == b
+
+
+def run_timers(frames):
+    """{key: lap-timer mask or None} of a run's frames (None: no timer on screen, or frozen: it identifies nothing)."""
+    return lap_timer.run_timers(frames, read_ppm)
 
 
 def judge_identity(base_frames, mod_frames):
@@ -158,11 +166,12 @@ def judge_identity(base_frames, mod_frames):
     common = sorted(set(base_frames) & set(mod_frames))
     if len(common) < MIN_RACE_FRAMES:
         return False, f"only {len(common)} common frames"
+    base_timers, mod_timers = run_timers({i: base_frames[i] for i in common}), run_timers({i: mod_frames[i] for i in common})
     same = 0
     for index in common:
-        base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
-        if not same_game_frame(base, mod):
+        if not lap_timer.same_game_frame(base_timers[index], mod_timers[index]):
             continue
+        base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
         same += 1
         if base[2] != mod[2]:
             return False, f"frame {index} differs from the baseline at scale 1.0 (the mod must write nothing at the identity)"
@@ -180,10 +189,11 @@ def judge_far(base_frames, mod_frames, indices):
     worst_far = worst_near = 0.0
     problems = []
     judged = []
+    base_timers, mod_timers = run_timers({i: base_frames[i] for i in frames}), run_timers({i: mod_frames[i] for i in frames})
     for index in frames:
-        base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
-        if not same_game_frame(base, mod):
+        if not lap_timer.same_game_frame(base_timers[index], mod_timers[index]):
             continue
+        base, mod = read_ppm(base_frames[index]), read_ppm(mod_frames[index])
         judged.append(index)
         far = diff_fraction(base, mod, 0, HUD_TOP)
         near = diff_fraction(base, mod, *NEAR_ROWS)
@@ -223,22 +233,25 @@ def judge_toggle(base_frames, mod_frames, before, after, run_log):
         return False, "no `[mods] <id> -> OFF` line in the run log: the menu did not toggle the mod"
     before = [i for i in before if i in base_frames and i in mod_frames]
     after = [i for i in after if i in base_frames and i in mod_frames]
-    if len(before) < MIN_CAR_FRAMES or len(after) < MIN_CAR_FRAMES:
-        return False, f"too few frames around the toggle ({len(before)} before, {len(after)} after)"
+    if len(before) < MIN_CAR_FRAMES or len(after) < MIN_TOGGLE_AFTER:
+        return False, f"too few frames around the toggle ({len(before)} before, {len(after)} after; need {MIN_CAR_FRAMES} / {MIN_TOGGLE_AFTER})"
     edited = sum(1 for i in before if diff_fraction(read_ppm(base_frames[i]), read_ppm(mod_frames[i]), 0, HUD_TOP) >= FAR_MIN_FRACTION)
     if edited < FAR_MIN_FRAMES * len(before):
         return False, f"before the toggle only {edited}/{len(before)} frames differ from the baseline"
+    base_timers, mod_timers = run_timers({i: base_frames[i] for i in after}), run_timers({i: mod_frames[i] for i in after})
+    usable = [i for i in after if base_timers[i] is not None and mod_timers[i] is not None]
     same = 0
-    for i in after:
-        base, mod = read_ppm(base_frames[i]), read_ppm(mod_frames[i])
-        if not same_game_frame(base, mod):
+    for i in usable:
+        if not lap_timer.same_game_frame(base_timers[i], mod_timers[i]):
             continue
+        base, mod = read_ppm(base_frames[i]), read_ppm(mod_frames[i])
         same += 1
         if base[2] != mod[2]:
             return False, f"frame {i} after the toggle differs from the baseline: the mod still edits while inactive"
-    if same < MIN_CAR_FRAMES:
-        return False, f"after the toggle only {same}/{len(after)} frames show the baseline's same game frame: nothing proved"
-    return True, f"{edited}/{len(before)} frames edited before the toggle, {same}/{len(after)} frames after it on the same game frame identical to the baseline"
+    if same < MIN_TOGGLE_AFTER or same < TOGGLE_MIN_SHARE * len(usable):
+        return False, (f"after the toggle only {same}/{len(usable)} usable frames show the baseline's same game frame "
+                       f"(need {MIN_TOGGLE_AFTER} and {TOGGLE_MIN_SHARE:.0%}): nothing proved")
+    return True, f"{edited}/{len(before)} frames edited before the toggle, {same}/{len(usable)} frames after it on the same game frame identical to the baseline"
 
 
 MOD_LOADED = re.compile(r"^\[mod:draw-distance\] far_scale=", re.M)

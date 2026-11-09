@@ -3,6 +3,7 @@ import os
 import pytest
 
 from tools import mod_camera_check as mc
+from tools.tests.timer_fixture import has_timer, stamp
 
 ORANGE = (210, 90, 40)
 GREY = (90, 90, 90)
@@ -31,7 +32,7 @@ def write_run(tmp_path, label, frames):
     directory = tmp_path / label / "frames"
     directory.mkdir(parents=True)
     for index, data in frames.items():
-        (directory / f"frame_{index:06d}.ppm").write_bytes(data)
+        (directory / f"frame_{index:06d}.ppm").write_bytes(data if has_timer(data) else stamp(data, index))  # a frame without a timer shows the game frame `index`
     return mc.frames_of(str(directory))
 
 
@@ -201,27 +202,12 @@ def test_main_prints_verdicts_and_returns_status(tmp_path, capsys):
     (tmp_path / "baseline" / "run.log").write_text("[pad] script done at vblank 1000\n" + "".join(f"[frame-dump] frame {i:06d} vblank {2000 + i}\n" for i in INDICES))
     write_run(tmp_path, "yaw_0", baseline_frames())
     write_run(tmp_path, "yaw_90", orbited())
-    assert mc.main(["x", str(tmp_path), "yaw_0", "yaw_90"]) == 0
+    write_run(tmp_path, "yaw_180", orbited())
+    assert mc.main(["x", str(tmp_path), "yaw_0", "yaw_90", "yaw_180"]) == 0
     assert "PASS yaw_90" in capsys.readouterr().out
-    write_run(tmp_path, "yaw_180", baseline_frames())
-    assert mc.main(["x", str(tmp_path), "yaw_180"]) == 1
-    assert "FAIL yaw_180" in capsys.readouterr().out
-
-
-def test_judge_toggle(tmp_path):
-    idx = [10 * i for i in range(1, 17)]
-    base = write_run(tmp_path, "base", {i: make_frame(car_at=(240, 140)) for i in idx})
-    mixed = {i: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if i <= 80 else make_frame(car_at=(240, 140))) for i in idx}  # 8 orbited, then baseline
-    mod = write_run(tmp_path, "mod", mixed)
-    log = "[mods] orbit-camera -> OFF\n"
-    before, after = idx[:8], idx[9:]
-    ok, message = mc.judge_toggle(base, mod, before, after, log)
-    assert ok, message
-    assert not mc.judge_toggle(base, mod, before, after, "")[0]  # no toggle line
-    assert "still edits" in mc.judge_toggle(base, mod, before, [30] + after, log)[1]  # frame 30 is orbited
-    assert "only 0/" in mc.judge_toggle(base, mod, idx[8:14], after, log)[1]  # nothing orbited before
-    assert "too few" in mc.judge_toggle(base, mod, before[:5], after, log)[1]  # 5 frames before (< 6)
-    assert "too few" in mc.judge_toggle(base, mod, before, after[:2], log)[1]
+    write_run(tmp_path, "yaw_135", baseline_frames())
+    assert mc.main(["x", str(tmp_path), "yaw_135"]) == 1
+    assert "FAIL yaw_135" in capsys.readouterr().out
 
 
 def test_frames_in_vblanks():
@@ -229,33 +215,12 @@ def test_frames_in_vblanks():
     assert mc.frames_in_vblanks(log, 150, 300) == [60]
 
 
-def test_main_toggle_label(tmp_path, capsys):
-    idx = [10 * i for i in range(1, 15)]
-    frames = {i: make_frame(car_at=(240, 140)) for i in idx}
-    write_run(tmp_path, "baseline", frames)
-    (tmp_path / "baseline" / "run.log").write_text("[pad] script done at vblank 1000\n" + "".join(f"[frame-dump] frame {i:06d} vblank {1000 + 10 * i}\n" for i in idx))
-    mixed = {i: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if i <= 90 else frames[i]) for i in idx}
-    write_run(tmp_path, "toggle_90", mixed)
-    (tmp_path / "toggle_90" / "run.log").write_text("[mods] orbit-camera -> OFF\n")
-    # chase start = 1000 + 150; toggle at vblank 2000, margin 150: before = vblank in [1150, 1850) (frames 10..40... ), after >= 2150
-    assert mc.main(["x", str(tmp_path), "toggle_90", "--toggle-at", "1900"]) == 0
-    assert "PASS toggle_90" in capsys.readouterr().out
-
-
 WHITE = (250, 250, 250)
 
 
 def with_timer(frame_bytes, tenths):
-    """The frame with a lap-timer reading drawn as white pixels in TIMER: `tenths` lit columns (two frames with different counts
-    are different game frames)."""
-    head = len(b"P6\n480 272\n255\n")
-    buf = bytearray(frame_bytes)
-    x0, _x1, y0, y1 = mc.TIMER
-    for y in range(y0, y1):
-        for x in range(x0, x0 + tenths):
-            i = head + (y * mc.WIDTH + x) * 3
-            buf[i:i + 3] = bytes(WHITE)
-    return bytes(buf)
+    """The frame with a lap-timer reading `tenths` (two different readings are different game frames)."""
+    return stamp(frame_bytes, 1 + tenths)
 
 
 def test_same_game_frame_reads_the_lap_timer(tmp_path):
@@ -296,21 +261,11 @@ def test_orbit_skips_the_car_check_beside_the_car(tmp_path):
     assert not mc.judge_orbit(base, write_run(tmp_path, "same", baseline_frames()), INDICES, yaw=90.0)[0]  # still must orbit
 
 
-def test_toggle_tolerates_sprite_noise_but_not_an_orbit(tmp_path):
-    idx = [10 * i for i in range(1, 17)]
-    base = write_run(tmp_path, "base", {i: make_frame(car_at=(240, 140)) for i in idx})
-    flicker = make_frame(car_at=(240, 140), car_size=(62, 40))  # a few hundred pixels at the car's edge: < TOGGLE_NOISE
-    mixed = {i: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if i <= 80 else flicker) for i in idx}
-    log = "[mods] orbit-camera -> OFF\n"
-    ok, message = mc.judge_toggle(base, write_run(tmp_path, "mod", mixed), idx[:8], idx[9:], log)
-    assert ok, message
-    still = {i: make_frame(car_at=(250, 135), sky=(30, 120, 30)) for i in idx}
-    assert "still edits" in mc.judge_toggle(base, write_run(tmp_path, "still", still), idx[:8], idx[9:], log)[1]
-
-
 def test_frames_pair_by_present_vblank_when_the_log_has_it(tmp_path):
     # a dropped present shifts the dump numbers of one run: dump 20 of the mod run is the baseline's dump 30 (same present vblank)
-    write_run(tmp_path, "b", {10: b"x", 20: b"y", 30: b"z"})
+    (tmp_path / "b" / "frames").mkdir(parents=True)
+    for n in (10, 20, 30):
+        (tmp_path / "b" / "frames" / f"frame_{n:06d}.ppm").write_bytes(b"x")  # not frames: only the names matter here
     log = "[frame-dump] frame 000010 vblank 101 present_vblank 100\n[frame-dump] frame 000020 vblank 205 present_vblank 200\n"
     keyed = mc.keyed_frames(str(tmp_path / "b" / "frames"), log)
     assert keyed == {100: str(tmp_path / "b" / "frames" / "frame_000010.ppm"), 200: str(tmp_path / "b" / "frames" / "frame_000020.ppm")}
@@ -326,36 +281,184 @@ def test_indices_are_keys_when_the_log_has_present_vblanks():
     assert mc.frames_in_vblanks(log, 1100, 1300) == [1100, 1200]
 
 
-def _toggle_runs(tmp_path, base_keys_and_timers, mod_keys_and_timers):
-    base = write_run(tmp_path, "tb", {k: with_timer(make_frame(car_at=(240, 140)), t) for k, t in base_keys_and_timers})
-    # the first 8 mod frames (keys below 1000) are orbited, the rest show the baseline's picture
-    mod = write_run(tmp_path, "tm", {k: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if k < 1000 else with_timer(make_frame(car_at=(240, 140)), t))
-                                    for k, t in mod_keys_and_timers})
-    return base, mod
+TOGGLE_LOG = "[mods] orbit-camera -> OFF\n"
+BEFORE = [200 + 10 * i for i in range(8)]
+CAR = (240, 140)
 
 
-def test_toggle_pairs_a_one_step_offset_frame_by_its_timer(tmp_path):
-    before = [(100 + 10 * i, 1) for i in range(8)]
-    base_after = [(2000, 5), (2002, 6), (2004, 7), (2006, 8), (2008, 9)]
-    # the mod run is one step behind: at present vblank 2003 it shows the game frame the baseline showed at 2002, etc.
-    mod_after = [(2003, 6), (2005, 7), (2007, 8)]
-    base, mod = _toggle_runs(tmp_path, before + base_after, before + mod_after)
-    ok, message = mc.judge_toggle(base, mod, [k for k, _ in before], [k for k, _ in mod_after], "[mods] orbit-camera -> OFF\n")
+def toggle_runs(tmp_path, count=40, lag=0, mod_picture=None, base_picture=None, mod_timer=None):
+    """A baseline and a toggled run. Before the toggle the run is orbited (green sky); after it, `count` frames at present vblanks 2000, 2002, ...: the baseline
+    shows game frame i + 1 at 2000 + 2i, the run shows game frame i + 1 - lag there (lag 1 = a step behind), or `mod_timer(i)`'s reading; the pictures
+    are `base_picture` / `mod_picture` (default: both the plain car picture)."""
+    base_picture = base_picture or (lambda i: make_frame(car_at=CAR))
+    mod_picture = mod_picture or (lambda i: make_frame(car_at=CAR))
+    base = {k: make_frame(car_at=CAR) for k in BEFORE}
+    mod = {k: make_frame(car_at=(250, 135), sky=(30, 120, 30)) for k in BEFORE}
+    for i in range(count):
+        base[2000 + 2 * i] = with_timer(base_picture(i), i + 1)
+        mod[2000 + 2 * i] = with_timer(mod_picture(i), mod_timer(i) if mod_timer else i + 1 - lag)
+    return write_run(tmp_path, "tb", base), write_run(tmp_path, "tm", mod), [2000 + 2 * i for i in range(count)]
+
+
+def judge(tmp_path, **kw):
+    base, mod, after = toggle_runs(tmp_path, **kw)
+    return mc.judge_toggle(base, mod, BEFORE, after, TOGGLE_LOG)
+
+
+def patched(picture, x0, y0, size=6, colour=(250, 10, 10)):
+    """`picture` bytes with a size x size patch at (x0, y0): a small edit."""
+    buf = bytearray(picture)
+    head = len(b"P6\n480 272\n255\n")
+    for y in range(y0, y0 + size):
+        for x in range(x0, x0 + size):
+            buf[head + (y * mc.WIDTH + x) * 3:head + (y * mc.WIDTH + x) * 3 + 3] = bytes(colour)
+    return bytes(buf)
+
+
+def test_toggle_passes_when_the_mod_is_silent_after_it(tmp_path):
+    ok, message = judge(tmp_path)
     assert ok, message
-    assert "3/3 frames after it" in message
+    assert "40/40 frames after it" in message
 
 
-def test_toggle_does_not_pair_an_unrelated_frame_and_keeps_the_floor(tmp_path):
-    before = [(100 + 10 * i, 1) for i in range(8)]
-    base_after = [(2000, 5), (2002, 6), (2004, 7)]
-    far_in_time = [(2003, 20), (2005, 21), (2007, 22)]   # timers the baseline never showed within PAIR_WINDOW
-    base, mod = _toggle_runs(tmp_path, before + base_after, before + far_in_time)
-    ok, message = mc.judge_toggle(base, mod, [k for k, _ in before], [k for k, _ in far_in_time], "[mods] orbit-camera -> OFF\n")
+def test_toggle_pairs_a_frame_one_game_step_behind_by_its_timer(tmp_path):
+    ok, message = judge(tmp_path, lag=1)   # the run shows, at each present vblank, the game frame the baseline showed 2 vblanks earlier
+    assert ok, message
+
+
+def test_toggle_does_not_pair_an_unrelated_frame(tmp_path):
+    ok, message = judge(tmp_path, mod_timer=lambda i: 600 + i)   # game frames the baseline never showed
     assert not ok and "nothing proved" in message
-    # a frame whose timer matches only a baseline frame outside the window does not pair either
-    assert mc.pair_by_timer(base, 2003 + 2 * mc.PAIR_WINDOW, mc.read_ppm(mod[2003])) is None
-    # ... and an offset frame that still differs from its partner (the mod keeps editing) is caught
-    edited = write_run(tmp_path, "te", {k: (make_frame(car_at=(250, 135), sky=(30, 120, 30)) if k < 1000 else with_timer(make_frame(car_at=(250, 135), sky=(30, 120, 30)), t))
-                                        for k, t in before + [(2003, 6), (2005, 7), (2007, 7)]})
-    ok, message = mc.judge_toggle(base, edited, [k for k, _ in before], [2003, 2005, 2007], "[mods] orbit-camera -> OFF\n")
+
+
+def test_toggle_fails_when_the_mod_keeps_orbiting(tmp_path):
+    ok, message = judge(tmp_path, mod_picture=lambda i: make_frame(car_at=(250, 135), sky=(30, 120, 30)))
     assert not ok and "still edits" in message
+
+
+def test_toggle_fails_on_a_small_edit_outside_the_car_window(tmp_path):
+    # a corner pixel patch, a HUD patch: byte-identical outside the car window is required
+    for x0, y0 in ((5, 5), (300, 245), (440, 20)):
+        ok, message = judge(tmp_path / f"p{x0}", mod_picture=lambda i, x0=x0, y0=y0: patched(make_frame(car_at=CAR), x0, y0))
+        assert not ok and "still edits" in message, (x0, y0, message)
+
+
+def test_toggle_ignores_the_hud_clock_digit_only(tmp_path):
+    # the clock at the bottom right flips a frame apart between two runs: not the mod. A patch anywhere else in the HUD corner is.
+    ok, message = judge(tmp_path / "clock", mod_picture=lambda i: patched(make_frame(car_at=CAR), 464, 255, size=6))
+    assert ok, message
+    ok, message = judge(tmp_path / "next", mod_picture=lambda i: patched(make_frame(car_at=CAR), 452, 255, size=6))  # just left of the clock
+    assert not ok and "still edits" in message
+
+
+def test_toggle_tolerates_a_flicker_inside_the_car_window_only(tmp_path):
+    flicker = lambda i: make_frame(car_at=CAR, car_size=(62, 40))   # a few hundred pixels at the car's edge, inside CAR_WINDOW
+    ok, message = judge(tmp_path / "a", mod_picture=flicker)
+    assert ok, message
+    big = lambda i: patched(make_frame(car_at=CAR), 150, 120, size=60)   # 3600 px inside CAR_WINDOW: more than TOGGLE_CAR_NOISE of it
+    ok, message = judge(tmp_path / "b", mod_picture=big)
+    assert not ok and "still edits" in message
+
+
+def test_toggle_floor_is_a_count_and_a_share_of_the_usable_frames(tmp_path):
+    ok, message = judge(tmp_path / "few", count=mc.MIN_TOGGLE_AFTER - 1)
+    assert not ok and "too few" in message
+    # 100 usable frames after the toggle, only 35 of them pair (the run's timers are far from the baseline's for the rest): a count that passes,
+    # a share that does not
+    ok, message = judge(tmp_path / "share", count=100, mod_timer=lambda i: i + 1 if i < 35 else 700 + i)
+    assert not ok and "35/100" in message
+
+
+def test_toggle_ignores_frozen_and_missing_timers(tmp_path):
+    ok, message = judge(tmp_path / "frozen", mod_timer=lambda i: 7)            # the same reading every frame: frozen, identifies nothing
+    assert not ok and "nothing proved" in message
+    base, _mod, after = toggle_runs(tmp_path / "base")
+    directory = tmp_path / "menu" / "frames"                                   # a run whose frames show no timer at all (a menu)
+    directory.mkdir(parents=True)
+    for k, data in {**{k: make_frame(car_at=(250, 135), sky=(30, 120, 30)) for k in BEFORE}, **{k: make_frame(car_at=CAR) for k in after}}.items():
+        (directory / f"frame_{k:06d}.ppm").write_bytes(data)
+    assert not has_timer((directory / f"frame_{after[0]:06d}.ppm").read_bytes())
+    ok, message = mc.judge_toggle(base, mc.frames_of(str(directory)), BEFORE, after, TOGGLE_LOG)
+    assert not ok and "nothing proved" in message
+
+
+def test_toggle_needs_the_toggle_line_orbited_frames_before_and_enough_after(tmp_path):
+    base, mod, after = toggle_runs(tmp_path)
+    assert not mc.judge_toggle(base, mod, BEFORE, after, "")[0]
+    assert "orbited" in mc.judge_toggle(base, base, BEFORE, after, TOGGLE_LOG)[1]  # nothing orbited before the toggle
+    assert "too few" in mc.judge_toggle(base, mod, BEFORE[:5], after, TOGGLE_LOG)[1]
+
+
+def test_main_toggle_label(tmp_path, capsys):
+    toggle_runs(tmp_path)
+    os.makedirs(tmp_path / "baseline"), os.makedirs(tmp_path / "toggle_90")
+    os.rename(tmp_path / "tb" / "frames", tmp_path / "baseline" / "frames")
+    os.rename(tmp_path / "tm" / "frames", tmp_path / "toggle_90" / "frames")
+    keys = sorted(set(BEFORE) | {2000 + 2 * i for i in range(40)})
+    dumps = "".join(f"[frame-dump] frame {k:06d} vblank {k + 40} present_vblank {k}\n" for k in keys)
+    (tmp_path / "baseline" / "run.log").write_text("[pad] script done at vblank 0\n" + dumps)
+    (tmp_path / "toggle_90" / "run.log").write_text(TOGGLE_LOG + dumps)
+    # chase frames start at vblank 150; the toggle at 1000 with a margin of 150: before = [150, 850), after = vblank >= 1150
+    # (the pad has no frames between 100 and 180 apart from BEFORE: 100..170, so the labels are shifted by the margin)
+    assert mc.main(["x", str(tmp_path), "toggle_90", "--toggle-at", "1000"]) == 0
+    assert "PASS toggle_90" in capsys.readouterr().out
+
+
+def timed_run(tmp_path, label, picture, offset=0, same_timer=None):
+    return write_run(tmp_path, label, {i: with_timer(picture(i), same_timer if same_timer is not None else i // 10 + offset) for i in baseline_frames()})
+
+
+def test_orbit_digits_must_be_compared_on_enough_frames(tmp_path):
+    base = timed_run(tmp_path, "b", lambda i: make_frame(car_at=(240, 140)))
+    orbit = lambda i: make_frame(car_at=(250, 135), sky=(30, 120, 30))
+    ok, message = mc.judge_orbit(base, timed_run(tmp_path, "m", orbit), INDICES)
+    assert ok, message
+    # the run is a game step off on every frame: the pictures differ, no digit changed, but none could be compared: nothing proved
+    ok, message = mc.judge_orbit(base, timed_run(tmp_path, "slip", orbit, offset=100), INDICES)
+    assert not ok and "digits were compared on only 0/8" in message
+    # a few compared frames are not enough either
+    few = {i: with_timer(orbit(i), i // 10 if i <= 30 else 100 + i // 10) for i in baseline_frames()}
+    ok, message = mc.judge_orbit(base, write_run(tmp_path, "few", few), INDICES)
+    assert not ok and "compared on only 3/8" in message
+
+
+def test_the_not_orbiting_build_fails_even_when_the_run_is_a_step_off(tmp_path):
+    base = timed_run(tmp_path, "b", lambda i: make_frame(car_at=(240, 140)))
+    same = lambda i: make_frame(car_at=(240, 140))
+    ok, message = mc.judge_orbit(base, timed_run(tmp_path, "m", same), INDICES)
+    assert not ok and "did not orbit" in message
+    ok, message = mc.judge_orbit(base, timed_run(tmp_path, "s", same, offset=100), INDICES)   # the mod does nothing and the timers are off
+    assert not ok
+
+
+def test_identity_does_not_count_frozen_timers(tmp_path):
+    same = lambda i: make_frame(car_at=(240, 140))
+    base = timed_run(tmp_path, "b", same, same_timer=5)   # the timer never moves (the countdown before GO): identifies no game frame
+    ok, message = mc.judge_identity(base, timed_run(tmp_path, "m", same, same_timer=5))
+    assert not ok and "nothing proved" in message
+
+
+def test_main_refuses_a_run_without_a_wide_yaw(tmp_path, capsys):
+    write_run(tmp_path, "baseline", baseline_frames())
+    (tmp_path / "baseline" / "run.log").write_text("[pad] script done at vblank 1000\n" + "".join(f"[frame-dump] frame {i:06d} vblank {2000 + i}\n" for i in INDICES))
+    write_run(tmp_path, "yaw_0", baseline_frames())
+    write_run(tmp_path, "yaw_90", orbited())
+    assert mc.main(["x", str(tmp_path), "yaw_0", "yaw_90"]) == 1
+    assert "no yaw >= 135" in capsys.readouterr().out
+
+
+def test_frame_selection_uses_the_present_vblank_not_the_dump_time_label():
+    log = ("[pad] script done at vblank 1000\n"
+           "[frame-dump] frame 000010 vblank 2000 present_vblank 1100\n"      # the label is late (the GE worker lagged): the present was early
+           "[frame-dump] frame 000020 vblank 1200 present_vblank 1300\n")
+    assert mc.chase_frame_indices(log) == [1300]                               # chase = present_vblank >= 1150
+    assert mc.frames_in_vblanks(log, 1250, 1400) == [1300]
+
+
+def test_the_timer_gate_does_not_depend_on_the_scene_behind_it(tmp_path):
+    # the orbit puts a bright sky behind the timer (rows 33-50 are 3D picture): the same game frame must still be recognised, and the digits compared
+    base = timed_run(tmp_path, "b", lambda i: make_frame(car_at=(240, 140)))
+    bright = lambda i: make_frame(car_at=(250, 135), sky=(250, 250, 250))
+    ok, message = mc.judge_orbit(base, timed_run(tmp_path, "m", bright), INDICES)
+    assert ok, message
+    assert "HUD digits identical" in message

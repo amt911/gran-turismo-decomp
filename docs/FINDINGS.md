@@ -3082,3 +3082,13 @@ dump line now also carries `present_vblank` (the vblank the present was requeste
 second guard compare pixels only where the lap-timer pixels match, with a floor on how many frames were compared. Related: once
 the orbit is applied to the layer view the game draws the trackside wall on the camera's side at yaw 90 and it can hide the car,
 so the car-centring check only holds from yaw 135 up.
+
+Follow-up (same day, review of the checkers): the pairing key is exact, so two runs only pair where both dumped the same present vblank. The bucket rule makes
+that the normal case, but a run that presents on odd vblanks where the other presents on even ones (a 30 fps phase shifted by one vblank) shares almost no key:
+the verdict is then "only N common frames", a false FAIL and not a weakening of any gate. The lap timer is the identifier of a game frame
+(`tools/lap_timer.py`): its mask is the digit STROKES only (short horizontal and vertical runs of white), so the scene behind it, which has no backing, does not
+change it (on real frames the pairs with different masks differ only in the last digits, a game step); an empty or frozen timer identifies nothing and never counts
+toward a floor. After the toggle the residual differences were explained, not absorbed: for ~500 vblanks the picture still holds pixels of the orbited frames (nothing clears the colour buffer,
+blended draws keep it), hence `TOGGLE_MARGIN = 600`; after that every pair is byte-identical outside the car window except a few at four moments (vblanks 22156, 29352, 36544, 43736: 7 200 apart), where the
+only differing pixels are the HUD clock (bottom right), whose digit flips at an instant that moves by one frame between runs (the clock is not locked to the game frame: probably guest virtual time,
+which the dispatch-count starvation tick moves with the game's CPU work); inside the car window the rear sprite flickers by up to 2 % of the window (cause not identified).
