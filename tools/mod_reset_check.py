@@ -10,8 +10,7 @@ Judged here:
                 under MAX_CALM_RATE in the first CALM_STEPS), holds the restored heading (within MAX_YAW_DRIFT over the first
                 YAW_STEPS) and drove (speed above MIN_DRIVE_SPEED);
   multi run     (`multi`, the reset_multi route) at least MULTI_MIN_RESTORES restores; after every one the car stays on asphalt with
-                up.z > MIN_UP_Z from SETTLE_STEPS to LEAVE_STEPS (4 s) with no steering (the route steers only far later); the mod's
-                `AHEAD` lines (the look-ahead rule ran in the vblank tick) show it rejected some poses;
+                up.z > MIN_UP_Z from SETTLE_STEPS to LEAVE_STEPS (4 s) with no steering (the route steers only far later); each RESTORE line carries the straight-ahead run of the pose (`run=` >= MIN_RUN m: the rule picked it);
   quiet run     the mod installed, no button: no RESTORE and every frame byte-identical to the run without the mod;
   toggle run    the F9 menu turned the mod off before the button: `-> OFF` logged, no RESTORE, frames identical to the baseline.
 """
@@ -28,13 +27,13 @@ STATE = re.compile(TAG + rf"t=(-?\d+) step=(\d+) wheels=(\d) up_z=({NUM}) spd=({
                    rf"yaw=({NUM}) rates=((?:{NUM},){{4}}{NUM})(?: vel={NUM},{NUM},{NUM} fwdcos=({NUM}))? ring=(\d+) restores=(\d+)"
                    rf"(?: acc=({NUM}) thr=({NUM}) brk=({NUM}))?(?: pad=\d+/\d+/\d+)?")
 PADSEL = re.compile(TAG + r"PADSEL (down|up) step=(\d+)(?: tap=(\d))?")
-AHEAD = re.compile(TAG + r"AHEAD step=(-?\d+) pos=(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+) ok=([01]) checked=(\d+) rejected=(\d+)")
-RESTORE = re.compile(TAG + r"RESTORE step=(\d+) pos=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+)")
+RESTORE = re.compile(TAG + r"RESTORE step=(\d+) pos=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+)(?: run=(-?[\d.]+))?")
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
 FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
 TAP_PRESSES = 3            # the chase route's three SELECT presses
 TAIL_AFTER_VBLANKS = 150   # frames dumped this long after the route's last press: the camera view has settled
 LEAVE_STEPS = 240       # --multi: no restore may leave the asphalt within 4 s (the route does not steer that early after a restore)
+MIN_RUN = 15.0          # --multi: the straight-ahead run (m) of every restored pose, as the mod logs it (`run=`); the rule off logs -1
 MULTI_MIN_RESTORES = 2  # --multi: fewer restores than this and the check proves nothing
 TOGGLE_LINE = re.compile(r"^\[mods\] \S+ -> OFF$", re.M)
 
@@ -87,7 +86,8 @@ def parse_states(text):
 
 
 def parse_restores(text):
-    return [{"step": int(m.group(1)), "pos": (float(m.group(2)), float(m.group(3)), float(m.group(4))), "yaw": float(m.group(5))}
+    return [{"step": int(m.group(1)), "pos": (float(m.group(2)), float(m.group(3)), float(m.group(4))), "yaw": float(m.group(5)),
+             "run": float(m.group(6)) if m.group(6) is not None else None}
             for m in RESTORE.finditer(text)]
 
 
@@ -189,14 +189,11 @@ def judge_multi(text):
             if s["wheels"] != 4 or not s["up_z"] > MIN_UP_Z:
                 return False, (f"restore {index + 1} (step {rs['step']}) put the car out of bounds: t={s['t']}: {s['wheels']}/4 wheels on asphalt, "
                                f"up.z {s['up_z']:.3f}, within {LEAVE_STEPS} steps and with no steering")
-    aheads = [m for m in AHEAD.finditer(text)]
-    rejected = int(aheads[-1].group(7)) if aheads else 0
-    if not aheads:
-        return False, "no AHEAD line: the look-ahead rule never ran (is the mod api 2 and GT_MOD_RESET_LOG=1?)"
-    if rejected == 0:
-        return False, f"the look-ahead rule checked {aheads[-1].group(6)} poses and rejected none: it proves nothing on this route"
-    return True, (f"{len(restores)} restores, each followed by {LEAVE_STEPS} steps on 4/4 asphalt, up.z > {MIN_UP_Z}; the look-ahead rule rejected "
-                  f"{rejected} of {aheads[-1].group(6)} candidate poses")
+    runs = [r["run"] for r in restores]
+    if any(r is None or r < MIN_RUN for r in runs):
+        return False, f"a restore did not use the straight-ahead rule (RESTORE run= values {runs}, need >= {MIN_RUN} m each)"
+    return True, (f"{len(restores)} restores, each followed by {LEAVE_STEPS} steps on 4/4 asphalt, up.z > {MIN_UP_Z}; the poses restored had a straight run of "
+                  f"{', '.join(f'{r:.0f}' for r in runs)} m")
 
 
 def judge_no_restore(text, toggled=False):
@@ -267,12 +264,15 @@ def judge_same_view(base_frames, mod_frames, min_frames=6):
     return True, f"{len(common)} frames show the same view as the run without the mod (largest block difference {worst:.0f})"
 
 
-def frames_until_route_end(log, frames, margin=TAIL_AFTER_VBLANKS):
+POST_ROUTE_VBLANKS = 2500  # identity frames are compared up to this long after `script done`: the first same-build divergence measured after the route is at +2829 (docs/FINDINGS.md)
+
+
+def frames_until_route_end(log, frames, margin=POST_ROUTE_VBLANKS):
     """The frames dumped up to `margin` vblanks after the route's `script done` line. After the route the car idles and the game runs on its own: those frames
-    differ between two runs of the same build (a baseline against a toggle run: from vblank 21654 vs 21656, 2800 vblanks after the route end), so they say nothing about the mod."""
+    differ between two runs of the same build , so they say nothing about the mod."""
     done = SCRIPT_DONE.search(log)
     if done is None:
-        return frames
+        raise ValueError("no `script done` line in the run log: the route did not finish, nothing to compare")
     limit = int(done.group(1)) + margin
     keep = {int(f) for f, v in FRAME_DUMP.findall(log) if int(v) <= limit}
     return {i: p for i, p in frames.items() if i in keep}
@@ -310,7 +310,10 @@ def main(argv):
     label = "quiet" if mode == "quiet" else "toggle"
     log = read(os.path.join(out, label, "run.log"))
     ok1, m1 = judge_no_restore(log, toggled=(mode == "toggle"))
-    ok2, m2 = judge_identity(frames_until_route_end(log, base), frames_until_route_end(log, frames_of(os.path.join(out, label, "frames"))))
+    try:
+        ok2, m2 = judge_identity(frames_until_route_end(log, base), frames_until_route_end(log, frames_of(os.path.join(out, label, "frames"))))
+    except ValueError as error:
+        ok2, m2 = False, str(error)
     ok = ok1 and ok2
     print(("PASS " if ok else "FAIL ") + f"{label}: {m1}; {m2}")
     return 0 if ok else 1

@@ -3066,3 +3066,21 @@ in both modes before building on it.
 `WITH_CHEATS=1 tools/mod_reset_check.sh --decomp on --reset-only` (cheats installed, so Select reaches reset-to-track 8 vblanks late) fails "an angular rate of 0.41 rad/s in the first 10 steps (max 0.3)";
 the same run with `GT_PAD_MENU_HOLD_BACK=0` passes, and `--decomp off` passes either way. The restore zeroes the rates; with the later Select it lands at another moment of the crash tumble and the
 springs still oscillate (cf. the rollover `--recover` note). A timing sensitivity of the check's calm criterion, not a restore bug; not investigated further.
+
+## `call_guest` of the road query from a mod tick is not frame-neutral (2026-11-09, reset-to-track research)
+
+**Symptom.** A reset-to-track build that called the game's road query from the API v2 tick (~30 queries per candidate pose, never pressing the button) diverged from the
+stock game in the check's byte-identity run, at a different vblank in each run (3630, 5100, 5580, 8220 off; 9540 on). With the same tick and a block allocated but **no query** the 691
+frames were identical.
+**What it is not (measured).** The query writes nothing in guest RAM outside the callee's own stack: a full diff of RAM (`0x08800000..0x0A000000`, 6.3 M words) around 6 queries found 0
+changed words outside `[sp - 0x8000, sp + 0x100)` (17-230 stack words), the 14-word record excluded.
+**Suspects (not tested).** `gt::call_guest` (`host/guest_call.cpp`) runs `dispatch_boundary` after every callee function, so virtual time advances and a poll runs; and it copies the callee's VFPU
+state back into the thread (`host/mod_services.cpp:110`), which the interrupted thread may still use. Either perturbs a run chaotically. **Rule:** a mod whose frames must stay identical to the stock game must
+not call guest code from the tick; the shipped reset-to-track therefore decides from the car's own path (API 1) and never calls the game. Reviving the query needs a host-side time/VFPU-neutral `call_guest`.
+
+## Same-build runs diverge after the route and, under load, mid-run (2026-11-09)
+
+Two runs of the same build and route (`tools/mod_reset_check.sh`, baseline against a toggle run) have identical frames until the route ends and then differ from vblank 21654 vs 21656 (route end 18825:
+the first difference is 2829 vblanks after it, in the idle phase). On a loaded machine (other sessions on the CPU) two baselines also diverged mid-run (frame 5100 of 700; 402 instead of 700 frames dumped),
+so the identity verdict is not reproducible then. Not investigated. The reset check therefore compares frames up to `POST_ROUTE_VBLANKS` = 2500 after `script done` (just before the measured divergence) and
+fails by itself when the log has no `script done`; re-run on a quiet machine when a baseline-vs-mod difference shows mid-route.
