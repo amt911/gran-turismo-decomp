@@ -10,8 +10,7 @@
 #   (the roll run also judges the body box, mod 0.2.0: `BOX` lines: the deepest box corner of the tumbling car above -0.25 m, the origin not launched past 0.8 m, no
 #                touch while upright; and the default flow adds a `nobox` run, the mod with body_box = false: the state lines before the first impact must be
 #                byte-identical with and without the box, and without it the body must sink > 0.5 m)
-#   --frames     one more run with the box on and a frame every 3 vblanks, pruned to the vblanks around the crash (--frames-window FROM:TO, default
-#                16250:16700): PPMs in $OUT/tumble/frames (tumble_nobox with --without-box) for a person to look at (no judge); with --without-box the same for the box off
+#   --frames     one more run with the box on and a frame every 3 vblanks, pruned to the vblanks around the crash (--frames-window FROM:TO, default auto: 60 vblanks before the first impulse to 300 after): PPMs in $OUT/tumble/frames (tumble_nobox with --without-box) for a person to look at (no judge); with --without-box the same for the box off
 #   --roll-only  just the roll run (no baseline, no disabled run)
 #   --toggle-off the F9 menu's toggle turns the mod off (GT_MOD_MENU_TEST_TOGGLE=rollover@v<--toggle-at>, default v16300) before the crash:
 #                PASS = the mod ran before `-> OFF` and logged nothing after, the frames from 120 vblanks after the toggle to the route's end
@@ -32,7 +31,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_rollover_check}
-decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=16250:16700 nobox_frames=0
+decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0
 while [ $# -gt 0 ]; do
   case $1 in
     --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;; --sabotage-nobox) sabotage=6;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
@@ -116,8 +115,15 @@ if [ $frames -eq 1 ]; then  # the tumble in pictures, for a person: the box on (
   $py -I - "$out/$tl" "$fwindow" <<'PY'
 import os, re, sys
 d, window = sys.argv[1], sys.argv[2]
-lo, hi = (int(x) for x in window.split(":"))
 log = open(os.path.join(d, "run.log"), errors="replace").read()
+if window == "auto":  # from 60 vblanks before the hit to 300 after: the vblank of the last frame dumped before the first IMPULSE line
+    hit = re.search(r"IMPULSE st=", log)
+    before = re.findall(r"\[frame-dump\] frame \d+ vblank (\d+)", log[:hit.start()]) if hit else []
+    if not before:
+        sys.exit("tumble: no IMPULSE line: the car never hit the barrier")
+    lo, hi = int(before[-1]) - 60, int(before[-1]) + 300
+else:
+    lo, hi = (int(x) for x in window.split(":"))
 keep = {int(f) for f, v in re.findall(r"\[frame-dump\] frame (\d+) vblank (\d+)", log) if lo <= int(v) <= hi}
 n = 0
 for name in os.listdir(os.path.join(d, "frames")):
