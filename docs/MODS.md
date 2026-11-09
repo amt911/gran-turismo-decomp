@@ -182,6 +182,13 @@ velocidad alineada con el morro (cos > 0,9: ni de lado ni marcha atrás). El ani
 más de 15 m en un paso (aparición, nuevo intento, F9 apagado/encendido), si pasan más de 2 s sin pasos, o al cambiar de coche; nunca se restaura una pose de
 más de 8 s.
 
+**Regla de recta hacia delante (mod 0.2.0, API 1).** El coche arranca desde parado siguiendo el rumbo de la pose; una pose «buena» que cruza la pista en diagonal hacia el borde
+(4/4 asfalto, derecha, tranquila) lo devolvía fuera de pista (3 de 4 restauraciones de la reproducción). El anillo se recorre en busca de la pose más reciente con `rewind_ms` de antigüedad cuya recta
+(rumbo `-sin yaw, cos yaw`, tolerancia lateral 2,5 m) es seguida por el PROPIO camino del coche durante `ahead_m` metros (40; un coche que arranca parado recorre ~38 m en 4 s); como toda pose del
+anillo tiene las 4 ruedas en asfalto, ese camino es asfalto. Sin ninguna, la de recta más larga de al menos 15 m (horquillas); sin ninguna, no restaura nada (`NOPOSE` en el log). Una pose restaurada
+queda fijada (se puede volver a ella). No se consulta la carretera ni se llama al juego: una primera versión llamaba a la consulta de carretera del juego con `call_guest` desde el tic y no era neutra
+para los fotogramas (docs/FINDINGS.md); los hechos de esa consulta están en docs/FACTS.md.
+
 **Select y la cámara.** El juego usa Select para cambiar de vista. El mod engancha la lectura del mando (`0x08C7ABF0`, el stub de importación de
 sceCtrlReadBufferPositive, despachado en `--decomp off` y `on`, FACTS): en carrera oculta Select al juego mientras está pulsado; si se suelta antes de
 0,5 s, se lo devuelve como un toque de 3 lecturas (la vista cambia igual que sin el mod); si se suelta después, se dispara el reset y la vista NO cambia.
@@ -201,6 +208,8 @@ GT_MODS_REPO=../gt-mods-reset tools/mod_reset_check.sh [--decomp off|on]   # sin
 tools/mod_reset_check.sh --tap                # las 3 pulsaciones cortas de la ruta chase: toques repetidos, misma vista de cámara que sin el mod
 tools/mod_reset_check.sh --toggle-off         # el menú apaga el mod antes del botón: ni un reset, el mod funcionó antes y calló después, fotogramas idénticos
 OUT=recomp/analysis/mod_reset_check_cheats WITH_CHEATS=1 tools/mod_reset_check.sh --reset-only|--tap   # con el mod cheats instalado también (menú del mando activo, Select llega 8 vblanks tarde): restaura igual / el toque sigue cambiando la vista
+tools/mod_reset_check.sh --multi              # ruta reset_multi (cruce en diagonal y cuatro SELECT): cada reset deja al coche 240 pasos (4 s) en 4/4 asfalto sin girar, y cada RESTORE lleva `run=` >= 15 m (la regla eligió la pose)
+tools/mod_reset_check.sh --multi --sabotage-lookahead-off   # la regla apagada, pick antiguo (-DRESET_SABOTAGE=5; RESTORE run=-1): debe FALLAR (un reset saca al coche de la pista y no usa la regla)
 tools/mod_reset_check.sh --sabotage-rates     # no pone a cero las velocidades angulares: debe FALLAR
 tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (fuera de pista): debe FALLAR
 tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR

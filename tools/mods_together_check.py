@@ -23,7 +23,7 @@ ACTED: dict[str, re.Pattern[str]] = {
     # record quantisation gives 0.4999)
     "analog-pedals": re.compile(r"^\[mod:analog-pedals\] step=[1-9]\d* player thr=0\.(?:4999|5000|5001) brk=0\.(?:2999|3000|3001)", re.M),
     # GT_MOD_CAMERA_FAKE=90 + GT_MOD_CAMERA_LOG=1: the camera turned and world uploads were edited
-    "orbit-camera": re.compile(r"^\[mod:orbit-camera\] step=\d+ yaw=90\.00 .* edits=[1-9]\d*", re.M),
+    "orbit-camera": re.compile(r"^\[mod:orbit-camera\] step=\d+ yaw=-?90\.00 .* edits=[1-9]\d*", re.M),
     # GT_MOD_DRAWDIST_LOG=1: the world pass was matched
     "draw-distance": re.compile(r"^\[mod:draw-distance\] world depth call from ra=", re.M),
     # GT_MOD_RESET_LOG=1: the chase route's short SELECT presses were hidden from the game and replayed as taps (no car is

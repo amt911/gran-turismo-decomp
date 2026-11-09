@@ -609,6 +609,17 @@ the flag at 0). Not investigated further here; the mod avoids it. **Follow-up fo
   vblanks apart, so a lone chord button is held back 8 vblanks (and replayed late, with its real length, if released first; docs/MODS.md); only a stagger past the window leaks
   (Select: a tap for reset-to-track, the camera view changes; Start: a pause).
 
+## Road query and the wheel contact records (research 2026-11-08, `reset-to-track` 0.2.0 design; runtime addresses)
+
+Observed in the research worktree (`call_guest` of the query from a vblank tick, values compared with the game's own records):
+- `word(car + 0x10) + 0x38 * i` (i = 0..3) are the four wheel road-query records: floats `+0x00` x, `+0x04` height the query starts from, `+0x08` **-y** (Y-up frame), **`+0x0C` ground height there**; word `+0x2C` = surface:
+  low byte `+0x2C` 1 = no road found (the height is a fallback), byte `+0x2D` = surface type (0 asphalt, 2/3 off-track terrain, which has a real height), `+0x2E/+0x2F` flags; words `+0x30/+0x34` = the hint pair that is
+  also `K+0x690/+0x694`. The surface word is `0` on asphalt and `0x0300` off track (above), so its low byte is 0 for both.
+- The query is `fn = word(word(obj) + 8)` with `obj = word(word(car) + 0x14)`, called `fn(obj, record)` once per wheel from `0x0894DD9C` (`0x0894DE90`), by the placement `0x0894106C` and by `0x08956EF4`; v0 = 1 hit / 0 no road;
+  it is a vertical ray down from the given height (from below the road: no hit). From the tick its results matched the game's (-0.267 vs -0.267 m at the grid).
+- Body rows: first row `K+0x1C` forward, second `K+0x28` right, third `K+0x34` up; the basis is left-handed (FACTS "Rollovers": f x l = -u).
+Not verified: block-size or lifetime guarantees of anything the query touches (see FINDINGS: not frame-neutral from a tick).
+
 ## Rollover body box (research 2026-11-08, rollover mod 0.2.0; runtime addresses)
 
 Evidence: the research worktree `build/gt_play` runs on the `rollover` pad route (`--decomp off`), `tools/mod_rollover_check.sh` (`BOX`, `BOXSIZE`, `WMEAS` log lines).
