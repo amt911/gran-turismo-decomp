@@ -1012,6 +1012,7 @@ Spec: `docs/superpowers/specs/2026-10-10-phase3-diff-harness-design.md`.
       13, una lista de cadenas leída en otra posición del flujo desde la 14). Comparadas por separado (los padres decompilados las ocultan): 6 de 6, 0 discrepancias, sabotaje 6
       de 6; las ramas de versión que no recorre ninguna ruta, revisadas contra el asm. Puerta completa: 16 rutas, 7.359
       funciones, 5.681 comparadas, 0 discrepancias.
+- [x] **Lote 335** (2026-11-10): funciones sueltas de control de flujo general (bucles, varias salidas, llamadas finales y por registro; solo enteros), generadas con `tools/batch_emit.py` y leídas contra el asm: 45 filas, 23 verificadas; las 22 restantes no reciben casos o su sabotaje no se detecta. Total: 16.806 funciones.
 - [x] **Lote 334** (2026-11-07): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 20 verificadas; las 5 restantes no reciben casos. Total: 16.863 funciones.
 - [x] **Lote 333** (2026-11-07): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 19 verificadas; las 6 restantes no reciben casos. Total: 16.843 funciones.
 - [x] **Lote 332** (2026-11-06): funciones sueltas de control de flujo general (varias salidas, llamadas finales, bucles y aritmética): 25 filas, 17 verificadas; las 8 restantes no reciben casos. Total: 16.824 funciones.
