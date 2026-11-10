@@ -39,33 +39,6 @@ bool guard_acquire(Runtime &rt, AllegrexContext &ctx, u32 guard) {
     return byte_at(rt, guard) == 0u && call(rt, ctx, 0x08B6441Cu, {guard}) != 0u;
 }
 
-// 0x08805578
-void func_08805578(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x40u);
-    const u32 list = frame.at(0x8u);
-    const u32 element = frame.at(0x4u);
-    constexpr u32 kHolder = 0x08CE28A0u;
-    call(rt, ctx, 0x08A9DD14u, {list});
-    call(rt, ctx, 0x08A5BAD8u, {kHolder, word(rt, list)});
-    call(rt, ctx, 0x08A5B9ECu, {list});
-    const s32 count = static_cast<s32>(call(rt, ctx, 0x08B36278u));
-    u32 items = call(rt, ctx, 0x08B36284u);
-    if (count > 0) {
-        for (s32 index = 0; index < count; ++index, items += 4u) {
-            const u32 holder = word(rt, kHolder);
-            if (holder == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08C97C9Cu});
-            call(rt, ctx, 0x08B85EB8u, {element, word(rt, items), frame.at(0x1u)});
-            call(rt, ctx, 0x08A9C650u, {holder, element});
-            const u32 text = word(rt, element);
-            ctx.gpr[2] = text;
-            const u32 header = text - 0xCu;
-            if (header != 0x08D74FD0u && static_cast<s32>(call(rt, ctx, 0x08B60804u, {text - 4u, 0xFFFFFFFFu})) <= 0)
-                call(rt, ctx, 0x08B8542Cu, {header, frame.at(0x0u)});
-        }
-    }
-    ctx.gpr[2] = call(rt, ctx, 0x08A5BCF4u);
-}
-
 // 0x0885DFF4
 void func_0885DFF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0xD0u);
@@ -328,7 +301,6 @@ void func_08861168(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define HOT337(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_337::name, gt::ReturnKind::kind)
-HOT337(0x08805578u, func_08805578, Word);
 HOT337(0x0885DFF4u, func_0885DFF4, Word);
 HOT337(0x08860740u, func_08860740, Word);
 HOT337(0x0887FFBCu, func_0887FFBC, Word);
