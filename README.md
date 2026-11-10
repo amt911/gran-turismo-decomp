@@ -14,11 +14,12 @@ compilers are not public).
 > - **🎮 The game is playable on PC:** `build/gt_play` (SDL window, keyboard or controller, sound and music,
 >   saves): races, Time Trial, dealer and garage. It draws with the GPU (Vulkan) or in software. Controls and
 >   settings: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
-> - **🧩 Decompilation:** 16,783 of 23,208 functions (72 %) are already readable C/C++ (by hand or from a
+> - **🧩 Decompilation:** 16,850 of 23,208 functions (72 %) are already readable C/C++ (by hand or from a
 >   template), checked against the original with the differential harness: each one leaves the same output and
 >   the same memory as the recompiled original on the test routes (race, dealer, garage, options, Trial
 >   Mountain…) or, where no route reaches it, on synthetic cases. 1,534 functions have their real name, each
 >   with its evidence in `config/symbol_addrs.txt`. Bars and map below; report: `.venv/bin/python -m tools.progress`.
+>   Structured rewrites of the register-level functions: 27 of ~1,100.
 > - **🔧 Native mods** in the style of Dusklight, without touching the game's code: in
 >   [amt911/gt-mods](https://github.com/amt911/gt-mods) (analog pedals, orbit camera, draw distance, reset to
 >   track, rollovers, cheats). In-game menu on F9. How to write one: [`docs/MODS.md`](docs/MODS.md).

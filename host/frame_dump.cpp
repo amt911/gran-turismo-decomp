@@ -1,6 +1,7 @@
 // Frame dumps for both executables (GT_FRAME_DUMP, GT_GPU_DUMP), taken from the guest display framebuffer the
 // kernel is about to present (host/gt_kernel.cpp).
 #include "frame_dump.hpp"
+#include "dump_bucket.hpp"
 
 #include "image_ppm.hpp"
 #include "pad_script.hpp"
@@ -13,7 +14,7 @@
 
 namespace gt {
 
-// GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N, default 60): every Nth presented frame is written as
+// GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N, default 60): the first present of each bucket of N vblanks (host/dump_bucket.hpp) is written as
 // <dir>/frame_NNNNNN.ppm from the guest display framebuffer. The images are game output: keep the
 // directory out of git (recomp/ is ignored).
 namespace {
@@ -70,16 +71,18 @@ std::filesystem::path numbered(const char *directory, const char *prefix, std::u
 // count vblank waits, which run ahead of presented frames during loads. The images are game output: keep the
 // directory out of git (recomp/ is ignored).
 void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::uint32_t buffer_width,
-                std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height) {
+                std::uint32_t pixel_format, std::uint32_t width, std::uint32_t height, std::uint64_t present_vblank) {
     static const char *dump_dir = std::getenv("GT_FRAME_DUMP");
-    static std::uint64_t presented = 0u;
-    if (dump_dir == nullptr || (presented++ % dump_every()) != 0u) return;
+    static std::uint64_t presented = 0u;  // the dumps taken so far: the number in the file name
+    static DumpBucket bucket;  // which presents are dumped: host/dump_bucket.hpp
+    if (dump_dir == nullptr || !bucket.due(present_vblank, dump_every())) return;
+    ++presented;
     const std::vector<std::uint8_t> rgb = guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height);
     if (rgb.empty()) return;
     std::filesystem::create_directories(dump_dir);
     (void)write_rgb_ppm(numbered(dump_dir, "frame", presented - 1u), rgb, width, height);
-    std::fprintf(stderr, "[frame-dump] frame %06llu vblank %llu\n", static_cast<unsigned long long>(presented - 1u),
-                 static_cast<unsigned long long>(pad_script_vblanks()));
+    std::fprintf(stderr, "[frame-dump] frame %06llu vblank %llu present_vblank %llu\n", static_cast<unsigned long long>(presented - 1u),
+                 static_cast<unsigned long long>(pad_script_vblanks()), static_cast<unsigned long long>(present_vblank));
 }
 
 // GT_GPU_DUMP=<dir> (+ GT_FRAME_EVERY, GT_GPU_DUMP_FROM=N to start at frame N, GT_GPU_DUMP_FULL=1 to keep the GPU
