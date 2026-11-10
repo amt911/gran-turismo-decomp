@@ -87,7 +87,17 @@
      const std::array<std::uint32_t, 3> shader_blend = shader_blend_uniforms(draw);  // GT patch 0021
      constants.pixel1[1] = shader_blend[0];
      constants.pixel1[2] = shader_blend[1];
-@@ -1253,6 +1288,31 @@
+@@ -1133,6 +1168,9 @@
+         const std::uint32_t byte = (draw.color_write_mask >> (channel * 8u)) & 0xFFu;
+         if (byte != 0xFFu) mask |= static_cast<VkColorComponentFlags>(1u << channel);
+     }
++    // GT patch 0064: the framebuffer alpha is the PSP stencil. Outside clear mode only a stencil draw writes it
++    // (pipeline_for adds A back for those); a clear writes it only with its alpha bit (PPSSPP GPU/Software/DrawPixel.cpp).
++    if (draw.clear_mode ? !draw.clear_alpha : true) mask &= ~static_cast<VkColorComponentFlags>(VK_COLOR_COMPONENT_A_BIT);
+     return mask;
+ }
+ 
+@@ -1253,6 +1291,31 @@
      return VK_COMPARE_OP_ALWAYS;
  }
  
@@ -119,7 +129,7 @@
  std::uint64_t pipeline_key(const GeGpuDrawDescriptor &draw, bool strip, bool cull, bool ccw) noexcept {
      std::uint64_t key = static_cast<std::uint64_t>(draw.depth_test_enabled ? 1u : 0u);
      key |= static_cast<std::uint64_t>(draw.depth_write_enabled ? 1u : 0u) << 1u;
-@@ -1262,6 +1322,7 @@
+@@ -1262,6 +1325,7 @@
      key |= static_cast<std::uint64_t>(strip ? 1u : 0u) << 16u;
      key |= static_cast<std::uint64_t>(cull ? 1u : 0u) << 17u;
      key |= static_cast<std::uint64_t>(ccw ? 1u : 0u) << 18u;
@@ -127,7 +137,7 @@
      return key;
  }
  
-@@ -1332,6 +1393,14 @@
+@@ -1332,6 +1396,14 @@
      blend.srcAlphaBlendFactor = alpha_counterpart(general.src);
      blend.dstAlphaBlendFactor = alpha_counterpart(general.dst);
      blend.alphaBlendOp = general.op;
@@ -142,7 +152,7 @@
      VkPipelineColorBlendStateCreateInfo blending{};
      blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
      blending.attachmentCount = 1u;
-@@ -1593,6 +1662,8 @@
+@@ -1593,6 +1665,8 @@
  void destroy_target(VulkanState &s, Target &target) noexcept {
      if (target.framebuffer) vkDestroyFramebuffer(s.device, target.framebuffer, nullptr);  // depth is shared
      destroy_image(s, target.color);
@@ -151,7 +161,7 @@
      destroy_image(s, target.snapshot);
      target.framebuffer = VK_NULL_HANDLE;
      target.depth_view = VK_NULL_HANDLE;
-@@ -2809,6 +2880,9 @@
+@@ -2809,6 +2883,9 @@
      if (s.descriptor_pool) vkDestroyDescriptorPool(s.device, s.descriptor_pool, nullptr);
      if (s.set_layout) vkDestroyDescriptorSetLayout(s.device, s.set_layout, nullptr);
      if (s.pipeline_layout) vkDestroyPipelineLayout(s.device, s.pipeline_layout, nullptr);
@@ -161,7 +171,7 @@
      if (s.vertex_shader) vkDestroyShaderModule(s.device, s.vertex_shader, nullptr);
      if (s.fragment_shader) vkDestroyShaderModule(s.device, s.fragment_shader, nullptr);
      if (s.render_pass) vkDestroyRenderPass(s.device, s.render_pass, nullptr);
-@@ -3268,10 +3342,24 @@
+@@ -3268,10 +3345,24 @@
          return false;
      }
      s.report.texture_descriptor_layout_created = true;
@@ -188,7 +198,7 @@
      if (vkCreatePipelineLayout(s.device, &layout_info, nullptr, &s.pipeline_layout) != VK_SUCCESS) {
          error = "vkCreatePipelineLayout failed";
          return false;
-@@ -3364,6 +3452,8 @@
+@@ -3364,6 +3455,8 @@
      vkDestroyBuffer(s.device, staging.buffer, nullptr);
      vkFreeMemory(s.device, staging.memory, nullptr);
      if (!write_descriptor(s, s.white.gpu, error)) return false;
@@ -197,7 +207,7 @@
      s.report.transfer_self_test_passed = true;
      if (!run_offscreen_self_test(s, error)) return false;
      if (s.surface != VK_NULL_HANDLE && s.swapchain_extension) {
-@@ -4302,6 +4392,8 @@
+@@ -4302,6 +4395,8 @@
      bool descriptors_bound = false;  // the set and the uniform slot of the last draw, reused when identical
      VkDescriptorSet bound_set = VK_NULL_HANDLE;
      DrawUniforms bound_uniforms{};
@@ -206,7 +216,7 @@
      for (const Batch &batch : s.batches) {
          if (uniform_slot >= kMaxDraws) break;
          Target *target = find_target(s, batch.draw.framebuffer_address);
-@@ -4320,6 +4412,28 @@
+@@ -4320,6 +4415,28 @@
              vkCmdBindPipeline(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
              bound_pipeline = pipeline;
          }
@@ -237,7 +247,7 @@
              vkCmdBindVertexBuffers(s.command, 0u, 1u, &s.geometry, &offset);
 --- a/lcs/host/ge_renderer.cpp
 +++ b/lcs/host/ge_renderer.cpp
-@@ -4423,6 +4423,16 @@
+@@ -4500,6 +4500,16 @@
      gpu_draw.clear_color = (gpu_clear & 0x100u) != 0u;
      gpu_draw.clear_alpha = (gpu_clear & 0x200u) != 0u;
      gpu_draw.clear_depth = (gpu_clear & 0x400u) != 0u;
