@@ -1,0 +1,219 @@
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -2590,6 +2590,14 @@
+     Color texture_env{};
+     bool texture_use_alpha{};
+     bool texture_double_color{};
++    // GT patch 0063: the PSP stencil is the framebuffer alpha (none in 565).
++    bool stencil_enabled{};
++    std::uint32_t stencil_function{};
++    std::uint32_t stencil_reference{};
++    std::uint32_t stencil_mask{};
++    std::uint32_t stencil_fail_op{};
++    std::uint32_t stencil_zfail_op{};
++    std::uint32_t stencil_zpass_op{};
+ };
+ 
+ void bind_fragment_buffers(FragmentSetup &setup, psprecomp::GuestMemory &memory,
+@@ -2654,14 +2662,24 @@
+     setup.texture_double_color = (texfunc & 0x10000u) != 0u;
+     setup.texture_env = unpack32(data24(commands[0xCAu]) | 0xFF000000u);
+ 
++    const std::uint32_t stencil_test = data24(commands[0xDCu]);
++    const std::uint32_t stencil_op = data24(commands[0xDDu]);
++    setup.stencil_enabled = (data24(commands[0x24u]) & 1u) != 0u && setup.framebuffer_format != 0u;
++    setup.stencil_function = stencil_test & 7u;
++    setup.stencil_reference = (stencil_test >> 8u) & 0xFFu;
++    setup.stencil_mask = (stencil_test >> 16u) & 0xFFu;
++    setup.stencil_fail_op = stencil_op & 7u;
++    setup.stencil_zfail_op = (stencil_op >> 8u) & 7u;
++    setup.stencil_zpass_op = (stencil_op >> 16u) & 7u;
++
+     setup.valid = true;
+     return setup;
+ }
+ 
+ FragmentSetup make_fragment_setup_cached(const std::array<std::uint32_t, 256> &commands) noexcept {
+-    static constexpr std::array<std::uint8_t, 23> regs{{
++    static constexpr std::array<std::uint8_t, 26> regs{{
+         0x9D,0xD2,0x9C,0xD4,0xD5,0xD3,0x1E,0xE8,0xE9,0x9F,0x9E,0x23,
+-        0xDE,0xE7,0xDF,0x21,0xE0,0xE1,0xDB,0x22,0xC9,0xCA,0x00}};
++        0xDE,0xE7,0xDF,0x21,0xE0,0xE1,0xDB,0x22,0xC9,0xCA,0x24,0xDC,0xDD,0x00}};
+     struct Cache {
+         std::array<std::uint32_t, regs.size()> values{};
+         FragmentSetup setup{};
+@@ -2753,6 +2771,34 @@
+                          setup.alpha_reference & setup.alpha_mask);
+ }
+ 
++// GT patch 0063 — the stencil (PPSSPP GPU/Software): the test compares (ref & mask) with (alpha & mask); each op gives
++// the new alpha: keep, zero, replace (ref), invert, incr, decr (saturating; one step of the format's alpha bits).
++bool stencil_test_passes(std::uint8_t stencil, const FragmentSetup &setup) noexcept {
++    return compare_value(setup.stencil_function, setup.stencil_reference & setup.stencil_mask,
++                         stencil & setup.stencil_mask);
++}
++
++std::uint8_t stencil_apply(std::uint32_t op, std::uint8_t stencil, const FragmentSetup &setup) noexcept {
++    const std::uint32_t step = setup.framebuffer_format == 3u ? 1u : setup.framebuffer_format == 2u ? 0x11u : 0xFFu;
++    switch (op) {
++    case 1u: return 0u;
++    case 2u: return static_cast<std::uint8_t>(setup.stencil_reference);
++    case 3u: return static_cast<std::uint8_t>(~stencil);
++    case 4u: return static_cast<std::uint8_t>(std::min<std::uint32_t>(stencil + step, 0xFFu));
++    case 5u: return static_cast<std::uint8_t>(stencil > step ? stencil - step : 0u);
++    default: return stencil;
++    }
++}
++
++// Writes only the alpha (the stencil) of a pixel, through the alpha write mask.
++void write_stencil_only(psprecomp::GuestMemory &memory, const FragmentSetup &setup, std::uint8_t *pixel,
++                        std::uint32_t pixel_address, Color destination, std::uint8_t stencil) {
++    destination.a = stencil;
++    const std::uint32_t mask = setup.write_mask | 0x00FFFFFFu;
++    if (pixel != nullptr) write_color_raw(pixel, setup.framebuffer_format, destination, mask);
++    else write_color(memory, pixel_address, setup.framebuffer_format, destination, mask);
++}
++
+ std::array<float, 4> color_float(Color c) noexcept {
+     return {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f};
+ }
+@@ -2962,13 +3008,28 @@
+             if (!clear_mode && !alpha_test(source, setup)) continue;
+             const float zf = static_cast<float>(a.z) + (static_cast<float>(b.z) - a.z) * ((tx + ty) * 0.5f);
+             const std::uint16_t z = static_cast<std::uint16_t>(std::clamp(zf, 0.0f, 65535.0f));
+-            if (!depth_test_and_write(memory, setup, x, y, z, clear_mode && clear_depth)) continue;
+ 
+             const std::size_t pixel_index =
+                 static_cast<std::size_t>(y) * framebuffer_stride + static_cast<std::size_t>(x);
+             const std::uint32_t pixel_address = fb + static_cast<std::uint32_t>(pixel_index * bpp);
+             std::uint8_t *pixel = setup.color_pixels != nullptr
+                 ? setup.color_pixels + pixel_index * bpp : nullptr;
++            const bool stencil = setup.stencil_enabled && !clear_mode;
++            if (stencil) {
++                if (pixel == nullptr && !memory.contains(pixel_address, bpp)) continue;
++                const Color old = pixel != nullptr ? read_color_raw(pixel, framebuffer_format)
++                                                   : read_color(memory, pixel_address, framebuffer_format);
++                if (!stencil_test_passes(old.a, setup)) {
++                    write_stencil_only(memory, setup, pixel, pixel_address, old, stencil_apply(setup.stencil_fail_op, old.a, setup));
++                    continue;
++                }
++                if (!depth_test_and_write(memory, setup, x, y, z, false)) {
++                    write_stencil_only(memory, setup, pixel, pixel_address, old, stencil_apply(setup.stencil_zfail_op, old.a, setup));
++                    continue;
++                }
++            } else if (!depth_test_and_write(memory, setup, x, y, z, clear_mode && clear_depth)) {
++                continue;
++            }
+             if (pixel == nullptr && !memory.contains(pixel_address, bpp)) continue;
+             Color destination = pixel != nullptr ? read_color_raw(pixel, framebuffer_format)
+                                                  : read_color(memory, pixel_address, framebuffer_format);
+@@ -2977,6 +3038,7 @@
+                 if (!clear_alpha) source.a = destination.a;
+             } else {
+                 source = blend_pixel(source, destination, setup);
++                if (stencil) source.a = stencil_apply(setup.stencil_zpass_op, destination.a, setup);
+             }
+             if (pixel != nullptr) write_color_raw(pixel, framebuffer_format, source, clear_mode ? 0u : write_mask);
+             else write_color(memory, pixel_address, framebuffer_format, source, clear_mode ? 0u : write_mask);
+@@ -3106,7 +3168,7 @@
+ }
+ 
+ bool depth_precedes_shading(const FragmentSetup &setup) noexcept {
+-    return setup.clear_mode || !setup.alpha_test_enabled;
++    return setup.clear_mode || (!setup.alpha_test_enabled && !setup.stencil_enabled);
+ }
+ 
+ bool fragment_depth_prepass(psprecomp::GuestMemory &memory, const FragmentSetup &setup,
+@@ -3148,9 +3210,6 @@
+     if (setup.texture_enabled && !setup.clear_mode)
+         source = apply_texture_function(source, sample_texture(memory, setup.texture, u, v), setup);
+     if (!setup.clear_mode && !alpha_test(source, setup)) return false;
+-    if (!depth_before_shading &&
+-        !depth_test_and_write(memory, setup, x, y, z, setup.clear_mode && setup.clear_depth))
+-        return false;
+ 
+     const std::size_t pixel_index =
+         static_cast<std::size_t>(y) * setup.framebuffer_stride + static_cast<std::size_t>(x);
+@@ -3159,6 +3218,23 @@
+         : nullptr;
+     const std::uint32_t pixel_address =
+         setup.framebuffer_base + static_cast<std::uint32_t>(pixel_index) * setup.framebuffer_bpp;
++    const bool stencil = setup.stencil_enabled && !setup.clear_mode;  // depth_precedes_shading is false then
++    if (stencil) {
++        if (pixel == nullptr && !memory.contains(pixel_address, setup.framebuffer_bpp)) return false;
++        const Color old = pixel != nullptr ? read_color_raw(pixel, setup.framebuffer_format)
++                                           : read_color(memory, pixel_address, setup.framebuffer_format);
++        if (!stencil_test_passes(old.a, setup)) {
++            write_stencil_only(memory, setup, pixel, pixel_address, old, stencil_apply(setup.stencil_fail_op, old.a, setup));
++            return false;
++        }
++        if (!depth_test_and_write(memory, setup, x, y, z, false)) {
++            write_stencil_only(memory, setup, pixel, pixel_address, old, stencil_apply(setup.stencil_zfail_op, old.a, setup));
++            return false;
++        }
++    } else if (!depth_before_shading &&
++               !depth_test_and_write(memory, setup, x, y, z, setup.clear_mode && setup.clear_depth)) {
++        return false;
++    }
+     if (pixel == nullptr && !memory.contains(pixel_address, setup.framebuffer_bpp)) return false;
+ 
+     Color destination = pixel != nullptr
+@@ -3169,6 +3245,7 @@
+         if (!setup.clear_alpha) source.a = destination.a;
+     } else {
+         source = blend_pixel(source, destination, setup);
++        if (stencil) source.a = stencil_apply(setup.stencil_zpass_op, destination.a, setup);
+     }
+     const std::uint32_t mask = setup.clear_mode ? 0u : setup.write_mask;
+     if (pixel != nullptr) write_color_raw(pixel, setup.framebuffer_format, source, mask);
+@@ -5271,6 +5348,42 @@
+     return true;
+ }
+ 
++// GT patch 0063, measurement (docs/superpowers/specs/2026-11-10-gpu-stencil-design.md step 0): GT_STENCIL_PROBE=1 logs, at the
++// first draw of each run of stencil-tested draws (software renderer), how many pixels of the scissor box pass its stencil
++// test and how many have alpha bit 7 set, after flushing the deferred rasterization. At most 4000 lines.
++void stencil_probe(psprecomp::GuestMemory &memory, const std::array<std::uint32_t, 256> &commands) {
++    static const bool on = [] {
++        const char *value = std::getenv("GT_STENCIL_PROBE");
++        return value != nullptr && *value != '\0' && *value != '0';
++    }();
++    if (!on) return;
++    static bool previous = false;
++    static unsigned lines = 0u;
++    const bool enabled = (data24(commands[0x24u]) & 1u) != 0u && (data24(commands[0xD3u]) & 1u) == 0u;
++    const bool first = enabled && !previous;
++    previous = enabled;
++    if (!first || lines >= 4000u) return;
++    ++lines;
++    flush_ge_deferred_rasterization(memory);
++    const FragmentSetup setup = make_fragment_setup(commands);
++    if (!setup.valid || !setup.stencil_enabled) return;
++    std::uint32_t total = 0u, passes = 0u, bit7 = 0u;
++    for (std::int32_t y = setup.scissor_y0; y <= std::min(setup.scissor_y1, 271); ++y) {
++        for (std::int32_t x = setup.scissor_x0; x <= std::min(setup.scissor_x1, 479); ++x) {
++            const std::uint32_t address = setup.framebuffer_base +
++                (static_cast<std::uint32_t>(y) * setup.framebuffer_stride + static_cast<std::uint32_t>(x)) * setup.framebuffer_bpp;
++            if (!memory.contains(address, setup.framebuffer_bpp)) continue;
++            const Color c = read_color(memory, address, setup.framebuffer_format);
++            ++total;
++            passes += stencil_test_passes(c.a, setup) ? 1u : 0u;
++            bit7 += (c.a & 0x80u) != 0u ? 1u : 0u;
++        }
++    }
++    std::fprintf(stderr, "[stencil-probe] %u fb %08x dc %06x dd %06x 21 %u df %06x: test passes on %u of %u pixels, alpha bit7 on %u\n",
++                 lines, setup.framebuffer_base, data24(commands[0xDCu]), data24(commands[0xDDu]), data24(commands[0x21u]) & 1u,
++                 data24(commands[0xDFu]), passes, total, bit7);
++}
++
+ bool render_ge_primitive(psprecomp::GuestMemory &memory,
+                          const std::array<std::uint32_t, 256> &commands,
+                          const GeTransformState &transform,
+@@ -5287,6 +5400,7 @@
+         const char *value = std::getenv("PSPRECOMP_GE_GPU_DUAL");
+         return value != nullptr && *value != '\0' && *value != '0';
+     }();
++    if (!ge_gpu_backend_active()) stencil_probe(memory, commands);
+     if (!dual || !ge_gpu_backend_active())
+         return render_ge_primitive_pass(memory, commands, transform, vertex_address, index_address, primitive_data,
+                                         stats, error, logical_primitive_count, draw_state_revision,
