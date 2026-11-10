@@ -1,6 +1,7 @@
-# Recorded arguments for synthetic cases — design (DRAFT, awaiting approval)
+# Recorded arguments for synthetic cases — design
 
-Status: **draft 2026-11-10, not approved. No implementation exists beyond the measurement spike (below).**
+Status: **approved by the user 2026-11-10: B; depth measurement next; then Part 2 (new routes).** C, D and E are not
+built without asking again.
 
 ## Problem as stated
 
@@ -73,28 +74,25 @@ Recommendation: **B now** (cheap, measured), **measure branch depth** of a sampl
 then decide between **C** and **E** with that number; **do not build D**. Part 2 (new routes) is the only way to
 serve the ~2,800 functions nothing calls and is independent of this spec.
 
-## Design of B (the part proposed for approval)
+## Design of B (implemented)
 
-- `tools/` (Python, TDD): `tools.vtable_runs` reads `.rodata`/`.data` of the ELF and returns runs of >= 2 consecutive
-  function addresses (function list from `functions.tsv`); output a gitignored table `recomp/analysis/vtable_runs.tsv`
-  (start, count). Pure function + CLI; tests with hand-built sections.
-- Host: `GT_SYNTH_RUNS=<file>`; at the start of the synthetic phase group the live objects by vptr, and for a function
-  inside a run set `a0` to an instance whose vptr lies in that run (index by case number + seed, deterministic), leaving
-  the other registers as today. Functions with no instance keep today's inputs. C++ unit test in
-  `host/tests/synth_case_test.cpp` (deterministic, always in the run, falls back when none).
-- Gate: `tools.decomp_gate synth` passes the variable; the report says how many functions had a class-matched case.
-  A function counts as verified by the same rule as today (>= 1 equal, 0 mismatch, `sabotage --synth` detects it).
-- Sabotage: flip a result in a class-matched function that today has no equal case; it must now be detected.
-- Full gate and boot check as always; coverage of `tools/` >= 80 %.
-- Not in scope: C, D, E, new routes, changing what "done" means.
+- `host/synth_case.{hpp,cpp}`: `find_vtable_runs(begin, end, load32, is_function)` (runs of >= 2 consecutive function
+  words), `class_instances(runs, {object, vptr})` (function -> objects whose vptr lies in its run) and
+  `SynthLayout::class_instances`; `make_synth_case` replaces `a0` by one of the function's class objects (case index and
+  seed pick it; no random draw is spent, so every other input is unchanged). Functions with no instance keep today's
+  inputs. The runs are computed from guest memory (`.rodata`/`.data`) at the start of the synthetic phase, from the same
+  scan that finds the live objects, so no table file is needed (the Python `vtable_runs` tool of the draft is dropped).
+- `GT_SYNTH_CLASS=0` turns it off (comparing runs); the report line `[decomp] synthetic: N functions have a live
+  instance of their class` says how many functions it applies to.
+- `tools/synth_reach.py` (pytest): per-size table of verified functions from a synthetic log, optionally restricted to
+  functions no route reached; run it on a `GT_SYNTH_CLASS=0` log and a default log.
+- Tests: `host/tests/synth_case_test.cpp` (runs, instances, determinism, only a0 changes, falls back), pytest, sabotage
+  (flip a result in a class-matched function that gains its first equal case: `sabotage --synth` must pin it), full gate.
+- Not in scope: C, D, E, new routes.
 
-## Spike code and reproduction
+## Spike evidence
 
-Committed only as evidence, to be reduced or removed once a design is approved: `host/probes.cpp` (`live_scan`),
-the hook in `host/gt_kernel.cpp`, `GT_SYNTH_CLASS` in `host/diff_harness.cpp`, and `tools/spikes/recorded_args/`
-(`base.py` reached/decompiled sets, `static.py` references and vtable runs, `dyn.py` live instances and synthetic
-results; they read `recomp/analysis/spike/`, `probe_pbase_*` logs of the main checkout and the two full synthetic logs).
-Commands: `GT_LIVE_SCAN=<file> GT_PAD_EXIT_AFTER=600 GT_PAD=... build/gt_native --decomp off` per route;
-`GT_SYNTH=8 [GT_SYNTH_CLASS=1] GT_PAD=<dealer> build/gt_native --decomp diff` for the synthetic runs.
-Caveats: one seed, one scene (dealer), 8 cases; the live-object scan covers heap objects with a vptr (static `.bss`
-objects and plain C structs are not covered); route timing varies the object set.
+The measurement spike (a heap scan every 150 vblanks, `GT_LIVE_SCAN`) and the one-off analysis scripts were removed
+from the PR; their results are the tables above. Caveats: one seed, one scene (dealer), 8 cases; the live-object scan
+covers heap objects with a vptr (static `.bss` objects and plain C structs are not covered); route timing varies the
+object set.

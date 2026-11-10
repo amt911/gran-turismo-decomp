@@ -26,7 +26,6 @@
 #include "kirk_slot_keys.hpp"
 #include "diff_harness.hpp"
 #include "pad_script.hpp"
-#include "probes.hpp"
 #include "host_hooks.hpp"
 #include "psp_savedata_crypto.hpp"
 #include "vblank_pacer.hpp"
@@ -4400,11 +4399,6 @@ void install_profile(psprecomp::Runtime &runtime, std::uint32_t user_arena_start
                     ctx.set_gpr(2, 0u);
                     return;
                 }
-            }
-            if (std::getenv("GT_LIVE_SCAN") != nullptr) {  // SPIKE: one scan per 150 vblanks
-                static std::uint64_t last_scan = 0u;
-                const std::uint64_t now = gt::pad_script_vblanks();
-                if (now >= last_scan + 150u) { last_scan = now; gt::live_scan(rt, now); }
             }
             const HostInputState host = display_window_input();
             std::uint32_t buttons = host.buttons | gt::scripted_buttons();  // + GT_PAD

@@ -848,35 +848,17 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         else
             for (std::size_t i = 0; i < kMaxLive; ++i) layout.live_objects.push_back(all[i * all.size() / kMaxLive]);
     }
-    // SPIKE (spec 2026-11-10-recorded-arguments-design.md, measurement only): GT_SYNTH_CLASS=1 makes a0 of a function that
-    // sits in a vtable run (>= 2 consecutive function addresses in .rodata/.data) a live object whose vtable pointer is
-    // inside that run (the right class), on every case. Prints how many functions had one.
-    std::map<std::uint32_t, std::vector<std::uint32_t>> class_objects;  // function -> instances of its class
-    if (std::getenv("GT_SYNTH_CLASS") != nullptr) {
+    // Class-matched a0 (spec 2026-11-10-recorded-arguments-design.md): a function inside a vtable run of .rodata/.data
+    // gets, as a0, a live object of that class when one exists (GT_SYNTH_CLASS=0 turns it off, for comparing runs).
+    if (const char *off = std::getenv("GT_SYNTH_CLASS"); off == nullptr || std::strcmp(off, "0") != 0) {
         constexpr std::uint32_t kT0 = 0x08804028u, kT1 = 0x08C7A7DCu, kD1 = 0x08DA0000u;
-        std::map<std::uint32_t, std::vector<std::uint32_t>> by_run;  // run start -> objects with that exact vptr
-        for (const std::uint32_t object : layout.live_objects) by_run[rt.memory().load32(object)].push_back(object);
-        std::uint32_t run = 0u, count = 0u;
-        std::vector<std::uint32_t> members;
-        const auto flush = [&] {
-            if (count >= 2u) {
-                std::vector<std::uint32_t> objects;
-                for (std::uint32_t vptr = run; vptr < run + 4u * count; vptr += 4u)
-                    if (const auto it = by_run.find(vptr); it != by_run.end())
-                        objects.insert(objects.end(), it->second.begin(), it->second.end());
-                for (const std::uint32_t f : members) if (!objects.empty()) class_objects[f] = objects;
-            }
-            count = 0u;
-            members.clear();
-        };
-        for (std::uint32_t a = kT1; a < kD1; a += 4u) {
-            const std::uint32_t w = rt.memory().load32(a);
-            if (w >= kT0 && w < kT1 && rt.function_at(w) != nullptr) { if (count++ == 0u) run = a; members.push_back(w); }
-            else flush();
-        }
-        flush();
-        std::cerr << "[synth-class] " << class_objects.size() << " functions have a live instance of their class\n";
-        for (const auto &[f, objects] : class_objects) std::cerr << "[synth-class] fn " << psprecomp::hex32(f) << " " << objects.size() << "\n";
+        const auto runs = find_vtable_runs(
+            kT1, kD1, [&](std::uint32_t address) { return rt.memory().load32(address); },
+            [&](std::uint32_t word) { return word >= kT0 && word < kT1 && rt.function_at(word) != nullptr; });
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> objects;
+        for (const std::uint32_t object : layout.live_objects) objects.emplace_back(object, rt.memory().load32(object));
+        layout.class_instances = class_instances(runs, objects);
+        std::cerr << "[decomp] synthetic: " << layout.class_instances.size() << " functions have a live instance of their class\n";
     }
     std::uint8_t *const arena = rt.memory().raw_pointer(layout.arena_base, layout.arena_bytes);
     if (arena == nullptr) {
@@ -974,9 +956,7 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             close(pipe_fds[0]);
             g_mismatch_cases.clear();
             for (unsigned index = 0; index < g_cases && !rt.stopped(); ++index) {
-                SynthInputs inputs = make_synth_case(address, index, seed, layout);
-                if (const auto it = class_objects.find(address); it != class_objects.end())
-                    inputs.gpr[0] = it->second[(seed + index * 7u) % it->second.size()];
+                const SynthInputs inputs = make_synth_case(address, index, seed, layout);
                 std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
                 const std::vector<ScenePoke> pokes = scene_pokes(address, index);
                 std::vector<std::uint32_t> poked_before;

@@ -6,6 +6,9 @@
 // floats and random words kept out of the code range (a random word there would be a call target the case never meant).
 #include "synth_case.hpp"
 
+#include <algorithm>
+#include <set>
+
 namespace gt {
 namespace {
 
@@ -50,6 +53,42 @@ struct Arena {
 };
 
 } // namespace
+
+std::vector<VtableRun> find_vtable_runs(std::uint32_t begin, std::uint32_t end,
+                                        const std::function<std::uint32_t(std::uint32_t)> &load32,
+                                        const std::function<bool(std::uint32_t)> &is_function) {
+    std::vector<VtableRun> runs;
+    VtableRun current;
+    const auto flush = [&] {
+        if (current.functions.size() >= 2u) runs.push_back(current);
+        current = VtableRun{};
+    };
+    for (std::uint32_t address = begin; address < end; address += 4u) {
+        const std::uint32_t word = load32(address);
+        if (is_function(word)) {
+            if (current.functions.empty()) current.start = address;
+            current.functions.push_back(word);
+        } else {
+            flush();
+        }
+    }
+    flush();
+    return runs;
+}
+
+std::map<std::uint32_t, std::vector<std::uint32_t>> class_instances(
+    const std::vector<VtableRun> &runs, const std::vector<std::pair<std::uint32_t, std::uint32_t>> &objects) {
+    std::map<std::uint32_t, std::set<std::uint32_t>> found;
+    for (const VtableRun &run : runs) {
+        const std::uint32_t last = run.start + 4u * static_cast<std::uint32_t>(run.functions.size());
+        for (const auto &[object, vptr] : objects)
+            if (vptr >= run.start && vptr < last)
+                for (const std::uint32_t function : run.functions) found[function].insert(object);
+    }
+    std::map<std::uint32_t, std::vector<std::uint32_t>> result;
+    for (const auto &[function, set] : found) result[function].assign(set.begin(), set.end());
+    return result;
+}
 
 std::vector<ScenePoke> scene_pokes(std::uint32_t function, unsigned index) {
     if ((index & 1u) == 0u) return {};
@@ -98,6 +137,9 @@ SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_
         inputs.fpr[0] = kEdges[pair % n];
         inputs.fpr[1] = kEdges[(pair / n + pair) % n];
     }
+    // The class's own object as `this`: only a0 changes and no draw is spent, so every other input stays as it was.
+    if (const auto it = layout.class_instances.find(function); it != layout.class_instances.end() && !it->second.empty())
+        inputs.gpr[0] = it->second[(seed + static_cast<std::uint64_t>(index) * 7u) % it->second.size()];
     return inputs;
 }
 
