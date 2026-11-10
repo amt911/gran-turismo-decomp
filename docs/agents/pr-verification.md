@@ -19,8 +19,12 @@ what neither can see, posts the verdict, and **waits for the user to merge**.
 2. **Rebuild from zero** — setup, extract (hash checks must pass), recomp, build, all inside the memory
    cgroup. `tools/verdict.sh <branch> <tag>` runs steps 2-3 on `../gt-verify` (`GT_VERIFY_TREE`): pytest,
    ctest, the full gate under `taskset -c 6-11,18-23`, the `save_garage` boot check and the synthetic gate after
-   `dealer,race` and `save_garage,circuit,buy,options`. A route that exits 97 is re-run alone before the
-   verdict is written.
+   `dealer,race` and `save_garage,circuit,buy,options`, one group after the other (synthetic runs are CPU-bound: six at once all
+   timed out, 2026-11-10). A route that exits 97 is
+   re-run alone before the verdict is written. **The synthetic gate is skipped** when no changed path can reach it
+   (`tools/verdict_scope.py`: an allowlist of docs, mods' checks, pad routes, the mod host and renderer-only patches;
+   anything else, `CMakeLists.txt` included, runs it) — user decision 2026-11-10. The build is incremental in the
+   verify tree (the generated code is only rewritten when it changes), so a verdict's time is the two gates.
 3. **Run the gates** — the full differential suite and the boot check
    ([runtime verification](runtime-verification.md)); the verdict lists per function: newly
    decompiled, regressed, cases run, and the two progress numbers (game / SDK) against `main`.

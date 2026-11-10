@@ -29,10 +29,19 @@ rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$bo
 GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage 600 "$boot/run" --decomp on
 echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot/run/run.log") waits $(grep -o 'script done.*' "$boot/run/run.log")"
 rm -rf "$boot/sd"
-for group in dealer,race save_garage,circuit,buy,options; do
-  t=v${tag}_${group%%,*}
-  GT_SYNTH_ROUTE=$group GT_GATE_CPU_LOCK="verdict synth $tag $group" .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
-    | grep -E "^all routes|exit [^02]" | head -3
-  grep -ah "synthetic: [0-9]* functions in" recomp/analysis/gt_diff_${t}_*.log
-  echo "mismatched: $(grep -ah 'mismatched [1-9]' recomp/analysis/gt_diff_${t}_*.log | grep -oE '@0x[0-9A-F]+' | sort -u | tr '\n' ' ')"
-done
+# The synthetic gate only when the PR can reach it (tools/verdict_scope.py: decomp source, headers, harness, build, runtime
+# patches; not docs, mods' checks, pad routes, renderer patches or the mod host; user, 2026-11-10).
+scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD 2>/dev/null || echo synthetic)
+if [ "$scope" = skip ]; then
+  echo "synthetic: skipped (no path the synthetic gate can see changed; tools/verdict_scope.py)"
+else
+  # Two groups, one after the other: a synthetic run is CPU-bound (unlike a gate route), and six at once ran so slowly that
+  # every one hit its timeout (exit 124, verdict 526, 2026-11-10).
+  for group in dealer,race save_garage,circuit,buy,options; do
+    t=v${tag}_${group%%,*}
+    GT_SYNTH_ROUTE=$group GT_GATE_CPU_LOCK="verdict synth $tag $group" .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
+      | grep -E "^all routes|exit [^02]" | head -3
+    grep -ah "synthetic: [0-9]* functions in" recomp/analysis/gt_diff_${t}_*.log
+    echo "mismatched: $(grep -ah 'mismatched [1-9]' recomp/analysis/gt_diff_${t}_*.log | grep -oE '@0x[0-9A-F]+' | sort -u | tr '\n' ' ')"
+  done
+fi
