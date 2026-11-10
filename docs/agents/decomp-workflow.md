@@ -206,6 +206,10 @@ boundary (reading arguments, writing results, `call_here` arguments). A register
 emitter-style functions already in `src/game/unsorted/hot_batch_*.cpp` (and ~3,900 register-heavy bodies in all) are rewritten
 in the typing phase; the gate then proves each rewrite.
 
+From 2026-11-10 (user) the work is mostly **cleanup**: each PR rewrites 20-40 already-verified register-level functions as structured C, file by
+file, at the same address and registration, keeping every quirk; the same gate (fast gate on the touched functions, a sabotage pinned on each,
+the full gate before the PR) proves the rewrite, and the README keeps a "structured rewrites: N of ~1,100" line instead of a new count.
+
 ## Calling other guest functions from decompiled code
 
 `gt::call_guest(rt, ctx, address, {args…})` (`host/guest_call.hpp`) runs a recompiled — or already
