@@ -29,3 +29,20 @@ import above. Add below only what applies to Claude Code alone. -->
   Bash command does not cap it. Keep one binary open at a time and `close_binary` when done.
 - **`/graphify` is a Claude Code slash command** — scope it as `AGENTS.md` § graphify says.
 - **"modo pocos tokens"** — low-token mode, defined in `AGENTS.md` § Mode switch (same quality, fewer tokens).
+
+## User decisions, 2026-11-10 (asked to be kept in this file)
+
+- **Decompiled bodies are structured C** — ifs/loops/switch, named typed locals; `G[n]` only at the call boundary.
+  No register-level / emitter output (`tools/batch_emit.py` is a reading aid only). The ~1,100 emitter-style functions
+  in `src/game/unsorted/hot_batch_*.cpp` are being rewritten as structured C (same address, same gate); the README tracks
+  "structured rewrites: N of ~1,100".
+- **Readable ≠ named.** Three levels, reported apart: verified correct → structured (readable control flow) → named and
+  typed (structs, real names, with evidence). "Decompiled" never means "understood".
+- **Mods go through a named SDK, never raw guest addresses** (spec `docs/superpowers/specs/2026-11-10-named-mod-sdk-design.md`,
+  PR #533): accessors like `money_get/set`, `player_car`, `car_state`, named hook points, implemented in the host with the
+  researched addresses and their evidence. When the emulated memory goes away only the host changes; mods stay.
+- **Verdicts:** the synthetic gate is skipped when the PR cannot reach it (`tools/verdict_scope.py`); when it runs, its two
+  route groups go one after the other (six CPU-bound synthetic runs at once all timed out). The build is already
+  incremental; the time is the two gates.
+- **Software renderer is the exact reference, not the play path**: it runs below 60 fps (GE-bound) even on the desktop;
+  play with `NativeGE=true`. Not optimised for now.
