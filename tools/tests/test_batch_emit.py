@@ -237,3 +237,13 @@ def test_command_line_reports_refusals(monkeypatch, capsys, tmp_path):
     assert batch_emit.main(["emit", "08800000"]) == 1
     assert "REFUSED" in capsys.readouterr().err
     assert batch_emit.main(["gen", "9", "08800000", "--out", str(tmp_path / "o.cpp")]) == 0
+
+
+def test_madd_family_is_modelled_not_dropped(monkeypatch):
+    out = emit(monkeypatch, "00D3001C|madd        $a2, $s3", "03E00008|jr          $ra", "00000000|nop")
+    assert "accumulator" in out and "G[6]" in out and "G[19]" in out
+
+
+def test_sync_is_refused_not_dropped(monkeypatch):
+    with pytest.raises(Refused, match="special 0xf"):
+        emit(monkeypatch, "0000000F|sync", "03E00008|jr          $ra", "00000000|nop")

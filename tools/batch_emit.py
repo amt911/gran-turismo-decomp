@@ -232,6 +232,9 @@ class Emitter:
         """The statement of a non-control instruction (tracks which registers still hold a relocated high half)."""
         text = self.simple_text(i)
         written = self.written(i)
+        sp_adjust = i.op == 0x09 and i.rt == 29 and i.rs == 29
+        if not text and i.word != 0 and written != 0 and not sp_adjust:
+            raise Refused(f"instruction {i.word:08X} at {i.pc:08X} produced no statement")
         if written is not None:
             self.known.pop(written, None)
         if i.op == 0x0F and i.kind == "HI" and i.rt:
@@ -310,7 +313,16 @@ class Emitter:
             return "" if i.rd == 0 else f"{rd} = ctx.{'hi' if f == 0x10 else 'lo'};"
         if f in (0x11, 0x13):
             return f"ctx.{'hi' if f == 0x11 else 'lo'} = {rs};"
-        if i.rd == 0:
+        if f in (0x1C, 0x1D, 0x2E, 0x2F):  # madd / maddu / msub / msubu: the 64-bit accumulator (hi:lo) plus or minus a product
+            signed = f in (0x1C, 0x2E)
+            product = (f"static_cast<std::int64_t>(static_cast<std::int32_t>({rs})) * static_cast<std::int32_t>({rt})" if signed
+                       else f"static_cast<std::uint64_t>({rs}) * {rt}")
+            sign = "+" if f in (0x1C, 0x1D) else "-"
+            return (f"{{ const std::uint64_t accumulator = (static_cast<std::uint64_t>(ctx.hi) << 32) | ctx.lo; "
+                    f"const std::uint64_t result = accumulator {sign} static_cast<std::uint64_t>({product}); "
+                    f"ctx.lo = static_cast<std::uint32_t>(result); ctx.hi = static_cast<std::uint32_t>(result >> 32); }}")
+        known = f in (0x00, 0x02, 0x03, 0x04, 0x06, 0x07) or f in _ALU
+        if known and i.rd == 0:
             return ""
         if f == 0x00:
             return f"{rd} = {rt} << {i.sa}u;"
