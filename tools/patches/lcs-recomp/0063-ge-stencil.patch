@@ -166,12 +166,12 @@
      }
      const std::uint32_t mask = setup.clear_mode ? 0u : setup.write_mask;
      if (pixel != nullptr) write_color_raw(pixel, setup.framebuffer_format, source, mask);
-@@ -5271,6 +5348,42 @@
+@@ -5271,6 +5348,47 @@
      return true;
  }
  
 +// GT patch 0063, measurement (docs/superpowers/specs/2026-11-10-gpu-stencil-design.md step 0): GT_STENCIL_PROBE=1 logs, at the
-+// first draw of each run of stencil-tested draws (software renderer), how many pixels of the scissor box pass its stencil
++// first draw of a run of stencil-tested draws whose state differs from the previous run's (and every 300th run; software renderer), how many pixels of the scissor box pass its stencil
 +// test and how many have alpha bit 7 set, after flushing the deferred rasterization. At most 4000 lines.
 +void stencil_probe(psprecomp::GuestMemory &memory, const std::array<std::uint32_t, 256> &commands) {
 +    static const bool on = [] {
@@ -180,11 +180,16 @@
 +    }();
 +    if (!on) return;
 +    static bool previous = false;
-+    static unsigned lines = 0u;
++    static unsigned lines = 0u, runs = 0u;
++    static std::uint64_t last_state = ~0ull;
 +    const bool enabled = (data24(commands[0x24u]) & 1u) != 0u && (data24(commands[0xD3u]) & 1u) == 0u;
 +    const bool first = enabled && !previous;
 +    previous = enabled;
-+    if (!first || lines >= 4000u) return;
++    if (!first) return;
++    const std::uint64_t state = (static_cast<std::uint64_t>(data24(commands[0xDCu])) << 24u) | data24(commands[0xDDu]);
++    const bool changed = state != last_state;
++    last_state = state;
++    if ((!changed && (++runs % 300u) != 0u) || lines >= 4000u) return;  // a new stencil state, or every 300th run
 +    ++lines;
 +    flush_ge_deferred_rasterization(memory);
 +    const FragmentSetup setup = make_fragment_setup(commands);
@@ -209,7 +214,7 @@
  bool render_ge_primitive(psprecomp::GuestMemory &memory,
                           const std::array<std::uint32_t, 256> &commands,
                           const GeTransformState &transform,
-@@ -5287,6 +5400,7 @@
+@@ -5287,6 +5405,7 @@
          const char *value = std::getenv("PSPRECOMP_GE_GPU_DUAL");
          return value != nullptr && *value != '\0' && *value != '0';
      }();
