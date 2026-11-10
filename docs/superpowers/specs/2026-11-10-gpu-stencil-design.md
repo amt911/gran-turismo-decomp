@@ -59,6 +59,32 @@ memory.
 5. **Read-backs** (framebuffer copied to guest memory, `readback` path): the alpha byte comes from the stencil, in a copy
    pass, so the guest sees what the PSP would.
 
+## Revision 2026-11-10 — shader stencil instead of a stencil attachment (my call, for the user's approval)
+
+Reading the Vulkan backend changed the approach. The GPU colour target already holds the PSP's alpha. Stencil-off draws write
+their fragment alpha into it, and clears with the alpha bit clear it. So the PSP stencil already lives in the GPU colour
+alpha, and the hard part of steps 1, 3, 4 and 5 (keeping a separate stencil aspect equal to the alpha) disappears if the
+stencil is done in the fragment shader:
+
+- A stencil-on draw samples a snapshot of its own target. The backend already makes these for self-feedback draws
+  (`snapshot_target`, GT patch 0029); this adds a second sampler binding. The snapshot is refreshed before a stencil-on draw
+  whenever the target was written since the last one.
+- `ge.frag` reads the destination alpha at the fragment's pixel:
+  - it runs the test `(ref & mask) OP (alpha & mask)`; on failure it discards, or writes the fail op's alpha;
+  - on pass it outputs the pass op's result (keep, zero, replace, invert, incr, decr) as the colour alpha, through the alpha
+    write mask.
+- No stencil buffer, no extension, and exact on NVIDIA and the Pi. Read-backs need nothing more: the alpha is the stencil.
+
+Limits, written down:
+- The depth-fail op cannot be known in the shader: the depth test runs after it. GT only uses a non-keep depth-fail op with
+  the depth test off (the ghost pattern), where it never applies. Other cases log once.
+- Draws inside one stencil-on run that would read stencil values written earlier in the same run see the snapshot. GT's runs
+  either keep the stencil (the ghost) or are a single replace draw followed by a new run (the race passes). The refresh rule
+  above covers both.
+
+The "Testing" section still applies. Step 0 (the user's `GT_STENCIL_PROBE` log in Time Trial) still decides nothing here,
+since the shader reads the real alpha either way. It now only confirms the software renderer's result.
+
 ## Testing
 
 - **Unit:** the descriptor→Vulkan stencil state mapping as pure functions, with tests (ops, compare, masks, the key).
