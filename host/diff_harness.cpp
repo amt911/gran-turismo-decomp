@@ -34,6 +34,8 @@
 #include <utility>
 #include <vector>
 
+extern "C" int __llvm_profile_write_file(void) __attribute__((weak));  // only in -fprofile-instr-generate builds
+
 namespace gt {
 
 std::vector<DecompiledFunction> &decompiled_functions() {
@@ -978,6 +980,7 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 if (n <= 0) break;
                 written += static_cast<std::size_t>(n);
             }
+            if (__llvm_profile_write_file != nullptr) __llvm_profile_write_file();  // coverage builds: _exit skips the atexit dump
             _exit(0);
         }
         close(pipe_fds[1]);

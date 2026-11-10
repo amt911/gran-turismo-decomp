@@ -665,3 +665,11 @@ def test_a_synthetic_run_after_a_save_route_gets_its_save(monkeypatch):
 def test_several_synthetic_routes_run_side_by_side():
     # The verdict re-checks every function a synthetic route verified: dealer, race and four more (2026-10-27).
     assert gate.synth_routes("dealer,race") == (("dealer", 1500), ("race", 1800))
+
+
+def test_coverage_can_run_the_synthetic_gate(monkeypatch):
+    calls = []
+    monkeypatch.setattr(gate, "_coverage_run", lambda *a, **k: calls.append(a) or 0)
+    assert gate.main(["coverage", "t1", "--only", "0x08800000", "--synth"]) == 0
+    assert gate.main(["coverage", "t1", "--only", "0x08800000"]) == 0
+    assert [call[2] for call in calls] == ["synth", "fast"]

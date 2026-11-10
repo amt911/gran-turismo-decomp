@@ -764,9 +764,10 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     return 0 if not undetected else 1
 
 
-def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - reconfigures, builds, runs
+def _coverage_run(tag: str, only: list[int], kind: str = "fast") -> int:  # pragma: no cover - reconfigures, builds, runs
     """The fast gate over `only` with the sources that register it built with LLVM coverage; prints, per function,
-    the branches no compared case took and the code regions that never ran. The build is put back afterwards."""
+    the branches no compared case took and the code regions that never ran. The build is put back afterwards.
+    kind="synth": the synthetic run instead (each case child writes its own profile before it exits; docs/agents/decomp-workflow.md)."""
     from tools import gate_coverage
     files = gate_coverage.source_files(only, Path("src"), _REGISTRATION)
     if not files:
@@ -778,12 +779,12 @@ def _coverage_run(tag: str, only: list[int]) -> int:  # pragma: no cover - recon
     configure = ["cmake", "-S", ".", "-B", "build"]
     subprocess.run([*configure, gate_coverage.cmake_files_argument(files, Path.cwd())], check=True, stdout=subprocess.DEVNULL)
     try:
-        status = _run_gate("fast", tag, only, {"LLVM_PROFILE_FILE": str(directory / "%p.profraw")})
+        status = _run_gate(kind, tag, only, {"LLVM_PROFILE_FILE": str(directory / "%p.profraw")})
         raw = sorted(directory.glob("*.profraw"))
         if not raw:
             print("coverage: the run wrote no profile (did it end before the executable exited normally?)")
             return 2
-        if len(raw) < len(ROUTES["fast"]):
+        if kind == "fast" and len(raw) < len(ROUTES["fast"]):
             print(f"warning: only {len(raw)} of {len(ROUTES['fast'])} routes wrote a profile (a route killed by its "
                   "timeout writes none): the report covers fewer runs than the gate")
         merged = directory / "merged.profdata"
@@ -849,6 +850,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     cov = sub.add_parser("coverage", help="fast gate with LLVM branch coverage of the sources that register --only")
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
+    cov.add_argument("--synth", action="store_true", help="coverage of the synthetic run (how deep generated cases go)")
     probe = sub.add_parser("probe", help="run the fast routes with the decomp off and --symbols probed (call counts)")
     probe.add_argument("tag")
     probe.add_argument("--symbols", type=Path, required=True)
@@ -875,7 +877,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "probe":
         return _probe_run(args.tag, args.symbols, "full" if args.full else "fast", args.scale)
     if args.command == "coverage":
-        return _coverage_run(args.tag, parse_only(args.only))
+        return _coverage_run(args.tag, parse_only(args.only), "synth" if args.synth else "fast")
     if args.command == "sabotage":
         return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else (),
                              kind="full" if args.full else "synth" if args.synth else "fast")
