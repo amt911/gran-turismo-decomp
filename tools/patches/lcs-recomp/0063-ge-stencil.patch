@@ -166,3 +166,54 @@
      }
      const std::uint32_t mask = setup.clear_mode ? 0u : setup.write_mask;
      if (pixel != nullptr) write_color_raw(pixel, setup.framebuffer_format, source, mask);
+@@ -5271,6 +5348,42 @@
+     return true;
+ }
+ 
++// GT patch 0063, measurement (docs/superpowers/specs/2026-11-10-gpu-stencil-design.md step 0): GT_STENCIL_PROBE=1 logs, at the
++// first draw of each run of stencil-tested draws (software renderer), how many pixels of the scissor box pass its stencil
++// test and how many have alpha bit 7 set, after flushing the deferred rasterization. At most 4000 lines.
++void stencil_probe(psprecomp::GuestMemory &memory, const std::array<std::uint32_t, 256> &commands) {
++    static const bool on = [] {
++        const char *value = std::getenv("GT_STENCIL_PROBE");
++        return value != nullptr && *value != '\0' && *value != '0';
++    }();
++    if (!on) return;
++    static bool previous = false;
++    static unsigned lines = 0u;
++    const bool enabled = (data24(commands[0x24u]) & 1u) != 0u && (data24(commands[0xD3u]) & 1u) == 0u;
++    const bool first = enabled && !previous;
++    previous = enabled;
++    if (!first || lines >= 4000u) return;
++    ++lines;
++    flush_ge_deferred_rasterization(memory);
++    const FragmentSetup setup = make_fragment_setup(commands);
++    if (!setup.valid || !setup.stencil_enabled) return;
++    std::uint32_t total = 0u, passes = 0u, bit7 = 0u;
++    for (std::int32_t y = setup.scissor_y0; y <= std::min(setup.scissor_y1, 271); ++y) {
++        for (std::int32_t x = setup.scissor_x0; x <= std::min(setup.scissor_x1, 479); ++x) {
++            const std::uint32_t address = setup.framebuffer_base +
++                (static_cast<std::uint32_t>(y) * setup.framebuffer_stride + static_cast<std::uint32_t>(x)) * setup.framebuffer_bpp;
++            if (!memory.contains(address, setup.framebuffer_bpp)) continue;
++            const Color c = read_color(memory, address, setup.framebuffer_format);
++            ++total;
++            passes += stencil_test_passes(c.a, setup) ? 1u : 0u;
++            bit7 += (c.a & 0x80u) != 0u ? 1u : 0u;
++        }
++    }
++    std::fprintf(stderr, "[stencil-probe] %u fb %08x dc %06x dd %06x 21 %u df %06x: test passes on %u of %u pixels, alpha bit7 on %u\n",
++                 lines, setup.framebuffer_base, data24(commands[0xDCu]), data24(commands[0xDDu]), data24(commands[0x21u]) & 1u,
++                 data24(commands[0xDFu]), passes, total, bit7);
++}
++
+ bool render_ge_primitive(psprecomp::GuestMemory &memory,
+                          const std::array<std::uint32_t, 256> &commands,
+                          const GeTransformState &transform,
+@@ -5287,6 +5400,7 @@
+         const char *value = std::getenv("PSPRECOMP_GE_GPU_DUAL");
+         return value != nullptr && *value != '\0' && *value != '0';
+     }();
++    if (!ge_gpu_backend_active()) stencil_probe(memory, commands);
+     if (!dual || !ge_gpu_backend_active())
+         return render_ge_primitive_pass(memory, commands, transform, vertex_address, index_address, primitive_data,
+                                         stats, error, logical_primitive_count, draw_state_revision,
