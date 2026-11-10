@@ -197,6 +197,27 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   left out. Measured 2026-10-13: 2611 pending functions in clusters of ≥ 3 share a shape with a decompiled
   one — but the routes reach few of them (61 constructors: 4 reached; 75 as_class: 4): coverage limits.
 
+### Structured C only (user, 2026-11-10)
+
+From batch 337 every decompiled body is structured C: `if`/`switch`/loops instead of a `goto` per branch, named locals typed
+as the asm shows them (`s32`, `u16`, `float`), guest memory through the existing helpers. `G[n]` appears only at the call
+boundary (reading arguments, writing results, `call_here` arguments). A register-level draft with one statement per instruction
+(`tools/batch_emit.py`, Ghidra, m2c) is a reading aid, never the source. Batches may be smaller for it. About 1,100
+emitter-style functions already in `src/game/unsorted/hot_batch_*.cpp` (and ~3,900 register-heavy bodies in all) are rewritten
+in the typing phase; the gate then proves each rewrite.
+
+From 2026-11-10 (user) the work is mostly **cleanup**: each PR rewrites 20-40 already-verified register-level functions as structured C, file by
+file, at the same address and registration, keeping every quirk; the same gate (fast gate on the touched functions, a sabotage pinned on each,
+the full gate before the PR) proves the rewrite, and the README keeps a "structured rewrites: N of ~1,100" line instead of a new count.
+
+Two traps of writing it by hand (each cost a mismatch in a synthetic gate, batches 337 and 339):
+- **A `jal`'s delay slot runs before the callee.** `jal f; move s0, v0` stores the result of the call *before* `f`, not `f`'s result:
+  a run of getters whose results are moved into registers in the delay slots gives each saved value the result of the previous
+  call. Read every delay slot of a call as "before the call", and name such locals after the call order (`result_3`).
+- **`v0` is compared, and a callee that never writes it returns what it was called with.** Keep `ctx.gpr[2]` current (the batch
+  files' local `call()` stores each result there), set it where the asm loads `v0` itself before a call that may be void, and end the
+  function with the register the asm ends with: the last call's result, a constant, or a `lui` leftover, never a local variable.
+
 ## Calling other guest functions from decompiled code
 
 `gt::call_guest(rt, ctx, address, {args…})` (`host/guest_call.hpp`) runs a recompiled — or already

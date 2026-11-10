@@ -117,7 +117,7 @@ A rule is edited in its document, not here and there at once — except for its 
   before the fourth; a review finding is not a reproduction.
 - **Agentic PR verification (mandatory)** → [docs/agents/pr-verification.md](docs/agents/pr-verification.md).
   Every PR gets a verdict comment from a pass that rebuilds from a clean tree, runs the differential
-  gate and the boot check; it never merges.
+  gate and the boot check; it never merges. The synthetic gate runs only when the PR touches what it compares (`tools/verdict_scope.py`; user, 2026-11-10).
 - **Agent orchestration** → [docs/agents/agent-orchestration.md](docs/agents/agent-orchestration.md).
   Review in parallel with the next implementation; shared `docs/FACTS.md`; one agent per worktree
   (the build dir, the REA session, the Ghidra project and each emulator/game instance are exclusive).
@@ -345,6 +345,8 @@ The detail (the loop, the harness, m2c, C++ specifics, the optional matching che
 - **Recompiler output is not decompiled code.** Copying generated C++ into `src/` and tidying it is
   forbidden: it is game-derived, unreadable by construction, and proves nothing. Decompiled code is
   written from the asm/pseudocode by hand (m2c/Ghidra drafts as reading aids).
+- **Structured C only** (user, 2026-11-10): ifs/loops, named typed locals; `G[n]` only at the call boundary.
+  No register-level emitter bodies; the old `hot_batch` ones are rewritten in the typing phase.
 - **Never weaken the gate to get green** — no deleting or editing captured cases, no widening the
   comparison, no excluding side effects. Fix the C; if a case is wrong, say why in the commit.
 - **No guessed names.** Unknown symbols keep `func_XXXXXXXX` / `D_XXXXXXXX` (ELF vaddr). A name needs

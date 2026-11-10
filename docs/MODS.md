@@ -261,3 +261,17 @@ tools/mod_rollover_check.sh --sabotage-flipflag  # la bandera también para la m
 tools/mod_rollover_check.sh --without-mod         # física original, el mod solo registra (-DROLLOVER_SABOTAGE=5): nada vuelca, debe FALLAR (con --recover: el coche no está boca abajo al reset)
 ```
 
+
+## Descargador de mods (en construcción)
+
+Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):
+`host/mod_install.hpp` (índice de la release de gt-mods, orden de versiones, `sha256` y tamaño, desempaquetado seguro del
+`.tar.gz` a `<mods>/.staging/<id>/`, conservar `enabled` y los ajustes del usuario al actualizar, cambio por renombrado) y
+`host/mod_fetch.hpp` (descarga solo HTTPS con libcurl; `GT_MODS_INDEX_URL` cambia el índice). Pruebas:
+
+```bash
+ctest --test-dir build -R "mod_install|mod_fetch"
+GT_NET_TEST=1 build/mod_fetch_tests    # descarga la release real e instala analog-pedals en un directorio temporal
+```
+
+Falta la página GET MODS del menú F9 (paso 3 del spec).
