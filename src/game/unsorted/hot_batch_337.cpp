@@ -61,8 +61,8 @@ void func_0885DFF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         call(rt, ctx, 0x088A6C18u, {workspace, resolved});
         const u32 flag = static_cast<u32>(static_cast<std::int8_t>(byte_at(rt, frame.at(0x12u))));
         call(rt, ctx, 0x088661B8u, {word(rt, entry + 0x44u), word(rt, entry + 0x48u), pair, workspace, flag, first});
-        const u32 car = static_cast<u32>(signed_half_at(rt, entry + 0x1Eu));
-        call(rt, ctx, 0x0885DD1Cu, {word(rt, word(rt, self + 0x3F50u)) + car * 0x188u, workspace});
+        const u32 record = static_cast<u32>(signed_half_at(rt, entry + 0x1Eu));
+        call(rt, ctx, 0x0885DD1Cu, {word(rt, word(rt, self + 0x3F50u)) + record * 0x188u, workspace});
         for (u32 part = end - 0x30u;; part -= 0x30u) {
             call(rt, ctx, 0x088978B4u, {part});
             if (part == first) break;
@@ -82,10 +82,10 @@ void func_08860740(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 entry = self + entry_offset;
     u32 v0 = entry_offset;
     if (byte_at(rt, entry + 0x18u) == 0u) {
-        const u32 car_block = word(rt, word(rt, self + 0x3F50u)) + static_cast<u32>(signed_half_at(rt, entry + 0x1Eu)) * 0x188u;
-        const u32 before = word(rt, car_block + 0x28u);
-        v0 = call(rt, ctx, 0x0885D478u, {car_block, argument});
-        const u32 after = word(rt, car_block + 0x28u);
+        const u32 record_block = word(rt, word(rt, self + 0x3F50u)) + static_cast<u32>(signed_half_at(rt, entry + 0x1Eu)) * 0x188u;
+        const u32 before = word(rt, record_block + 0x28u);
+        v0 = call(rt, ctx, 0x0885D478u, {record_block, argument});
+        const u32 after = word(rt, record_block + 0x28u);
         if (before != after) {
             const u32 workspace = frame.at(0x0u);
             const u32 pair = frame.at(0x8u);
@@ -270,10 +270,10 @@ void func_08861168(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         const s32 wanted = static_cast<std::int8_t>(byte_at(rt, self + index * 0x50u + 0x4120u + slot + 4u));
         const s32 count = static_cast<s32>(word(rt, list + 4u));
         flag = 0u;
-        u32 car = word(rt, list);
-        for (s32 position = 1; position <= count; ++position, car += 0x188u) {
-            const u32 primary = word(rt, car + 0x2Cu);
-            const u32 secondary = word(rt, car + 0x1Cu);
+        u32 record = word(rt, list);
+        for (s32 position = 1; position <= count; ++position, record += 0x188u) {
+            const u32 primary = word(rt, record + 0x2Cu);
+            const u32 secondary = word(rt, record + 0x1Cu);
             const u32 chosen = primary != 0xFFFFFFFFu ? primary : secondary;
             if ((primary != 0xFFFFFFFFu || secondary != 0xFFFFFFFFu) && chosen == index && static_cast<u32>(wanted) == secondary) {
                 flag = 1u;
