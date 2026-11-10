@@ -46,3 +46,9 @@ import above. Add below only what applies to Claude Code alone. -->
   incremental; the time is the two gates.
 - **Software renderer is the exact reference, not the play path**: it runs below 60 fps (GE-bound) even on the desktop;
   play with `NativeGE=true`. Not optimised for now.
+- **Rendering at the no-emulation phase: a readable API with backends (path B)** — the renderer calls named functions
+  (`draw_mesh`, `set_blend`, `set_stencil`…), not GE command words. Requirement for that phase's spec: every call maps
+  one-to-one (or to a few commands) onto the PSP GE, so a PSP backend is a direct translation and a gate can compare the
+  generated GE lists with the original's; Vulkan (PC, Android) is one backend. No API feature the GE cannot express.
+- **Ports:** Android is near (Vulkan + SDL2 already; arm64 build, touch controls, user data on device) and needs no
+  finished decomp; PSP needs the full decomp without emulated memory (32 MB RAM, 333 MHz) plus the GE backend above.
