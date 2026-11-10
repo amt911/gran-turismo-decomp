@@ -2611,6 +2611,23 @@ Found: 2026-10-27 · src/game/unsorted/hot_leaves.cpp, src/game/unsorted/hot_bat
 
 Found: 2026-10-27 · src/game/unsorted/hot_batch_92.cpp..98, 109
 
+## A class-matched `a0` exposes mismatches the invented arena never reached
+
+With `a0` a live object of the function's own class (spec 2026-11-10-recorded-arguments-design.md, option B) the
+synthetic gate reaches paths of decompiled virtual-call forwarders and destructors it could not before. First verdict
+(2026-11-10): `func_089660A0` (a leaf `lw v0, 0(a0); lw t9, 0x20C(v0); jr t9` whose C left v0 = 0 where the original
+leaves the vtable: **fixed** — v0 = vtable, t9 = target before the tail call) and, **still open**:
+- `func_089BBF8C`: v0 original 0 vs decompiled 0 / the entry address depending on the path; the slot 0x150 of a child
+  of the same class is `func_089BBF8C` itself (a recursive call), so the nested result is where it differs. Setting v0 at
+  entry and `call_set_v0` at the loop's `jalr v0` fixed the empty-list path and broke the recursive one (6 of 8 cases).
+- `func_08A63B5C` (deleting destructor): after `dealer` the decompiled run faults at 0x4 where the original returns
+  (all installed; with only it and its callees installed the original faults instead, so it needs a decompiled callee).
+- `func_08A77020`: an import replay (`StdioForUser` call the original's run did not make); `func_08AD5AC4`: v0 original
+  = a0, decompiled 0.
+They sit with the older open list above (`0889E01C`, `0893D9AC`, `08BAE2B0`, `08C18650`).
+
+Found: 2026-11-10 · host/synth_case.cpp
+
 ## The synthetic sabotage needs each body's literal signature
 
 **Symptom.** Batch 167's first `synth_batch` reported sabotage 0/81 and commented the whole file as undetected, though
