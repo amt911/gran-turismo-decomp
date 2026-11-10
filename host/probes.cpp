@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -97,6 +98,43 @@ void probe_report() {
         if (probe.hits != 0u) std::cerr << " first=#" << probe.first_order;
         if (g_quiet) std::cerr << " " << probe.name;
         std::cerr << "\n";
+    }
+}
+
+} // namespace gt
+
+namespace gt {
+
+// SPIKE (docs/superpowers/specs/2026-11-10-recorded-arguments-design.md, measurement only): GT_LIVE_SCAN=<file> appends,
+// each call, "S <vblank>" then "O <object> <vptr>" for every heap word that points at a RAM word holding a vtable address,
+// and once "V <first> <count>" for every run of >= 2 consecutive recompiled-function addresses in .rodata/.data.
+void live_scan(psprecomp::Runtime &rt, std::uint64_t vblank) {
+    const char *path = std::getenv("GT_LIVE_SCAN");
+    if (path == nullptr) return;
+    constexpr std::uint32_t kText0 = 0x08804028u, kText1 = 0x08C7A7DCu, kHeap0 = 0x08D80000u, kHeap1 = 0x09F00000u,
+                            kData1 = 0x08DA0000u;
+    static bool vtables_done = false;
+    std::ofstream out(path, std::ios::app);
+    if (!vtables_done) {
+        vtables_done = true;
+        std::uint32_t run = 0u, count = 0u;
+        for (std::uint32_t a = kText1; a < kData1 + 4u; a += 4u) {
+            const std::uint32_t w = a < kData1 ? rt.memory().load32(a) : 0u;
+            const bool fn = (a < kData1) && w >= kText0 && w < kText1 && rt.function_at(w) != nullptr;
+            if (fn) { if (count++ == 0u) run = a; }
+            else { if (count >= 2u) out << "V " << std::hex << run << " " << std::dec << count << "\n"; count = 0u; }
+        }
+    }
+    out << "S " << vblank << "\n";
+    static std::set<std::uint64_t> printed;  // (object, vptr) pairs already written: only new ones go out
+    std::set<std::uint32_t> seen;
+    for (std::uint32_t a = kHeap0; a < kHeap1; a += 4u) {
+        const std::uint32_t p = rt.memory().load32(a);
+        if (p < kHeap0 || p >= kHeap1 || (p & 3u) != 0u || !seen.insert(p).second) continue;
+        const std::uint32_t t = rt.memory().load32(p);
+        if (t < kText1 || t >= kData1 || (t & 3u) != 0u) continue;
+        const std::uint32_t f = rt.memory().load32(t);
+        if (f >= kText0 && f < kText1 && rt.function_at(f) != nullptr) if (printed.insert((std::uint64_t{p} << 32) | t).second) out << "O " << std::hex << p << " " << t << "\n";
     }
 }
 
