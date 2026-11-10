@@ -66,6 +66,13 @@ int main() {
         check(api3.money_set(&v3, &money_ctx, 250000u) == 0 && rt.memory().load32(0x08F6AC00u) == 250000u, "v3 money_set");
         check(api3.money_get(&v2a, &money_ctx, &value) != 0 && api3.money_set(&v2a, &money_ctx, 1u) != 0 &&
                   rt.memory().load32(0x08F6AC00u) == 250000u, "money refused to an api-2 mod");
+        std::uint32_t car = 7u;
+        GtCar cars[4];
+        check(api3.player_car(&v3, &money_ctx, 0u, &car) != 0 && car == 7u, "v3 player_car: no world, no car");
+        check(api3.race_cars(&v3, &money_ctx, 0u, cars, 4u) == 0u, "v3 race_cars: no world, no cars");
+        GtCarState state{};
+        check(api3.car_state(&v3, &money_ctx, 0u, &state) != 0, "v3 car_state: a null handle is refused");
+        check(api3.player_car(&v2a, &money_ctx, 0u, &car) != 0, "player_car refused to an api-2 mod");
     }
     clear_hooks_for_tests();
     check(api.add_menu_row(&v2a, "x", label_a, act) != 0, "row refused outside gt_mod_init");

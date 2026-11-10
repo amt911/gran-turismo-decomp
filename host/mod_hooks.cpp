@@ -148,7 +148,8 @@ const GtModApi &mod_api(int version) {
                         api_write8, api_write16, api_write32, api_writef, api_config, api_log,
                         services::api_add_menu_row, services::api_on_vblank, services::api_call_guest,
                         services::api_is_menu_open, services::api_vblank_index,
-                        services::api_money_get, services::api_money_set};
+                        services::api_money_get, services::api_money_set, services::api_race_cars,
+                        services::api_player_car, services::api_car_state, services::api_car_set_state};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3);
     return version == GT_MOD_API_VERSION ? v1 : version == GT_MOD_API_VERSION_2 ? v2 : v3;

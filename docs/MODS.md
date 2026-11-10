@@ -105,7 +105,13 @@ evidencia en `host/game_state.cpp` y FACTS). Un mod que lo usa declara `api = 3`
 - `money_get(self, ctx, &valor)` / `money_set(self, ctx, valor)` — el saldo en Cr (0..999.999.999); devuelven no-cero sin
   partida cargada. FACTS «Money and cars».
 
-Siguen (spec, pasos 2-4): coche del jugador y su estado, puntos de enganche con nombre, cámara.
+- `race_cars(self, ctx, world, out, capacidad)` — los coches de la carrera (`GtCar`: handle, índice, rol 1 humano / 2 IA;
+  sin repeticiones ni huecos); `world` es el a0 del enganche del paso de mundo.
+- `player_car(self, ctx, world, &coche)` — el coche humano en vivo (0 si hay exactamente uno).
+- `car_state` / `car_set_state(self, ctx, coche, GtCarState*)` — posición, base, velocidad, giro, ángulos y pedales
+  (FACTS «Car body state»); escribir solo desde el enganche del paso de mundo o el tick.
+
+Siguen (spec, pasos 3-4): puntos de enganche con nombre, cámara.
 
 ## `mod.toml`
 

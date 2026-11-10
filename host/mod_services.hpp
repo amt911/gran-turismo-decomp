@@ -45,6 +45,10 @@ int api_is_menu_open(GtMod *self);
 std::uint64_t api_vblank_index(GtMod *self);
 int api_money_get(GtMod *self, GtModCtx *ctx, std::uint32_t *value);  // v3: host/game_state.hpp
 int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value);
+std::uint32_t api_race_cars(GtMod *self, GtModCtx *ctx, std::uint32_t world, GtCar *out, std::uint32_t capacity);
+int api_player_car(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t *car);
+int api_car_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, GtCarState *out);
+int api_car_set_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, const GtCarState *state);
 
 // A failed init: forget this mod's rows and tick.
 void remove_for(const GtMod *mod);

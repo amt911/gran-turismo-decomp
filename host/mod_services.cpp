@@ -161,6 +161,36 @@ int api_money_get(GtMod *self, GtModCtx *ctx, std::uint32_t *value) {
     if (!v3_mod(self, "money_get") || ctx == nullptr || value == nullptr) return 1;
     return gt::game_state::money_get(ctx->rt->memory(), *value) ? 0 : 1;
 }
+static_assert(sizeof(GtCarState) == sizeof(gt::game_state::CarState), "GtCarState mirrors game_state::CarState");
+
+std::uint32_t api_race_cars(GtMod *self, GtModCtx *ctx, std::uint32_t world, GtCar *out, std::uint32_t capacity) {
+    if (!v3_mod(self, "race_cars") || ctx == nullptr) return 0u;
+    gt::game_state::Car cars[gt::game_state::kMaxCars];
+    const std::uint32_t n = gt::game_state::race_cars(ctx->rt->memory(), world, cars);
+    for (std::uint32_t i = 0; i < n && i < capacity && out != nullptr; ++i)
+        out[i] = GtCar{cars[i].handle, cars[i].index, cars[i].role == gt::game_state::CarRole::Human ? 1 : 2};
+    return n;
+}
+int api_player_car(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t *car) {
+    if (!v3_mod(self, "player_car") || ctx == nullptr || car == nullptr) return 1;
+    const std::uint32_t found = gt::game_state::player_car(ctx->rt->memory(), world);
+    if (found == 0u) return 1;
+    *car = found;
+    return 0;
+}
+int api_car_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, GtCarState *out) {
+    if (!v3_mod(self, "car_state") || ctx == nullptr || out == nullptr) return 1;
+    gt::game_state::CarState s{};
+    if (!gt::game_state::car_state(ctx->rt->memory(), car, s)) return 1;
+    std::memcpy(out, &s, sizeof s);
+    return 0;
+}
+int api_car_set_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, const GtCarState *state) {
+    if (!v3_mod(self, "car_set_state") || ctx == nullptr || state == nullptr) return 1;
+    gt::game_state::CarState s{};
+    std::memcpy(&s, state, sizeof s);
+    return gt::game_state::car_set_state(ctx->rt->memory(), car, s) ? 0 : 1;
+}
 int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value) {
     if (!v3_mod(self, "money_set") || ctx == nullptr) return 1;
     return gt::game_state::money_set(ctx->rt->memory(), value) ? 0 : 1;
