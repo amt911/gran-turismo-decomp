@@ -303,6 +303,14 @@ if(LibArchive_FOUND AND OpenSSL_FOUND)
         add_executable(mod_fetch_tests host/tests/mod_fetch_test.cpp host/mod_manifest.cpp)
         target_link_libraries(mod_fetch_tests PRIVATE gt_mod_install)
         add_test(NAME mod_fetch COMMAND mod_fetch_tests)  # GT_NET_TEST=1: downloads the real release too
+        target_sources(gt_mod_install PRIVATE host/mod_store.cpp)
+        add_executable(mod_store_tests host/tests/mod_store_test.cpp host/mod_manifest.cpp)
+        target_link_libraries(mod_store_tests PRIVATE gt_mod_install)
+        add_test(NAME mod_store COMMAND mod_store_tests)
+        if(TARGET gt_play)  # the F9 MODS page gets the GET MODS rows
+            target_link_libraries(gt_play PRIVATE gt_mod_install)
+            target_compile_definitions(gt_play PRIVATE GT_MOD_DOWNLOADER=1)
+        endif()
     endif()
 endif()
 # mod_hooks.cpp's API table reaches mod_services.cpp, which calls guest code through gt::call_guest

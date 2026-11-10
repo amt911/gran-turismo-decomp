@@ -348,6 +348,7 @@ bool install_archive(const std::vector<unsigned char> &bytes, const IndexEntry &
         return give_up("cannot move the new mod in: " + ec.message());
     }
     fs::remove_all(old_copy, ec);
+    fs::remove(staging_root, ec);  // only when empty
     return true;
 }
 
