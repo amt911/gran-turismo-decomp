@@ -187,7 +187,7 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
-        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/pad_menu.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/game_state.cpp host/pad_menu.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -286,6 +286,10 @@ set(CMAKE_C_STANDARD 99)
 add_executable(mod_manifest_tests host/tests/mod_manifest_test.cpp host/mod_manifest.cpp host/tests/mod_api_c_check.c)
 target_include_directories(mod_manifest_tests PRIVATE host include)
 add_test(NAME mod_manifest COMMAND mod_manifest_tests)
+add_executable(game_state_tests host/tests/game_state_test.cpp host/game_state.cpp)  # named mod SDK state (API v3)
+target_include_directories(game_state_tests PRIVATE host)
+target_link_libraries(game_state_tests PRIVATE psprecomp_core)
+add_test(NAME game_state COMMAND game_state_tests)
 # Mod downloader core (host/mod_install.hpp): index, verify, unpack, merge, install. libarchive + OpenSSL (system packages).
 find_package(LibArchive)
 find_package(OpenSSL COMPONENTS Crypto)
@@ -306,7 +310,7 @@ if(LibArchive_FOUND AND OpenSSL_FOUND)
     endif()
 endif()
 # mod_hooks.cpp's API table reaches mod_services.cpp, which calls guest code through gt::call_guest
-set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
+set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/game_state.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
 add_executable(mod_hooks_tests host/tests/mod_hooks_test.cpp ${GT_MOD_CORE})
 target_include_directories(mod_hooks_tests PRIVATE host include)
 target_link_libraries(mod_hooks_tests PRIVATE psprecomp_core)

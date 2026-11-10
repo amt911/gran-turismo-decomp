@@ -1,5 +1,7 @@
 #include "mod_services.hpp"
 
+#include "game_state.hpp"
+
 #include "guest_call.hpp"
 
 #include "psprecomp/runtime.hpp"
@@ -37,6 +39,15 @@ bool v2_mod(GtMod *self, const char *what) {
     if (self == nullptr) return false;
     if (self->api_version < GT_MOD_API_VERSION_2) {
         std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 2)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    return true;
+}
+
+bool v3_mod(GtMod *self, const char *what) {
+    if (self == nullptr) return false;
+    if (self->api_version < GT_MOD_API_VERSION_3) {
+        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 3)\n", self->id.c_str(), what, self->api_version);
         return false;
     }
     return true;
@@ -145,6 +156,15 @@ int api_is_menu_open(GtMod *) {
     return query != nullptr && query() ? 1 : 0;
 }
 std::uint64_t api_vblank_index(GtMod *) { return g_vblank.load(std::memory_order_acquire); }
+
+int api_money_get(GtMod *self, GtModCtx *ctx, std::uint32_t *value) {
+    if (!v3_mod(self, "money_get") || ctx == nullptr || value == nullptr) return 1;
+    return gt::game_state::money_get(ctx->rt->memory(), *value) ? 0 : 1;
+}
+int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value) {
+    if (!v3_mod(self, "money_set") || ctx == nullptr) return 1;
+    return gt::game_state::money_set(ctx->rt->memory(), value) ? 0 : 1;
+}
 
 void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {
     g_vblank.store(vblank, std::memory_order_release);

@@ -97,6 +97,16 @@ tools/mod_cheats_check.sh --sabotage-chord              # recompila gt_play con 
 tools/mods_together_check.sh                            # los seis mods a la vez (cheats con GT_MOD_CHEATS_SLOWMO=0.5, FREEZE_AI=1)
 ```
 
+## API v3: estado del juego con nombre (spec `docs/superpowers/specs/2026-11-10-named-mod-sdk-design.md`)
+
+Los mods no deben llevar direcciones de PSP: piden el estado al host por su nombre y el host guarda las direcciones (con su
+evidencia en `host/game_state.cpp` y FACTS). Un mod que lo usa declara `api = 3` en su `mod.toml`. Disponible:
+
+- `money_get(self, ctx, &valor)` / `money_set(self, ctx, valor)` — el saldo en Cr (0..999.999.999); devuelven no-cero sin
+  partida cargada. FACTS «Money and cars».
+
+Siguen (spec, pasos 2-4): coche del jugador y su estado, puntos de enganche con nombre, cámara.
+
 ## `mod.toml`
 
 ```toml

@@ -51,6 +51,22 @@ int main() {
     v1.api_version = 1;
     const GtModApi &api = mod_api(2);
 
+    {  // v3 named state (host/game_state.hpp): money through the API, refused to a v2 mod
+        GtMod v3;
+        v3.id = "v3";
+        v3.api_version = 3;
+        const GtModApi &api3 = mod_api(3);
+        check(api3.version == 3 && mod_api(2).version == 2 && mod_api(1).version == 1, "each mod sees its declared api");
+        rt.memory().store32(0x08F6AC00u, 100000u);
+        rt.memory().store32(0x08F6AC04u, 0u);
+        rt.memory().store32(0x08F6AC08u, 0x01030000u);
+        GtModCtx money_ctx{&rt, nullptr, 0u, 0u};
+        std::uint32_t value = 0u;
+        check(api3.money_get(&v3, &money_ctx, &value) == 0 && value == 100000u, "v3 money_get");
+        check(api3.money_set(&v3, &money_ctx, 250000u) == 0 && rt.memory().load32(0x08F6AC00u) == 250000u, "v3 money_set");
+        check(api3.money_get(&v2a, &money_ctx, &value) != 0 && api3.money_set(&v2a, &money_ctx, 1u) != 0 &&
+                  rt.memory().load32(0x08F6AC00u) == 250000u, "money refused to an api-2 mod");
+    }
     clear_hooks_for_tests();
     check(api.add_menu_row(&v2a, "x", label_a, act) != 0, "row refused outside gt_mod_init");
     check(api.on_vblank(&v2a, tick_noop) != 0, "tick refused outside gt_mod_init");

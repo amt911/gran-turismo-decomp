@@ -43,6 +43,8 @@ bool any_registered();
 void set_menu_open_query(bool (*query)());
 int api_is_menu_open(GtMod *self);
 std::uint64_t api_vblank_index(GtMod *self);
+int api_money_get(GtMod *self, GtModCtx *ctx, std::uint32_t *value);  // v3: host/game_state.hpp
+int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value);
 
 // A failed init: forget this mod's rows and tick.
 void remove_for(const GtMod *mod);

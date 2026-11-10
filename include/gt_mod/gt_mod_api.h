@@ -22,6 +22,9 @@ extern "C" {
  * (GT_MOD_API_VERSION_2); the v2 functions refuse a mod that declared api 1. */
 #define GT_MOD_API_VERSION 1
 #define GT_MOD_API_VERSION_2 2
+/* v3 (docs/superpowers/specs/2026-11-10-named-mod-sdk-design.md): named game state, so mods never hard-code guest addresses.
+ * The v3 functions refuse a mod that declared api < 3. */
+#define GT_MOD_API_VERSION_3 3
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -77,6 +80,12 @@ typedef struct GtModApi {
     /* The game's vblank count as of the latest vblank tick (the tick runs for every installed v2 mod, switched on or off), 0 before
      * the first. A mod that was switched off for a while sees it jump: use it, not the wall clock, to tell a stale state. */
     uint64_t (*vblank_index)(GtMod *self);
+    /* ---- v3 (appended): named game state. Only valid for a mod that declared `api = 3`. ---- */
+    /* The live balance (Cr). Returns 0 and sets *value, or non-zero when no game is loaded (the host checks the cell). */
+    int (*money_get)(GtMod *self, GtModCtx *ctx, uint32_t *value);
+    /* Sets the balance (0..999,999,999). Returns 0, or non-zero when no game is loaded or the value is out of range. The game
+     * keeps it once it saves. */
+    int (*money_set)(GtMod *self, GtModCtx *ctx, uint32_t value);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

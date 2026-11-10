@@ -118,7 +118,7 @@ int main() {
         fs::create_directories(root / "a_no_manifest");
         write(root / "b_bad_toml" / "mod.toml", "this is not toml\n");
         make_mod(root, "c_missing_lib", "c", true, "1", "1", (root / "nope.so").string());
-        make_mod(root, "d_api3", "d", true, "1", "3");
+        make_mod(root, "d_api4", "d", true, "1", "4");  // api 3 exists since the named SDK (v3): 4 is the unsupported one
         write(root / "stray_file.txt", "not a directory");
         const LoadReport r = load_mods(rt, root);
         check(r.loaded.empty(), "loader_skips_broken_mods: nothing loaded");
