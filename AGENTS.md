@@ -117,7 +117,7 @@ A rule is edited in its document, not here and there at once — except for its 
   before the fourth; a review finding is not a reproduction.
 - **Agentic PR verification (mandatory)** → [docs/agents/pr-verification.md](docs/agents/pr-verification.md).
   Every PR gets a verdict comment from a pass that rebuilds from a clean tree, runs the differential
-  gate and the boot check; it never merges.
+  gate and the boot check; it never merges. The synthetic gate runs only when the PR touches what it compares (`tools/verdict_scope.py`; user, 2026-11-10).
 - **Agent orchestration** → [docs/agents/agent-orchestration.md](docs/agents/agent-orchestration.md).
   Review in parallel with the next implementation; shared `docs/FACTS.md`; one agent per worktree
   (the build dir, the REA session, the Ghidra project and each emulator/game instance are exclusive).
