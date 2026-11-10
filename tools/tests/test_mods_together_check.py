@@ -84,3 +84,16 @@ def test_cheats_rule():
     acted = log + "\n[mod:cheats] st=10 slow=0.5x freeze=1 P=1.000,2.000,3.000 spd=1.000 acc=0.00 A0=1.000,2.000,3.000"
     assert m.judge(acted, IDS + ["cheats"]) == (True, [])
     assert not m.judge(acted.replace("freeze=1", "freeze=0"), IDS + ["cheats"])[0]
+
+
+def test_orbit_inverted_outside_chase_acts():
+    # invert_in_chase (orbit-camera 0.2.0) logs yaw=-90 outside the chase view
+    log = GOOD.replace("step=60 yaw=90.00 scene", "step=60 yaw=-90.00 chase=0 scene")
+    assert m.judge(log, IDS) == (True, [])
+
+
+def test_orbit_at_other_yaw_does_not_count():
+    ok, problems = m.judge(GOOD.replace("yaw=90.00", "yaw=0.00"), IDS)
+    assert not ok and any(p.startswith("orbit-camera:") for p in problems)
+    ok, _ = m.judge(GOOD.replace("yaw=90.00", "yaw=190.00"), IDS)
+    assert not ok

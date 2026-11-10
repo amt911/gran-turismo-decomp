@@ -345,6 +345,8 @@ The detail (the loop, the harness, m2c, C++ specifics, the optional matching che
 - **Recompiler output is not decompiled code.** Copying generated C++ into `src/` and tidying it is
   forbidden: it is game-derived, unreadable by construction, and proves nothing. Decompiled code is
   written from the asm/pseudocode by hand (m2c/Ghidra drafts as reading aids).
+- **Structured C only** (user, 2026-11-10): ifs/loops, named typed locals; `G[n]` only at the call boundary.
+  No register-level emitter bodies; the old `hot_batch` ones are rewritten in the typing phase.
 - **Never weaken the gate to get green** — no deleting or editing captured cases, no widening the
   comparison, no excluding side effects. Fix the C; if a case is wrong, say why in the commit.
 - **No guessed names.** Unknown symbols keep `func_XXXXXXXX` / `D_XXXXXXXX` (ELF vaddr). A name needs

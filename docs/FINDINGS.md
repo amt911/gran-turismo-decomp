@@ -3066,3 +3066,63 @@ in both modes before building on it.
 `WITH_CHEATS=1 tools/mod_reset_check.sh --decomp on --reset-only` (cheats installed, so Select reaches reset-to-track 8 vblanks late) fails "an angular rate of 0.41 rad/s in the first 10 steps (max 0.3)";
 the same run with `GT_PAD_MENU_HOLD_BACK=0` passes, and `--decomp off` passes either way. The restore zeroes the rates; with the later Select it lands at another moment of the crash tumble and the
 springs still oscillate (cf. the rollover `--recover` note). A timing sensitivity of the check's calm criterion, not a restore bug; not investigated further.
+
+### func_08945F6C: a host multiply where the asm has `mul.s` (inf * 0 gives the host's NaN)
+
+**Symptom.** With the flag word at `0x08CF2F08` set, the rollover mod saw `--decomp on` frames differ from `--decomp off`. No route or synthetic case ever ran the function with the flag set.
+**Cause.** The decompiled C wrote `a * b` for the asm's `mul.s`; `inf * 0` (and NaN operands through it) is `0xFFC00000` on the host, `0x7FC00000` on the PSP: `psp_mul` exists for that. 1 of 46 comparable cases of 256 with the flag set showed `RAM at 0x09ED830B: original FF, decompiled 7F` (body + 0x708, the atan2 argument's NaN sign).
+**Fix / workaround.** `psp_mul` on every multiply of the function. The synthetic generator now has per-function scene pokes (`host/synth_case.cpp: scene_pokes`; odd cases set the flag word, restored after each case) and edge floats (NaNs of both signs, -0, denormals, infinities) for the two atan2/sine helpers it calls. 256 cases: 46/46 equal after the fix. The default 8 cases per function do not reach the NaN: use `tools.decomp_gate synth --only 0x08945F6C --cases 256` to see it. **Other decompiled floats:** any `*` on floats the asm does with `mul.s` can do the same; `tools.progress`-style audit of `src/` for plain float multiplies is open.
+
+Found: 2026-11-08 · host/synth_case.cpp, src/game/unsorted/hot_batch_112.cpp
+
+### `--decomp on` and `--decomp off` follow different timelines on a pad route (reset check "failed" in `on` only)
+
+**Symptom.** `tools/mod_reset_check.sh --decomp on` failed (rate 0.37 rad/s in the first 10 steps, max 0.3) on main after batch 333 while `off` passed; subsets of batch 333's registrations passed or failed in combinations (A+C fails, A+B, A1+C, A2+C, C alone pass).
+**Cause.** Not a decompiled function: all 11 candidate functions are never called on the reset route (`GT_DECOMP_DENSE`, `--decomp diff`: calls 0). The two modes follow different timelines before the reset: at game step 30, with the car at rest, the pad counter reads 6230 (`on`) vs 6642 (`off`) and the rates differ in the sign of ~0.00; the restore picks another pose (x = -297 vs -305). The springs' transient after a zeroed restore is 0.25 (`off`) to 0.37 (`on`), above the old 0.3 limit.
+**Fix / workaround.** `tools/mod_reset_check.py` judges what the mod promises: no rate at 0.6 (the crash's spin) in the window, every rate below 0.1 from t=60 to t=120 (0.04 at most in the runs), the first 10 steps below 0.45 (clean runs peak at 0.25-0.37, the rates-not-zeroed sabotage at 0.50 in `on`). The restore step's own line cannot be judged alone: `--decomp on` logs the first integration step at t=0. A check whose margin is this small is a smell: judge what a mod promises, not one run's transient.
+
+Found: 2026-11-08 · tools/mod_reset_check.py
+
+## `call_guest` of the road query from a mod tick is not frame-neutral (2026-11-09, reset-to-track research)
+
+**Symptom.** A reset-to-track build that called the game's road query from the API v2 tick (~30 queries per candidate pose, never pressing the button) diverged from the
+stock game in the check's byte-identity run, at a different vblank in each run (3630, 5100, 5580, 8220 off; 9540 on). With the same tick and a block allocated but **no query** the 691
+frames were identical.
+**What it is not (measured).** The query writes nothing in guest RAM outside the callee's own stack: a full diff of RAM (`0x08800000..0x0A000000`, 6.3 M words) around 6 queries found 0
+changed words outside `[sp - 0x8000, sp + 0x100)` (17-230 stack words), the 14-word record excluded.
+**Suspects (not tested).** `gt::call_guest` (`host/guest_call.cpp`) runs `dispatch_boundary` after every callee function, so virtual time advances and a poll runs; and it copies the callee's VFPU
+state back into the thread (`host/mod_services.cpp:110`), which the interrupted thread may still use. Either perturbs a run chaotically. **Rule:** a mod whose frames must stay identical to the stock game must
+not call guest code from the tick; the shipped reset-to-track therefore decides from the car's own path (API 1) and never calls the game. Reviving the query needs a host-side time/VFPU-neutral `call_guest`.
+
+## Same-build runs diverge after the route and, under load, mid-run (2026-11-09)
+
+Two runs of the same build and route (`tools/mod_reset_check.sh`, baseline against a toggle run) have identical frames until the route ends and then differ from vblank 21654 vs 21656 (route end 18825:
+the first difference is 2829 vblanks after it, in the idle phase). On a loaded machine (other sessions on the CPU) two baselines also diverged mid-run (frame 5100 of 700; 402 instead of 700 frames dumped),
+so the identity verdict is not reproducible then. Not investigated. The reset check therefore compares frames up to `POST_ROUTE_VBLANKS` = 2500 after `script done` (just before the measured divergence) and
+fails by itself when the log has no `script done`; re-run on a quiet machine when a baseline-vs-mod difference shows mid-route.
+
+## Frame dumps of two runs on the same pad route drift apart after one dropped present (2026-11-09)
+
+The orbit-camera and draw-distance checks failed with gt-mods main too: HUD digits "changed", frames after the F9 toggle
+"differed", draw-distance 2.5 changed "38 % of the picture". The game was not at fault: tick counts, virtual time, the game's
+frame counter and flip counts match exactly between two runs (25k vblanks, scale 1.0 vs 2.5). The dumps were. `frame_dump`
+numbers *presented* frames, and a present is dropped when the GE worker is still busy, so one drop in one run shifts every later
+dump number by one: frame N of the two runs is no longer the same game frame (the lap timer shows it, 0'58.300 vs 0'58.316). The
+`vblank` label on the `[frame-dump]` line does not help either: it is read when the GE worker dumps, which lags under load. Which presents
+are dumped is now decided by the vblank too: the first present of each bucket of `GT_FRAME_EVERY` vblanks (`host/dump_bucket.hpp`, ctest
+`dump_bucket`), not every Nth present (a drop would shift the count and two runs would dump disjoint vblanks) and not `vblank % N == 0`
+(the game presents every 2 vblanks, on odd vblanks for whole stretches, and the modulo would never fire). The
+dump line now also carries `present_vblank` (the vblank the present was requested at) and the checkers pair frames by it, and as a
+second guard compare pixels only where the lap-timer pixels match, with a floor on how many frames were compared. Related: once
+the orbit is applied to the layer view the game draws the trackside wall on the camera's side at yaw 90 and it can hide the car,
+so the car-centring check only holds from yaw 135 up.
+
+Follow-up (same day, review of the checkers): the pairing key is exact, so two runs only pair where both dumped the same present vblank. The bucket rule makes
+that the normal case, but a run that presents on odd vblanks where the other presents on even ones (a 30 fps phase shifted by one vblank) shares almost no key:
+the verdict is then "only N common frames", a false FAIL and not a weakening of any gate. The lap timer is the identifier of a game frame
+(`tools/lap_timer.py`): its mask is the digit STROKES only (short horizontal and vertical runs of white), so the scene behind it, which has no backing, does not
+change it (on real frames the pairs with different masks differ only in the last digits, a game step); an empty or frozen timer identifies nothing and never counts
+toward a floor. After the toggle the residual differences were explained, not absorbed: for ~500 vblanks the picture still holds pixels of the orbited frames (nothing clears the colour buffer,
+blended draws keep it), hence `TOGGLE_MARGIN = 600`; after that every pair is byte-identical outside the car window except a few at four moments (vblanks 22156, 29352, 36544, 43736: 7 200 apart), where the
+only differing pixels are the HUD clock (bottom right), whose digit flips at an instant that moves by one frame between runs (the clock is not locked to the game frame: probably guest virtual time,
+which the dispatch-count starvation tick moves with the game's CPU work); inside the car window the rear sprite flickers by up to 2 % of the window (cause not identified).

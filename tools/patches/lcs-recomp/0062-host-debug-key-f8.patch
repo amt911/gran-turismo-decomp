@@ -1,0 +1,51 @@
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -168,6 +168,9 @@
+                 host_settings_handle(HostSettingsKey::Close);
+                 discard_pending_pointer();
+             }
++        } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0 &&
++                   event.key.keysym.scancode == SDL_SCANCODE_F8) {
++            host_debug_key_pressed();
+         } else if (event.type == SDL_KEYDOWN && event.key.keysym.scancode == SDL_SCANCODE_F11 &&
+                  event.key.repeat == 0)
+             toggle_fullscreen();
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -5,6 +5,7 @@
+ #include "lcs_render_config.hpp"
+ 
+ #include <algorithm>
++#include <atomic>
+ #include <cctype>
+ #include <chrono>
+ #include <cmath>
+@@ -259,6 +260,16 @@
+ 
+ bool host_settings_has_extra_page() noexcept { return g_extra != nullptr; }
+ 
++namespace {
++std::atomic<void (*)()> g_debug_key{nullptr};
++}
++
++void host_set_debug_key_handler(void (*handler)()) noexcept { g_debug_key.store(handler, std::memory_order_release); }
++
++void host_debug_key_pressed() noexcept {
++    if (void (*handler)() = g_debug_key.load(std::memory_order_acquire)) handler();
++}
++
+ void host_settings_set_extra_page(const HostExtraPage *page) noexcept {
+     g_extra = page;
+     g_extra_selected = 0;
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -38,6 +38,9 @@
+ // Registers (or, with nullptr, removes) the extra page opened by F9. Without one F9 does nothing.
+ void host_settings_set_extra_page(const HostExtraPage *page) noexcept;
+ [[nodiscard]] bool host_settings_has_extra_page() noexcept;
++// A debug key the host program can claim (GT: F8 = trace the GE lists of the next frame). Null = the key does nothing.
++void host_set_debug_key_handler(void (*handler)()) noexcept;
++void host_debug_key_pressed() noexcept;
+ 
+ [[nodiscard]] bool host_settings_open() noexcept;
+ bool host_settings_handle(HostSettingsKey key) noexcept;

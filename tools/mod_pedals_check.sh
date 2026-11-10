@@ -3,7 +3,7 @@
 # and GT_MOD_PEDALS_FAKE=0.5,0.3 (throttle 0.5, brake 0.3 without touching a controller). The mod logs the player's and an
 # AI car's pedals (GT_MOD_PEDALS_LOG=1); tools/mod_pedals_check.py passes when the player's pedals (car+8+0x530 accelerator,
 # +0x538 brake) are 0.5 / 0.3 and the AI car's pedals differ from the player's.
-#   tools/mod_pedals_check.sh [--without-mod] [--sabotage|--sabotage-brake] [--disabled] [--toggle-off [--toggle-at S] [--sabotage-active]] [--sdl] [--decomp off|on] [--seconds N] [--route NAME]
+#   tools/mod_pedals_check.sh [--without-mod] [--sabotage|--sabotage-brake] [--disabled] [--toggle-off [--toggle-at S] [--sabotage-active]] [--sdl] [--replay] [--decomp off|on] [--seconds N] [--route NAME]
 #   --without-mod  empty mods dir (the check must FAIL: nothing injects)
 #   --sabotage     builds the mod with ANALOG_PEDALS_SABOTAGE=1 (throttle written to the wrong record field; must FAIL)
 #   --sabotage-brake  same with =2 (brake written to the wrong field; must FAIL)
@@ -14,6 +14,8 @@
 #                  line and no mod log line after it (an inactive mod's code never runs).
 #   --sabotage-active  with --toggle-off, expects a build configured with -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON (the trampoline ignores
 #                  `active`): the check must FAIL. Reconfigure the build without the option afterwards.
+#   --replay       route circuit_analog (no digital throttle), GT_MOD_PEDALS_FAKE=0.6,0, 330 s: the race is driven by the analog throttle
+#                  alone, then its replay plays; PASS = live throttle 0.6 and the replayed car shows 0.6 and moves (mod >= 0.2.0)
 #   --sdl          no GT_MOD_PEDALS_FAKE: the mod reads SDL (keyboard/controller) while gt_play pumps events, for a long run
 #                  (--seconds 600): passes when gt_play exits 0 and the mod logged; checks no pedal values
 # Env: MOD_CHECK_NO_LOCK=1 (the caller already holds tools/cpu_lock.sh), GT_MODS_REPO (default ../gt-mods), BUILD (default build). Exit: 0 pass, 1 check failed, 2 setup/run problem.
@@ -25,10 +27,10 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_pedals_check}
-decomp=off seconds=240 route=race without=0 sabotage=0 disabled=0 sdl=0 toggle=0 toggle_at=v17000 sab_active=0
+decomp=off seconds=240 route=race without=0 sabotage=0 disabled=0 sdl=0 toggle=0 toggle_at=v17000 sab_active=0 replay=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) without=1;; --sabotage) sabotage=1;; --sabotage-brake) sabotage=2;; --disabled) disabled=1;; --sdl) sdl=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage-active) sab_active=1;;
+    --without-mod) without=1;; --sabotage) sabotage=1;; --sabotage-brake) sabotage=2;; --disabled) disabled=1;; --sdl) sdl=1;; --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --sabotage-active) sab_active=1;; --replay) replay=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --route) route=$2; shift;;
     *) echo "mod_pedals_check: unknown argument $1" >&2; exit 2;;
   esac
@@ -40,6 +42,7 @@ if [ $sab_active -eq 1 ]; then
   grep -q '^GT_MOD_SABOTAGE_IGNORE_ACTIVE:BOOL=ON' "$build/CMakeCache.txt" 2>/dev/null \
     || { echo "mod_pedals_check: $build is not configured with -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON (rebuild gt_play first)" >&2; exit 2; }
 fi
+[ $replay -eq 1 ] && { route=circuit_analog; [ "$seconds" = 240 ] && seconds=330; }
 [ -f "config/pad_routes/$route.pad" ] || { echo "mod_pedals_check: no pad route $route" >&2; exit 2; }
 rm -rf "$out" && mkdir -p "$out/mods" "$out/savedata" || exit 2
 # Routes that start from the user's save (save_*, perf_* like perf_tt_newyork: Time Trial) get a fresh copy of it, as in gpu_gate.sh.
@@ -57,7 +60,7 @@ if [ $without -eq 0 ]; then
 fi
 pad=$(grep -v '^#' "config/pad_routes/$route.pad")
 lock="tools/cpu_lock.sh mod_pedals_check_$route"; [ -n "${MOD_CHECK_NO_LOCK:-}" ] && lock=""
-fake=0.5,0.3; [ $sdl -eq 1 ] && fake=
+fake=0.5,0.3; [ $sdl -eq 1 ] && fake=; [ $replay -eq 1 ] && fake=0.6,0
 toggle_env=""; [ $toggle -eq 1 ] && toggle_env="analog-pedals@$toggle_at"
 [ $toggle -eq 1 ] && [ "$seconds" = 240 ] && seconds=330  # samples after the game-paced toggle too
 env GT_MOD_MENU_TEST_TOGGLE="$toggle_env" GT_MODS_DIR="$repo/$out/mods" GT_SAVEDATA_DIR="$repo/$out/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 \
@@ -70,5 +73,6 @@ grep -h '^\[mods\]' "$out/run.log"
 grep -h 'script done' "$out/run.log"
 if [ $disabled -eq 1 ]; then grep -q '^\[mods\].*skipped' "$out/run.log" && exit 0; echo "mod_pedals_check: no [mods] skipped line" >&2; exit 1; fi
 if [ $sdl -eq 1 ]; then grep -q '\[mod:analog-pedals\] step=' "$out/run.log" && { echo "PASS: ran $seconds s on the SDL path, exit 0"; exit 0; }; echo "FAIL: the mod logged nothing" >&2; exit 1; fi
+if [ $replay -eq 1 ]; then .venv/bin/python -I tools/mod_pedals_check.py "$out/run.log" --replay; exit $?; fi
 if [ $toggle -eq 1 ]; then .venv/bin/python -I tools/mod_pedals_check.py "$out/run.log" --toggle; exit $?; fi
 .venv/bin/python -I tools/mod_pedals_check.py "$out/run.log"

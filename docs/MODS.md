@@ -146,6 +146,7 @@ tools/mod_pedals_check.sh [--decomp off|on]        # PASS = los pedales del juga
 tools/mod_pedals_check.sh --sabotage-brake         # debe FALLAR
 tools/mod_pedals_check.sh --toggle-off [--decomp on]   # el menú apaga el mod a mitad de carrera: inyecta antes, nada después
 tools/mod_pedals_check.sh --disabled               # enabled = false al arrancar: mismo `script done at vblank` que --without-mod
+tools/mod_pedals_check.sh --replay               # ruta circuit_analog (sin acelerador digital): PASS = la repetición reproduce el 0.6 analógico y el coche se mueve (mod >= 0.2.0; 0.1.0 FALLA)
 # sabotaje del menú: cmake -DGT_MOD_SABOTAGE_IGNORE_ACTIVE=ON, recompilar gt_play, --toggle-off --sabotage-active debe FALLAR
 ```
 
@@ -159,7 +160,8 @@ cámara trasera con el coche visible; un run sin mod y uno por ángulo `GT_MOD_C
 tools/mod_camera_check.sh [--decomp off|on] [--yaws "90 180"]   # yaw 0 (control de determinismo, siempre se ejecuta) idéntico al run sin mod; yaw != 0: 3D distinto, dígitos del HUD iguales, coche centrado
 tools/mod_camera_check.sh --sabotage                              # pivote en el ojo: debe FALLAR
 tools/mod_camera_check.sh --without-mod                           # sin mod: debe FALLAR (nada cambia)
-tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 frames orbitados antes, idénticos al run sin mod después)
+tools/mod_camera_check.sh --toggle-off [--toggle-at V]            # el menú apaga el mod a mitad (>= 6 fotogramas orbitados antes; después, a partir de 600 vblanks (la imagen se asienta: no hay borrado de color) cada fotograma emparejado por cronómetro con uno del run sin mod es idéntico byte a byte fuera de la ventana del coche y del reloj del HUD (abajo a la derecha), y como mucho un 3 % de la ventana del coche distinto; >= 30 y la mitad de los utilizables deben emparejar)
+# (--toggle-off vuelca todos los presentes, --every 2, salvo que se dé --every: los fotogramas se emparejan por el cronómetro de vuelta, tolerando un paso de juego de desfase)
 ```
 
 ## Comprobar `draw-distance`
@@ -182,6 +184,13 @@ velocidad alineada con el morro (cos > 0,9: ni de lado ni marcha atrás). El ani
 más de 15 m en un paso (aparición, nuevo intento, F9 apagado/encendido), si pasan más de 2 s sin pasos, o al cambiar de coche; nunca se restaura una pose de
 más de 8 s.
 
+**Regla de recta hacia delante (mod 0.2.0, API 1).** El coche arranca desde parado siguiendo el rumbo de la pose; una pose «buena» que cruza la pista en diagonal hacia el borde
+(4/4 asfalto, derecha, tranquila) lo devolvía fuera de pista (3 de 4 restauraciones de la reproducción). El anillo se recorre en busca de la pose más reciente con `rewind_ms` de antigüedad cuya recta
+(rumbo `-sin yaw, cos yaw`, tolerancia lateral 2,5 m) es seguida por el PROPIO camino del coche durante `ahead_m` metros (40; un coche que arranca parado recorre ~38 m en 4 s); como toda pose del
+anillo tiene las 4 ruedas en asfalto, ese camino es asfalto. Sin ninguna, la de recta más larga de al menos 15 m (horquillas); sin ninguna, no restaura nada (`NOPOSE` en el log). Una pose restaurada
+queda fijada (se puede volver a ella). No se consulta la carretera ni se llama al juego: una primera versión llamaba a la consulta de carretera del juego con `call_guest` desde el tic y no era neutra
+para los fotogramas (docs/FINDINGS.md); los hechos de esa consulta están en docs/FACTS.md.
+
 **Select y la cámara.** El juego usa Select para cambiar de vista. El mod engancha la lectura del mando (`0x08C7ABF0`, el stub de importación de
 sceCtrlReadBufferPositive, despachado en `--decomp off` y `on`, FACTS): en carrera oculta Select al juego mientras está pulsado; si se suelta antes de
 0,5 s, se lo devuelve como un toque de 3 lecturas (la vista cambia igual que sin el mod); si se suelta después, se dispara el reset y la vista NO cambia.
@@ -201,6 +210,8 @@ GT_MODS_REPO=../gt-mods-reset tools/mod_reset_check.sh [--decomp off|on]   # sin
 tools/mod_reset_check.sh --tap                # las 3 pulsaciones cortas de la ruta chase: toques repetidos, misma vista de cámara que sin el mod
 tools/mod_reset_check.sh --toggle-off         # el menú apaga el mod antes del botón: ni un reset, el mod funcionó antes y calló después, fotogramas idénticos
 OUT=recomp/analysis/mod_reset_check_cheats WITH_CHEATS=1 tools/mod_reset_check.sh --reset-only|--tap   # con el mod cheats instalado también (menú del mando activo, Select llega 8 vblanks tarde): restaura igual / el toque sigue cambiando la vista
+tools/mod_reset_check.sh --multi              # ruta reset_multi (cruce en diagonal y cuatro SELECT): cada reset deja al coche 240 pasos (4 s) en 4/4 asfalto sin girar, y cada RESTORE lleva `run=` >= 15 m (la regla eligió la pose)
+tools/mod_reset_check.sh --multi --sabotage-lookahead-off   # la regla apagada, pick antiguo (-DRESET_SABOTAGE=5; RESTORE run=-1): debe FALLAR (un reset saca al coche de la pista y no usa la regla)
 tools/mod_reset_check.sh --sabotage-rates     # no pone a cero las velocidades angulares: debe FALLAR
 tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (fuera de pista): debe FALLAR
 tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR
@@ -238,6 +249,11 @@ Comprobación en juego (ruta `rollover`: el coche se sale al final de la recta y
 GT_MODS_REPO=../gt-mods-rollover tools/mod_rollover_check.sh [--decomp off|on]   # sin mod / mod desactivado: fotogramas idénticos; con mod: conducción normal sin impulso, un impulso en el choque, inclinación > 35° hacia el lado golpeado, máquina de vuelco dormida (+0x74B = 0), sin saltos de altura, termina derecho o boca abajo parado
 tools/mod_rollover_check.sh --toggle-off          # el menú apaga el mod antes del choque: el mod funcionó antes y calló después, TODOS los fotogramas idénticos al run sin mod (off y on)
 tools/mod_rollover_check.sh --recover             # rollover + reset-to-track en la ruta `rollover_reset`: el coche está boca abajo, aún rodando, cuando se dispara el reset; el juez de reset-to-track pasa (sin su ventana de calma: tras una voltereta los muelles oscilan ~15 pasos) y la velocidad de balanceo se calma a los 20 pasos
+tools/mod_rollover_check.sh                      # (rollover 0.2.0, caja de carrocería) además: juez `box` (esquina más honda de la caja del coche que vuelca >= -0,25 m bajo el suelo, origen < `MAX_TUMBLE_RISE` = 1,6 m sobre el suelo (tools/mod_rollover_check.py), ningún toque de la caja con el coche derecho) y una ejecución `nobox` (body_box = false): las líneas de estado antes del primer impacto son idénticas byte a byte con y sin caja, y sin caja el cuerpo se hunde > 0,5 m
+tools/mod_rollover_check.sh --sabotage-nobox      # body_box apagado (-DROLLOVER_SABOTAGE=6; el log sigue midiendo): el cuerpo se hunde 1,02 m, debe FALLAR el juez `box`
+tools/mod_rollover_check.sh --sabotage-pushupright # la caja empuja a un coche derecho (suelo 0,6 m alto, esquinas del suelo siempre activas): deben FALLAR `box` (toques derecho) y `boxcmp` (líneas antes del impacto)
+tools/mod_rollover_check.sh --sabotage-nocap      # box_kick_cap 20: debe FALLAR el límite de subida
+tools/mod_rollover_check.sh --frames [--without-box]  # un fotograma cada 3 vblanks alrededor del choque (--frames-window DESDE:HASTA, por defecto automática: de 60 vblanks antes del primer impulso a 300 después) en $OUT/tumble[_nobox]/frames, para mirarlos
 tools/mod_rollover_check.sh --sabotage-noflag     # el impulso sin la bandera (el recorte de 35° lo frena): debe FALLAR
 tools/mod_rollover_check.sh --sabotage-noimpulse  # la bandera sin impulso: la barrera sola no vuelca el coche: debe FALLAR
 tools/mod_rollover_check.sh --sabotage-threshold0 # umbral 0: impulso en conducción normal: debe FALLAR
@@ -245,3 +261,17 @@ tools/mod_rollover_check.sh --sabotage-flipflag  # la bandera también para la m
 tools/mod_rollover_check.sh --without-mod         # física original, el mod solo registra (-DROLLOVER_SABOTAGE=5): nada vuelca, debe FALLAR (con --recover: el coche no está boca abajo al reset)
 ```
 
+
+## Descargador de mods (en construcción)
+
+Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):
+`host/mod_install.hpp` (índice de la release de gt-mods, orden de versiones, `sha256` y tamaño, desempaquetado seguro del
+`.tar.gz` a `<mods>/.staging/<id>/`, conservar `enabled` y los ajustes del usuario al actualizar, cambio por renombrado) y
+`host/mod_fetch.hpp` (descarga solo HTTPS con libcurl; `GT_MODS_INDEX_URL` cambia el índice). Pruebas:
+
+```bash
+ctest --test-dir build -R "mod_install|mod_fetch"
+GT_NET_TEST=1 build/mod_fetch_tests    # descarga la release real e instala analog-pedals en un directorio temporal
+```
+
+Falta la página GET MODS del menú F9 (paso 3 del spec).

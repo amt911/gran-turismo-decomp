@@ -29,7 +29,7 @@ def test_parse_states_and_restores():
     assert states[0]["t"] == -1 and states[0]["wheels"] == 4 and states[3]["wheels"] == 0
     assert states[-1]["t"] == 660 and states[-1]["rates"] == [0, 0, 0, 0, 0] and states[-1]["restores"] == 1
     restores = mr.parse_restores(text)
-    assert restores == [{"step": 1900, "pos": (-300.0, 250.0, 0.0), "yaw": pytest.approx(1.57)}]
+    assert restores == [{"step": 1900, "pos": (-300.0, 250.0, 0.0), "yaw": pytest.approx(1.57), "run": None}]
     assert mr.parse_states("garbage") == [] and mr.parse_restores("garbage") == []
 
 
@@ -222,20 +222,23 @@ def make_run(tmp_path, label, log, frames):
     (tmp_path / label / "run.log").write_text(log)
 
 
+DUMPS = "".join(f"[frame-dump] frame {i:06d} vblank {i}\n" for i in range(8))
+
+
 def test_main_modes(tmp_path, capsys):
     same = {i: 7 for i in range(8)}
     make_run(tmp_path, "baseline", "", same)
     make_run(tmp_path, "baseline_nosel", "", same)
     make_run(tmp_path, "reset", good_log(), {})
-    make_run(tmp_path, "quiet", ring_lines(12), same)
-    make_run(tmp_path, "toggle", ring_lines(12) + "\n[mods] reset-to-track -> OFF\n", same)
+    make_run(tmp_path, "quiet", ring_lines(12) + "\n" + DUMPS + "[pad] script done at vblank 100\n", same)
+    make_run(tmp_path, "toggle", ring_lines(12) + "\n[mods] reset-to-track -> OFF\n" + DUMPS + "[pad] script done at vblank 100\n", same)
     out = str(tmp_path)
     assert mr.main(["x", out, "restore"]) == 0
     assert mr.main(["x", out, "quiet"]) == 0
     assert mr.main(["x", out, "toggle"]) == 0
-    make_run(tmp_path, "toggle", ring_lines(12) + "\nno toggle line\n", same)
+    make_run(tmp_path, "toggle", ring_lines(12) + "\nno toggle line\n" + DUMPS + "[pad] script done at vblank 100\n", same)
     assert mr.main(["x", out, "toggle"]) == 1
-    make_run(tmp_path, "quiet", good_log(), same)
+    make_run(tmp_path, "quiet", good_log() + "\n" + DUMPS + "[pad] script done at vblank 100\n", same)
     assert mr.main(["x", out, "quiet"]) == 1
     make_run(tmp_path, "reset", "nothing", {})
     assert mr.main(["x", out, "restore"]) == 1
@@ -317,3 +320,93 @@ def test_main_restore_takes_the_calm_window(tmp_path):
     assert mr.main(["x", str(tmp_path), "restore"]) == 1
     assert mr.main(["x", str(tmp_path), "restore", "0"]) == 0
     assert mr.main(["x", str(tmp_path), "restore", "-1"]) == 0
+
+
+def _with_rates(log, at, rates):
+    return "\n".join(l.replace("rates=0.00,0.00,0.00,0.00,0.00", f"rates={rates}") if f" t={at} " in l else l for l in log.splitlines())
+
+
+def test_the_settle_transient_of_either_mode_passes_but_a_spin_or_a_lingering_rate_fails():
+    # --decomp off peaks at 0.25 and --decomp on at 0.37 on the springs after a zeroed restore: both are fine
+    assert mr.judge_restore(_with_rates(good_log(), 5, "0.37,-0.04,0.37,-0.04,-0.09"))[0]
+    assert mr.judge_restore(_with_rates(good_log(), 4, "0.25,0.04,0.25,0.05,-0.06"))[0]
+    # the crash's spin level at any time in the window, and a transient that has not decayed by t=60
+    ok, message = mr.judge_restore(_with_rates(good_log(), 30, "0.00,0.00,0.00,0.00,0.64"))
+    assert not ok and "crash's spin level" in message
+    ok, message = mr.judge_restore(_with_rates(good_log(), 60, "0.15,0.00,0.15,0.00,0.00"))
+    assert not ok and "decayed" in message
+    assert mr.judge_restore(_with_rates(good_log(), 60, "0.09,0.00,0.09,0.00,0.00"))[0]
+    # the first-steps limit
+    assert not mr.judge_restore(_with_rates(good_log(), 5, "0.46,0.00,0.00,0.00,0.00"))[0]
+    # a car reset out of a tumble (calm_steps 0 or -1) is exempt from the spin and decay rules
+    assert mr.judge_restore(_with_rates(good_log(), 30, "0.00,0.91,0.00,0.91,0.06"), calm_steps=0)[0]
+
+# --- --multi: every restore stays on the asphalt for 4 s, and the straight-ahead rule picked the pose ----------------------------------
+def multi_log(restores=(2000, 2500, 3000), bad=None, runs=None):
+    """`bad` = (restore index, wheels): from t=100 on that restore's samples have that many wheels on asphalt; `runs` = the RESTORE lines' run= values."""
+    lines = []
+    for n, step in enumerate(restores, 1):
+        lines.append(state(-1, step - 5, restores=n - 1))
+        run = (runs or [48.0] * len(restores))[n - 1]
+        lines.append(restore_line(step) + ("" if run is None else f" run={run:.1f}"))
+        for t in range(1, 361, 5):
+            wheels = bad[1] if bad and bad[0] == n and t >= 100 else 4
+            lines.append(state(t, step + t, wheels=wheels, restores=n))
+    return "\n".join(lines)
+
+
+def test_multi_good_run_passes():
+    ok, message = mr.judge_multi(multi_log())
+    assert ok, message
+    assert "3 restores" in message and "48, 48, 48 m" in message
+
+
+def test_multi_a_restore_that_leaves_the_road_fails():
+    ok, message = mr.judge_multi(multi_log(bad=(2, 0)))
+    assert not ok and "restore 2" in message and "out of bounds" in message
+
+
+def test_multi_a_tipped_car_after_a_restore_fails():
+    assert not mr.judge_multi(multi_log().replace("up_z=1.000", "up_z=0.500", 40))[0]
+
+
+def test_multi_needs_restores_and_the_rule_in_use():
+    assert "need at least" in mr.judge_multi(multi_log(restores=(2000,)))[1]
+    assert "did not use the straight-ahead rule" in mr.judge_multi(multi_log(runs=[48.0, -1.0, 48.0]))[1]  # the sabotage logs run=-1
+    assert "did not use the straight-ahead rule" in mr.judge_multi(multi_log(runs=[48.0, None, 48.0]))[1]
+    assert "did not use the straight-ahead rule" in mr.judge_multi(multi_log(runs=[48.0, 10.0, 48.0]))[1]  # below the 15 m floor
+    assert not mr.judge_multi("nothing")[0]
+
+
+def test_multi_a_short_log_after_a_restore_fails():
+    lines = [l for l in multi_log(restores=(2000, 2500)).splitlines() if not ("restores=2" in l and "t=" in l and int(l.split("t=")[1].split()[0]) > 60)]
+    assert "follows the car only" in mr.judge_multi("\n".join(lines))[1]
+
+
+def test_multi_nan_is_an_error():
+    assert "nan" in mr.judge_multi(multi_log().replace("up_z=1.000", "up_z=nan", 1))[1]
+
+
+def test_main_multi_mode(tmp_path, capsys):
+    (tmp_path / "reset").mkdir()
+    (tmp_path / "reset" / "run.log").write_text(multi_log())
+    assert mr.main(["x", str(tmp_path), "multi"]) == 0
+    assert capsys.readouterr().out.startswith("PASS multi:")
+    (tmp_path / "reset" / "run.log").write_text(multi_log(bad=(1, 2)))
+    assert mr.main(["x", str(tmp_path), "multi"]) == 1
+
+
+def test_frames_until_route_end():
+    log = "[frame-dump] frame 000001 vblank 100\n[frame-dump] frame 000002 vblank 900\n[frame-dump] frame 000003 vblank 1100\n[pad] script done at vblank 800\n"
+    frames = {1: "a", 2: "b", 3: "c"}
+    assert mr.frames_until_route_end(log, frames, margin=150) == {1: "a", 2: "b"}  # vblank 900 <= 950 < 1100
+    with pytest.raises(ValueError):
+        mr.frames_until_route_end("no marker", frames)  # a run that did not finish proves nothing: fail on its own, never keep every frame
+
+
+def test_identity_modes_fail_when_the_route_did_not_finish(tmp_path, capsys):
+    for label in ("baseline_nosel", "quiet"):
+        (tmp_path / label / "frames").mkdir(parents=True)
+    (tmp_path / "quiet" / "run.log").write_text("[mod:reset-to-track] t=-1 step=30 wheels=4 up_z=1.000 spd=10.00 pos=0,0,0 yaw=0 rates=0,0,0,0,0 ring=3 restores=0\n")
+    assert mr.main(["x", str(tmp_path), "quiet"]) == 1
+    assert "script done" in capsys.readouterr().out

@@ -54,10 +54,38 @@ def judge_toggle(text):
     return True, f"injected before the toggle ({message}); no mod activity after it"
 
 
+REPLAY_LINE = re.compile(r"\[mod:analog-pedals\] replay step=(\d+) thr=([-\d.]+) brk=([-\d.]+) eff=([-\d.]+)(?: speed=([-\d.]+))?")
+REPLAY_THROTTLE = 0.6  # --replay runs with GT_MOD_PEDALS_FAKE=0.6,0 on circuit_analog (no digital throttle at all)
+REPLAY_MOVED = 5.0     # the replayed car's speed (car+8+0x6C4) must pass this at least once
+
+
+def judge_replay(text, want_throttle=REPLAY_THROTTLE):
+    """--replay: the race was driven by the mod's analog throttle alone, then its replay played. The live samples must show
+    the throttle (judge), and the replay must replay it: the replayed human car (entry +0xA8 set) shows the throttle on every
+    sample and moves. Before mod 0.2.0 the replay recorded only digital presses: thr 0, speed 0. Returns (ok, message)."""
+    ok, message = judge(text, want_throttle, 0.0)
+    if not ok:
+        return False, "live: " + message
+    rows = [tuple(float(x) if x is not None else None for x in m.groups()) for m in REPLAY_LINE.finditer(text)]
+    if len(rows) < MIN_SAMPLES:
+        return False, f"only {len(rows)} replay log lines (need {MIN_SAMPLES}): the route did not reach the replay"
+    bad = [r for r in rows if abs(r[1] - want_throttle) > TOLERANCE]
+    if bad:
+        return False, (f"replay throttle off on {len(bad)}/{len(rows)} samples, e.g. replay step {bad[0][0]:.0f}: "
+                       f"thr={bad[0][1]} (want {want_throttle}): the replay did not record the analog throttle")
+    if any(r[4] is None for r in rows):
+        return False, "the replay lines carry no speed (analog-pedals < 0.2.0 does not log it): cannot tell the car moved"
+    top = max(r[4] for r in rows)
+    if top < REPLAY_MOVED:
+        return False, f"the replayed car never moved (top speed {top:.2f} < {REPLAY_MOVED})"
+    return True, f"live: {message}; replay: {len(rows)} samples thr={rows[-1][1]:.4f}, top speed {top:.2f}"
+
+
 def main(argv):
     with open(argv[1], errors="replace") as handle:
         text = handle.read()
-    ok, message = judge_toggle(text) if len(argv) > 2 and argv[2] == "--toggle" else judge(text)
+    mode = argv[2] if len(argv) > 2 else ""
+    ok, message = judge_toggle(text) if mode == "--toggle" else judge_replay(text) if mode == "--replay" else judge(text)
     print(("PASS: " if ok else "FAIL: ") + message)
     return 0 if ok else 1
 

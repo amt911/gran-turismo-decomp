@@ -21,6 +21,14 @@ struct SynthInputs {
     std::vector<std::uint32_t> arena;     // arena_bytes / 4 words, written at arena_base
 };
 
+// Global words a function's odd-numbered cases set before they run (even ones keep the scene as it is): the paths a flag in
+// game data selects, which no route and no generated input ever sets (func_08945F6C: the flag at 0x08CF2F08, FINDINGS).
+struct ScenePoke {
+    std::uint32_t address;
+    std::uint32_t value;
+};
+std::vector<ScenePoke> scene_pokes(std::uint32_t function, unsigned index);
+
 SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout);
 
 } // namespace gt
