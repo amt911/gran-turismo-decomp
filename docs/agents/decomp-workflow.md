@@ -197,6 +197,15 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   left out. Measured 2026-10-13: 2611 pending functions in clusters of ≥ 3 share a shape with a decompiled
   one — but the routes reach few of them (61 constructors: 4 reached; 75 as_class: 4): coverage limits.
 
+### Structured C only (user, 2026-11-10)
+
+From batch 337 every decompiled body is structured C: `if`/`switch`/loops instead of a `goto` per branch, named locals typed
+as the asm shows them (`s32`, `u16`, `float`), guest memory through the existing helpers. `G[n]` appears only at the call
+boundary (reading arguments, writing results, `call_here` arguments). A register-level draft with one statement per instruction
+(`tools/batch_emit.py`, Ghidra, m2c) is a reading aid, never the source. Batches may be smaller for it. About 1,100
+emitter-style functions already in `src/game/unsorted/hot_batch_*.cpp` (and ~3,900 register-heavy bodies in all) are rewritten
+in the typing phase; the gate then proves each rewrite.
+
 ## Calling other guest functions from decompiled code
 
 `gt::call_guest(rt, ctx, address, {args…})` (`host/guest_call.hpp`) runs a recompiled — or already
