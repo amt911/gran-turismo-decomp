@@ -2617,13 +2617,16 @@ With `a0` a live object of the function's own class (spec 2026-11-10-recorded-ar
 synthetic gate reaches paths of decompiled virtual-call forwarders and destructors it could not before. First verdict
 (2026-11-10): `func_089660A0` (a leaf `lw v0, 0(a0); lw t9, 0x20C(v0); jr t9` whose C left v0 = 0 where the original
 leaves the vtable: **fixed** — v0 = vtable, t9 = target before the tail call) and, **still open**:
-- `func_089BBF8C`: v0 original 0 vs decompiled 0 / the entry address depending on the path; the slot 0x150 of a child
-  of the same class is `func_089BBF8C` itself (a recursive call), so the nested result is where it differs. Setting v0 at
-  entry and `call_set_v0` at the loop's `jalr v0` fixed the empty-list path and broke the recursive one (6 of 8 cases).
-- `func_08A63B5C` (deleting destructor): after `dealer` the decompiled run faults at 0x4 where the original returns
-  (all installed; with only it and its callees installed the original faults instead, so it needs a decompiled callee).
-- `func_08A77020`: an import replay (`StdioForUser` call the original's run did not make); `func_08AD5AC4`: v0 original
-  = a0, decompiled 0.
+- `func_089BBF8C` (after `dealer`): first differing case `v0: original 0x089BBF8C, decompiled 0x00000000` (a0=0x0918EBB0
+  a1=0 a2=0x092A3C64): the path that returns after an empty child list leaves the entry v0. The slot 0x150 of a child of
+  the same class is `func_089BBF8C` itself (recursive), so setting v0 at entry plus `call_set_v0` at the loop's `jalr v0`
+  fixed that case and broke the recursive one (v0 original 0 vs decompiled 0x089BBF8C, a0=0x09164BC0, 6 of 8 cases).
+- `func_08A63B5C` (deleting destructor, after `dealer`): `decompiled run faulted: Guest memory access outside PSP
+  RAM/EDRAM at 0x00000004` (a0=0x09645660 a1=0x09DE5E00 a2=0x09EDF740), 8 of 8 cases; with only it and its callees
+  installed the original faults instead, so a decompiled callee is the likely source.
+- `func_08A77020` (after `save_garage,circuit,buy,options`): `import replay: the decompiled run called
+  StdioForUser::0xF78BA90A, which the original's run didn't` (a0=0x09106B80 a1=0x09C5B144 a2=1).
+- `func_08AD5AC4` (same group): `v0: original 0x095C7028, decompiled 0x00000000` (a0=0x095C7028 a1=0 a2=0x09ED121C).
 They sit with the older open list above (`0889E01C`, `0893D9AC`, `08BAE2B0`, `08C18650`).
 
 Found: 2026-11-10 · host/synth_case.cpp
