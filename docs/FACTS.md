@@ -622,8 +622,9 @@ Scratch probe mods (not committed) scanning guest RAM from the vblank tick, `--d
   a write of 500000 at vblank 10000 passed the layout checks and the purchase then took 42,440 from it (457560 in RAM:
   the dealer reads and writes this cell). After a restart on that save the cell read 100000 in both the probed run and a
   control run without the mod (plain purchase: 57560 in RAM, 100000 after the reload). So `buy.pad` ends before any save
-  that holds the purchase; nothing here shows when GT saves the balance. Open: the save point (a menu save? leaving the
-  dealer?) and whether the cell is what that save writes.
+  that holds the purchase. **Proven with the game's own save** (`options.pad`: Options, "Save changes?" yes): 500000
+  written at vblank 3000, the route saved, and after a restart on that save the cell read 100000 until the save loaded and
+  500000 after it (21 samples). The cell is what the game saves; a mod-written balance persists once the game saves.
 - **Engine add for cars: `0x0881B758(core, 0, code_low, code_high, colour)`** (`core` = `0x0881B068(collection)`, the engine object whose `+0x30` is the record array): refuses (returns 0) when the car already has 10 (`0x0881A8C0`), otherwise sets the record's halfword `+0` to the code, increments the byte `colour + 2`,
   and the counters `core+4` (types, only for a first car of that type) and `core+8` (all cars), and returns 1. The native `MCarCollection::addCar` (`0x0881CDC4`) wraps it and then calls `0x0881AC84` (the newly-gained list). Car code of index i: `0x0893119C(i, buf, 0x100)` writes the label, `0x08930170(buf)` returns the code pair in v0/v1;
   `0x08931090()` is the number of cars. A guest scratch buffer is needed for `buf`: idea, lower the tick context's `sp` by 1 KiB for the tick and offer the space through the API (not built).
