@@ -106,6 +106,9 @@ int main() {
         // Stencil off: the old behaviour, every pixel drawn.
         m = draw({.stencil_test = 0x808002u, .stencil_on = false, .triangles = triangles});
         check((pixel(*m, 3, 2) & 0xFFFFFFu) == (kRed & 0xFFFFFFu), "stencil off: every pixel drawn");
+        // PPSSPP GPU/Software/DrawPixel.cpp: outside clear mode only the stencil writes the alpha; a stencil-off draw
+        // keeps it (GT's frame keeps the cleared alpha, so the ghost pattern lands on half the pixels).
+        check(pixel(*m, 3, 2) >> 24u == 0x00u && pixel(*m, 2, 2) >> 24u == 0xFFu, "stencil off: the alpha is kept");
 
         // The pattern sprite: ALWAYS, pass op REPLACE with ref 0xFF, colour masked off: the alpha becomes 0xFF only.
         m = draw({.stencil_test = 0xFFFF01u, .stencil_op = 0x020200u, .color_mask = 0xFFFFFFu, .triangles = triangles});
