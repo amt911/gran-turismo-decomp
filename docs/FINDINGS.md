@@ -3107,5 +3107,8 @@ The software GE renderer ignored the stencil (0x24 enable, 0xDC func/ref/mask, 0
 every stencil-tested draw covered every pixel. GT's Time Trial ghost is screen-door translucency: a through-mode sprite with a
 4x2 8888 texture, alpha test > 0x7F and colour masked off (0xE8 = 0xFFFFFF) writes 0xFF into the alpha of every other pixel
 (stencil ALWAYS, zpass REPLACE ref 0xFF); the ghost is then drawn with stencil EQUAL ref 0x80 mask 0x80, so it lands on half
-the pixels. Found with the F8 trace's per-prim `set` line (the fixed detail fields showed nothing). Races also use the stencil
+the pixels. **Only the stencil writes the framebuffer alpha** (PPSSPP `GPU/Software/DrawPixel.cpp`): outside clear mode a
+draw with the stencil test off keeps the old alpha (blending reads it, never writes it); only clear mode (0xD3 alpha bit)
+and stencil ops change it. Writing the fragment alpha there instead (as both of our renderers did) left alpha bit 7 set on
+~100 % of the pixels before the pattern (user's `GT_STENCIL_PROBE` log, 2026-11-10), so the ghost stayed opaque. Found with the F8 trace's per-prim `set` line (the fixed detail fields showed nothing). Races also use the stencil
 (an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). The GPU backend (NativeGE) still lacks it.

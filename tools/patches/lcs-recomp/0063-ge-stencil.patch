@@ -107,15 +107,16 @@
              if (pixel == nullptr && !memory.contains(pixel_address, bpp)) continue;
              Color destination = pixel != nullptr ? read_color_raw(pixel, framebuffer_format)
                                                   : read_color(memory, pixel_address, framebuffer_format);
-@@ -2977,6 +3038,7 @@
+@@ -2977,6 +3038,8 @@
                  if (!clear_alpha) source.a = destination.a;
              } else {
                  source = blend_pixel(source, destination, setup);
-+                if (stencil) source.a = stencil_apply(setup.stencil_zpass_op, destination.a, setup);
++                // GT patch 0063: outside clear mode only the stencil writes the alpha (PPSSPP DrawPixel.cpp).
++                source.a = stencil ? stencil_apply(setup.stencil_zpass_op, destination.a, setup) : destination.a;
              }
              if (pixel != nullptr) write_color_raw(pixel, framebuffer_format, source, clear_mode ? 0u : write_mask);
              else write_color(memory, pixel_address, framebuffer_format, source, clear_mode ? 0u : write_mask);
-@@ -3106,7 +3168,7 @@
+@@ -3106,7 +3169,7 @@
  }
  
  bool depth_precedes_shading(const FragmentSetup &setup) noexcept {
@@ -124,7 +125,7 @@
  }
  
  bool fragment_depth_prepass(psprecomp::GuestMemory &memory, const FragmentSetup &setup,
-@@ -3148,9 +3210,6 @@
+@@ -3148,9 +3211,6 @@
      if (setup.texture_enabled && !setup.clear_mode)
          source = apply_texture_function(source, sample_texture(memory, setup.texture, u, v), setup);
      if (!setup.clear_mode && !alpha_test(source, setup)) return false;
@@ -134,7 +135,7 @@
  
      const std::size_t pixel_index =
          static_cast<std::size_t>(y) * setup.framebuffer_stride + static_cast<std::size_t>(x);
-@@ -3159,6 +3218,23 @@
+@@ -3159,6 +3219,23 @@
          : nullptr;
      const std::uint32_t pixel_address =
          setup.framebuffer_base + static_cast<std::uint32_t>(pixel_index) * setup.framebuffer_bpp;
@@ -158,15 +159,16 @@
      if (pixel == nullptr && !memory.contains(pixel_address, setup.framebuffer_bpp)) return false;
  
      Color destination = pixel != nullptr
-@@ -3169,6 +3245,7 @@
+@@ -3169,6 +3246,8 @@
          if (!setup.clear_alpha) source.a = destination.a;
      } else {
          source = blend_pixel(source, destination, setup);
-+        if (stencil) source.a = stencil_apply(setup.stencil_zpass_op, destination.a, setup);
++        // GT patch 0063: outside clear mode only the stencil writes the alpha (PPSSPP DrawPixel.cpp).
++        source.a = stencil ? stencil_apply(setup.stencil_zpass_op, destination.a, setup) : destination.a;
      }
      const std::uint32_t mask = setup.clear_mode ? 0u : setup.write_mask;
      if (pixel != nullptr) write_color_raw(pixel, setup.framebuffer_format, source, mask);
-@@ -5271,6 +5348,47 @@
+@@ -5271,6 +5350,47 @@
      return true;
  }
  
@@ -214,7 +216,7 @@
  bool render_ge_primitive(psprecomp::GuestMemory &memory,
                           const std::array<std::uint32_t, 256> &commands,
                           const GeTransformState &transform,
-@@ -5287,6 +5405,7 @@
+@@ -5287,6 +5407,7 @@
          const char *value = std::getenv("PSPRECOMP_GE_GPU_DUAL");
          return value != nullptr && *value != '\0' && *value != '0';
      }();
