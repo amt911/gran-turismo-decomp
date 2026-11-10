@@ -14,7 +14,7 @@ compilers are not public).
 > - **🎮 The game is playable on PC:** `build/gt_play` (SDL window, keyboard or controller, sound and music,
 >   saves): races, Time Trial, dealer and garage. It draws with the GPU (Vulkan) or in software. Controls and
 >   settings: [`docs/COMPILAR.md`](docs/COMPILAR.md) §5b.
-> - **🧩 Decompilation:** 16,843 of 23,208 functions (72 %) are already readable C/C++ (by hand or from a
+> - **🧩 Decompilation:** 16,849 of 23,208 functions (72 %) are already readable C/C++ (by hand or from a
 >   template), checked against the original with the differential harness: each one leaves the same output and
 >   the same memory as the recompiled original on the test routes (race, dealer, garage, options, Trial
 >   Mountain…) or, where no route reaches it, on synthetic cases. 1,534 functions have their real name, each
