@@ -52,3 +52,13 @@ import above. Add below only what applies to Claude Code alone. -->
   generated GE lists with the original's; Vulkan (PC, Android) is one backend. No API feature the GE cannot express.
 - **Ports:** Android is near (Vulkan + SDL2 already; arm64 build, touch controls, user data on device) and needs no
   finished decomp; PSP needs the full decomp without emulated memory (32 MB RAM, 333 MHz) plus the GE backend above.
+
+## User decisions, 2026-11-11 (asked to be kept in this file)
+
+- **Cheats as a game-style cheat device** (like the GTA Vice City Stories Cheat Device): its own menu overlay opened by a
+  button/key combination, with **configurable hotkeys for both keyboard and pad**, rebindable from the menu itself
+  (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`).
+- **Standalone app, Dusklight-style:** a program that runs on its own, asks for the user's game ISO for everything else
+  (verifies it, extracts what it needs), and has a polished user interface (launcher, settings, mods)
+  (spec `docs/superpowers/specs/2026-11-11-standalone-app-design.md`).
+- **Mods must also act in replays** (rollover, cheats such as nitro): a replay that drops a mod's effect is a bug.
