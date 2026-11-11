@@ -3137,4 +3137,6 @@ the pixels. **Only the stencil writes the framebuffer alpha** (PPSSPP `GPU/Softw
 draw with the stencil test off keeps the old alpha (blending reads it, never writes it); only clear mode (0xD3 alpha bit)
 and stencil ops change it. Writing the fragment alpha there instead (as both of our renderers did) left alpha bit 7 set on
 ~100 % of the pixels before the pattern (user's `GT_STENCIL_PROBE` log, 2026-11-10), so the ghost stayed opaque. Found with the F8 trace's per-prim `set` line (the fixed detail fields showed nothing). Races also use the stencil
-(an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). The GPU backend (NativeGE) still lacks it.
+(an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). NativeGE (patch 0064) does the stencil in `ge.frag`
+against a snapshot of the target's alpha (the PSP stencil already lives in the GPU colour alpha); the colour alpha is written only by
+stencil draws and alpha clears, as on the PSP.
