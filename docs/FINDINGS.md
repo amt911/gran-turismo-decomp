@@ -3218,3 +3218,26 @@ and stencil ops change it. Writing the fragment alpha there instead (as both of 
 (an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). NativeGE (patch 0064) does the stencil in `ge.frag`
 against a snapshot of the target's alpha (the PSP stencil already lives in the GPU colour alpha); the colour alpha is written only by
 stencil draws and alpha clears, as on the PSP.
+
+## Menu music cut one buffer in four with `--decomp on`: an emitter body had dropped a `madd` (2026-11-11)
+
+**Symptom.** On the user's laptop, windowed, the menu music cut regularly with `--decomp on` and never with `off`. The 5 s perf
+averages were the same in both modes: guest time 1.00x, 44.1 kHz, 80 % of the time asleep. The new per-cut counters
+(`GT_PERF_LOG` "audio cuts") showed no late buffers and no host-mixer underruns, but about 106 silent buffers every 5 s inside
+the game's own mix, each one buffer long. Not reproduced on the desktop: headless, windowed under Xvfb, with the user's save, all
+mods, a CPU quota, or the laptop headless.
+**Cause.** `func_08AC7A98`, the music stream thread's decode loop, emitter-drafted in batch 336 before `tools/batch_emit.py`
+learned `madd` (603001e). At `08AC7B94` the asm sets `lo = w(+0x10)` (`mtlo`), adds `w(+4) * w(+0x14)` (`madd`) and takes
+`mflo $s4`: the address where the next block is decoded. The C kept the `mtlo` and the `mflo` and lost the `madd`, so every block
+was decoded at the ring's base and the voice mixer (`func_08AEFFE0`) found a block short and mixed silence. The product is zero for
+the first block, so how often it showed depended on how far the stream ran ahead: hence one machine and not another.
+**How it was found.** By bisection on the laptop (`GT_DECOMP_ONLY` halves, 60 s windowed runs, judged on the silent-buffer
+count; 21 runs). Measure the onset, not a sum over the run: a subset that starts the silence late gives a small sum, and a
+threshold above zero threw a real positive away in the first pass.
+**Fix and check.** The `madd` is now in the body. Laptop, windowed, `--decomp on`, 60 s: 0 silent buffers (106 per 5 s before).
+A scan of all 16,854 registered functions for `madd` / `maddu` / `msub` / `msubu` in the asm (53 functions) found no other body
+that goes through `ctx.lo` without the accumulation.
+
+Found: 2026-11-11 · gt_play --decomp on (user's laptop), GT_PERF_LOG audio cuts, GT_DECOMP_ONLY bisection
+The gate cannot see it: no route returns from the loop, and the synthetic cases pass with and without the `madd` (1 compared,
+0 mismatched, both bodies). The evidence is the laptop measurement above; the old body is its sabotage (106 silent buffers per 5 s).
