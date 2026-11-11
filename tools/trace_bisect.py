@@ -193,9 +193,21 @@ FAULT = re.compile(r"Guest memory access outside PSP RAM/EDRAM at (0x[0-9A-Fa-f]
 def crash_summary(logs: Sequence[str]) -> tuple[bool, str]:
     """--crash --repeat: a subset crashes when any of its runs died. The summary counts them and names the fault addresses."""
     died = [log for log in logs if crashed(log)]
+    for log in logs:  # a run that exits at once (bad GT_PAD, missing file) never played: an error, never "ok"
+        if log not in died and "Wall-clock limit reached" not in log:
+            first = next((line for line in log.splitlines() if line.strip()), "(empty log)")
+            raise RuntimeError(f"a run neither crashed nor reached its time limit: {first}")
     faults = sorted({m.group(1).upper().replace("0X", "0x") for log in died for m in FAULT.finditer(log)})
     text = f"{len(died)}/{len(logs)} crashed" + (f" ({', '.join(faults)})" if faults else "")
     return bool(died), text
+
+
+def require_functions(functions: list[int], log: str) -> list[int]:
+    """The registered list, refused when empty: the listing run died before registering anything (its log says why)."""
+    if not functions:
+        first = next((line for line in log.splitlines() if line.startswith("GT_PAD") or "error" in line), "see list.log")
+        raise RuntimeError(f"no registered functions in the listing run: {first}")
+    return functions
 
 
 def registered_functions(log: str) -> list[int]:  # pragma: no cover - trivially a regex over a log
@@ -324,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
         with listing.open("w") as out:
             subprocess.run([str(args.binary), "--max-seconds", "2", "--decomp", "diff"], env=env, stdout=out,
                            stderr=subprocess.STDOUT, check=False)
-        functions = registered_functions(listing.read_text())
+        functions = require_functions(registered_functions(listing.read_text()), listing.read_text())
     runs = 0
 
     def is_black(subset: Sequence[int]) -> bool:
