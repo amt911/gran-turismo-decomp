@@ -38,7 +38,10 @@ ROW = re.compile(r"\[mod:cheats\] ROW (\w+) -> (\S+)")
 PADMENU = re.compile(r"\[padmenu\] (\w+) at vblank (\d+)")
 PADMENU_STATE = re.compile(r"\[padmenu\] menu (opened|closed) at vblank (\d+)")
 SCRIPT_DONE = re.compile(r"script done at vblank \d+")
+# cheats >= 0.4.0 append ` since=<steps since the player's car first moved, -1 before> rep=<0 live|1 replay> ai=<AI speed>`
+REPLAY_LINE = re.compile(rf"\[mod:cheats\] st=\d+ slow=(\S+) freeze=([01]) P={VEC} spd={NUM} acc={NUM}((?: A\d+={VEC})*) since=(-?\d+) rep=([01]) ai=(\S+)")
 
+MAX_REPLAY_DRIFT = 0.5    # m: a replayed car (player or AI) against the live one, paired by the steps since the player first moved
 MIN_LINES = 40            # a run must log this many lines for a judgement to mean anything
 MIN_RACING_SPEED = 1.0    # m/s: the car is driving
 PLAYER_MOVED = 50.0       # m: the player went at least this far (freeze run)
@@ -340,6 +343,44 @@ def report(label: str, ok: bool, message: str) -> int:
     return 0 if ok else 1
 
 
+def judge_replay(text):
+    """The replay re-simulates the race from the recorded pad stream; cheats 0.4.0 records its controls per step live and plays them back
+    there. Paired by the steps since the player's car first moved (a replay counts its steps from another point of the countdown): the same
+    controls at every paired step, at least one cheat on, and every car (player and AI) within MAX_REPLAY_DRIFT of where it was live."""
+    marker = text.find("REPLAY start")
+    if marker < 0:
+        return False, "no REPLAY start line: the mod never saw the player's car in its replay"
+    def by_since(part, rep):
+        out = {}
+        for m in REPLAY_LINE.finditer(part):
+            g = m.groups()
+            since = int(g[-3])
+            if since < 0 or int(g[-2]) != rep:
+                continue
+            ais = [tuple(float(x) for x in a.groups()) for a in AI.finditer(g[5])]
+            out[since] = {"ctl": (g[0], g[1], g[-1]), "P": tuple(float(x) for x in g[2:5]), "A": ais}
+        return out
+    live, rep = by_since(text[:marker], 0), by_since(text[marker:], 1)
+    common = sorted(set(live) & set(rep))
+    if len(common) < MIN_LINES:
+        return False, f"only {len(common)} steps logged both live and in the replay"
+    differ = [k for k in common if live[k]["ctl"] != rep[k]["ctl"]]
+    if differ:
+        k = differ[0]
+        return False, f"controls differ at +{k}: live {live[k]['ctl']}, replay {rep[k]['ctl']} ({len(differ)} steps)"
+    on = [k for k in common if live[k]["ctl"] != ("OFF", "0", "1x")]
+    if not on:
+        return False, "no cheat was on in the compared steps: nothing to replay"
+    worst = (0.0, "player", 0)
+    for k in common:
+        worst = max(worst, (math.dist(live[k]["P"], rep[k]["P"]), "player", k))
+        for i, (a, b) in enumerate(zip(live[k]["A"], rep[k]["A"])):
+            worst = max(worst, (math.dist(a, b), f"A{i}", k))
+    if worst[0] > MAX_REPLAY_DRIFT:
+        return False, f"the replayed {worst[1]} drifts {worst[0]:.2f} m from the live one at +{worst[2]} (limit {MAX_REPLAY_DRIFT})"
+    return True, f"{len(common)} steps paired, the same controls ({len(on)} with a cheat on), largest drift {worst[0]:.2f} m ({worst[1]} at +{worst[2]})"
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 4:
         print("usage: mod_cheats_check.py OUT identity LABEL | slowmo LABEL FACTOR | freeze LABEL | pad LABEL", file=sys.stderr)
@@ -362,6 +403,9 @@ def main(argv: list[str]) -> int:
             return 2
         ok, message = judge_slowmo(log("idle"), log(label), factor)
         return report(f"slowmo {factor} ({label})", ok, message)
+    if mode == "replay":
+        ok, message = judge_replay(log(label))
+        return report(f"replay ({label})", ok, message)
     if mode == "freeze":
         ok, message = judge_freeze(log("idle"), log(label))
         return report(f"freeze ({label})", ok, message)

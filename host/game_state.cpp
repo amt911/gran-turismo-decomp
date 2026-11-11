@@ -68,8 +68,11 @@ std::uint32_t race_cars(const psprecomp::GuestMemory &m, std::uint32_t world, Ca
         if (entry == 0u || !m.contains(entry, kEntryReplay + 1u)) continue;
         CarRole role = CarRole::Ai;
         if (m.load32(entry) == kHumanVtable) {
-            if (m.load8(entry + kEntryReplay) != 0u || m.load32(entry + kEntryInput) == 0u) continue;  // a replay, or not reading a pad
-            role = CarRole::Human;
+            // a replay re-simulates the race from the recorded pad stream (FACTS "A replay is a re-simulation"): its human car is listed so
+            // that a mod can act there as it did live; a live human entry that reads no pad (the Time Trial ghost/recorder) is left out
+            if (m.load8(entry + kEntryReplay) != 0u) role = CarRole::ReplayHuman;
+            else if (m.load32(entry + kEntryInput) == 0u) continue;
+            else role = CarRole::Human;
         }
         const std::uint32_t body = word_or_0(m, slots + i * kSlotSize + kCarInSlot + kBody);
         if (!body_ok(m, body)) continue;

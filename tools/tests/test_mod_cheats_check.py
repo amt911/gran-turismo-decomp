@@ -287,3 +287,49 @@ def test_measure_and_main_modes(tmp_path, capsys):
     (tmp_path / "unusable").mkdir()
     (tmp_path / "unusable" / "run.log").write_text("")
     assert mc.main(["x", out, "measure", "unusable", "0.5"]) == 1
+
+
+def replay_run(rep_slow="0.5x", drift=0.0, marker=True, shift=-14, ai_drift=0.0):
+    """Live race then its replay (cheats 0.4.0): a line per step with the steps since the player first moved; slow motion from since 100."""
+    def phase(rep, slow_from, dx, adx, off):
+        out = []
+        for since in range(-30, 400):
+            st = since + 200 + (off if rep else 0)
+            slow = (rep_slow if rep else "0.5x") if since >= slow_from else "OFF"
+            px = -300.0 - max(since, 0) * 0.5 + dx * (since > 0)
+            out.append(f"[mod:cheats] st={st} slow={slow} freeze=0 P={px:.3f},250.000,2.000 spd=10.000 acc=1.00 "
+                       f"A0={-100 - max(since, 0) * 0.4 + adx * (since > 0):.3f},20.000,2.000 since={since if since >= 0 else -1} rep={1 if rep else 0} ai=1x")
+        return out
+    lines = phase(False, 100, 0.0, 0.0, 0)
+    if marker:
+        lines.append("[mod:cheats] REPLAY start tape=400")
+        lines += phase(True, 100, drift, ai_drift, shift)
+    return "\n".join(lines)
+
+
+def test_replay_same_controls_and_paths_pass():
+    ok, message = mc.judge_replay(replay_run(drift=0.1))
+    assert ok, message
+
+
+def test_replay_missing_fails():
+    ok, message = mc.judge_replay(replay_run(marker=False))
+    assert not ok and "REPLAY" in message
+
+
+def test_replay_without_the_cheat_fails():
+    ok, message = mc.judge_replay(replay_run(rep_slow="OFF"))
+    assert not ok and "controls" in message
+
+
+def test_replay_drift_fails_player_and_ai():
+    ok, message = mc.judge_replay(replay_run(drift=mc.MAX_REPLAY_DRIFT + 0.2))
+    assert not ok and "player" in message
+    ok, message = mc.judge_replay(replay_run(ai_drift=mc.MAX_REPLAY_DRIFT + 0.2))
+    assert not ok and "A0" in message
+
+
+def test_replay_main_mode(tmp_path):
+    (tmp_path / "replay").mkdir()
+    (tmp_path / "replay" / "run.log").write_text(replay_run())
+    assert mc.main(["x", str(tmp_path), "replay", "replay"]) == 0

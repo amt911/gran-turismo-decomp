@@ -362,6 +362,14 @@ its asm (`python -m tools.disasm 0894DD9C`) and `GT_PROBE` runs of the `race` an
   every run); with two or more human-class entries (adhoc, split screen) it is true for each and the mod refuses to inject (never
   observed); and "live vs replay" (`+0xA8`) rests on **a single replay** (the end of the `circuit` route), none of demo/attract
   replays, pause, photo mode or a time-trial ghost.
+- **A replay is a re-simulation, counted from another point of the start countdown** (measured 2026-11-11, `--decomp off`, route `circuit`,
+  rollover mod in log-only mode, `tools/mod_rollover_check.sh --replay --without-mod`): with the player's car paired by the mod's step count
+  (steps of `0x0894DD9C` with that car, from 0 at the race and again from 0 when `+0xA8` turns 1), live and replay are identical while the car
+  stands (steps 30-600: 0.000 m) and then differ by up to 3.17 m, proportional to the speed (0.28 m at 0.6 m/s ... 3.0 m at 13 m/s, back to
+  0.07 m when it stops): a time shift, not other physics. Paired by the steps since a hit instead (rollover 0.3.0, a fake hit 30 steps
+  after the car first moves, `--replay`), the replay's count is shifted -14 steps and the replayed car rolls exactly as live: 0.00 m over
+  the 150 steps after the hit. So a mod that changes physics stays faithful in the replay if it acts there too, on events of the car's state
+  rather than on step numbers. *(measured; the cause of the shift - which countdown step the replay starts from - is not read from code)*
 - **Time Trial has a second human-class entry** (`perf_tt_newyork` with the user's save, 2026-11-04): entry 0 vtable `0x08CC1F60`,
   `+0xA8` = 0, pad device `+0x6C` = `0x094168D8`, `+0xF8` = 1; entry 1 also vtable `0x08CC1F60`, `+0xA8` = 0, but `+0x6C` = 0,
   `+0xF8` = 0, `+0x08` = `0x00010100` (inferred: the lap recorder/ghost - its role is not read from code). In `race` the single

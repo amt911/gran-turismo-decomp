@@ -168,7 +168,7 @@ std::uint32_t api_race_cars(GtMod *self, GtModCtx *ctx, std::uint32_t world, GtC
     gt::game_state::Car cars[gt::game_state::kMaxCars];
     const std::uint32_t n = gt::game_state::race_cars(ctx->rt->memory(), world, cars);
     for (std::uint32_t i = 0; i < n && i < capacity && out != nullptr; ++i)
-        out[i] = GtCar{cars[i].handle, cars[i].index, cars[i].role == gt::game_state::CarRole::Human ? 1 : 2};
+        out[i] = GtCar{cars[i].handle, cars[i].index, cars[i].role == gt::game_state::CarRole::Human ? 1 : cars[i].role == gt::game_state::CarRole::ReplayHuman ? 3 : 2};
     return n;
 }
 int api_player_car(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t *car) {

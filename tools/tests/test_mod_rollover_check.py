@@ -6,9 +6,9 @@ from tools import mod_rollover_check as mr
 
 
 def state(st, up=(0.0, 0.0, 1.0), tilt=(0.0, 0.0), flag=0, pos=(-300.0, 250.0, 2.0), vel=(-30.0, 0.0, 0.0), lat=(0.0, 1.0, 0.0), rate=0.0,
-          held=0, imp=0, flipcalls=100):
+          held=0, imp=0, flipcalls=100, since=None):
     f = lambda v: ",".join(f"{x:.3f}" for x in v)  # noqa: E731
-    return (f"[mod:rollover] st={st} imp={imp} since={-1 if imp == 0 else 3} pos={f(pos)} vel={f(vel)} fwd=-1.000,0.000,0.000 lat={f(lat)} up={f(up)} "
+    return (f"[mod:rollover] st={st} imp={imp} since={(-1 if imp == 0 else 3) if since is None else since} pos={f(pos)} vel={f(vel)} fwd=-1.000,0.000,0.000 lat={f(lat)} up={f(up)} "
             f"tilt={tilt[0]:.3f},{tilt[1]:.3f} rate={rate:.2f} flag={flag:02X}/0 held={held}({held * 0.3:.2f}) body_calls={flipcalls}")
 
 
@@ -363,3 +363,54 @@ def test_main_box_modes(tmp_path, capsys):
     (tmp_path / "roll" / "run.log").write_text(good_log() + "\n" + "\n".join(box_line(1864 + i, clear=-1.3, push=0.0, box=0) for i in range(5)))
     assert mr.main(["x", str(tmp_path), "roll"]) == 1  # the box off: the roll judge passes, the box judge fails
     assert "PASS roll:" in capsys.readouterr().out
+
+
+def replay_log(replay_rolls=True, replay_held=-12.0, drift=0.0, with_marker=True, replay_offset=7):
+    """Live: quiet, a hit at step 600, the car rolls (a line every 3 steps after the hit, by steps since it); then `REPLAY start` and the
+    same again, the replay's step count shifted by `replay_offset` (a replay counts from another point of the countdown)."""
+    def phase(rolls, held, dx, off):
+        lines = [state(st + off, pos=(-413.0 + 2.0 * st / 30, 95.0, 4.8)) for st in range(30, 600, 30)]
+        lines.append(impulse(st=600 + off, held=held))
+        for since in range(0, 150, 3):
+            up = (0.0, -0.3, -0.9) if rolls and 20 < since < 60 else (0.0, 0.0, 1.0)
+            lines.append(state(600 + off + since, up=up, imp=1, since=since, pos=(-414.0 + dx + since * 0.01, 97.0, 5.0)))
+        return lines
+    out = phase(True, -12.0, 0.0, 0)
+    if with_marker:
+        out.append("[mod:rollover] REPLAY start")
+        out += phase(replay_rolls, replay_held, drift, replay_offset)
+    return "\n".join(out)
+
+
+def test_replay_same_roll_passes():
+    ok, message = mr.judge_replay(replay_log(drift=0.06))
+    assert ok, message
+
+
+def test_replay_without_the_mod_fails():
+    ok, message = mr.judge_replay(replay_log(with_marker=False))
+    assert not ok and "REPLAY" in message
+
+
+def test_replay_that_does_not_roll_fails():
+    ok, message = mr.judge_replay(replay_log(replay_rolls=False))
+    assert not ok and "roll" in message
+
+
+def test_replay_impulse_of_another_size_fails():
+    ok, message = mr.judge_replay(replay_log(replay_held=-6.0))
+    assert not ok and "impulse" in message
+
+
+def test_replay_that_drifts_fails():
+    ok, message = mr.judge_replay(replay_log(drift=mr.MAX_REPLAY_DRIFT + 0.1))
+    assert not ok and "drift" in message
+
+
+def test_main_replay_mode(tmp_path, capsys):
+    (tmp_path / "replay").mkdir()
+    (tmp_path / "replay" / "run.log").write_text(replay_log())
+    assert mr.main(["x", str(tmp_path), "replay"]) == 0
+    (tmp_path / "replay" / "run.log").write_text(replay_log(with_marker=False))
+    assert mr.main(["x", str(tmp_path), "replay"]) == 1
+    assert "FAIL replay" in capsys.readouterr().out
