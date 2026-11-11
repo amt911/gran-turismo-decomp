@@ -673,3 +673,18 @@ def test_coverage_can_run_the_synthetic_gate(monkeypatch):
     assert gate.main(["coverage", "t1", "--only", "0x08800000", "--synth"]) == 0
     assert gate.main(["coverage", "t1", "--only", "0x08800000"]) == 0
     assert [call[2] for call in calls] == ["synth", "fast"]
+
+
+def test_coverage_search_passes_its_budget_and_needs_synth(monkeypatch):
+    calls = []
+    monkeypatch.setattr(gate, "_coverage_run", lambda *a, **k: calls.append((a, k)) or 0)
+    assert gate.main(["coverage", "t1", "--only", "0x08800000", "--synth", "--search", "150"]) == 0
+    assert calls[0][0][3] == 150
+    with pytest.raises(SystemExit):
+        gate.main(["coverage", "t1", "--only", "0x08800000", "--search", "150"])
+
+
+def test_search_environment_sets_the_variables():
+    env = gate.search_environment(200, 8)
+    assert env == {"GT_SYNTH_SEARCH": "200", "GT_SYNTH_SEARCH_SECONDS": "8"}
+    assert gate.search_environment(0, 8) == {}

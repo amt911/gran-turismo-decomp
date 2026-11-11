@@ -764,7 +764,12 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     return 0 if not undetected else 1
 
 
-def _coverage_run(tag: str, only: list[int], kind: str = "fast") -> int:  # pragma: no cover - reconfigures, builds, runs
+def search_environment(cases: int, seconds: int) -> dict[str, str]:
+    """GT_SYNTH_SEARCH variables of a coverage-guided search run (spec 2026-11-11), none when `cases` is 0."""
+    return {"GT_SYNTH_SEARCH": str(cases), "GT_SYNTH_SEARCH_SECONDS": str(seconds)} if cases else {}
+
+
+def _coverage_run(tag: str, only: list[int], kind: str = "fast", search: int = 0, search_seconds: int = 10) -> int:  # pragma: no cover - reconfigures, builds, runs
     """The fast gate over `only` with the sources that register it built with LLVM coverage; prints, per function,
     the branches no compared case took and the code regions that never ran. The build is put back afterwards.
     kind="synth": the synthetic run instead (each case child writes its own profile before it exits; docs/agents/decomp-workflow.md)."""
@@ -779,7 +784,11 @@ def _coverage_run(tag: str, only: list[int], kind: str = "fast") -> int:  # prag
     configure = ["cmake", "-S", ".", "-B", "build"]
     subprocess.run([*configure, gate_coverage.cmake_files_argument(files, Path.cwd())], check=True, stdout=subprocess.DEVNULL)
     try:
-        status = _run_gate(kind, tag, only, {"LLVM_PROFILE_FILE": str(directory / "%p.profraw")})
+        status = _run_gate(kind, tag, only, {"LLVM_PROFILE_FILE": str(directory / "%p.profraw"), **search_environment(search, search_seconds)})
+        if search:
+            from tools import synth_corpus
+            logs = sorted(Path("recomp/analysis").glob(f"gt_diff_{tag}_*.log"))
+            print(f"corpus: {synth_corpus.main(['merge', 'config/synth_corpus', *map(str, logs)])=}")
         raw = sorted(directory.glob("*.profraw"))
         if not raw:
             print("coverage: the run wrote no profile (did it end before the executable exited normally?)")
@@ -788,8 +797,8 @@ def _coverage_run(tag: str, only: list[int], kind: str = "fast") -> int:  # prag
             print(f"warning: only {len(raw)} of {len(ROUTES['fast'])} routes wrote a profile (a route killed by its "
                   "timeout writes none): the report covers fewer runs than the gate")
         merged = directory / "merged.profdata"
-        subprocess.run(["llvm-profdata", "merge", "-sparse", *map(str, raw), "-o", str(merged)], check=True)
-        exported = subprocess.run(["llvm-cov", "export", "build/gt_native", f"-instr-profile={merged}", *map(str, files)],
+        subprocess.run(heavy(["llvm-profdata", "merge", "-sparse", *map(str, raw), "-o", str(merged)]), check=True)
+        exported = subprocess.run(heavy(["llvm-cov", "export", "build/gt_native", f"-instr-profile={merged}", *map(str, files)]),
                                   check=True, capture_output=True, text=True).stdout
         document = json.loads(exported)
         gate_coverage.demangle_names(document, lambda names: subprocess.run(
@@ -851,6 +860,9 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     cov.add_argument("tag")
     cov.add_argument("--only", required=True)
     cov.add_argument("--synth", action="store_true", help="coverage of the synthetic run (how deep generated cases go)")
+    cov.add_argument("--search", type=int, default=0, metavar="CASES",
+                     help="--synth: also search up to CASES steered cases per function and merge the finds into config/synth_corpus")
+    cov.add_argument("--search-seconds", type=int, default=10, help="--search: wall-clock budget per function")
     probe = sub.add_parser("probe", help="run the fast routes with the decomp off and --symbols probed (call counts)")
     probe.add_argument("tag")
     probe.add_argument("--symbols", type=Path, required=True)
@@ -877,7 +889,9 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "probe":
         return _probe_run(args.tag, args.symbols, "full" if args.full else "fast", args.scale)
     if args.command == "coverage":
-        return _coverage_run(args.tag, parse_only(args.only), "synth" if args.synth else "fast")
+        if args.search and not args.synth:
+            parser.error("--search needs --synth")
+        return _coverage_run(args.tag, parse_only(args.only), "synth" if args.synth else "fast", args.search, args.search_seconds)
     if args.command == "sabotage":
         return _sabotage_run(args.tag, args.file, parse_only(args.only), parse_only(args.also) if args.also else (),
                              kind="full" if args.full else "synth" if args.synth else "fast")

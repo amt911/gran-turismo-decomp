@@ -23,6 +23,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <exception>
@@ -39,6 +40,9 @@
 // __llvm_profile_set_filename), so a case child dumps its counters to <dir of LLVM_PROFILE_FILE>/<pid>.profraw itself.
 extern "C" std::uint64_t __llvm_profile_get_size_for_buffer(void) __attribute__((weak));
 extern "C" int __llvm_profile_write_buffer(char *) __attribute__((weak));
+// The instrumentation counters (coverage builds): the search counts the non-zero ones to see whether a case reached anything new.
+extern "C" char *__llvm_profile_begin_counters(void) __attribute__((weak));
+extern "C" char *__llvm_profile_end_counters(void) __attribute__((weak));
 
 namespace gt {
 
@@ -115,6 +119,7 @@ std::uint64_t next_sample_after(std::uint64_t call) {
 
 DecompMode g_mode = DecompMode::Off;
 unsigned g_cases = 32u;
+unsigned g_case_budget = 32u;  // cases a function may compare in one run: g_cases, and in a case child also the corpus and the search
 std::unordered_map<std::uint32_t, Entry> g_entries;
 // The trampoline runs on every call of a decompiled function: a hash lookup there cost as much as the memory
 // accessors of the decompiled code itself (sampled profile, 2026-11-05). Entries never move once registered
@@ -483,8 +488,8 @@ void trampoline_body(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const bool sampled = g_synthetic_call || call < kFirstCases || call == entry.next_sample || entry.info.address == dense;
     if (sampled && call >= kFirstCases) entry.next_sample = next_sample_after(call);
     if (call + 1u == kFirstCases) entry.next_sample = next_sample_after(call);
-    if (sampled && entry.compared + entry.skipped < g_cases && g_free_sentinels.empty()) ++g_unsampled_no_sentinel;
-    if (!sampled || entry.compared + entry.skipped >= g_cases || g_free_sentinels.empty()) {  // not sampled / budget spent: run as recompiled
+    if (sampled && entry.compared + entry.skipped < g_case_budget && g_free_sentinels.empty()) ++g_unsampled_no_sentinel;
+    if (!sampled || entry.compared + entry.skipped >= g_case_budget || g_free_sentinels.empty()) {  // not sampled / budget spent: run as recompiled
         entry.original(rt, ctx);
         return;
     }
@@ -760,9 +765,11 @@ void note_import() noexcept { ++g_imports; }
 void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned cases_per_function) {
     g_mode = mode;
     g_cases = cases_per_function;
+    g_case_budget = cases_per_function;
     if (const char *synth = std::getenv("GT_SYNTH"); synth != nullptr && mode == DecompMode::Diff) {
         g_synth_mode = true;
         g_cases = static_cast<unsigned>(std::strtoul(synth, nullptr, 10));
+        g_case_budget = g_cases;
     }
     if (mode == DecompMode::Off) return;
     {
@@ -812,6 +819,14 @@ void install_decompiled(psprecomp::Runtime &runtime, DecompMode mode, unsigned c
 }
 
 bool synthetic_mode() { return g_synth_mode; }
+
+// Resident set of this process in bytes (/proc/self/statm), 0 when unreadable: the search stops a function early when its child grows.
+static std::uint64_t resident_bytes() {
+    std::ifstream statm("/proc/self/statm");
+    std::uint64_t pages = 0u, resident = 0u;
+    if (!(statm >> pages >> resident)) return 0u;
+    return resident * static_cast<std::uint64_t>(sysconf(_SC_PAGESIZE));
+}
 
 void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContext &thread, std::uint64_t seed) {
     if (!g_synth_mode) return;
@@ -879,9 +894,45 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
     // ends only that child. The parent keeps GT_SYNTH_JOBS children running and kills one after kChildSeconds.
     const unsigned jobs = [] {
         const char *text = std::getenv("GT_SYNTH_JOBS");
-        return text != nullptr ? std::max(1u, static_cast<unsigned>(std::strtoul(text, nullptr, 10))) : 6u;
+        if (text != nullptr) return std::max(1u, static_cast<unsigned>(std::strtoul(text, nullptr, 10)));
+        return std::getenv("GT_SYNTH_SEARCH") != nullptr ? 3u : 6u;  // a search child keeps its cases' state: fewer at once
     }();
-    constexpr int kChildSeconds = 10;
+    // GT_SYNTH_SEARCH (spec 2026-11-11-coverage-guided-synthetic-inputs-design.md): cases after the normal ones, steered by new
+    // counters; GT_SYNTH_SEARCH_SECONDS (default 10) bounds a function's search and the child may run that long more.
+    const unsigned search_cases = [] {
+        const char *text = std::getenv("GT_SYNTH_SEARCH");
+        return text != nullptr ? static_cast<unsigned>(std::strtoul(text, nullptr, 10)) : 0u;
+    }();
+    const unsigned search_seconds = [] {
+        const char *text = std::getenv("GT_SYNTH_SEARCH_SECONDS");
+        return text != nullptr ? static_cast<unsigned>(std::strtoul(text, nullptr, 10)) : 10u;
+    }();
+    const bool can_search = search_cases != 0u && __llvm_profile_begin_counters != nullptr && __llvm_profile_end_counters != nullptr;
+    if (search_cases != 0u && !can_search)
+        std::cerr << "[decomp] GT_SYNTH_SEARCH needs a coverage build (tools.decomp_gate coverage --synth --search): no search\n";
+    const int kChildSeconds = 10 + (can_search ? static_cast<int>(search_seconds) : 0);
+    // The corpus: recipes that earlier searches found (config/synth_corpus/<ADDRESS>.txt; GT_SYNTH_CORPUS=<dir>, "off" disables).
+    std::map<std::uint32_t, std::vector<Recipe>> corpus;
+    {
+        const char *dir_env = std::getenv("GT_SYNTH_CORPUS");
+        const std::string dir = dir_env != nullptr ? dir_env : "config/synth_corpus";
+        if (dir != "off" && std::filesystem::is_directory(dir)) {
+            for (const auto &item : std::filesystem::directory_iterator(dir)) {
+                if (item.path().extension() != ".txt") continue;
+                std::ifstream file(item.path());
+                std::string line;
+                if (!std::getline(file, line) || line != "# layout 1") continue;
+                while (std::getline(file, line)) {
+                    std::uint32_t function = 0u;
+                    Recipe recipe;
+                    if (parse_recipe(line, function, recipe)) corpus[function].push_back(recipe);
+                }
+            }
+            std::size_t total = 0u;
+            for (const auto &[function, recipes] : corpus) total += recipes.size();
+            std::cerr << "[decomp] synthetic corpus: " << total << " recipes for " << corpus.size() << " functions\n";
+        }
+    }
     struct Child {
         Entry *entry;
         int fd;
@@ -910,7 +961,8 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             std::getline(in, entry.first_mismatch);
             std::getline(in, entry.first_skip);
             while (std::getline(in, line))
-                if (!line.empty() && g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(line);
+                if (line.rfind("[corpus] ", 0) == 0) std::cerr << line << "\n";
+                else if (!line.empty() && g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(line);
         } else {
             entry.skipped += g_cases;
             entry.calls += g_cases;
@@ -961,8 +1013,8 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         if (pid == 0) {  // the child: this function's cases, its counters to the pipe, then _exit (no parent cleanup)
             close(pipe_fds[0]);
             g_mismatch_cases.clear();
-            for (unsigned index = 0; index < g_cases && !rt.stopped(); ++index) {
-                const SynthInputs inputs = make_synth_case(address, index, seed, layout);
+            g_case_budget = g_cases + static_cast<unsigned>(corpus.count(address) != 0u ? corpus[address].size() : 0u) + (can_search ? search_cases : 0u);
+            const auto run_case = [&](const SynthInputs &inputs, unsigned index) {
                 std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
                 const std::vector<ScenePoke> pokes = scene_pokes(address, index);
                 std::vector<std::uint32_t> poked_before;
@@ -985,11 +1037,67 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 for (std::size_t k = 0; k < pokes.size(); ++k) rt.memory().store32(pokes[k].address, poked_before[k]);
                 // a stop inside the original's run ends only that case (not comparable)
                 if (rt.stopped()) rt.clear_stop();
+            };
+            const auto non_zero_counters = [&]() {
+                std::uint64_t count = 0u;
+                const auto *begin = reinterpret_cast<const std::uint64_t *>(__llvm_profile_begin_counters());
+                const auto *end = reinterpret_cast<const std::uint64_t *>(__llvm_profile_end_counters());
+                for (const std::uint64_t *p = begin; p < end; ++p) count += *p != 0u;
+                return count;
+            };
+            std::vector<Recipe> found;  // what the search keeps: recipes that reached a new counter
+            std::uint64_t seen = can_search ? non_zero_counters() : 0u;
+            for (unsigned index = 0; index < g_cases && !rt.stopped(); ++index) {
+                run_case(make_synth_case(address, index, seed, layout), index);
+                if (can_search) {
+                    const std::uint64_t now = non_zero_counters();
+                    if (now > seen) found.push_back(Recipe{index, seed, {}});
+                    seen = now;
+                }
             }
+            if (const auto it = corpus.find(address); it != corpus.end())
+                for (const Recipe &recipe : it->second) {
+                    if (rt.stopped()) break;
+                    run_case(make_recipe_case(address, recipe, layout), recipe.index);
+                    if (can_search) seen = non_zero_counters();
+                    if (can_search) found.push_back(recipe);  // already known: parents for the search, not printed again
+                }
+            std::vector<std::string> printed;
+            if (can_search && std::getenv("GT_SYNTH_SEARCH_DEBUG") != nullptr)
+                std::fprintf(stderr, "[search] %08X counters %zu non-zero %llu stopped %d\n", address,
+                             static_cast<std::size_t>((reinterpret_cast<const std::uint64_t *>(__llvm_profile_end_counters()) - reinterpret_cast<const std::uint64_t *>(__llvm_profile_begin_counters()))),
+                             static_cast<unsigned long long>(seen), rt.stopped() ? 1 : 0);
+            if (can_search && !rt.stopped()) {
+                const std::uint64_t rss_start = resident_bytes();
+                constexpr std::uint64_t kSearchGrowth = 768ull << 20;  // stop a function's search after its child grew this much
+                MutationRandom random{seed * 0x9E3779B97F4A7C15ull ^ address};
+                const auto limit = std::chrono::steady_clock::now() + std::chrono::seconds(search_seconds);
+                unsigned idle = 0u;
+                const unsigned idle_limit = [] { const char *t = std::getenv("GT_SYNTH_SEARCH_IDLE"); return t != nullptr ? static_cast<unsigned>(std::strtoul(t, nullptr, 10)) : 40u; }();
+                for (unsigned step = 0; step < search_cases && idle < idle_limit && std::chrono::steady_clock::now() < limit && !rt.stopped() &&
+                                      resident_bytes() < rss_start + kSearchGrowth; ++step) {
+                    Recipe parent{g_cases + random.below(256u), seed, {}};
+                    if (!found.empty() && random.below(10u) != 0u) parent = found[random.below(static_cast<std::uint32_t>(found.size()))];
+                    const Recipe child = mutate_recipe(address, parent, random, layout, hot_offsets(make_recipe_case(address, parent, layout), layout));
+                    run_case(make_recipe_case(address, child, layout), child.index);
+                    const std::uint64_t now = non_zero_counters();
+                    if (now > seen) {
+                        seen = now;
+                        idle = 0u;
+                        found.push_back(child);
+                        printed.push_back("[corpus] " + format_recipe(address, child));
+                    } else {
+                        ++idle;
+                    }
+                }
+            }
+            if (can_search && std::getenv("GT_SYNTH_SEARCH_DEBUG") != nullptr)
+                std::fprintf(stderr, "[search] %08X done: compared %u skipped %u found %zu non-zero %llu\n", address, entry.compared, entry.skipped, printed.size(), static_cast<unsigned long long>(seen));
             std::ostringstream out;
             out << entry.compared << ' ' << entry.equal << ' ' << entry.mismatched << ' ' << entry.skipped << ' '
                 << entry.informative << '\n' << entry.first_mismatch << '\n' << entry.first_skip << '\n';
             for (const std::string &mismatch_case : g_mismatch_cases) out << mismatch_case << '\n';
+            for (const std::string &line : printed) out << line << '\n';
             const std::string text = out.str();
             for (std::size_t written = 0; written < text.size();) {
                 const ssize_t n = write(pipe_fds[1], text.data() + written, text.size() - written);
