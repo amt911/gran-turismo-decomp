@@ -15,10 +15,14 @@
 #                PASS = the menu works and reset-to-track never saw a Select (no tap replay, no reset)
 #   --toggle-off the F9 menu's toggle turns the mod off mid-race (GT_MOD_MENU_TEST_TOGGLE=cheats@v<--toggle-at>, default v14500, mod idle): PASS = the mod
 #                ran before `-> OFF`, logged nothing after, every frame identical to the run without the mod
+#   --replay     the `circuit` route (race, leave from the pause menu, its replay plays) with slow motion 0.5x and moon gravity from player-car
+#                step 700 (GT_MOD_CHEATS_SLOWMO/MOON/FROM, a line every step): the replay re-simulates the race, so cheats >= 0.4.0 record their
+#                controls per step live and play them back there (host >= role 3 in race_cars); PASS = paired by the steps since the player's car
+#                first moved, the same controls live and in the replay and every car within MAX_REPLAY_DRIFT (mod_cheats_check.py judge_replay)
 #   The --pad run also judges `callguest` (GT_MOD_CHEATS_CALLGUEST=1): the vblank tick calls the game's read-only flag reader through call_guest (v0 0).
 #   Only that run does: a call_guest shifts frame timing (docs/FINDINGS.md), so the identity runs leave it off.
 #   Each of these must FAIL (exit 1): --sabotage-slowmo (-DCHEATS_SABOTAGE=1: slow motion does nothing), --sabotage-freeze (=2: freeze does
-#   nothing), --sabotage-hide (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_NO_HIDE=ON: the game keeps seeing the pad while the menu is open; with --pad), --sabotage-chord (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=ON and runs --pad: the chord never opens the menu; the
+#   nothing), --sabotage-norecord (=3: nothing recorded: --replay must fail), --sabotage-hide (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_NO_HIDE=ON: the game keeps seeing the pad while the menu is open; with --pad), --sabotage-chord (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=ON and runs --pad: the chord never opens the menu; the
 #   normal gt_play is rebuilt afterwards)
 # The runs set GT_PAD_MENU_HOLD_BACK=0 (no 8-vblank delay of a lone Select/Start) except --pad and --pad-reset, so that "mod installed" vs "no mod" frames differ
 # only by what the mod does (the baseline has no mod, so no pad menu).
@@ -32,11 +36,11 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_cheats_check}
-decomp=off seconds=170 pad=0 sabotage=0 chord_sabotage=0 hide_sabotage=0 slow_only=0 runs=3 padoff=0 padreset=0 toggle=0 toggle_at=14500
+decomp=off seconds=170 pad=0 sabotage=0 chord_sabotage=0 hide_sabotage=0 slow_only=0 runs=3 padoff=0 padreset=0 toggle=0 toggle_at=14500 replay=0
 [ -n "${KEEP_BASELINE:-}" ] && keep=1 || keep=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --pad) pad=1;; --keep-baseline) keep=1;; --sabotage-slowmo) sabotage=1;; --sabotage-freeze) sabotage=2;; --sabotage-chord) chord_sabotage=1; pad=1;; --sabotage-hide) hide_sabotage=1; pad=1;; --slow-only) slow_only=1;; --runs) runs=$2; shift;; --pad-off) padoff=1;; --pad-reset) padreset=1;;
+    --pad) pad=1;; --keep-baseline) keep=1;; --sabotage-slowmo) sabotage=1;; --sabotage-freeze) sabotage=2;; --sabotage-norecord) sabotage=3; replay=1;; --replay) replay=1;; --sabotage-chord) chord_sabotage=1; pad=1;; --sabotage-hide) hide_sabotage=1; pad=1;; --slow-only) slow_only=1;; --runs) runs=$2; shift;; --pad-off) padoff=1;; --pad-reset) padreset=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;;
     *) echo "mod_cheats_check: unknown argument $1" >&2; exit 2;;
@@ -47,6 +51,7 @@ done
 route=config/pad_routes/cheats.pad; [ $pad -eq 1 ] && route=config/pad_routes/cheats_pad.pad
 [ $padoff -eq 1 ] && route=config/pad_routes/cheats_off.pad
 [ $padreset -eq 1 ] && route=config/pad_routes/cheats_pad_stagger.pad
+[ $replay -eq 1 ] && { route=config/pad_routes/circuit.pad; [ "$seconds" = 170 ] && seconds=330; }
 [ -f "$route" ] || { echo "mod_cheats_check: no pad route $route" >&2; exit 2; }
 mkdir -p "$out/nomods" "$out/mods/cheats" "$out/mods_disabled/cheats" "$out/mods_reset/cheats" "$out/mods_reset/reset-to-track" || exit 2
 mbuild="$out/mod-build-s$sabotage"
@@ -107,6 +112,12 @@ if [ $pad -eq 1 ] || [ $padoff -eq 1 ] || [ $padreset -eq 1 ]; then
     judge callguest pad || rc=1
     exit $rc
   fi
+  exit $?
+fi
+if [ $replay -eq 1 ]; then
+  run_one replay "$out/mods" 0 "$route" GT_MOD_CHEATS_SLOWMO=0.5 GT_MOD_CHEATS_MOON=1 GT_MOD_CHEATS_FROM=700 GT_MOD_CHEATS_LOG_EVERY=1 \
+    GT_PAD_EXIT_AFTER=4000 || exit 2  # the replay plays after the script: ~1450 steps to cover (the default 120 vblanks stop it at the start)
+  judge replay replay
   exit $?
 fi
 cfg="decomp=$decomp route=$route seconds=$seconds"

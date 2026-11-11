@@ -35,7 +35,8 @@ typedef void (*GtHookFn)(GtModCtx *ctx);
 typedef struct GtCar {
     uint32_t handle;
     uint32_t index; /* the car's slot in the race */
-    int32_t role;   /* 1 the live human (not a replay), 2 an AI car */
+    int32_t role;   /* 1 the live human, 2 an AI car, 3 the human's car in its replay (the replay re-simulates the race; a mod that
+                     * changes physics acts there as it did live, or the replayed car leaves the recorded line) */
 } GtCar;
 
 /* v3: the body fields the physics step integrates, plus the pedals (FACTS "Car body state"). */
@@ -106,7 +107,7 @@ typedef struct GtModApi {
      * keeps it once it saves. */
     int (*money_set)(GtMod *self, GtModCtx *ctx, uint32_t value);
     /* The cars of the race whose world step is `world` (the a0 of the world-step hook): fills up to `capacity` entries and returns
-     * how many there are (the live human and the AI cars; replays and empty slots are left out). */
+     * how many there are (the live human, the AI cars and, in a replay, the replayed human as role 3; empty slots are left out). */
     uint32_t (*race_cars)(GtMod *self, GtModCtx *ctx, uint32_t world, GtCar *out, uint32_t capacity);
     /* The live human car of `world`: 0 and *car set when there is exactly one, non-zero otherwise (menus, replays, two humans). */
     int (*player_car)(GtMod *self, GtModCtx *ctx, uint32_t world, uint32_t *car);

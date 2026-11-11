@@ -64,6 +64,8 @@ MAX_TUMBLE_RISE = 1.6     # m: highest the origin gets above the ground plane wh
 MIN_PREMISE_DEPTH = 0.5   # m: the box-off run must sink at least this deep, or the depth assertion proves nothing
 SETTLE_AFTER_RESET = 20   # steps after a reset out of a tumble in which the springs settle (0.9 rad/s of wobble at 10, 0.1 at 17)
 MAX_SETTLED_RATE = 0.3
+MAX_REPLAY_DRIFT = 0.5    # m: largest distance between the live car and its replay at the same player-car step (measured 0.06 m on circuit_analog, a car at rest)
+ROLLED_UP_Z = 0.5         # up.z below this: the car is past ~60 deg of tilt
 
 
 def parse_states(text):
@@ -300,6 +302,38 @@ def judge_toggle_frames(log, base_frames, mod_frames, toggle_at=None, min_frames
     return ok, message.replace("frames", "frames (the whole run, the mod on until the toggle)", 1)
 
 
+def judge_replay(text):
+    """The replay re-simulates the race from the recorded pad stream: the mod must act there as it did live. Before `REPLAY start` is the live
+    race, after it the replay. A replay counts its steps from another point of the start countdown (the stock game's replay trails the live
+    car by up to 3 m at the same step number, proportional to the speed: a time shift, not other physics), so the two are paired by the steps
+    since the hit (`since`, a line every 3 steps for 150 steps after it): same hits (count and size), a roll in both, and the replayed car
+    within MAX_REPLAY_DRIFT of the live one at every paired step."""
+    marker = text.find("REPLAY start")
+    if marker < 0:
+        return False, "no REPLAY start line: the mod never saw the player's car in its replay"
+    live_text, rep_text = text[:marker], text[marker:]
+    li, ri = parse_impulses(live_text), parse_impulses(rep_text)
+    if not li:
+        return False, "no live impulse"
+    if [round(i["held"], 2) for i in li] != [round(i["held"], 2) for i in ri]:
+        return False, f"impulses differ: live {[i['held'] for i in li]}, replay {[i['held'] for i in ri]}"
+    def window(states):  # the first hit's dense window, by steps since it
+        return {s["since"]: s for s in states if s["imp"] == 1 and 0 <= s["since"] < 150}
+    live, rep = window(parse_states(live_text)), window(parse_states(rep_text))
+    common = sorted(set(live) & set(rep))
+    if len(common) < 20:
+        return False, f"only {len(common)} steps after the hit logged in both"
+    live_min, rep_min = min(live[k]["up"][2] for k in common), min(rep[k]["up"][2] for k in common)
+    if live_min >= ROLLED_UP_Z or rep_min >= ROLLED_UP_Z:
+        return False, f"the car must roll in both: lowest up.z live {live_min:.2f}, replay {rep_min:.2f} (need < {ROLLED_UP_Z})"
+    drift, at = max((math.dist(rep[k]["pos"], live[k]["pos"]), k) for k in common)
+    if drift > MAX_REPLAY_DRIFT:
+        return False, f"the replay drifts {drift:.2f} m from the live car {at} steps after the hit (limit {MAX_REPLAY_DRIFT})"
+    shift = ri[0]["st"] - li[0]["st"]
+    return True, (f"{len(li)} hit(s) of the same size in both (replay step count shifted {shift:+d}), rolled (up.z live {live_min:.2f}, replay "
+                  f"{rep_min:.2f}), {len(common)} steps after the hit compared, drift {drift:.2f} m at +{at}")
+
+
 def read(path):
     with open(path, errors="replace") as handle:
         return handle.read()
@@ -317,6 +351,10 @@ def main(argv):
     if mode == "boxcmp":
         ok, message = judge_box_compare(read(os.path.join(out, "roll", "run.log")), read(os.path.join(out, "nobox", "run.log")))
         print(("PASS " if ok else "FAIL ") + f"boxcmp: {message}")
+        return 0 if ok else 1
+    if mode == "replay":
+        ok, message = judge_replay(read(os.path.join(out, "replay", "run.log")))
+        print(("PASS " if ok else "FAIL ") + f"replay: {message}")
         return 0 if ok else 1
     if mode == "recover":
         ok, message = judge_recover(read(os.path.join(out, "recover", "run.log")), read(os.path.join(out, "recover", "run.log")))

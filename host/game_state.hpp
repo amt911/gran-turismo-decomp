@@ -24,7 +24,7 @@ bool money_set(psprecomp::GuestMemory &memory, std::uint32_t value);
 // step (0x0894DD9C): +4 the car slots (0x2100 bytes each, the car at +0x2010), +8 the car count, +0x10 the controller whose
 // +0xC list maps a car index to its driver entry. A car handle is its body state K = word(car + 8). ----
 
-enum class CarRole { None, Human, Ai };
+enum class CarRole { None, Human, Ai, ReplayHuman };  // ReplayHuman: a human car in its replay (entry +0xA8 set)
 
 struct Car {
     std::uint32_t handle = 0;  // K, opaque to mods

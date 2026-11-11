@@ -53,8 +53,12 @@ int main() {
     body_of(0, 0x09300000u); body_of(1, 0x09310000u); body_of(2, 0x09320000u); body_of(3, 0x09330000u);
     Car cars[kMaxCars];
     const std::uint32_t n = race_cars(m, W, cars);
-    check(n == 2 && cars[0].role == CarRole::Human && cars[0].handle == 0x09300000u && cars[1].role == CarRole::Ai &&
-              cars[1].index == 1u, "cars: the live human and the AI car, the replay and the empty slot left out");
+    check(n == 3 && cars[0].role == CarRole::Human && cars[0].handle == 0x09300000u && cars[1].role == CarRole::Ai &&
+              cars[1].index == 1u && cars[2].role == CarRole::ReplayHuman && cars[2].handle == 0x09320000u,
+          "cars: the live human, the AI car and the replayed human; the empty slot left out");
+    m.store32(0x09020000u + 0x6Cu, 0u);  // a live human entry that reads no pad (the Time Trial ghost/recorder): left out
+    check(race_cars(m, W, cars) == 2u && cars[0].role == CarRole::Ai, "cars: a live human without a pad is left out");
+    m.store32(0x09020000u + 0x6Cu, 0x094168D8u);
     check(player_car(m, W) == 0x09300000u, "player car: the one live human");
     m.store8(0x09022000u + 0xA8u, 0u);  // the replayed human goes live: two humans
     check(player_car(m, W) == 0u, "player car: two live humans -> none");

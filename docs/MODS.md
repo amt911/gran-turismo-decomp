@@ -88,6 +88,8 @@ GT_MODS_REPO=../gt-mods tools/mod_cheats_check.sh [--decomp off|on] [--keep-base
 tools/mod_cheats_check.sh --pad [--decomp off|on]       # ruta cheats_pad: SELECT+START abre el menú, Abajo/Derecha cambian Slow motion y Freeze AI, el acorde lo cierra; sin acelerador mientras está abierto
 tools/mod_cheats_check.sh --sabotage-slowmo             # debe FALLAR (la cámara lenta no hace nada)
 tools/mod_cheats_check.sh --sabotage-freeze             # debe FALLAR
+tools/mod_cheats_check.sh --replay                      # (cheats 0.4.0) ruta `circuit`, cámara lenta 0.5x + gravedad lunar desde el paso 700: el mod graba sus controles por paso y los reproduce en el replay; emparejados por pasos desde que el coche del jugador arranca, mismos controles y cada coche (jugador e IA) a <= 0,5 m del vivo
+tools/mod_cheats_check.sh --sabotage-norecord           # no graba nada (el replay va sin trucos): --replay debe FALLAR
 tools/mod_cheats_check.sh --pad-off                     # Slow motion OFF -> 0.5x -> 0.25x -> OFF con el mando: la velocidad vuelve a ser normal tras OFF
 tools/mod_cheats_check.sh --pad-reset                   # con reset-to-track también activo y el acorde pulsado escalonado (SELECT, START 3 vblanks después): reset-to-track no ve ningún Select
 tools/mod_cheats_check.sh --toggle-off                  # F9 apaga el mod a mitad de carrera: calla y todos los fotogramas idénticos al run sin mod
@@ -105,8 +107,9 @@ evidencia en `host/game_state.cpp` y FACTS). Un mod que lo usa declara `api = 3`
 - `money_get(self, ctx, &valor)` / `money_set(self, ctx, valor)` — el saldo en Cr (0..999.999.999); devuelven no-cero sin
   partida cargada. FACTS «Money and cars».
 
-- `race_cars(self, ctx, world, out, capacidad)` — los coches de la carrera (`GtCar`: handle, índice, rol 1 humano / 2 IA;
-  sin repeticiones ni huecos); `world` es el a0 del enganche del paso de mundo.
+- `race_cars(self, ctx, world, out, capacidad)` — los coches de la carrera (`GtCar`: handle, índice, rol 1 humano / 2 IA / 3 el humano en su replay;
+  sin huecos; el replay re-simula la carrera, así que un mod que cambia la física debe actuar también en él, como en vivo);
+  `world` es el a0 del enganche del paso de mundo.
 - `player_car(self, ctx, world, &coche)` — el coche humano en vivo (0 si hay exactamente uno).
 - `car_state` / `car_set_state(self, ctx, coche, GtCarState*)` — posición, base, velocidad, giro, ángulos y pedales
   (FACTS «Car body state»); escribir solo desde el enganche del paso de mundo o el tick.
@@ -269,6 +272,8 @@ tools/mod_rollover_check.sh                      # (rollover 0.2.0, caja de carr
 tools/mod_rollover_check.sh --sabotage-nobox      # body_box apagado (-DROLLOVER_SABOTAGE=6; el log sigue midiendo): el cuerpo se hunde 1,02 m, debe FALLAR el juez `box`
 tools/mod_rollover_check.sh --sabotage-pushupright # la caja empuja a un coche derecho (suelo 0,6 m alto, esquinas del suelo siempre activas): deben FALLAR `box` (toques derecho) y `boxcmp` (líneas antes del impacto)
 tools/mod_rollover_check.sh --sabotage-nocap      # box_kick_cap 20: debe FALLAR el límite de subida
+tools/mod_rollover_check.sh --replay             # (rollover 0.3.0) ruta `circuit` con un golpe falso en el paso 600 (GT_MOD_ROLLOVER_FAKE=600:9): el replay re-simula la carrera desde el pad grabado, así que el mod actúa también en él; `REPLAY start`, el impulso en el mismo paso en vivo y en el replay, el coche vuelca en ambos y el del replay no se aleja > 0,5 m del vivo
+tools/mod_rollover_check.sh --replay --sabotage-liveonly  # el mod se salta el replay (como hasta 0.2.0): debe FALLAR
 tools/mod_rollover_check.sh --frames [--without-box]  # un fotograma cada 3 vblanks alrededor del choque (--frames-window DESDE:HASTA, por defecto automática: de 60 vblanks antes del primer impulso a 300 después) en $OUT/tumble[_nobox]/frames, para mirarlos
 tools/mod_rollover_check.sh --sabotage-noflag     # el impulso sin la bandera (el recorte de 35° lo frena): debe FALLAR
 tools/mod_rollover_check.sh --sabotage-noimpulse  # la bandera sin impulso: la barrera sola no vuelca el coche: debe FALLAR
