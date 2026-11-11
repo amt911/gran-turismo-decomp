@@ -1,0 +1,65 @@
+--- a/lcs/host/lcs_audio_mixer.hpp
++++ b/lcs/host/lcs_audio_mixer.hpp
+@@ -27,6 +27,11 @@
+ 
+     [[nodiscard]] bool opened() const noexcept { return opened_; }
+     [[nodiscard]] std::size_t prebuffer_blocks() const noexcept { return prebuffer_blocks_; }
++    // GT patch 0065: the two ways the output cuts the sound, counted for the perf log (read and reset together):
++    // underruns (the device ran dry: playback pauses until the recovery prebuffer is queued) and blocks dropped because the
++    // guest timeline ran more than the latency limit ahead of the device (512 frames skipped each).
++    struct Cuts { std::uint64_t underruns{}; std::uint64_t dropped_blocks{}; };
++    Cuts take_cuts() noexcept { const Cuts c = cuts_; cuts_ = Cuts{}; return c; }
+ 
+     void note_device_opened() {
+         ring_.assign(kRingFrames * kOutputChannels, 0);
+@@ -203,6 +208,7 @@
+         if (!timeline_anchored_ || !opened_) return;
+         std::size_t outstanding = device.outstanding_blocks();
+         if (playback_started_ && outstanding == 0u) {
++            ++cuts_.underruns;
+             device.pause_playback();
+             playback_started_ = false;
+             recovering_from_underrun_ = true;
+@@ -215,6 +221,7 @@
+         const std::size_t latency_limit_blocks = prebuffer_blocks_ + 2u;
+         while (sealed_frame >= output_frame_ + kBlockFrames + 1u) {  // + 1: a catching-up block reads one more
+             if (playback_started_ && outstanding >= latency_limit_blocks) {
++                ++cuts_.dropped_blocks;
+                 for (std::size_t frame = 0u; frame < kBlockFrames; ++frame) {
+                     const std::size_t slot =
+                         static_cast<std::size_t>((output_frame_ + frame) % kRingFrames) * kOutputChannels;
+@@ -239,6 +246,7 @@
+     bool playback_started_{};
+     bool recovering_from_underrun_{};
+     bool opened_{};
++    Cuts cuts_{};
+ };
+ 
+ }
+--- a/lcs/host/lcs_audio_output.hpp
++++ b/lcs/host/lcs_audio_output.hpp
+@@ -18,4 +18,7 @@
+ 
+ void audio_output_shutdown();
+ 
++// GT patch 0065: underruns and dropped blocks of the host output since the last call (perf log).
++void audio_output_take_cuts(std::uint64_t &underruns, std::uint64_t &dropped_blocks);
++
+ }
+--- a/lcs/host/lcs_audio_output.cpp
++++ b/lcs/host/lcs_audio_output.cpp
+@@ -241,6 +241,14 @@
+     host.mixer.reset_channel(channel);
+ }
+ 
++void audio_output_take_cuts(std::uint64_t &underruns, std::uint64_t &dropped_blocks) {
++    AudioHost &host = audio_host();
++    std::lock_guard<std::mutex> guard(host.mutex);
++    const AudioMixer::Cuts cuts = host.mixer.take_cuts();
++    underruns = cuts.underruns;
++    dropped_blocks = cuts.dropped_blocks;
++}
++
+ void audio_output_shutdown() {
+     AudioHost &host = audio_host();
+     std::lock_guard<std::mutex> guard(host.mutex);
