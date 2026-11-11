@@ -67,6 +67,8 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   normal cases (`GT_SYNTH_CORPUS=off` disables, another directory replaces). `tools.decomp_gate coverage TAG --only ... --synth --search N`
   searches (needs the coverage build; memory-bounded: 3 children, a child stops its search after 768 MB of growth) and merges the finds
   with `tools.synth_corpus`. A corpus case that mismatches is a finding, never dropped.
+  Batches over the functions no gate verified: `tools.corpus_batch plan` (batch lists), `tools/corpus_batch.sh N LIST` (search, before/after, sabotage pair, verdict);
+  one batch PR open at a time, numbers = verified before/after in the dealer scene.
   `tools.decomp_gate coverage TAG --only ... --synth` reports which branches synthetic cases took (a verified function can still
   have most of its branches untaken: FINDINGS, "How deep synthetic cases go"); read that list against the asm before claiming more.
 - The code compiles cleanly with the host compiler at the project's warning level — no new warnings.
