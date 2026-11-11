@@ -1,6 +1,6 @@
-# Coverage-guided synthetic inputs (option E) — design (DRAFT, awaiting approval)
+# Coverage-guided synthetic inputs (option E) — design
 
-Status: **draft 2026-11-11. Nothing is implemented.** Follows `2026-11-10-recorded-arguments-design.md` (option B merged; C and D
+Status: **approved by the user 2026-11-11; implementation follows in a separate PR.** Follows `2026-11-10-recorded-arguments-design.md` (option B merged; C and D
 not built) and the depth measurement in FINDINGS ("How deep synthetic cases go").
 
 ## Problem
