@@ -23,6 +23,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <stdexcept>
 #include <exception>
 #include <optional>
@@ -33,6 +34,11 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+// Coverage builds (-fprofile-instr-generate): the runtime keeps the parent's profile name after fork (LLVM_PROFILE_FILE wins over
+// __llvm_profile_set_filename), so a case child dumps its counters to <dir of LLVM_PROFILE_FILE>/<pid>.profraw itself.
+extern "C" std::uint64_t __llvm_profile_get_size_for_buffer(void) __attribute__((weak));
+extern "C" int __llvm_profile_write_buffer(char *) __attribute__((weak));
 
 namespace gt {
 
@@ -989,6 +995,16 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 const ssize_t n = write(pipe_fds[1], text.data() + written, text.size() - written);
                 if (n <= 0) break;
                 written += static_cast<std::size_t>(n);
+            }
+            if (__llvm_profile_get_size_for_buffer != nullptr && __llvm_profile_write_buffer != nullptr) {
+                if (const char *pattern = std::getenv("LLVM_PROFILE_FILE"); pattern != nullptr) {
+                    const std::string path(pattern);
+                    std::vector<char> profile(__llvm_profile_get_size_for_buffer());
+                    if (__llvm_profile_write_buffer(profile.data()) == 0) {
+                        const std::string file = path.substr(0, path.rfind('/') + 1) + std::to_string(getpid()) + ".profraw";
+                        std::ofstream(file, std::ios::binary).write(profile.data(), static_cast<std::streamsize>(profile.size()));
+                    }
+                }
             }
             _exit(0);
         }

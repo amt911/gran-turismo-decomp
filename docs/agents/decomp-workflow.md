@@ -62,6 +62,8 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   verified that way is re-checked in its verdict with the same variable. The variable takes a comma-separated list
   (the routes run side by side): verdicts run `GT_SYNTH_ROUTE=dealer,race,save_garage,circuit,buy,options`, every
   route some function was verified after.
+  `tools.decomp_gate coverage TAG --only ... --synth` reports which branches synthetic cases took (a verified function can still
+  have most of its branches untaken: FINDINGS, "How deep synthetic cases go"); read that list against the asm before claiming more.
 - The code compiles cleanly with the host compiler at the project's warning level — no new warnings.
 
 ## Working in batches — how the hot-leaf PRs are made
