@@ -1,0 +1,13 @@
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -4155,6 +4155,10 @@
+     VulkanState &s = state();
+     std::lock_guard<std::recursive_mutex> guard(s.mutex);
+     auto *window = static_cast<SDL_Window *>(native);
++    // GT patch 0066: a window SDL did not create for Vulkan (the dummy video driver's, headless) has no Vulkan hooks: SDL2 calls a
++    // null function from SDL_Vulkan_GetInstanceExtensions on it (gt_play with SDL_VIDEODRIVER=dummy and NativeGE=true segfaulted
++    // at start). Without a Vulkan window the backend draws offscreen and the picture goes through the CPU readback.
++    if (window != nullptr && (SDL_GetWindowFlags(window) & SDL_WINDOW_VULKAN) == 0u) window = nullptr;
+     if (window == s.window && s.swapchain != VK_NULL_HANDLE) return;
+     const bool window_changed = window != s.window;
+     s.window = window;
