@@ -848,6 +848,18 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         else
             for (std::size_t i = 0; i < kMaxLive; ++i) layout.live_objects.push_back(all[i * all.size() / kMaxLive]);
     }
+    // Class-matched a0 (spec 2026-11-10-recorded-arguments-design.md): a function inside a vtable run of .rodata/.data
+    // gets, as a0, a live object of that class when one exists (GT_SYNTH_CLASS=0 turns it off, for comparing runs).
+    if (const char *off = std::getenv("GT_SYNTH_CLASS"); off == nullptr || std::strcmp(off, "0") != 0) {
+        constexpr std::uint32_t kT0 = 0x08804028u, kT1 = 0x08C7A7DCu, kD1 = 0x08DA0000u;
+        const auto runs = find_vtable_runs(
+            kT1, kD1, [&](std::uint32_t address) { return rt.memory().load32(address); },
+            [&](std::uint32_t word) { return word >= kT0 && word < kT1 && rt.function_at(word) != nullptr; });
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> objects;
+        for (const std::uint32_t object : layout.live_objects) objects.emplace_back(object, rt.memory().load32(object));
+        layout.class_instances = class_instances(runs, objects);
+        std::cerr << "[decomp] synthetic: " << layout.class_instances.size() << " functions have a live instance of their class\n";
+    }
     std::uint8_t *const arena = rt.memory().raw_pointer(layout.arena_base, layout.arena_bytes);
     if (arena == nullptr) {
         rt.stop("synthetic cases: the arena is not guest RAM");

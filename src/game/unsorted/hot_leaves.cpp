@@ -3523,7 +3523,13 @@ void func_08AF8BB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_089660A0(this) -> the virtual +0x20C.
 void func_089660A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    tail_call(ctx, word(rt, word(rt, ctx.gpr[4]) + 0x20Cu), {ctx.gpr[4]});
+    // v0 = the vtable and t9 = the target, as the original leaves them for a target that writes no v0 (synthetic cases
+    // with a class-matched this: v0 0x08CBC288 vs 0).
+    const std::uint32_t table = word(rt, ctx.gpr[4]);
+    const std::uint32_t target = word(rt, table + 0x20Cu);
+    ctx.gpr[2] = table;
+    ctx.gpr[25] = target;
+    tail_call(ctx, target, {ctx.gpr[4]});
 }
 
 // func_089A8D0C / func_089A8C40(this, arg): the delegate at +0x64 / +0x11C, virtual +0x8 / +0x24.
