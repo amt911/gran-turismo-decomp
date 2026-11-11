@@ -19,7 +19,7 @@ Dusklight does: browse the available mods from inside the game, install or updat
   Android and arm64 are added as the host runs there (the index already has a per-platform map).
 - **Mod version**: `mod.toml` gains `version = "x.y.z"` (missing → `0.0.0`). An installed mod is outdated when the index has
   a newer version for the host's platform.
-- **In-game UI**: a second F9 page, **GET MODS**, next to MODS (keyboard and pad, same navigation as MODS). Rows: name,
+- **In-game UI** *(revised 2026-11-10, Claude: the overlay holds one extra page, so the GET MODS rows follow the mods' rows on the MODS page instead of a second page; same keys)*: a second F9 page, **GET MODS**, next to MODS (keyboard and pad, same navigation as MODS). Rows: name,
   installed version / available version, state (`INSTALL`, `UPDATE`, `UP TO DATE`, `DOWNLOADING 45 %`, `ERROR: <reason>`).
   Enter installs or updates. The index is fetched when the page opens (and on Enter on a `REFRESH` row), never at boot.
 - **Install**: download to `<mods>/.download/`, check size and `sha256` against the index, unpack to `<mods>/.staging/<id>/`,

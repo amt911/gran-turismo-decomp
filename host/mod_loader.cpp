@@ -36,7 +36,8 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
     if (!std::filesystem::is_directory(dir, ec)) return report;
     std::vector<std::filesystem::path> entries;
     for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
-        if (it->is_directory(ec)) entries.push_back(it->path());
+        // A dot folder is the downloader's work area (`.staging`, `.download`: host/mod_install.hpp), never a mod.
+        if (it->is_directory(ec) && it->path().filename().string().rfind('.', 0) != 0) entries.push_back(it->path());
     std::sort(entries.begin(), entries.end());
     // Enabled mods load first: on an address several mods hook, the enabled ones are the outer links of the chain.
     const auto enabled_in = [](const std::filesystem::path &mod_dir) {

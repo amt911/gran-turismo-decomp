@@ -3523,7 +3523,13 @@ void func_08AF8BB4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 // func_089660A0(this) -> the virtual +0x20C.
 void func_089660A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    tail_call(ctx, word(rt, word(rt, ctx.gpr[4]) + 0x20Cu), {ctx.gpr[4]});
+    // v0 = the vtable and t9 = the target, as the original leaves them for a target that writes no v0 (synthetic cases
+    // with a class-matched this: v0 0x08CBC288 vs 0).
+    const std::uint32_t table = word(rt, ctx.gpr[4]);
+    const std::uint32_t target = word(rt, table + 0x20Cu);
+    ctx.gpr[2] = table;
+    ctx.gpr[25] = target;
+    tail_call(ctx, target, {ctx.gpr[4]});
 }
 
 // func_089A8D0C / func_089A8C40(this, arg): the delegate at +0x64 / +0x11C, virtual +0x8 / +0x24.
@@ -14983,7 +14989,8 @@ void func_08AF7398(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08AD5AC4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     const std::uint32_t i = ctx.gpr[5];
-    const std::uint32_t record = word(rt, self + (i << 4) + 0x4u);
+    ctx.gpr[2] = self + (i << 4);  // `addu v0, a0, v0`: what the early return leaves in v0
+    const std::uint32_t record = word(rt, ctx.gpr[2] + 0x4u);
     const std::uint32_t handle = word(rt, record);
     if (static_cast<std::int32_t>(handle) < 0) return;
     {
@@ -14992,7 +14999,8 @@ void func_08AD5AC4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     rt.memory().store32(record + 0x4u, ctx.gpr[2]);
     ctx.gpr[2] = word(rt, self);
-    tail_call(ctx, word(rt, ctx.gpr[2] + 0x20u), {self, i});
+    ctx.gpr[25] = word(rt, ctx.gpr[2] + 0x20u);  // `lw t9, 0x20(v0); jr t9`
+    tail_call(ctx, ctx.gpr[25], {self, i});
 }
 
 // func_08A568EC(this, a, b): func_08A76E3C(this, a, b); while *a is still empty, the virtual +0x10C (a, b)
@@ -22549,13 +22557,14 @@ void func_08A63B5C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t self = ctx.gpr[4];
     rt.memory().store32(self, 0x08CCB980u);
     GuestFrame frame(ctx, 0x20u);
+    ctx.gpr[5] = self;  // `addu a1, s2` is the delay slot of the loop's bnez: it runs on every test, so a1 = this in the body and after it
     while ((static_cast<std::int32_t>(word(rt, self + 40u) - word(rt, self + 36u)) >> 2) != 0) {
         const std::uint32_t object = word(rt, word(rt, self + 40u) - 4u);
-        (void)call_guest(rt, ctx, word(rt, word(rt, object) + 0xCu), {object});
-        (void)call_guest(rt, ctx, word(rt, word(rt, object) + 0x4u), {object});
+        (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 0xCu), {object});
+        (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 0x4u), {object});
         rt.memory().store32(self + 40u, word(rt, self + 40u) - 4u);
     }
-    (void)call_guest(rt, ctx, 0x08A72B94u, {word(rt, self + 60u)});
+    (void)call_guest(rt, ctx, 0x08A72B94u, {word(rt, self + 60u), self});
     (void)call_guest(rt, ctx, kReleaseLocal, {self + 84u});
     (void)call_guest(rt, ctx, kReleaseLocal, {self + 76u});
     (void)call_guest(rt, ctx, 0x08C1FBC4u, {word(rt, self + 36u), word(rt, self + 40u), frame.at(0u)});
@@ -23865,7 +23874,7 @@ void func_08A77020(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const std::uint32_t object = ctx.gpr[5];
     GuestFrame frame(ctx, 0x20u);
     const std::uint32_t vtable = word(rt, object);
-    if (call_guest(rt, ctx, word(rt, vtable + 120u), {object, object}) != 0u) {
+    if (gt::game::hot::call_indirect(rt, ctx, word(rt, vtable + 120u), {object, object}) != 0u) {
         const std::uint32_t holder = call_guest(rt, ctx, 0x08B62344u, {20u});
         rt.memory().store32(holder, 0x08CD1F30u);
         (void)call_guest(rt, ctx, 0x08A76AA0u, {holder + 4u});
@@ -23878,7 +23887,7 @@ void func_08A77020(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     } else if (gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 144u), {object}) != 0u) {
         (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 168u), {out, object});
     } else if (gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 172u), {object, object}) != 0u) {
-        (void)call_guest(rt, ctx, word(rt, word(rt, object) + 176u), {out, object, 0u, 0u});
+        (void)gt::game::hot::call_indirect(rt, ctx, word(rt, word(rt, object) + 176u), {out, object, 0u, 0u});
     } else {
         (void)call_guest(rt, ctx, 0x08A84EE8u, {out, kNullValue});
     }

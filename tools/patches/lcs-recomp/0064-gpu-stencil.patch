@@ -1,0 +1,319 @@
+--- a/lcs/host/ge_gpu_backend.hpp
++++ b/lcs/host/ge_gpu_backend.hpp
+@@ -86,6 +86,14 @@
+     bool clear_color{};
+     bool clear_alpha{};
+     bool clear_depth{};
++    // GT patch 0064: the GE stencil (the framebuffer alpha): 0x24 on (not in clear mode, not 565), 0xDC, 0xDD.
++    std::uint32_t stencil_enabled{};  // 0 or 1 (a word: no padding before the next field, same_draw_but_per_draw_fields compares bytes)
++    std::uint32_t stencil_function{};
++    std::uint32_t stencil_reference{};
++    std::uint32_t stencil_mask{};
++    std::uint32_t stencil_fail_op{};
++    std::uint32_t stencil_zfail_op{};
++    std::uint32_t stencil_zpass_op{};
+     // GT patch 0046: member-wise, so padding never makes two equal states differ (a copy does not keep padding).
+     bool operator==(const GeGpuDrawDescriptor &) const = default;
+ };
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -131,6 +131,7 @@
+     std::uint32_t logical_height{kReferenceHeight};
+     GpuImage color{};
+     GpuImage snapshot{};
++    VkDescriptorSet stencil_set{};  // GT patch 0064: set 1 over `snapshot`
+     VkImage depth{};
+     VkDeviceMemory depth_memory{};
+     VkImageView depth_view{};
+@@ -195,6 +196,9 @@
+     VkRenderPass render_pass{};
+     VkPipelineLayout pipeline_layout{};
+     VkDescriptorSetLayout set_layout{};
++    VkDescriptorSetLayout stencil_set_layout{};  // GT patch 0064: set 1, the target snapshot ge.frag reads the stencil from
++    VkDescriptorSet stencil_default_set{};       // GT patch 0064: set 1 for draws without the stencil (the white texture)
++    bool stencil_warned{};
+     VkDescriptorPool descriptor_pool{};
+     std::uint32_t descriptor_sets_live{};
+     VkShaderModule vertex_shader{};
+@@ -634,6 +638,34 @@
+     return set;
+ }
+ 
++// GT patch 0064: a set-1 descriptor (ge.frag's stencilSnapshot) over `view`, nearest sampling (texelFetch).
++VkDescriptorSet allocate_stencil_set(VulkanState &s, VkImageView view, VkSampler sampler, std::string &error) {
++    if (view == VK_NULL_HANDLE || sampler == VK_NULL_HANDLE || s.stencil_set_layout == VK_NULL_HANDLE) return VK_NULL_HANDLE;
++    VkDescriptorSet set = VK_NULL_HANDLE;
++    VkDescriptorSetAllocateInfo alloc{};
++    alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
++    alloc.descriptorPool = s.descriptor_pool;
++    alloc.descriptorSetCount = 1u;
++    alloc.pSetLayouts = &s.stencil_set_layout;
++    if (vkAllocateDescriptorSets(s.device, &alloc, &set) != VK_SUCCESS) {
++        error = "vkAllocateDescriptorSets(stencil) failed";
++        return VK_NULL_HANDLE;
++    }
++    VkDescriptorImageInfo sampled{};
++    sampled.sampler = sampler;
++    sampled.imageView = view;
++    sampled.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkWriteDescriptorSet write{};
++    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
++    write.dstSet = set;
++    write.dstBinding = 0u;
++    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
++    write.descriptorCount = 1u;
++    write.pImageInfo = &sampled;
++    vkUpdateDescriptorSets(s.device, 1u, &write, 0u, nullptr);
++    return set;
++}
++
+ bool write_descriptor(VulkanState &s, GpuImage &image, std::string &error) {
+     if (image.set != VK_NULL_HANDLE) return true;
+     image.set = allocate_combined_set(
+@@ -941,6 +973,8 @@
+     axis(batch.uv_box[1], batch.uv_box[3], draw.texture_height, uniforms.uv_clamp[1], uniforms.uv_clamp[3]);
+ }
+ 
++std::uint32_t stencil_uniform(const GeGpuDrawDescriptor &draw) noexcept;  // GT patch 0064, below
++
+ DrawUniforms make_uniforms(const Batch &batch, std::uint32_t logical_width, std::uint32_t logical_height,
+                            bool sampled) noexcept {
+     DrawUniforms constants{};
+@@ -1002,6 +1036,7 @@
+     constants.pixel0[3] = (draw.fog_color & 0x00FFFFFFu) |
+                           (static_cast<std::uint32_t>(draw.fog_enabled ? 0xFFu : 0u) << 24u);
+     constants.pixel1[0] = draw.framebuffer_format & 3u;
++    constants.control[3] = stencil_uniform(draw);  // GT patch 0064
+     const std::array<std::uint32_t, 3> shader_blend = shader_blend_uniforms(draw);  // GT patch 0021
+     constants.pixel1[1] = shader_blend[0];
+     constants.pixel1[2] = shader_blend[1];
+@@ -1133,6 +1168,9 @@
+         const std::uint32_t byte = (draw.color_write_mask >> (channel * 8u)) & 0xFFu;
+         if (byte != 0xFFu) mask |= static_cast<VkColorComponentFlags>(1u << channel);
+     }
++    // GT patch 0064: the framebuffer alpha is the PSP stencil. Outside clear mode only a stencil draw writes it
++    // (pipeline_for adds A back for those); a clear writes it only with its alpha bit (PPSSPP GPU/Software/DrawPixel.cpp).
++    if (draw.clear_mode ? !draw.clear_alpha : true) mask &= ~static_cast<VkColorComponentFlags>(VK_COLOR_COMPONENT_A_BIT);
+     return mask;
+ }
+ 
+@@ -1253,6 +1291,31 @@
+     return VK_COMPARE_OP_ALWAYS;
+ }
+ 
++// GT patch 0064: the stencil runs in ge.frag. When the device has dual-source blending, the colour alpha of a
++// stencil draw is the stencil result (the PSP's framebuffer alpha): the fragment alpha the colour blend needs moves to
++// the second output (outBlendFactor.a, SRC1_ALPHA) and the alpha channel is written unblended (ONE, ZERO).
++bool stencil_alpha_output(const GeGpuDrawDescriptor &draw) noexcept {
++    return draw.stencil_enabled && dual_source_supported();
++}
++
++VkBlendFactor stencil_color_factor(VkBlendFactor factor) noexcept {
++    switch (factor) {
++    case VK_BLEND_FACTOR_SRC_ALPHA: return VK_BLEND_FACTOR_SRC1_ALPHA;
++    case VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
++    case VK_BLEND_FACTOR_SRC_ALPHA_SATURATE: return VK_BLEND_FACTOR_SRC1_ALPHA;  // not produced by general_blend
++    default: return factor;
++    }
++}
++
++// GT patch 0064: DrawUniforms control.w for ge.frag: bit 0 stencil on, 1-3 function, 4-11 reference, 12-19 mask,
++// 20-22 pass op, 23 alpha output, 24-31 the alpha write mask (0xE9: set bits keep the old alpha).
++std::uint32_t stencil_uniform(const GeGpuDrawDescriptor &draw) noexcept {
++    if (!draw.stencil_enabled) return 0u;
++    return 1u | ((draw.stencil_function & 7u) << 1u) | ((draw.stencil_reference & 0xFFu) << 4u) |
++           ((draw.stencil_mask & 0xFFu) << 12u) | ((draw.stencil_zpass_op & 7u) << 20u) |
++           (stencil_alpha_output(draw) ? 1u << 23u : 0u) | (((draw.color_write_mask >> 24u) & 0xFFu) << 24u);
++}
++
+ std::uint64_t pipeline_key(const GeGpuDrawDescriptor &draw, bool strip, bool cull, bool ccw) noexcept {
+     std::uint64_t key = static_cast<std::uint64_t>(draw.depth_test_enabled ? 1u : 0u);
+     key |= static_cast<std::uint64_t>(draw.depth_write_enabled ? 1u : 0u) << 1u;
+@@ -1262,6 +1325,7 @@
+     key |= static_cast<std::uint64_t>(strip ? 1u : 0u) << 16u;
+     key |= static_cast<std::uint64_t>(cull ? 1u : 0u) << 17u;
+     key |= static_cast<std::uint64_t>(ccw ? 1u : 0u) << 18u;
++    key |= static_cast<std::uint64_t>(stencil_alpha_output(draw) ? 1u : 0u) << 63u;  // GT patch 0064
+     return key;
+ }
+ 
+@@ -1332,6 +1396,14 @@
+     blend.srcAlphaBlendFactor = alpha_counterpart(general.src);
+     blend.dstAlphaBlendFactor = alpha_counterpart(general.dst);
+     blend.alphaBlendOp = general.op;
++    if (stencil_alpha_output(draw)) {  // GT patch 0064
++        blend.srcColorBlendFactor = stencil_color_factor(general.src);
++        blend.dstColorBlendFactor = stencil_color_factor(general.dst);
++        blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
++        blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
++        blend.alphaBlendOp = VK_BLEND_OP_ADD;
++        if (((draw.color_write_mask >> 24u) & 0xFFu) != 0xFFu) blend.colorWriteMask |= VK_COLOR_COMPONENT_A_BIT;
++    }
+     VkPipelineColorBlendStateCreateInfo blending{};
+     blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+     blending.attachmentCount = 1u;
+@@ -1593,6 +1665,8 @@
+ void destroy_target(VulkanState &s, Target &target) noexcept {
+     if (target.framebuffer) vkDestroyFramebuffer(s.device, target.framebuffer, nullptr);  // depth is shared
+     destroy_image(s, target.color);
++    if (target.stencil_set != VK_NULL_HANDLE) vkFreeDescriptorSets(s.device, s.descriptor_pool, 1u, &target.stencil_set);
++    target.stencil_set = VK_NULL_HANDLE;
+     destroy_image(s, target.snapshot);
+     target.framebuffer = VK_NULL_HANDLE;
+     target.depth_view = VK_NULL_HANDLE;
+@@ -2809,6 +2883,9 @@
+     if (s.descriptor_pool) vkDestroyDescriptorPool(s.device, s.descriptor_pool, nullptr);
+     if (s.set_layout) vkDestroyDescriptorSetLayout(s.device, s.set_layout, nullptr);
+     if (s.pipeline_layout) vkDestroyPipelineLayout(s.device, s.pipeline_layout, nullptr);
++    if (s.stencil_set_layout) vkDestroyDescriptorSetLayout(s.device, s.stencil_set_layout, nullptr);
++    s.stencil_set_layout = VK_NULL_HANDLE;
++    s.stencil_default_set = VK_NULL_HANDLE;
+     if (s.vertex_shader) vkDestroyShaderModule(s.device, s.vertex_shader, nullptr);
+     if (s.fragment_shader) vkDestroyShaderModule(s.device, s.fragment_shader, nullptr);
+     if (s.render_pass) vkDestroyRenderPass(s.device, s.render_pass, nullptr);
+@@ -3268,10 +3345,24 @@
+         return false;
+     }
+     s.report.texture_descriptor_layout_created = true;
++    VkDescriptorSetLayoutBinding stencil_binding{};  // GT patch 0064
++    stencil_binding.binding = 0u;
++    stencil_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
++    stencil_binding.descriptorCount = 1u;
++    stencil_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++    VkDescriptorSetLayoutCreateInfo stencil_info{};
++    stencil_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
++    stencil_info.bindingCount = 1u;
++    stencil_info.pBindings = &stencil_binding;
++    if (vkCreateDescriptorSetLayout(s.device, &stencil_info, nullptr, &s.stencil_set_layout) != VK_SUCCESS) {
++        error = "vkCreateDescriptorSetLayout(stencil) failed";
++        return false;
++    }
++    const VkDescriptorSetLayout set_layouts[2]{s.set_layout, s.stencil_set_layout};
+     VkPipelineLayoutCreateInfo layout_info{};
+     layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+-    layout_info.setLayoutCount = 1u;
+-    layout_info.pSetLayouts = &s.set_layout;
++    layout_info.setLayoutCount = 2u;
++    layout_info.pSetLayouts = set_layouts;
+     if (vkCreatePipelineLayout(s.device, &layout_info, nullptr, &s.pipeline_layout) != VK_SUCCESS) {
+         error = "vkCreatePipelineLayout failed";
+         return false;
+@@ -3364,6 +3455,8 @@
+     vkDestroyBuffer(s.device, staging.buffer, nullptr);
+     vkFreeMemory(s.device, staging.memory, nullptr);
+     if (!write_descriptor(s, s.white.gpu, error)) return false;
++    s.stencil_default_set = allocate_stencil_set(s, s.white.gpu.view, s.white.gpu.sampler, error);  // GT patch 0064
++    if (s.stencil_default_set == VK_NULL_HANDLE) return false;
+     s.report.transfer_self_test_passed = true;
+     if (!run_offscreen_self_test(s, error)) return false;
+     if (s.surface != VK_NULL_HANDLE && s.swapchain_extension) {
+@@ -4302,6 +4395,8 @@
+     bool descriptors_bound = false;  // the set and the uniform slot of the last draw, reused when identical
+     VkDescriptorSet bound_set = VK_NULL_HANDLE;
+     DrawUniforms bound_uniforms{};
++    VkDescriptorSet bound_stencil_set = VK_NULL_HANDLE;  // GT patch 0064: set 1
++    const Target *stencil_snapshot_of = nullptr;        // GT patch 0064: the target whose snapshot is still current
+     for (const Batch &batch : s.batches) {
+         if (uniform_slot >= kMaxDraws) break;
+         Target *target = find_target(s, batch.draw.framebuffer_address);
+@@ -4320,6 +4415,28 @@
+             vkCmdBindPipeline(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+             bound_pipeline = pipeline;
+         }
++        // GT patch 0064: a stencil draw reads the target's alpha (the PSP stencil) from a snapshot taken before it. The
++        // snapshot stays current across stencil draws whose ops keep the stencil (they leave the alpha as it was);
++        // any other draw into the target may change the alpha, so the next stencil draw takes a new one.
++        VkDescriptorSet stencil_set = s.stencil_default_set;
++        if (batch.draw.stencil_enabled) {
++            if (stencil_snapshot_of != target || target->stencil_set == VK_NULL_HANDLE) {
++                if (snapshot_target(s, *target, error) && target->stencil_set == VK_NULL_HANDLE)
++                    target->stencil_set = allocate_stencil_set(s, target->snapshot.view, s.white.gpu.sampler, error);
++            }
++            if (target->stencil_set != VK_NULL_HANDLE) stencil_set = target->stencil_set;
++            if ((batch.draw.stencil_fail_op != 0u || batch.draw.stencil_zfail_op != 0u) && !s.stencil_warned) {
++                s.stencil_warned = true;
++                runtime_log_error("vulkan stencil", "a stencil fail or depth-fail op other than keep is not emulated (draw kept as keep)");
++            }
++        }
++        const bool keeps_stencil = batch.draw.stencil_enabled && batch.draw.stencil_zpass_op == 0u;
++        stencil_snapshot_of = keeps_stencil ? target : nullptr;
++        if (stencil_set != bound_stencil_set && stencil_set != VK_NULL_HANDLE) {
++            vkCmdBindDescriptorSets(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.pipeline_layout, 1u, 1u, &stencil_set,
++                                    0u, nullptr);
++            bound_stencil_set = stencil_set;
++        }
+         if (!geometry_bound) {
+             VkDeviceSize offset = 0u;
+             vkCmdBindVertexBuffers(s.command, 0u, 1u, &s.geometry, &offset);
+--- a/lcs/host/ge_renderer.cpp
++++ b/lcs/host/ge_renderer.cpp
+@@ -4500,6 +4500,16 @@
+     gpu_draw.clear_color = (gpu_clear & 0x100u) != 0u;
+     gpu_draw.clear_alpha = (gpu_clear & 0x200u) != 0u;
+     gpu_draw.clear_depth = (gpu_clear & 0x400u) != 0u;
++    // GT patch 0064: the stencil, done in ge.frag against a snapshot of the target's alpha.
++    const std::uint32_t stencil_test = data24(commands[0xDCu]), stencil_op = data24(commands[0xDDu]);
++    gpu_draw.stencil_enabled = (data24(commands[0x24u]) & 1u) != 0u && !gpu_draw.clear_mode &&
++                               (data24(commands[0xD2u]) & 3u) != 0u;
++    gpu_draw.stencil_function = gpu_draw.stencil_enabled ? stencil_test & 7u : 0u;
++    gpu_draw.stencil_reference = gpu_draw.stencil_enabled ? (stencil_test >> 8u) & 0xFFu : 0u;
++    gpu_draw.stencil_mask = gpu_draw.stencil_enabled ? (stencil_test >> 16u) & 0xFFu : 0u;
++    gpu_draw.stencil_fail_op = gpu_draw.stencil_enabled ? stencil_op & 7u : 0u;
++    gpu_draw.stencil_zfail_op = gpu_draw.stencil_enabled ? (stencil_op >> 8u) & 7u : 0u;
++    gpu_draw.stencil_zpass_op = gpu_draw.stencil_enabled ? (stencil_op >> 16u) & 7u : 0u;
+     gpu_draw.texture_content_signature = 0u;
+     gpu_draw.clut_checksum = 0u;
+ }
+--- a/lcs/host/vulkan/ge.frag
++++ b/lcs/host/vulkan/ge.frag
+@@ -25,6 +25,19 @@
+ } u;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D sourceTexture;
++layout(set = 1, binding = 0) uniform sampler2D stencilSnapshot;  // GT patch 0064: the target before this stencil run
++
++// GT patch 0064: the GE's stencil ops on the framebuffer alpha (ge_renderer.cpp stencil_apply, 8888 step 1).
++uint stencilOp(uint op, uint value, uint reference) {
++    switch (op & 7u) {
++    case 1u: return 0u;
++    case 2u: return reference;
++    case 3u: return (~value) & 0xFFu;
++    case 4u: return min(value + 1u, 0xFFu);
++    case 5u: return value > 0u ? value - 1u : 0u;
++    }
++    return value;
++}
+ 
+ bool alphaPass(uint fn, uint lhs, uint rhs) {
+     switch (fn & 7u) {
+@@ -147,6 +160,19 @@
+         uint mask = alphaControl.w;
+         if (!alphaPass(alphaControl.y, a & mask, alphaControl.z & mask)) discard;
+     }
++    // GT patch 0064: the stencil test, against the alpha the target had before this stencil run; the pass op's result
++    // becomes the colour alpha (with alpha output; the fragment alpha the blend needs goes to outBlendFactor.a).
++    uint stencil = u.control.w;
++    uint stencilResult = 0u;
++    if ((stencil & 1u) != 0u) {
++        uint destination = uint(floor(texelFetch(stencilSnapshot, ivec2(gl_FragCoord.xy), 0).a * 255.0 + 0.5));
++        uint mask = (stencil >> 12u) & 0xFFu;
++        uint reference = (stencil >> 4u) & 0xFFu;
++        if (!alphaPass((stencil >> 1u) & 7u, reference & mask, destination & mask)) discard;
++        uint keep = (stencil >> 24u) & 0xFFu;  // 0xE9: set bits keep the old alpha
++        stencilResult = (destination & keep) | (stencilOp((stencil >> 20u) & 7u, destination, reference) & ~keep & 0xFFu);
++    }
++    float fragmentAlpha = clamp(color.a, 0.0, 1.0);
+     // GT patch 0021: blend factors the fixed-function blend can't express (the GE's 2As and 1 - min(2As, 1),
+     // patch 0056) are computed here: the colour premultiplied by the source factor (blend ONE) and the
+     // destination factor in the second output (blend SRC1), as ge_renderer.cpp blend_pixel does.
+@@ -160,6 +186,10 @@
+     // GT patch 0022: blend with the unquantized colour and alpha, as the GE does; the stored 16-bit value is
+     // emulated when the target is read back as a texture (storedFramebufferTexel).
+     outColor = clamp(color, 0.0, 1.0);  // (a 565 target's alpha is ignored when read back)
++    if ((stencil & 0x800001u) == 0x800001u) {  // GT patch 0064: stencil with alpha output
++        outBlendFactor.a = fragmentAlpha;
++        outColor.a = float(stencilResult) / 255.0;
++    }
+     // GT patch 0025: the GE's z-buffer holds 16-bit integers (ge_renderer.cpp truncates the interpolated z).
+     // A float depth keeps differences the PSP drops, so coplanar surfaces — the kerbs painted on the track,
+     // distant stands — won and lost the depth test from frame to frame (flicker). Truncate as the GE does,

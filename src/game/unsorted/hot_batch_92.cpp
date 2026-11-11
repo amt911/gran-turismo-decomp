@@ -1036,7 +1036,7 @@ void func_089BBF8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         while (child != 0u) {
             ctx.gpr[3] = word(rt, child);
             ctx.gpr[5] = x;  // the delay slot of the jalr
-            (void)call_set(rt, ctx, slot_of(rt, child, 0x150u), {child, x});
+            (void)call_set_v0(rt, ctx, slot_of(rt, child, 0x150u), {child, x});  // `lw v0, 0x150(v1); jalr v0`: the callee starts with v0 = its own address
             child = word(rt, child + 0x54u);
             ctx.gpr[16] = child;
         }

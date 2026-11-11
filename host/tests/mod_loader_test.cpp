@@ -100,6 +100,13 @@ int main() {
     }
     {
         auto &rt = fresh_runtime(holder);
+        const fs::path root = fresh_dir("dotdirs");
+        fs::create_directories(root / ".staging" / "x");  // the downloader's work area (host/mod_install.hpp)
+        const LoadReport r = load_mods(rt, root);
+        check(r.entries.empty() && r.skipped.empty(), "dot_folders_are_not_mods: nothing reported");
+    }
+    {
+        auto &rt = fresh_runtime(holder);
         const fs::path root = fresh_dir("disabled");
         make_mod(root, "off", "off_mod", false, "100");
         const LoadReport r = load_mods(rt, root);

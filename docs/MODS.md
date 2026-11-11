@@ -290,4 +290,14 @@ ctest --test-dir build -R "mod_install|mod_fetch"
 GT_NET_TEST=1 build/mod_fetch_tests    # descarga la release real e instala analog-pedals en un directorio temporal
 ```
 
-Falta la página GET MODS del menú F9 (paso 3 del spec).
+**En el juego (F9, página MODS):** debajo de los mods y de sus filas sale `GET MODS  ENTER: CHECK`. Enter descarga el
+índice de la última release de gt-mods; cada mod sale con su versión y `INSTALL`, `UPDATE <instalada>`, `UP TO DATE`,
+`DOWNLOADING`, `RESTART TO LOAD` o `ERROR <motivo>`. Enter sobre `INSTALL`/`UPDATE` lo descarga, lo verifica y lo instala;
+se carga al reiniciar el juego (un mod nuevo llega desactivado, como dice su `mod.toml`: actívalo en la misma página).
+Sin red, la fila dice `ERROR` y el juego sigue. Comprobación sin teclado:
+
+```bash
+GT_MODS_DIR=/tmp/vacio GT_MODS_GET_TEST=analog-pedals build/gt_play --max-seconds 40
+# [mods] get index: GET MODS  6 AVAILABLE
+# [mods] get analog-pedals: Analog pedals ... 0.2.0 RESTART TO LOAD
+```

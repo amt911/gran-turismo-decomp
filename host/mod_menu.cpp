@@ -3,6 +3,9 @@
 #include "mod_hooks.hpp"
 #include "mod_manifest.hpp"
 #include "mod_services.hpp"
+#ifdef GT_MOD_DOWNLOADER
+#include "mod_store.hpp"
+#endif
 
 #include <chrono>
 #include <cstdio>
@@ -22,6 +25,15 @@ struct Row {
 std::mutex g_mutex;
 std::vector<Row> g_rows;
 
+// GET MODS rows (host/mod_store.hpp) follow the mods' rows and the rows mods added; none without the downloader.
+std::size_t store_rows() {
+#ifdef GT_MOD_DOWNLOADER
+    return store::count();
+#else
+    return 0;
+#endif
+}
+
 }  // namespace
 
 void set_entries(std::vector<ModEntry> entries) {
@@ -33,12 +45,17 @@ void set_entries(std::vector<ModEntry> entries) {
 std::size_t count() {
     std::lock_guard<std::mutex> lock(g_mutex);
     const std::size_t total = g_rows.size() + services::menu_row_count();
-    return total == 0 ? 1 : total;
+    const std::size_t store = store_rows();
+    return total + store == 0 ? 1 : total + store;
 }
 
 std::string row(std::size_t index) {
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_rows.empty() && services::menu_row_count() == 0) return index == 0 ? "NO MODS INSTALLED" : "";
+    const std::size_t own = g_rows.size() + services::menu_row_count();
+    if (own == 0 && store_rows() == 0) return index == 0 ? "NO MODS INSTALLED" : "";
+#ifdef GT_MOD_DOWNLOADER
+    if (index >= own) return store::row(index - own, kRowWidth);
+#endif
     if (index >= g_rows.size()) {  // a row a mod added (API v2): its own label, cut to the page width
         char text[kRowWidth + 1];
         if (!services::menu_row_text(index - g_rows.size(), text, sizeof text)) return "";
@@ -68,6 +85,10 @@ bool adjust(std::size_t index, int direction) {
         mods = g_rows.size();
     }
     if (index < mods) return toggle_mod(index);  // a mod's own row: Enter, Left and Right all flip it
+#ifdef GT_MOD_DOWNLOADER
+    if (const std::size_t added = services::menu_row_count(); index >= mods + added)
+        return direction == 0 && store::activate(index - mods - added);  // GET MODS: Enter only
+#endif
     return services::menu_row_activate(index - mods, direction);  // an added row: the mod decides what each key does
 }
 
