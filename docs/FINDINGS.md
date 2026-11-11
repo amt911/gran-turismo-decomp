@@ -2611,6 +2611,22 @@ Found: 2026-10-27 · src/game/unsorted/hot_leaves.cpp, src/game/unsorted/hot_bat
 
 Found: 2026-10-27 · src/game/unsorted/hot_batch_92.cpp..98, 109
 
+## How deep synthetic cases go: about a third of a function's branch outcomes
+
+Measured 2026-11-10 with `tools.decomp_gate coverage TAG --only ... --synth` (LLVM branch coverage of the decompiled
+sources while the synthetic run's case children execute; each child dumps its own profile, because the runtime keeps the
+parent's `LLVM_PROFILE_FILE` name after fork and `__llvm_profile_set_filename` does not override the environment).
+Sample: 120 random decompiled functions of 300-1000 B that no route reaches; dealer scene, 8 cases, seed 1, no class-matched a0 (PR 537 not merged).
+- 67 of 120 are verified by synthetic cases (>= 1 equal, 0 mismatch); 53 are not comparable (the original faults).
+- Of the 67: **mean 30 % (median 25 %) of branch outcomes are taken**; 19 reach >= 50 %, 1 reaches >= 75 %, and only 4 take every branch and
+  run every region (3 have no branch at all). 25 changed memory in some case, none of them complete.
+- So "verified by synthetic cases" mostly means the entry paths agree; the decomp workflow's rule that the cases cover the
+  branches real play reaches is not met by them. The share is a lower bound on what the *original* does with those inputs
+  (the denominator counts macro/helper branches of the file too). Option E of the 2026-11-10 spec (inputs steered by the
+  original's executed branches) targets exactly this; it is not built.
+
+Found: 2026-11-10 · tools/decomp_gate.py coverage --synth
+
 ## A class-matched `a0` exposes mismatches the invented arena never reached
 
 With `a0` a live object of the function's own class (spec 2026-11-10-recorded-arguments-design.md, option B) the
