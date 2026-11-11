@@ -3142,3 +3142,15 @@ toward a floor. After the toggle the residual differences were explained, not ab
 blended draws keep it), hence `TOGGLE_MARGIN = 600`; after that every pair is byte-identical outside the car window except a few at four moments (vblanks 22156, 29352, 36544, 43736: 7 200 apart), where the
 only differing pixels are the HUD clock (bottom right), whose digit flips at an instant that moves by one frame between runs (the clock is not locked to the game frame: probably guest virtual time,
 which the dispatch-count starvation tick moves with the game's CPU work); inside the car window the rear sprite flickers by up to 2 % of the window (cause not identified).
+
+## The GE stencil is the framebuffer alpha, and GT uses it (Time Trial ghost)
+
+The software GE renderer ignored the stencil (0x24 enable, 0xDC func/ref/mask, 0xDD fail/zfail/zpass ops) until patch 0063, so
+every stencil-tested draw covered every pixel. GT's Time Trial ghost is screen-door translucency: a through-mode sprite with a
+4x2 8888 texture, alpha test > 0x7F and colour masked off (0xE8 = 0xFFFFFF) writes 0xFF into the alpha of every other pixel
+(stencil ALWAYS, zpass REPLACE ref 0xFF); the ghost is then drawn with stencil EQUAL ref 0x80 mask 0x80, so it lands on half
+the pixels. **Only the stencil writes the framebuffer alpha** (PPSSPP `GPU/Software/DrawPixel.cpp`): outside clear mode a
+draw with the stencil test off keeps the old alpha (blending reads it, never writes it); only clear mode (0xD3 alpha bit)
+and stencil ops change it. Writing the fragment alpha there instead (as both of our renderers did) left alpha bit 7 set on
+~100 % of the pixels before the pattern (user's `GT_STENCIL_PROBE` log, 2026-11-10), so the ghost stayed opaque. Found with the F8 trace's per-prim `set` line (the fixed detail fields showed nothing). Races also use the stencil
+(an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). The GPU backend (NativeGE) still lacks it.
