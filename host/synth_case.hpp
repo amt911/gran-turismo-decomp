@@ -4,6 +4,9 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
+#include <map>
+#include <utility>
 #include <vector>
 
 namespace gt {
@@ -13,7 +16,22 @@ struct SynthLayout {
     std::uint32_t arena_bytes{};
     std::vector<std::uint32_t> leaf_functions;  // trivial real functions a virtual call may land on
     std::vector<std::uint32_t> live_objects;    // the game's objects (first word a vtable), for pointer inputs
+    // function -> live objects of its class (a0 of that function is one of them; see class_instances).
+    std::map<std::uint32_t, std::vector<std::uint32_t>> class_instances;
 };
+
+// Class-matched a0 (spec 2026-11-10-recorded-arguments-design.md, option B). A vtable run is >= 2 consecutive words in
+// [begin, end) that are function addresses; an object belongs to the run when its first word (vptr) lies inside it.
+struct VtableRun {
+    std::uint32_t start{};
+    std::vector<std::uint32_t> functions;
+};
+std::vector<VtableRun> find_vtable_runs(std::uint32_t begin, std::uint32_t end,
+                                        const std::function<std::uint32_t(std::uint32_t)> &load32,
+                                        const std::function<bool(std::uint32_t)> &is_function);
+// {object, vptr} pairs -> for every function of a run, the objects whose vptr lies in that run (sorted, distinct).
+std::map<std::uint32_t, std::vector<std::uint32_t>> class_instances(
+    const std::vector<VtableRun> &runs, const std::vector<std::pair<std::uint32_t, std::uint32_t>> &objects);
 
 struct SynthInputs {
     std::array<std::uint32_t, 8> gpr{};   // a0-a3, t0-t3
