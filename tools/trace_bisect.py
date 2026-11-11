@@ -245,7 +245,7 @@ def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Se
         trace.write_text("")
     log = trace.with_suffix(".log")
     with log.open("w") as err:
-        subprocess.run(command, env=env, stdout=subprocess.DEVNULL, stderr=err, check=False)
+        subprocess.run(command, env=env, stdout=err, stderr=subprocess.STDOUT, check=False)  # stdout carries "Runtime stopped: ..."
     return trace.read_text().splitlines()[:lines]
 
 
