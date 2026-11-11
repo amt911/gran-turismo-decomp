@@ -39,6 +39,7 @@ void audio_output_submit(std::span<const std::int16_t>, std::uint32_t, bool, std
                          std::uint32_t, std::uint32_t, std::uint32_t, std::uint64_t, std::uint64_t) {}
 void audio_output_advance(std::uint64_t) {}
 void audio_output_reset_channel(std::uint32_t) {}
+void audio_output_take_cuts(std::uint64_t &underruns, std::uint64_t &dropped_blocks) { underruns = dropped_blocks = 0u; }
 
 // --- GPU backend: none active, so the software rasterizer (ge_renderer.cpp) draws into guest VRAM
 // and the profile never waits on GPU frames. Every hook answers "no GPU" ---

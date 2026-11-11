@@ -1926,6 +1926,14 @@ struct PerfLog {
 std::atomic<std::uint64_t> perf_presented{0u};
 std::atomic<std::uint64_t> perf_present_us{0u};
 std::uint64_t perf_audio_frames = 0u;  // sceAudioOutput2 frames submitted
+// sceAudioOutput2 buffers submitted after the previous one had finished playing (in guest time): the host mixer then starts the buffer
+// late and resets the channel when the gap passes 64 frames (~1.5 ms): an audible cut. Count, total gap and largest gap.
+std::uint64_t perf_audio_late = 0u, perf_audio_gap_us = 0u, perf_audio_gap_max_us = 0u;
+// Silent buffers the game itself mixed between sounding ones (all samples zero after a buffer with sound, until sound comes back):
+// a cut inside the game's own mix (a voice or stream that was not ready), not the host's.
+std::uint64_t perf_audio_silent = 0u, perf_audio_silent_runs = 0u;
+bool perf_audio_was_sounding = false;
+std::uint64_t perf_audio_pending_silent = 0u;
 std::atomic<std::uint64_t> perf_ge_frames{0u};  // display lists that start a new frame
 std::atomic<std::uint64_t> perf_frames_skipped{0u};  // of those, drawn with the frameskip on
 std::atomic<std::uint64_t> perf_ge_wait_us{0u};  // guest thread blocked on the GE worker
@@ -2031,6 +2039,18 @@ void perf_log_tick() {
                      gpu.draws_ms / finishes, gpu.present_pass_ms / finishes, gpu.submit_ms / finishes,
                      gpu.queue_present_ms / finishes);
     }
+    {   // every way the output cuts the sound (GT patch 0065 for the host mixer's two): printed only when one happened
+        std::uint64_t underruns = 0u, dropped = 0u;
+        audio_output_take_cuts(underruns, dropped);
+        if (perf_audio_late != 0u || underruns != 0u || dropped != 0u || perf_audio_silent_runs != 0u)
+            std::fprintf(stderr, "[perf]   audio cuts: %llu late buffers (%.1f ms of gaps, largest %.1f ms), %llu output underruns, %llu blocks dropped "
+                         "(guest timeline too far ahead), %llu silences in the game's own mix (%llu buffers)\n",
+                         static_cast<unsigned long long>(perf_audio_late), perf_audio_gap_us / 1000.0, perf_audio_gap_max_us / 1000.0,
+                         static_cast<unsigned long long>(underruns), static_cast<unsigned long long>(dropped),
+                         static_cast<unsigned long long>(perf_audio_silent_runs), static_cast<unsigned long long>(perf_audio_silent));
+    }
+    perf_audio_silent = perf_audio_silent_runs = 0u;
+    perf_audio_late = perf_audio_gap_us = perf_audio_gap_max_us = 0u;
     perf_audio_frames = 0u;
     perf_log = PerfLog{};
     perf_log.start = now;
@@ -2905,6 +2925,12 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
             const std::uint32_t buffer = ctx.gpr[5];
             const std::uint64_t duration_us = static_cast<std::uint64_t>(samples) * 1'000'000u / 44'100u;
             const std::uint64_t start_us = std::max(next_start_us, virtual_time_us);
+            if (next_start_us != 0u && virtual_time_us > next_start_us + 1'450u) {  // > 64 frames: the mixer resets the channel
+                const std::uint64_t gap = virtual_time_us - next_start_us;
+                ++perf_audio_late;
+                perf_audio_gap_us += gap;
+                perf_audio_gap_max_us = std::max(perf_audio_gap_max_us, gap);
+            }
             next_start_us = start_us + duration_us;
             const std::size_t count = static_cast<std::size_t>(samples) * 2u;
             if (buffer != 0u && rt.memory().contains(buffer, count * sizeof(std::int16_t))) {
@@ -2913,6 +2939,15 @@ void install_gt_additions(psprecomp::Runtime &runtime) {
                     pcm[index] = static_cast<std::int16_t>(rt.memory().load16(buffer + static_cast<std::uint32_t>(index * 2u)));
                 gt::audio_dump(kOutput2Channel, pcm, true, 44'100u);
                 perf_audio_frames += samples;
+                const bool sounding = std::any_of(pcm.begin(), pcm.end(), [](std::int16_t s) { return s != 0; });
+                if (!sounding && perf_audio_was_sounding) ++perf_audio_pending_silent;  // a silence that started after sound
+                else if (!sounding && perf_audio_pending_silent != 0u) ++perf_audio_pending_silent;
+                if (sounding && perf_audio_pending_silent != 0u && perf_audio_pending_silent <= 40u) {  // sound came back within ~0.5 s: a cut
+                    perf_audio_silent += perf_audio_pending_silent;
+                    ++perf_audio_silent_runs;
+                }
+                if (sounding) perf_audio_pending_silent = 0u;
+                perf_audio_was_sounding = sounding;
                 audio_output_submit(pcm, samples, true, volume, volume, 44'100u, kOutput2Channel, start_us,
                                     virtual_time_us);
             }
