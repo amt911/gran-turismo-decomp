@@ -2611,6 +2611,48 @@ Found: 2026-10-27 · src/game/unsorted/hot_leaves.cpp, src/game/unsorted/hot_bat
 
 Found: 2026-10-27 · src/game/unsorted/hot_batch_92.cpp..98, 109
 
+## New routes: what each reaches (Part 2 of the recorded-arguments plan, 2026-11-11)
+
+Method: `GT_PROBE_SYMBOLS` over the 6,358 functions not decompiled (`c_ADDR = 0xADDR;` lines), `--decomp off`, `LCS_UNCAPPED=1`,
+a fresh empty `GT_SAVEDATA_DIR` per run (two runs sharing the default save dir stalled at the title's save, exit 97 on the first
+WAIT), at most two runs at once; "new" = hit count > 0 and not reached by any of the 12 gate routes' probe logs (`probe_pbase_*`).
+Never overlap these runs with a gate: four of them starved a verdict's routes into exit 124.
+
+| route (not in the gates) | what it does | undecompiled functions reached | new vs the 12 gate routes |
+| --- | --- | --- | --- |
+| `challenge` (gate route, check) | A-1, fails it | 337 | 0 |
+| `challenge_a2` | A-2 (cursor one right) | 532 | **52** |
+| A-3 (two right) | | 513 | 38 (1 beyond A-2) |
+| A-5 (four right) | | 537 | 48 (+9 beyond the above) |
+| `challenge_a8` | A-8 (seven right) | 545 | **55** (+4) |
+| Block B / Block C (map cursor right / down) | | WAIT on the block page times out: blocks locked on a fresh save | - |
+| dealer, another maker's cars (two variants) | | 441 | 0 and 1 |
+| Single Player Mode Selection | a carousel of two modes (Race, Drift Trial), both already routed | - | - |
+
+The four challenge variants together reach 66 functions no gate route does (1.1 % of the 5,828 unreached): any challenge after
+the first takes paths A-1's failure does not (the 52 are spread over the address space, no cluster). Other menus tried add
+nothing. Not tried yet: Options sub-pages not in `options.pad`, the garage's tuning, replays after a finished race, Ad Hoc
+screens beyond `manual.pad`, challenge blocks unlocked by the user's save (`save_challenge` is the starting point).
+
+**Correction (2026-11-11, same day): the table above counts against the 12 non-save routes only.** The five `save_*` gate routes
+(probed the same way) reach 92 more undecompiled functions between them (save_trialmtn 45, save_challenge 54, save_drift 53,
+save_dealer 0, save_garage 6, overlapping). Against all 17 gate routes the challenge variants add only **3** (A-2), 3 (A-3),
+2 (A-5) and **4** (A-8), 7 in all: below the 20-function bar for wiring a route into the gates, so `challenge_a2` / `challenge_a8` are not wired.
+Always measure a candidate against all 17 routes.
+
+**Bounded second pass (all against the 17 gate routes; none reaches the 20 new functions that would justify wiring a route):**
+| candidate | result |
+| --- | --- |
+| save-unlocked challenge blocks from `save_challenge`: Block B / one down (C) / A-2 | 2 / 3 / 3 new; Blocks E and H: the block page's WAIT times out (not reachable by that many RIGHTs) |
+| challenge A-1 with the accelerator held 360-720 frames (looking for a pass and the result screen's Replay) | 3 new; the car stops in the yellow zone at 720 but no result screen came up within the route, so no replay was reached |
+| Options tabs 2-4 (cursor RIGHT + CROSS on the tab icons, one item each; `R` does not switch tabs) | 1 new |
+| garage "tuning" | not found: a Garage car page offers the 3D view and Specifications only (frames of `save_garage`) |
+| replays after a finished race | not reached: finishing a race (or passing a challenge) needs driving the route does not do |
+The routes are saturated for menu variation; what is left unreached is mostly code no menu path calls (FINDINGS "Recorded arguments" static
+numbers: 2,818 of 5,829 have no caller at all).
+
+Found: 2026-11-11 · config/pad_routes/challenge_a2.pad, challenge_a8.pad
+
 ## How deep synthetic cases go: about a third of a function's branch outcomes
 
 Measured 2026-11-10 with `tools.decomp_gate coverage TAG --only ... --synth` (LLVM branch coverage of the decompiled
