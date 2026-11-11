@@ -22,11 +22,33 @@ extern "C" {
  * (GT_MOD_API_VERSION_2); the v2 functions refuse a mod that declared api 1. */
 #define GT_MOD_API_VERSION 1
 #define GT_MOD_API_VERSION_2 2
+/* v3 (docs/superpowers/specs/2026-11-10-named-mod-sdk-design.md): named game state, so mods never hard-code guest addresses.
+ * The v3 functions refuse a mod that declared api < 3. */
+#define GT_MOD_API_VERSION_3 3
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
 
 typedef void (*GtHookFn)(GtModCtx *ctx);
+
+/* v3: a car of the running race (host/game_state.hpp). `handle` is opaque: pass it back to car_state / car_set_state. */
+typedef struct GtCar {
+    uint32_t handle;
+    uint32_t index; /* the car's slot in the race */
+    int32_t role;   /* 1 the live human (not a replay), 2 an AI car */
+} GtCar;
+
+/* v3: the body fields the physics step integrates, plus the pedals (FACTS "Car body state"). */
+typedef struct GtCarState {
+    float position[3];
+    float basis[9]; /* forward, right, up rows (left-handed) */
+    float speed;    /* m/s */
+    float velocity[3];
+    float rates[5]; /* angular rates; rates[3] is the roll rate (FACTS "Rollovers") */
+    float euler[3];
+    float throttle; /* 0..1 */
+    float brake;    /* 0..1 */
+} GtCarState;
 
 /* v2. A vblank tick: runs once per game vblank on whichever guest thread reaches the vblank wait first (not a fixed "main" thread).
  * Guest threads are scheduled cooperatively on one OS thread, so no other guest thread runs during the tick; but one that is parked
@@ -77,6 +99,20 @@ typedef struct GtModApi {
     /* The game's vblank count as of the latest vblank tick (the tick runs for every installed v2 mod, switched on or off), 0 before
      * the first. A mod that was switched off for a while sees it jump: use it, not the wall clock, to tell a stale state. */
     uint64_t (*vblank_index)(GtMod *self);
+    /* ---- v3 (appended): named game state. Only valid for a mod that declared `api = 3`. ---- */
+    /* The live balance (Cr). Returns 0 and sets *value, or non-zero when no game is loaded (the host checks the cell). */
+    int (*money_get)(GtMod *self, GtModCtx *ctx, uint32_t *value);
+    /* Sets the balance (0..999,999,999). Returns 0, or non-zero when no game is loaded or the value is out of range. The game
+     * keeps it once it saves. */
+    int (*money_set)(GtMod *self, GtModCtx *ctx, uint32_t value);
+    /* The cars of the race whose world step is `world` (the a0 of the world-step hook): fills up to `capacity` entries and returns
+     * how many there are (the live human and the AI cars; replays and empty slots are left out). */
+    uint32_t (*race_cars)(GtMod *self, GtModCtx *ctx, uint32_t world, GtCar *out, uint32_t capacity);
+    /* The live human car of `world`: 0 and *car set when there is exactly one, non-zero otherwise (menus, replays, two humans). */
+    int (*player_car)(GtMod *self, GtModCtx *ctx, uint32_t world, uint32_t *car);
+    /* Reads / writes a car's state (0 = ok). Write only from a world-step hook or the vblank tick. */
+    int (*car_state)(GtMod *self, GtModCtx *ctx, uint32_t car, GtCarState *out);
+    int (*car_set_state)(GtMod *self, GtModCtx *ctx, uint32_t car, const GtCarState *state);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */
