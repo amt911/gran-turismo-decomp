@@ -152,3 +152,10 @@ def test_ddmin_with_a_batch_evaluator_matches_the_sequential_result():
     parallel = bisect.ddmin(list(range(12)), lambda s: 3 in s and 9 in s, evaluate=evaluate)
     assert sorted(parallel) == sorted(sequential) == [3, 9]
     assert max(batches) > 1  # subsets of a level went out together
+
+
+def test_run_env_disables_mods_unless_kept():
+    env = bisect.run_env({"HOME": "/h"}, "3300:START", keep_mods=False)
+    assert env["GT_NO_MODS"] == "1" and env["GT_PAD"] == "3300:START" and env["LCS_UNCAPPED"] == "1"
+    kept = bisect.run_env({"HOME": "/h", "GT_MODS_DIR": "/m"}, "3300:START", keep_mods=True)
+    assert "GT_NO_MODS" not in kept and kept["GT_MODS_DIR"] == "/m"

@@ -191,9 +191,22 @@ def registered_functions(log: str) -> list[int]:  # pragma: no cover - trivially
     return [int(m.group(1), 16) for m in re.finditer(r"^\[decomp\] \S+ @0x([0-9A-Fa-f]{8}):", log, re.MULTILINE)]
 
 
+KEEP_MODS = False  # --keep-mods: bisect a fault that needs the installed mods (hooks on decompiled functions)
+
+
+def run_env(base: dict, pad: str, keep_mods: bool) -> dict:
+    """The environment of one bisection run: the pad route, uncapped, and no mods unless --keep-mods."""
+    env = dict(base, GT_PAD=pad, GT_PAD_LOG="1", LCS_UNCAPPED="1")
+    if keep_mods:
+        env.pop("GT_NO_MODS", None)
+    else:
+        env["GT_NO_MODS"] = "1"
+    return env
+
+
 def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Sequence[int] | None,
          mode: str, frames: Path | None = None) -> list[str]:  # pragma: no cover - runs the game
-    env = dict(os.environ, GT_PAD=pad, GT_PAD_LOG="1", GT_NO_MODS="1", LCS_UNCAPPED="1")
+    env = run_env(dict(os.environ), pad, KEEP_MODS)
     if frames is not None:
         env.update(GT_FRAME_DUMP=str(frames), GT_FRAME_EVERY="30")
     if only is not None:
@@ -257,6 +270,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser.add_argument("--lines", type=int, default=20000)
     parser.add_argument("--functions", default="", help="comma-separated hex addresses; default: every registered one")
     parser.add_argument("--crash", action="store_true", help="bisect 'the run dies' instead")
+    parser.add_argument("--keep-mods", action="store_true",
+                        help="runs keep the installed mods (GT_MODS_DIR): a fault that needs a mod's hook")
     parser.add_argument("--black-after", type=int, default=0, help="bisect 'black frame at/after this vblank' instead")
     parser.add_argument("--frame-diff", type=int, default=0,
                         help="bisect 'the frame at/after this vblank differs from off inside --box' instead")
@@ -272,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser.add_argument("--start-set", type=Path, default=None, help="file of hex addresses to start from (one per line)")
     parser.add_argument("--workdir", type=Path, default=Path("recomp/analysis/bisect"))
     args = parser.parse_args(argv)
+    global KEEP_MODS
+    KEEP_MODS = args.keep_mods
     if args.pad.startswith("@"):  # @file: a route file (comment lines ignored)
         args.pad = "".join(line for line in Path(args.pad[1:]).read_text().splitlines() if not line.startswith("#"))
     args.workdir.mkdir(parents=True, exist_ok=True)
