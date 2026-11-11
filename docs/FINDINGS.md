@@ -2640,6 +2640,17 @@ save_dealer 0, save_garage 6, overlapping). Against all 17 gate routes the chall
 2 (A-5) and **4** (A-8), 7 in all: below the 20-function bar for wiring a route into the gates, so `challenge_a2` / `challenge_a8` are not wired.
 Always measure a candidate against all 17 routes.
 
+**Bounded second pass (all against the 17 gate routes; none reaches the 20 new functions that would justify wiring a route):**
+| candidate | result |
+| --- | --- |
+| save-unlocked challenge blocks from `save_challenge`: Block B / one down (C) / A-2 | 2 / 3 / 3 new; Blocks E and H: the block page's WAIT times out (not reachable by that many RIGHTs) |
+| challenge A-1 with the accelerator held 360-720 frames (looking for a pass and the result screen's Replay) | 3 new; the car stops in the yellow zone at 720 but no result screen came up within the route, so no replay was reached |
+| Options tabs 2-4 (cursor RIGHT + CROSS on the tab icons, one item each; `R` does not switch tabs) | 1 new |
+| garage "tuning" | not found: a Garage car page offers the 3D view and Specifications only (frames of `save_garage`) |
+| replays after a finished race | not reached: finishing a race (or passing a challenge) needs driving the route does not do |
+The routes are saturated for menu variation; what is left unreached is mostly code no menu path calls (FINDINGS "Recorded arguments" static
+numbers: 2,818 of 5,829 have no caller at all).
+
 Found: 2026-11-11 · config/pad_routes/challenge_a2.pad, challenge_a8.pad
 
 ## A class-matched `a0` exposes mismatches the invented arena never reached
