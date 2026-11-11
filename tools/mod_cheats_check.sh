@@ -115,7 +115,8 @@ if [ $pad -eq 1 ] || [ $padoff -eq 1 ] || [ $padreset -eq 1 ]; then
   exit $?
 fi
 if [ $replay -eq 1 ]; then
-  run_one replay "$out/mods" 0 "$route" GT_MOD_CHEATS_SLOWMO=0.5 GT_MOD_CHEATS_MOON=1 GT_MOD_CHEATS_FROM=700 GT_MOD_CHEATS_LOG_EVERY=1 || exit 2
+  run_one replay "$out/mods" 0 "$route" GT_MOD_CHEATS_SLOWMO=0.5 GT_MOD_CHEATS_MOON=1 GT_MOD_CHEATS_FROM=700 GT_MOD_CHEATS_LOG_EVERY=1 \
+    GT_PAD_EXIT_AFTER=4000 || exit 2  # the replay plays after the script: ~1450 steps to cover (the default 120 vblanks stop it at the start)
   judge replay replay
   exit $?
 fi
