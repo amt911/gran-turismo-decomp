@@ -5,6 +5,9 @@
 #include "display_phase.hpp"
 #include "frame_log.hpp"
 #include "ge_trace.hpp"
+#ifdef GT_MOD_DOWNLOADER
+#include "mod_store.hpp"
+#endif
 #include "display_window.hpp"
 #include "frontend.hpp"
 #include "ge_gpu_backend.hpp"
@@ -21,6 +24,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <thread>
 #include <iostream>
 #include <string>
 
@@ -140,6 +144,25 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
     const auto report = gt::mods::load_mods(runtime, gt::mods::mods_dir(argv0));
     gt::mods::menu::set_entries(report.entries);
     lcs::host_settings_set_extra_page(&kModsPage);
+#ifdef GT_MOD_DOWNLOADER
+    // GET MODS rows on the same page (host/mod_store.hpp). GT_MODS_GET_TEST=<id> (verification only): a detached thread
+    // checks the index and installs that mod as Enter would, logging `[mods] get <id>: <row>`.
+    gt::mods::store::configure(gt::mods::mods_dir(argv0));
+    if (const char *id = std::getenv("GT_MODS_GET_TEST"); id != nullptr && *id != '\0') {
+        std::thread([wanted = std::string(id)] {
+            namespace store = gt::mods::store;
+            store::activate(0);
+            store::wait_idle();
+            std::cerr << "[mods] get index: " << store::row(0, 60) << "\n";
+            const std::size_t row = store::row_of(wanted);
+            if (row != 0) {
+                store::activate(row);
+                store::wait_idle();
+            }
+            std::cerr << "[mods] get " << wanted << ": " << (row != 0 ? store::row(row, 200) : "not in the index") << "\n";
+        }).detach();
+    }
+#endif
     gt::mods::services::set_menu_open_query(&overlay_open);
     // Only when a loaded mod registered menu rows or a tick (API v2; a switched-off one counts: the pad chord is how it is switched on):
     // with no such mod (none installed, GT_NO_MODS, only API-1 mods) the pad and the vblank are the game's, untouched.

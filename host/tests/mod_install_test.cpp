@@ -182,7 +182,7 @@ void test_install(const fs::path &root) {
     auto bytes = tar_gz({{"demo/mod.toml", kManifestV2}, {"demo/libdemo.so", "ELF-v2"}});
     check(mods::install_archive(bytes, entry_for(bytes), mods, error), "install: a good archive installs");
     check(read(mods / "demo" / "libdemo.so") == "ELF-v2", "install: the library is in place");
-    check(!fs::exists(mods / ".staging" / "demo"), "install: no staging left");
+    check(!fs::exists(mods / ".staging"), "install: no staging folder left");
     // The user turns it on and changes a setting; an update keeps both.
     {
         std::ofstream(mods / "demo" / "mod.toml") << "id = \"demo\"\nversion = \"0.2.0\"\nlibrary = \"libdemo.so\"\napi = 2\n"

@@ -2636,6 +2636,26 @@ screens beyond `manual.pad`, challenge blocks unlocked by the user's save (`save
 
 Found: 2026-11-11 · config/pad_routes/challenge_a2.pad, challenge_a8.pad
 
+## A class-matched `a0` exposes mismatches the invented arena never reached
+
+With `a0` a live object of the function's own class (spec 2026-11-10-recorded-arguments-design.md, option B) the
+synthetic gate reaches paths of decompiled virtual-call forwarders and destructors it could not before. First verdict
+(2026-11-10): `func_089660A0` (a leaf `lw v0, 0(a0); lw t9, 0x20C(v0); jr t9` whose C left v0 = 0 where the original
+leaves the vtable: **fixed** — v0 = vtable, t9 = target before the tail call) and, **still open**:
+- `func_089BBF8C` (after `dealer`): first differing case `v0: original 0x089BBF8C, decompiled 0x00000000` (a0=0x0918EBB0
+  a1=0 a2=0x092A3C64): the path that returns after an empty child list leaves the entry v0. The slot 0x150 of a child of
+  the same class is `func_089BBF8C` itself (recursive), so setting v0 at entry plus `call_set_v0` at the loop's `jalr v0`
+  fixed that case and broke the recursive one (v0 original 0 vs decompiled 0x089BBF8C, a0=0x09164BC0, 6 of 8 cases).
+- `func_08A63B5C` (deleting destructor, after `dealer`): `decompiled run faulted: Guest memory access outside PSP
+  RAM/EDRAM at 0x00000004` (a0=0x09645660 a1=0x09DE5E00 a2=0x09EDF740), 8 of 8 cases; with only it and its callees
+  installed the original faults instead, so a decompiled callee is the likely source.
+- `func_08A77020` (after `save_garage,circuit,buy,options`): `import replay: the decompiled run called
+  StdioForUser::0xF78BA90A, which the original's run didn't` (a0=0x09106B80 a1=0x09C5B144 a2=1).
+- `func_08AD5AC4` (same group): `v0: original 0x095C7028, decompiled 0x00000000` (a0=0x095C7028 a1=0 a2=0x09ED121C).
+They sit with the older open list above (`0889E01C`, `0893D9AC`, `08BAE2B0`, `08C18650`).
+
+Found: 2026-11-10 · host/synth_case.cpp
+
 ## The synthetic sabotage needs each body's literal signature
 
 **Symptom.** Batch 167's first `synth_batch` reported sabotage 0/81 and commented the whole file as undetected, though
@@ -3162,4 +3182,6 @@ the pixels. **Only the stencil writes the framebuffer alpha** (PPSSPP `GPU/Softw
 draw with the stencil test off keeps the old alpha (blending reads it, never writes it); only clear mode (0xD3 alpha bit)
 and stencil ops change it. Writing the fragment alpha there instead (as both of our renderers did) left alpha bit 7 set on
 ~100 % of the pixels before the pattern (user's `GT_STENCIL_PROBE` log, 2026-11-10), so the ghost stayed opaque. Found with the F8 trace's per-prim `set` line (the fixed detail fields showed nothing). Races also use the stencil
-(an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). The GPU backend (NativeGE) still lacks it.
+(an ALWAYS/REPLACE 0x80 pass and an EQUAL 0x80 pass every frame). NativeGE (patch 0064) does the stencil in `ge.frag`
+against a snapshot of the target's alpha (the PSP stencil already lives in the GPU colour alpha); the colour alpha is written only by
+stencil draws and alpha clears, as on the PSP.
