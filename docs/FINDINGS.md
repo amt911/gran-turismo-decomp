@@ -2634,6 +2634,12 @@ the first takes paths A-1's failure does not (the 52 are spread over the address
 nothing. Not tried yet: Options sub-pages not in `options.pad`, the garage's tuning, replays after a finished race, Ad Hoc
 screens beyond `manual.pad`, challenge blocks unlocked by the user's save (`save_challenge` is the starting point).
 
+**Correction (2026-11-11, same day): the table above counts against the 12 non-save routes only.** The five `save_*` gate routes
+(probed the same way) reach 92 more undecompiled functions between them (save_trialmtn 45, save_challenge 54, save_drift 53,
+save_dealer 0, save_garage 6, overlapping). Against all 17 gate routes the challenge variants add only **3** (A-2), 3 (A-3),
+2 (A-5) and **4** (A-8), 7 in all: below the 20-function bar for wiring a route into the gates, so `challenge_a2` / `challenge_a8` are not wired.
+Always measure a candidate against all 17 routes.
+
 Found: 2026-11-11 · config/pad_routes/challenge_a2.pad, challenge_a8.pad
 
 ## A class-matched `a0` exposes mismatches the invented arena never reached

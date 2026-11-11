@@ -3,7 +3,8 @@
 # Retry), but the challenge list's cursor is moved seven times to the right (300 apart) before the confirm. Page offsets: 1fa48900 main menu, 1ce62e80 the block map,
 # 1ce7d400 a block, 1cdf8540 the challenge list, 1cc98cc0 the challenge's start page, 1d19db00 the course's own pages.
 # Measured 2026-11-11 (docs/FINDINGS.md "New routes: what each reaches"): functions no other route reaches.
-# This route alone: 55 functions that none of the twelve gate routes reaches; with challenge_a2 and the A-3 / A-5 variants 66 in all.
+# This route alone: 55 functions that none of the twelve non-save gate routes reaches, but only 4 beyond all 17 routes (the five save_* routes
+# reach most of them); not wired into the gates.
 3300:START,
 WAIT:seek=0x1fa48900,2300:RIGHT,2500:RIGHT,2700:RIGHT,3100:CROSS,
 WAIT:seek=0x1ce62e80,500:CROSS,
