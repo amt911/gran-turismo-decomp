@@ -1,0 +1,3 @@
+# layout 1
+08BFE8D8 228 1 word:0x3CB0=imm:0xBF800000
+08BFE8D8 228 1 word:0x3CB0=imm:0xBF800000 reg:0=arena:0xE314
