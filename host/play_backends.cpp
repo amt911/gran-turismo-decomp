@@ -114,10 +114,20 @@ void fire_action(const std::string &id) {
     gt::mods::services::queue_action(id);
 }
 
-// The mods' v4 actions and entries go into the device; a default hotkey that does not parse, or that another action holds,
+// The mods' v4 entries, then their actions (a category lists its rows first, its actions after), go into the device; a default hotkey that does not parse, or that another action holds,
 // leaves the action without it (logged, never "last one wins").
 void declare_mod_actions() {
     namespace services = gt::mods::services;
+    const auto &entries = services::entries();
+    for (std::size_t i = 0; i < entries.size(); ++i)
+        device().add_entry(entries[i].category,
+                           device_ns::Entry{entries[i].mod->id + "." + entries[i].id, device_ns::EntryKind::Row, "",
+                                            [i] {
+                                                char text[device_ns::kWidth + 1];
+                                                return services::entry_text(i, text, sizeof text) ? std::string(text) : std::string();
+                                            },
+                                            [i](int direction) { services::entry_activate(i, direction); },
+                                            {}});
     for (const services::ActionDecl &a : services::actions()) {
         std::string error;
         const auto key = device_ns::parse_key(a.key, error);
@@ -131,16 +141,6 @@ void declare_mod_actions() {
             !error.empty())
             std::cerr << "[device] " << a.id << ": " << error << "\n";
     }
-    const auto &entries = services::entries();
-    for (std::size_t i = 0; i < entries.size(); ++i)
-        device().add_entry(entries[i].category,
-                           device_ns::Entry{entries[i].mod->id + "." + entries[i].id, device_ns::EntryKind::Row, "",
-                                            [i] {
-                                                char text[device_ns::kWidth + 1];
-                                                return services::entry_text(i, text, sizeof text) ? std::string(text) : std::string();
-                                            },
-                                            [i](int direction) { services::entry_activate(i, direction); },
-                                            {}});
 }
 
 // The keyboard hotkeys and the key capture of the Controls page, once per vblank.
