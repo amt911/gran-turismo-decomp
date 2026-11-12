@@ -29,6 +29,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_reset_check}
+case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 decomp=off seconds=200 every=30 without=0 sabotage=0 toggle=0 reset_only=0 multi=0 tap=0 toggle_at=16300 fake=${GT_RESET_FAKE_STEP:-none}
 while [ $# -gt 0 ]; do
   case $1 in
