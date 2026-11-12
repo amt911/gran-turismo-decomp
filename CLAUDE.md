@@ -52,3 +52,14 @@ import above. Add below only what applies to Claude Code alone. -->
   generated GE lists with the original's; Vulkan (PC, Android) is one backend. No API feature the GE cannot express.
 - **Ports:** Android is near (Vulkan + SDL2 already; arm64 build, touch controls, user data on device) and needs no
   finished decomp; PSP needs the full decomp without emulated memory (32 MB RAM, 333 MHz) plus the GE backend above.
+
+## User decisions, 2026-11-12 (asked to be kept in this file)
+
+- **Helper laptops over SSH use the password, never keys.** The user gives the host and a temporary password in the chat;
+  log in with that password every time (an `SSH_ASKPASS` script deleted right after use, or one `ControlMaster` connection
+  per session) and **never install an SSH key** on the laptop. The password is read from the conversation when needed and
+  **never written to the repo, memory or any file that outlives the command** (the repo is public).
+- **Current helper: `andres@192.168.0.133`** (MSI GE63: i7-8750H, 12 threads, 32 GB, Arch), used to run PR verdicts in
+  parallel with the desktop: repo in `~/repos/gran-turismo-decomp`, verdict worktree `~/repos/gt-verify` (with the user's
+  `game_files/`, hash-checked). Jobs there run detached (`setsid nohup`; the wifi drops) and the `gt-heavy.slice` limits are
+  set with `--runtime` (gone after a reboot: set them again). Installing the repo, its tools and builds there is allowed.
