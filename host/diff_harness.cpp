@@ -1135,7 +1135,8 @@ int decomp_report() {
     int status = 0;
     if (g_mode == DecompMode::On)
         std::cerr << "[decomp] fibers: " << fiber::created() << " created, " << fiber::suspensions()
-                  << " suspensions (a decompiled call waited for its PSP thread)\n";
+                  << " suspensions (a decompiled call waited for its PSP thread), deepest stack "
+                  << fiber::max_stack_used() / 1024u << " KiB\n";
     for (const auto &[address, entry] : g_entries) {
         std::cerr << "[decomp] " << entry.info.name << " @" << psprecomp::hex32(address);
         if (g_mode == DecompMode::On) {
