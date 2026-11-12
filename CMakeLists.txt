@@ -188,6 +188,7 @@ if(GT_PLAY)
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
         host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/game_state.cpp host/pad_menu.cpp
+        host/cheat_device/bindings.cpp host/cheat_device/menu.cpp host/cheat_device/device.cpp host/cheat_device/keyboard_sdl.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -348,7 +349,7 @@ add_executable(pad_menu_tests host/tests/pad_menu_test.cpp host/pad_menu.cpp hos
 target_include_directories(pad_menu_tests PRIVATE host)
 add_test(NAME pad_menu COMMAND pad_menu_tests)
 add_executable(cheat_device_tests host/tests/cheat_device_test.cpp host/cheat_device/bindings.cpp host/cheat_device/menu.cpp
-               host/pad_sequence.cpp)
+               host/cheat_device/device.cpp host/pad_sequence.cpp)
 target_include_directories(cheat_device_tests PRIVATE host)
 add_test(NAME cheat_device COMMAND cheat_device_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)

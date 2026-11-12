@@ -10,7 +10,8 @@
 
 namespace gt::cheat_device {
 
-enum class EntryKind { Toggle, Choice, Number, Action, Submenu, Info };
+// Row: a mod's API v2 row (and a mod's own ON/OFF row): Enter calls change(0), Left change(-1), Right change(+1).
+enum class EntryKind { Toggle, Choice, Number, Action, Submenu, Info, Row };
 
 struct Entry {
     std::string id;
@@ -40,6 +41,11 @@ public:
     // The visible rows of the current page: `capacity` of them, scrolled so the cursor is visible.
     std::vector<Row> rows(std::size_t capacity) const;
     std::string path() const;  // "Cheats > Race"
+    // Goes to the root's child with this id (a category); false (and stays at the root) when there is none.
+    bool go_to(const std::string &child_id);
+    void go_root() { stack_.clear(); }
+    // Replaces the tree (the device rebuilds it on open); the position is kept as far as the new tree allows.
+    void set_root(Entry root);
     const Entry &page() const;
     std::size_t cursor() const;
 

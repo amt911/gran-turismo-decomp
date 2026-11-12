@@ -1,6 +1,7 @@
 // Tests for the cheat device core (host/cheat_device/): menu navigation, binding parse/print, conflicts, pad hotkeys, capture,
 // bindings.toml round trip. Plain executable, run by CTest.
 #include "cheat_device/bindings.hpp"
+#include "cheat_device/device.hpp"
 #include "cheat_device/menu.hpp"
 #include "pad_menu.hpp"
 
@@ -21,6 +22,7 @@ void check(bool condition, const char *what) {
 }
 
 using namespace gt::cheat_device;
+using gt::MenuKey;
 constexpr std::uint32_t kTriangle = 0x1000u;
 
 void test_menu() {
@@ -206,6 +208,78 @@ void test_failed_save_keeps_old_file() {
     std::filesystem::remove_all(dir);
 }
 
+// The device over two fake mods' rows (the F9 MODS list) and the cheats mod's nitro action.
+struct FakeMods {
+    std::vector<std::string> rows{"Analog pedals ON", "Cheats ON"};
+    std::vector<int> adjusted;
+    ModRows source() {
+        return ModRows{[this] { return rows.size(); }, [this](std::size_t i) { return rows[i]; },
+                       [this](std::size_t i, int d) { adjusted.push_back(static_cast<int>(i) * 10 + d); return true; }};
+    }
+};
+
+void press(Device &d, MenuKey key, int times = 1) {
+    for (int i = 0; i < times; ++i) d.handle_key(key, 100);
+}
+
+void test_device() {
+    FakeMods mods;
+    Device d(mods.source());
+    std::string error;
+    check(d.add_action("cheats.nitro", "Nitro", "Race", KeyBinding{"N", kCtrl}, PadBinding{gt::kPadL | kTriangle, 0}, false, error),
+          "an action is declared");
+    std::vector<std::string> fired;
+    d.set_fire([&](const std::string &id) { fired.push_back(id); });
+    d.open();
+    View v = d.view(8, 100);
+    check(v.title == "Cheats > Mods" && v.rows.size() == 2 && v.rows[1] == "Cheats ON", "the first open lands on the Mods list");
+    press(d, MenuKey::Down);
+    press(d, MenuKey::Right);
+    press(d, MenuKey::Activate);
+    check(mods.adjusted == std::vector<int>({11, 10}), "a mod row gets Right as +1 and Enter as 0");
+    check(!d.handle_key(MenuKey::Close, 100) == false && d.view(8, 100).title == "Cheats", "Close goes up to the root");
+    v = d.view(8, 100);
+    check(v.rows.size() == 3 && v.rows[0].rfind("Race", 0) == 0 && v.rows[1].rfind("Mods", 0) == 0 && v.rows[2].rfind("Controls", 0) == 0,
+          "the root lists the non-empty categories in order");
+    press(d, MenuKey::Activate);  // Race
+    press(d, MenuKey::Activate);  // Nitro
+    check(fired == std::vector<std::string>{"cheats.nitro"}, "Enter on an action fires it");
+    press(d, MenuKey::Close);
+    press(d, MenuKey::Down, 2);   // Controls
+    press(d, MenuKey::Activate);
+    press(d, MenuKey::Down);      // Controls: device.open, cheats.nitro, Reset all
+    press(d, MenuKey::Activate);  // nitro's page
+    check(d.view(8, 100).title == "Cheats > Controls > Nitro", "an action's page in Controls");
+    press(d, MenuKey::Down);      // Pad
+    press(d, MenuKey::Activate);  // capture
+    check(d.capturing() && d.view(8, 100).rows[1].find("PRESS BUTTONS") != std::string::npos, "the pad capture waits");
+    d.poll_pad(gt::kPadR, 101);
+    d.poll_pad(gt::kPadR | kTriangle, 102);
+    d.poll_pad(0, 103);
+    check(!d.capturing() && d.view(8, 103).rows[1].find("R+TRIANGLE") != std::string::npos, "the captured combination is bound");
+    press(d, MenuKey::Activate);  // capture again: SELECT+START belongs to the device
+    d.poll_pad(gt::kPadSelect | gt::kPadStart, 104);
+    d.poll_pad(0, 105);
+    v = d.view(8, 105);
+    check(v.title.find("is already") != std::string::npos && v.rows[1].find("R+TRIANGLE") != std::string::npos,
+          "a taken combination is refused, the reason shown, the binding kept");
+    check(d.view(8, 105 + kMessageVblanks).title == "Cheats > Controls > Nitro", "the reason goes away after 3 s");
+    press(d, MenuKey::Activate);
+    for (unsigned i = 0; i < kCancelHold; ++i) d.poll_pad(gt::kPadCircle, 200 + i);
+    check(!d.capturing() && d.view(8, 230).rows[1].find("R+TRIANGLE") != std::string::npos, "CIRCLE held cancels the capture");
+    press(d, MenuKey::Up);        // Keyboard
+    press(d, MenuKey::Activate);
+    check(d.capture_key(KeyBinding{"F6", kAlt}, 300) && d.action_for_key(KeyBinding{"F6", kAlt}) == std::string("cheats.nitro"),
+          "a captured key is bound and fires the action");
+    check(d.bound_pad_buttons() == (gt::kPadSelect | gt::kPadStart | gt::kPadR | kTriangle), "the buttons the host holds back");
+    press(d, MenuKey::Close, 2);
+    check(!d.handle_key(MenuKey::Close, 300), "Close at the root closes the device");
+    std::string clash;
+    check(d.add_action("other.boost", "Boost", "Race", KeyBinding{"F9", 0}, PadBinding{}, false, clash) &&
+              clash.find("Open the cheat device") != std::string::npos && d.binding_text("other.boost") == "- / -",
+          "a default another action holds: declared unbound, the owner named");
+}
+
 }  // namespace
 
 int main() {
@@ -217,6 +291,7 @@ int main() {
     test_text_round_trip();
     test_file_round_trip();
     test_failed_save_keeps_old_file();
+    test_device();
     if (failures == 0) std::puts("cheat_device: all tests passed");
     return failures == 0 ? 0 : 1;
 }

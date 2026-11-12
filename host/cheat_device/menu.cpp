@@ -42,14 +42,16 @@ void Navigator::left() {
     Entry &page = page_mut();
     if (page.children.empty()) return;
     Entry &e = page.children[cursor()];
-    if ((e.kind == EntryKind::Toggle || e.kind == EntryKind::Choice || e.kind == EntryKind::Number) && e.change) e.change(-1);
+    if ((e.kind == EntryKind::Toggle || e.kind == EntryKind::Choice || e.kind == EntryKind::Number || e.kind == EntryKind::Row) && e.change)
+        e.change(-1);
 }
 
 void Navigator::right() {
     Entry &page = page_mut();
     if (page.children.empty()) return;
     Entry &e = page.children[cursor()];
-    if ((e.kind == EntryKind::Toggle || e.kind == EntryKind::Choice || e.kind == EntryKind::Number) && e.change) e.change(+1);
+    if ((e.kind == EntryKind::Toggle || e.kind == EntryKind::Choice || e.kind == EntryKind::Number || e.kind == EntryKind::Row) && e.change)
+        e.change(+1);
 }
 
 void Navigator::enter() {
@@ -62,7 +64,30 @@ void Navigator::enter() {
         return;
     }
     if (e.kind == EntryKind::Info || !e.change) return;
-    e.change(e.kind == EntryKind::Action ? 0 : +1);  // Enter fires an action and steps a value forward
+    e.change(e.kind == EntryKind::Action || e.kind == EntryKind::Row ? 0 : +1);  // Enter fires an action / a row, steps a value forward
+}
+
+bool Navigator::go_to(const std::string &child_id) {
+    stack_.clear();
+    for (std::size_t i = 0; i < root_.children.size(); ++i)
+        if (root_.children[i].id == child_id) {
+            stack_.push_back(i);
+            return true;
+        }
+    return false;
+}
+
+void Navigator::set_root(Entry root) {
+    root_ = std::move(root);
+    // Keep the path while every level still exists (a page whose children shrank keeps its cursor clamped by cursor()).
+    const Entry *e = &root_;
+    std::size_t keep = 0;
+    for (const std::size_t i : stack_) {
+        if (i >= e->children.size() || e->children[i].kind != EntryKind::Submenu) break;
+        e = &e->children[i];
+        ++keep;
+    }
+    stack_.resize(keep);
 }
 
 bool Navigator::back() {

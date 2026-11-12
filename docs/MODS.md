@@ -38,6 +38,38 @@ sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de ca
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
 del menú pasado ese tiempo (`[mods] <id> -> OFF`).
 
+## Cheat device (F9 / SELECT+START)
+
+Desde 2026-11-12 (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`, aprobada) **F9** y **SELECT+START** abren el
+**cheat device**: un menú por categorías (Race, Car, Money & garage, Camera, **Mods**, **Controls**, Settings; las vacías no salen).
+La primera vez se abre en **Mods**, que es la lista de antes (una fila por mod ON/OFF y las filas de API v2), así que las rutas y
+costumbres de la página MODS siguen valiendo. Arriba/Abajo eligen, Izquierda/Derecha/Intro cambian o entran, Escape/Círculo vuelven
+atrás (en la raíz cierran). Se ven 8 filas (parche lcs 0067: página delegada).
+
+- **Controls**: una página por acción con *Keyboard*, *Pad*, *Clear* y *Reset to default*. Intro en *Keyboard*/*Pad* captura la
+  próxima tecla / combinación (la unión de los botones pulsados, hecha al soltarlos; un botón solo mantenido 30 vblanks es "mantener";
+  Círculo mantenido 30 vblanks cancela). **Un atajo ya usado se rechaza** y el motivo sale 3 s en la cabecera (nunca "gana el último");
+  un botón de carrera solo, sin otro ni tiempo de mantener, también se rechaza. `device.open` (F9 / SELECT+START) no puede quedarse
+  sin ninguno.
+- **`bindings.toml`** junto a la carpeta `mods/`: solo los atajos distintos del defecto (`<acción>.key = "Ctrl+N"`,
+  `<acción>.pad = "L+TRIANGLE"`, `"SELECT@30"` = mantener 30 vblanks); se escribe atómico (tmp + rename). Las líneas de mods que hoy
+  no están cargados se conservan.
+- **Lo que ve el juego**: los botones de cualquier atajo del mando se retienen como los del acorde (hasta 8 vblanks; un atajo de
+  mantener, su tiempo): si el atajo se completa el juego no los ve; si no, los recibe tarde con su duración real. Las teclas nunca
+  llegan al juego.
+- Sin ningún mod de API ≥ 2 cargado el host no lee el mando ni el teclado (identidad con el juego intacto) y F9 sigue siendo del
+  overlay; entonces la tecla de abrir no se puede reasignar (no hay otra acción con la que chocar).
+
+### API v4 (acciones y entradas por categoría)
+
+Un mod que declara `api = 4` en su `mod.toml` tiene además, solo durante `gt_mod_init`:
+
+- `add_action(self, id, label, category, fn, default_key, default_pad)`: una acción `<mod>.<id>` en `category` (`Race`, `Car`,
+  `Money & garage`, `Camera`, `Settings`), con atajos por defecto en la sintaxis de `bindings.toml` (`""` = ninguno). Intro en el menú
+  o su atajo la ponen en cola y `fn(self, ctx)` corre en el siguiente tic de vblank (como un tic: `call_guest` permitido), una vez por
+  vblank, nunca con el mod apagado. Un defecto que otra acción ya tiene no es error: la acción queda sin ese atajo y el log nombra al dueño.
+- `add_entry(self, category, id, label, activate)`: una fila (mismo contrato que `add_menu_row`) en una categoría en vez de en Mods.
+
 ## API v2 (filas de menú, tic por vblank, `call_guest`)
 
 `include/gt_mod/gt_mod_api.h`. La tabla v2 **añade campos al final** de `GtModApi`; el prefijo v1 no cambia. `GT_MOD_API_VERSION` sigue valiendo 1 (la
