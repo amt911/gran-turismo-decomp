@@ -187,6 +187,29 @@ def crashed(log: str) -> bool:
     return "terminate called" in log or "gt_native error:" in log
 
 
+FAULT = re.compile(r"Guest memory access outside PSP RAM/EDRAM at (0x[0-9A-Fa-f]+)")
+
+
+def crash_summary(logs: Sequence[str]) -> tuple[bool, str]:
+    """--crash --repeat: a subset crashes when any of its runs died. The summary counts them and names the fault addresses."""
+    died = [log for log in logs if crashed(log)]
+    for log in logs:  # a run that exits at once (bad GT_PAD, missing file) never played: an error, never "ok"
+        if log not in died and "Wall-clock limit reached" not in log:
+            first = next((line for line in log.splitlines() if line.strip()), "(empty log)")
+            raise RuntimeError(f"a run neither crashed nor reached its time limit: {first}")
+    faults = sorted({m.group(1).upper().replace("0X", "0x") for log in died for m in FAULT.finditer(log)})
+    text = f"{len(died)}/{len(logs)} crashed" + (f" ({', '.join(faults)})" if faults else "")
+    return bool(died), text
+
+
+def require_functions(functions: list[int], log: str) -> list[int]:
+    """The registered list, refused when empty: the listing run died before registering anything (its log says why)."""
+    if not functions:
+        first = next((line for line in log.splitlines() if line.startswith("GT_PAD") or "error" in line), "see list.log")
+        raise RuntimeError(f"no registered functions in the listing run: {first}")
+    return functions
+
+
 def registered_functions(log: str) -> list[int]:  # pragma: no cover - trivially a regex over a log
     return [int(m.group(1), 16) for m in re.finditer(r"^\[decomp\] \S+ @0x([0-9A-Fa-f]{8}):", log, re.MULTILINE)]
 
@@ -205,8 +228,11 @@ def run_env(base: dict, pad: str, keep_mods: bool) -> dict:
 
 
 def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Sequence[int] | None,
-         mode: str, frames: Path | None = None) -> list[str]:  # pragma: no cover - runs the game
+         mode: str, frames: Path | None = None, savedata: Path | None = None) -> list[str]:  # pragma: no cover - runs the game
     env = run_env(dict(os.environ), pad, KEEP_MODS)
+    if savedata is not None:  # parallel runs (--repeat) must not share a savedata folder
+        savedata.mkdir(parents=True, exist_ok=True)
+        env["GT_SAVEDATA_DIR"] = str(savedata)
     if frames is not None:
         env.update(GT_FRAME_DUMP=str(frames), GT_FRAME_EVERY="30")
     if only is not None:
@@ -219,7 +245,7 @@ def _run(binary: Path, pad: str, seconds: int, lines: int, trace: Path, only: Se
         trace.write_text("")
     log = trace.with_suffix(".log")
     with log.open("w") as err:
-        subprocess.run(command, env=env, stdout=subprocess.DEVNULL, stderr=err, check=False)
+        subprocess.run(command, env=env, stdout=err, stderr=subprocess.STDOUT, check=False)  # stdout carries "Runtime stopped: ..."
     return trace.read_text().splitlines()[:lines]
 
 
@@ -270,6 +296,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
     parser.add_argument("--lines", type=int, default=20000)
     parser.add_argument("--functions", default="", help="comma-separated hex addresses; default: every registered one")
     parser.add_argument("--crash", action="store_true", help="bisect 'the run dies' instead")
+    parser.add_argument("--repeat", type=int, default=1,
+                        help="--crash: runs per subset, at once, each with its own savedata (a flaky crash counts when any run dies)")
     parser.add_argument("--keep-mods", action="store_true",
                         help="runs keep the installed mods (GT_MODS_DIR): a fault that needs a mod's hook")
     parser.add_argument("--black-after", type=int, default=0, help="bisect 'black frame at/after this vblank' instead")
@@ -308,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
         with listing.open("w") as out:
             subprocess.run([str(args.binary), "--max-seconds", "2", "--decomp", "diff"], env=env, stdout=out,
                            stderr=subprocess.STDOUT, check=False)
-        functions = registered_functions(listing.read_text())
+        functions = require_functions(registered_functions(listing.read_text()), listing.read_text())
     runs = 0
 
     def is_black(subset: Sequence[int]) -> bool:
@@ -332,9 +360,17 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI wiring
         else:
             count = len(subset)
         if args.crash:
-            _run(args.binary, args.pad, args.seconds, args.lines, args.workdir / "on.trace", subset, "on")
-            died = crashed((args.workdir / "on.log").read_text(errors="replace"))
-            print(f"run {runs}: {count} functions -> " + ("CRASH" if died else "ok"), flush=True)
+            from concurrent.futures import ThreadPoolExecutor
+
+            def one(k: int) -> str:
+                trace = args.workdir / f"on{k}.trace"
+                _run(args.binary, args.pad, args.seconds, args.lines, trace, subset, "on", savedata=args.workdir / f"savedata{k}")
+                return trace.with_suffix(".log").read_text(errors="replace")
+
+            with ThreadPoolExecutor(max_workers=max(1, args.repeat)) as pool:
+                logs = list(pool.map(one, range(max(1, args.repeat))))
+            died, text = crash_summary(logs)
+            print(f"run {runs}: {count} functions -> " + ("CRASH " if died else "ok ") + text, flush=True)
             return died
         if args.dark_box:
             mean = _dark_box_mean(args, subset, f"run{runs}")

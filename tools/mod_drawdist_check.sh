@@ -20,6 +20,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_drawdist_check}
+case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 orig_args=("$@")  # the parse below shifts them away; the lock re-exec needs them
 decomp=off seconds=300 every=30 without=0 sabotage=0 scales="1 2.5" keep=0 toggle=0 toggle_at=18500
 while [ $# -gt 0 ]; do
