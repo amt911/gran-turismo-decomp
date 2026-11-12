@@ -36,6 +36,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_cheats_check}
+case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 decomp=off seconds=170 pad=0 sabotage=0 chord_sabotage=0 hide_sabotage=0 slow_only=0 runs=3 padoff=0 padreset=0 toggle=0 toggle_at=14500 replay=0
 [ -n "${KEEP_BASELINE:-}" ] && keep=1 || keep=0
 while [ $# -gt 0 ]; do
