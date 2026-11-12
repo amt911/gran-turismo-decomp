@@ -15,6 +15,7 @@ cd "$repo" || exit 2
 repos=${GT_MODS_REPOS:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mods_together_check}
+case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 orig_args=("$@")
 decomp=off seconds=300
 while [ $# -gt 0 ]; do

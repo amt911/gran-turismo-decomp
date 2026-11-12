@@ -37,6 +37,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_rollover_check}
+case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0 replay=0
 while [ $# -gt 0 ]; do
   case $1 in
