@@ -34,6 +34,14 @@ def test_runs_the_command_and_clears_the_owner(tmp_path):
     assert (tmp_path / "cpu-heavy.owner").read_text() == ""
 
 
+def test_creates_a_lock_directory_that_does_not_exist_yet(tmp_path):
+    # A fresh machine has no /tmp/claude-<uid>/synth: verdict.sh's synthetic groups lost every run to it (verdict L576).
+    lock_dir = tmp_path / "new" / "synth"
+    done = tmp_path / "done"
+    rc = subprocess.run(["sh", str(SCRIPT), "job", "touch", str(done)], env=env(lock_dir)).returncode
+    assert rc == 0 and done.exists()
+
+
 def test_a_starved_waiter_stops_the_holder_once_and_then_runs(tmp_path):
     first = hold(tmp_path, "long", 60, tmp_path / "first")
     wait_for(tmp_path / "first")
