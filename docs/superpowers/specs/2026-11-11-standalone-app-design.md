@@ -115,5 +115,11 @@ Bundling any game data or art; online features; a console port (Android follows 
 ## Open questions (the user's)
 
 Answered 2026-11-12: distribution **A** (build on the player's machine); name **Turismo PC**.
+The user wants the Dusklight experience (a compiled program that only asks for the game file); A is that from the player's
+side. **Required follow-through (user, 2026-11-12, "que no se nos olvide"):** every release ships the decompiled functions
+merged so far compiled into the app, so the first-start build only recompiles what is still undecompiled; that set shrinks
+release by release, and at 100 % decompiled the first-start build and the bundled toolchain are removed (the app is then
+exactly Dusklight-shaped). The phase-4 release checklist checks this: the app's own build uses the current `src/`, and the
+first-start recompile skips every address `src/` registers.
 
 1. Should Play return to the launcher when the game quits (needs a restartable runtime; proposed: later)?

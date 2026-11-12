@@ -62,5 +62,7 @@ import above. Add below only what applies to Claude Code alone. -->
   (verifies it, extracts what it needs), and has a polished user interface (launcher, settings, mods)
   (spec `docs/superpowers/specs/2026-11-11-standalone-app-design.md`). **2026-11-12:** distribution **A** — the released
   app carries only our code and recompiles the player's own EBOOT on their machine at first start (nothing game-derived is
-  shipped); name **Turismo PC**.
+  shipped); name **Turismo PC**. The user wants it Dusklight-like (compiled, only asks for the ISO); **every release must carry
+  the decompiled code compiled in** (first start recompiles only what is still undecompiled), and at 100 % the first-start
+  build goes away.
 - **Mods must also act in replays** (rollover, cheats such as nitro): a replay that drops a mod's effect is a bug.
