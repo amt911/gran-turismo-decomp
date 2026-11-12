@@ -6,6 +6,7 @@
 # holds the lock (inherited descriptors included) once, then queues on the lock itself, so a job that took the lock
 # meanwhile runs to its end. Tests: tools/tests/test_cpu_lock.py.
 D=${CPU_LOCK_DIR:-/tmp/claude-$(id -u)}; LOCK=$D/cpu-heavy.lock; OWNER=$D/cpu-heavy.owner
+mkdir -p "$D"  # a fresh machine (or a new CPU_LOCK_DIR such as verdict.sh's synth/) has none yet
 STARVE=${CPU_LOCK_STARVE_S:-1800}; POLL=${CPU_LOCK_POLL_S:-30}; GRACE=${CPU_LOCK_GRACE_S:-15}  # overridable for tools/tests/test_cpu_lock.py
 what=$1; shift
 session_pid() {  # the agent session (the nearest `claude` ancestor), or the parent shell if there is none
