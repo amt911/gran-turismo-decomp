@@ -217,6 +217,11 @@ if(GT_PLAY)
     if(GT_PAD_MENU_SABOTAGE_NO_HIDE)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_NO_HIDE=1)
     endif()
+    # Verification only: the cheat device's bindings accept a combination another action holds (mod_cheats_check.sh --sabotage-conflict must FAIL).
+    option(GT_DEVICE_SABOTAGE_ALLOW_CONFLICT "sabotage: the cheat device does not refuse a taken binding" OFF)
+    if(GT_DEVICE_SABOTAGE_ALLOW_CONFLICT)
+        set_property(SOURCE host/cheat_device/bindings.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_DEVICE_SABOTAGE_ALLOW_CONFLICT=1)
+    endif()
     if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
         target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")
     endif()

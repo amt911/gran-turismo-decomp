@@ -130,6 +130,9 @@ std::string BindingTable::clash_key(const std::string &id, const KeyBinding &key
 
 std::string BindingTable::clash_pad(const std::string &id, const PadBinding &pad) const {
     if (pad.buttons == 0u) return "";
+#ifdef GT_DEVICE_SABOTAGE_ALLOW_CONFLICT  // verification only (tools/mod_cheats_check.sh --sabotage-conflict must FAIL)
+    return "";
+#endif
     for (const Action &a : actions_)
         if (a.id != id && a.pad == pad) return a.label;
     return "";

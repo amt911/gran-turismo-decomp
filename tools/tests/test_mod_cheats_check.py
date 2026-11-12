@@ -110,7 +110,7 @@ def test_freeze_passes_and_fails():
     assert mc.judge_freeze("", "")[0] is False
 
 
-def pad_log(acc_inside=0.0, rows=True, keys=("chord", "down", "right", "down", "right", "chord"), states=("opened", "closed"), frozen_after=True):
+def pad_log(acc_inside=0.0, rows=True, keys=("chord", "close", "right", "right", "down", "right", "chord"), states=("opened", "closed"), frozen_after=True):
     out = []
     out.append(log(steps=range(800, 900, 2), acc=1.0))
     out.append(f"[padmenu] {keys[0]} at vblank 100")
@@ -119,8 +119,10 @@ def pad_log(acc_inside=0.0, rows=True, keys=("chord", "down", "right", "down", "
     out.append(log(steps=range(900, 960, 2), acc=acc_inside))
     for i, k in enumerate(keys[1:-1]):
         out.append(f"[padmenu] {k} at vblank {110 + i}")
-        if rows and k == "right":
-            out.append("[mod:cheats] ROW slow_motion -> 0.5x" if i == 1 else "[mod:cheats] ROW freeze_ai -> ON")
+        # the first Right opens Race (no row changes); the next two set slow motion, then (after Down) freeze AI
+        rights_before = list(keys[1:-1])[:i].count("right")
+        if rows and k == "right" and rights_before >= 1:
+            out.append("[mod:cheats] ROW slow_motion -> 0.5x" if rights_before == 1 else "[mod:cheats] ROW freeze_ai -> ON")
     out.append(log(steps=range(960, 1000, 2), acc=acc_inside, name="0.5x", freeze=True))
     out.append(f"[padmenu] {keys[-1]} at vblank 200")
     if "closed" in states:
@@ -140,6 +142,7 @@ def test_pad_passes_with_the_expected_sequence():
 
 def test_pad_fails_for_each_missing_piece():
     assert "keys" in mc.judge_pad("")[1]
+    assert "keys" in mc.judge_pad(pad_log(keys=("chord", "down", "right", "down", "right", "chord")))[1]  # the old F9 list's keys
     assert "keys" in mc.judge_pad(good_pad().replace("[padmenu] chord at vblank 100", ""))[1]
     assert "opened then closed" in mc.judge_pad(good_pad().replace("[padmenu] menu opened at vblank 100", ""))[1]
     assert "menu rows changed" in mc.judge_pad(good_pad().replace("[mod:cheats] ROW freeze_ai -> ON", ""))[1]
@@ -333,3 +336,33 @@ def test_replay_main_mode(tmp_path):
     (tmp_path / "replay").mkdir()
     (tmp_path / "replay" / "run.log").write_text(replay_run())
     assert mc.main(["x", str(tmp_path), "replay", "replay"]) == 0
+
+
+def hotkey_log(bound=True, fired=True, acc_after=1.0):
+    out = ["[padmenu] chord at vblank 100", "[padmenu] menu opened at vblank 100"]
+    if bound:
+        out.append("[device] bound cheats.nitro pad R+SQUARE at vblank 150")
+    out += ["[padmenu] chord at vblank 200", "[padmenu] menu closed at vblank 200", log(steps=range(800, 900, 2), acc=0.0)]
+    if fired:
+        out.append("[device] action cheats.nitro at vblank 300")
+    out.append(log(steps=range(900, 1000, 2), acc=acc_after))
+    return "\n".join(out)
+
+
+def test_hotkey_judge():
+    ok, message = mc.judge_hotkey(hotkey_log())
+    assert ok, message
+    assert "not bound" in mc.judge_hotkey(hotkey_log(bound=False))[1]
+    assert "never fired" in mc.judge_hotkey(hotkey_log(fired=False))[1]
+    assert "full throttle" in mc.judge_hotkey(hotkey_log(acc_after=0.0))[1]
+    assert "before" in mc.judge_hotkey(hotkey_log().replace("acc=0.00", "acc=1.00"))[1]
+
+
+def test_conflict_judge():
+    refused = ("[padmenu] chord at vblank 100\n[device] refused cheats.nitro pad SELECT+START: SELECT+START is already Open the cheat device "
+               "at vblank 150\n[padmenu] chord at vblank 200")
+    ok, message = mc.judge_conflict(refused)
+    assert ok, message
+    assert "not refused" in mc.judge_conflict("[device] bound cheats.nitro pad SELECT+START at vblank 150")[1]
+    assert "not refused" in mc.judge_conflict("")[1]
+    assert "owner" in mc.judge_conflict(refused.replace("Open the cheat device", "something"))[1]

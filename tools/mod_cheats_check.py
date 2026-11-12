@@ -208,10 +208,11 @@ def judge_pad(text: str):
     """The pad run: chord, navigation, values, hiding of the throttle, effects after closing."""
     keys = [(m.group(1), int(m.group(2))) for m in PADMENU.finditer(text) if m.group(1) not in ("menu",)]
     names = [k for k, _ in keys]
-    # (a run with another mod installed has one more mod row before the cheats rows: one more Down)
-    want = ["chord", "down", "right", "down", "right", "chord"]
-    if names != want and names != ["chord", "down", "down", "right", "down", "right", "chord"]:
-        return False, f"pad menu keys {names}, expected {want} (or one more down first) (the chord may not have fired, or a key was lost)"
+    # The cheat device (2026-11-12): it opens on Mods; Close goes up to the categories (cursor on Race), Right opens Race (CROSS is the
+    # held throttle), Right sets slow motion, Down, Right sets freeze AI. Another mod installed changes nothing (its rows are in Mods).
+    want = ["chord", "close", "right", "right", "down", "right", "chord"]
+    if names != want:
+        return False, f"pad menu keys {names}, expected {want} (the chord may not have fired, or a key was lost)"
     states = [(m.group(1), m.start()) for m in PADMENU_STATE.finditer(text)]
     if [s for s, _ in states] != ["opened", "closed"]:
         return False, f"menu state changes {[s for s, _ in states]}, expected opened then closed"
@@ -241,8 +242,47 @@ def judge_pad(text: str):
     ai_count = min((len(c.ai) for c in frozen), default=0)
     if ai_count == 0 or any(max_drift(frozen, i) > AI_STILL for i in range(ai_count)):
         return False, "an AI car moved after Freeze AI was switched on in the menu"
-    return True, (f"chord opened the menu, Down/Right set slow motion 0.5x and Freeze AI on, chord closed it; accelerator {max(c.acc for c in inside):.2f} while "
+    return True, (f"chord opened the device, Circle/Right reached Race, Right/Down/Right set slow motion 0.5x and Freeze AI on, chord closed it; accelerator {max(c.acc for c in inside):.2f} while "
                   f"open ({len(inside)} lines), {min(c.acc for c in before):.2f}+ before and {max(c.acc for c in after):.2f} after; {ai_count} AI cars still")
+
+
+DEVICE_BOUND = re.compile(r"\[device\] bound cheats\.nitro pad (\S+)")
+DEVICE_REFUSED = re.compile(r"\[device\] refused cheats\.nitro pad (\S+): (.*) at vblank \d+")
+DEVICE_ACTION = re.compile(r"\[device\] action cheats\.nitro at vblank \d+")
+
+
+def judge_hotkey(text: str):
+    """--hotkey: the device's capture bound nitro to R+SQUARE, then that combination in the race fired it (full throttle, CROSS never held)."""
+    bound = DEVICE_BOUND.search(text)
+    if bound is None or bound.group(1) != "R+SQUARE":
+        return False, "nitro not bound to R+SQUARE through the device's capture (no `[device] bound cheats.nitro pad R+SQUARE`)"
+    closed = [m.start() for m in PADMENU_STATE.finditer(text) if m.group(1) == "closed"]
+    fired = [m.start() for m in DEVICE_ACTION.finditer(text) if closed and m.start() > closed[-1]]
+    if not fired:
+        return False, "the hotkey never fired nitro after the device closed"
+    cars = [(m.start(), c) for m, c in zip(LINE.finditer(text), parse_lines(text))]
+    before = [c for pos, c in cars if closed[-1] < pos < fired[0]]
+    after = [c for pos, c in cars if pos > fired[0]][SETTLE_LINES:]
+    if len(before) < 3 or len(after) < MIN_WINDOW_LINES:
+        return False, f"too few log lines around the hotkey (before {len(before)}, after {len(after)})"
+    if max(c.acc for c in before) > ACC_DOWN:
+        return False, f"the accelerator was already down before the hotkey ({max(c.acc for c in before):.2f}): the route held CROSS"
+    if min(c.acc for c in after) < ACC_FULL:
+        return False, f"no full throttle after the hotkey (accelerator {min(c.acc for c in after):.2f}): nitro did not act"
+    return True, (f"capture bound nitro to R+SQUARE; R+SQUARE in the race fired it: accelerator {max(c.acc for c in before):.2f} before, "
+                  f"{min(c.acc for c in after):.2f}+ after ({len(after)} lines)")
+
+
+def judge_conflict(text: str):
+    """--rebind-conflict: capturing SELECT+START (the device's open combination) for nitro is refused, naming its owner, and nothing is bound."""
+    if DEVICE_BOUND.search(text) is not None:
+        return False, "the device's own combination was not refused: nitro got bound to it"
+    refused = DEVICE_REFUSED.search(text)
+    if refused is None or refused.group(1) != "SELECT+START":
+        return False, "the capture of SELECT+START was not refused (no `[device] refused cheats.nitro pad SELECT+START`)"
+    if "Open the cheat device" not in refused.group(2):
+        return False, f"the refusal does not name the owner: {refused.group(2)!r}"
+    return True, f"SELECT+START for nitro refused: {refused.group(2)}"
 
 
 CALLGUEST = re.compile(r"\[mod:cheats\] CALLGUEST status=(-?\d+) v0=(\d+)")
@@ -418,6 +458,9 @@ def main(argv: list[str]) -> int:
                 ok, message = ok2, message + "; " + message2 + " (the whole run)"
             return report(f"{mode} ({label})", ok, message)
         ok, message = judge(log(label))
+        return report(f"{mode} ({label})", ok, message)
+    if mode in ("hotkey", "conflict"):
+        ok, message = (judge_hotkey if mode == "hotkey" else judge_conflict)(log(label))
         return report(f"{mode} ({label})", ok, message)
     if mode == "pad":
         ok, message = judge_pad(log(label))

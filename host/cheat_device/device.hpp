@@ -51,6 +51,8 @@ public:
                     bool required, std::string &error);
     void add_entry(const std::string &category, Entry entry);  // an entry a mod or the host adds (toggle, choice, row...)
     void set_fire(std::function<void(const std::string &)> fire);
+    // A line per binding made or refused from Controls ("bound <id> pad L+TRIANGLE", "refused <id> key R: ..."); the in-game checks read it.
+    void set_log(std::function<void(const std::string &)> log);
     // bindings.toml: loaded now (warnings returned) and saved after every change made from the Controls page.
     std::vector<std::string> use_bindings_file(const std::filesystem::path &path);
 
@@ -87,7 +89,9 @@ private:
     PadHotkeys hotkeys_;
     std::vector<std::pair<std::string, Entry>> entries_;  // category, entry
     std::vector<std::pair<std::string, std::string>> action_category_;  // action id, category
-    std::function<void(const std::string &)> fire_;
+    std::function<void(const std::string &)> fire_, log_;
+    std::uint32_t capture_ignored_ = 0;  // buttons held when the capture started (the CROSS that started it): ignored until released
+    bool capture_fresh_ = false;
     std::filesystem::path bindings_path_;
     Navigator nav_{Entry{"root", EntryKind::Submenu, "Cheats", {}, {}, {}}};
     bool opened_once_ = false;

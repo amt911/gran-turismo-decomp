@@ -65,6 +65,13 @@ void test_menu() {
     check(!nav.back(), "Back at the root returns false (the caller closes)");
     nav.enter();
     check(nav.cursor() == 2, "the cursor of a page is remembered");
+    nav.back();
+    nav.up();
+    nav.up();  // root: Race
+    nav.right();
+    check(nav.path() == "Cheats > Race", "Right opens a submenu");
+    nav.back();
+    nav.enter();
     check(nav.rows(2).size() == 2 && nav.rows(2)[1].selected && nav.rows(2)[1].title == "Jump", "rows scroll to keep the cursor visible");
 }
 
@@ -251,18 +258,25 @@ void test_device() {
     press(d, MenuKey::Activate);  // nitro's page
     check(d.view(8, 100).title == "Cheats > Controls > Nitro", "an action's page in Controls");
     press(d, MenuKey::Down);      // Pad
-    press(d, MenuKey::Activate);  // capture
+    std::vector<std::string> logged;
+    d.set_log([&](const std::string &line) { logged.push_back(line); });
+    press(d, MenuKey::Activate);  // capture (CROSS, still held on the first sample, is not part of the combination)
+    d.poll_pad(gt::kPadCross, 100);
     check(d.capturing() && d.view(8, 100).rows[1].find("PRESS BUTTONS") != std::string::npos, "the pad capture waits");
     d.poll_pad(gt::kPadR, 101);
     d.poll_pad(gt::kPadR | kTriangle, 102);
     d.poll_pad(0, 103);
     check(!d.capturing() && d.view(8, 103).rows[1].find("R+TRIANGLE") != std::string::npos, "the captured combination is bound");
+    check(!logged.empty() && logged.back() == "bound cheats.nitro pad R+TRIANGLE", "a binding is logged");
     press(d, MenuKey::Activate);  // capture again: SELECT+START belongs to the device
+    d.poll_pad(0, 104);           // the Enter (CROSS) already released
     d.poll_pad(gt::kPadSelect | gt::kPadStart, 104);
     d.poll_pad(0, 105);
     v = d.view(8, 105);
     check(v.title.find("is already") != std::string::npos && v.rows[1].find("R+TRIANGLE") != std::string::npos,
           "a taken combination is refused, the reason shown, the binding kept");
+    check(logged.back().rfind("refused cheats.nitro pad SELECT+START: ", 0) == 0 && logged.back().find("Open the cheat device") != std::string::npos,
+          "a refusal is logged with the owner");
     check(d.view(8, 105 + kMessageVblanks).title == "Cheats > Controls > Nitro", "the reason goes away after 3 s");
     press(d, MenuKey::Activate);
     for (unsigned i = 0; i < kCancelHold; ++i) d.poll_pad(gt::kPadCircle, 200 + i);

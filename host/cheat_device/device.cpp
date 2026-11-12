@@ -56,6 +56,11 @@ void Device::add_entry(const std::string &category, Entry entry) {
     entries_.emplace_back(category, std::move(entry));
 }
 
+void Device::set_log(std::function<void(const std::string &)> log) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    log_ = std::move(log);
+}
+
 void Device::set_fire(std::function<void(const std::string &)> fire) {
     std::lock_guard<std::mutex> lock(mutex_);
     fire_ = std::move(fire);
@@ -101,6 +106,7 @@ Entry Device::controls_locked() {
                                           capture_id_ = id;
                                           capture_pad_ = true;
                                           pad_capture_.emplace();
+                                          capture_fresh_ = true;
                                           cancel_held_ = 0;
                                       },
                                       {}});
@@ -216,7 +222,12 @@ void Device::poll_pad(std::uint32_t raw, std::uint64_t now) {
         say_locked("CANCELLED", now);
         return;
     }
-    const PadCapture::State state = pad_capture_->poll(raw);
+    if (capture_fresh_) {  // what is down on the first sample started the capture (CROSS): not part of the combination
+        capture_ignored_ = raw;
+        capture_fresh_ = false;
+    }
+    capture_ignored_ &= raw;  // a released button counts again
+    const PadCapture::State state = pad_capture_->poll(raw & ~capture_ignored_);
     if (state == PadCapture::State::Waiting) return;
     const std::string id = capture_id_;
     capture_id_.clear();
@@ -228,8 +239,13 @@ void Device::poll_pad(std::uint32_t raw, std::uint64_t now) {
     const PadBinding binding = pad_capture_->result();
     pad_capture_.reset();
     std::string error;
-    if (!bindings_.set_pad(id, binding, error)) say_locked(error, now);
-    else changed_locked(now);
+    if (!bindings_.set_pad(id, binding, error)) {
+        say_locked(error, now);
+        if (log_) log_("refused " + id + " pad " + print_pad(binding) + ": " + error);
+    } else {
+        changed_locked(now);
+        if (log_) log_("bound " + id + " pad " + print_pad(binding));
+    }
 }
 
 bool Device::capture_key(const KeyBinding &key, std::uint64_t now) {
@@ -239,8 +255,13 @@ bool Device::capture_key(const KeyBinding &key, std::uint64_t now) {
     const std::string id = capture_id_;
     capture_id_.clear();
     std::string error;
-    if (!bindings_.set_key(id, key, error)) say_locked(error, now);
-    else changed_locked(now);
+    if (!bindings_.set_key(id, key, error)) {
+        say_locked(error, now);
+        if (log_) log_("refused " + id + " key " + print_key(key) + ": " + error);
+    } else {
+        changed_locked(now);
+        if (log_) log_("bound " + id + " key " + print_key(key));
+    }
     return true;
 }
 

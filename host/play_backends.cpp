@@ -249,6 +249,7 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
         const std::filesystem::path bindings = gt::mods::mods_dir(argv0).parent_path() / "bindings.toml";
         for (const std::string &warning : device().use_bindings_file(bindings)) std::cerr << "[device] " << warning << "\n";
         device().set_fire(&fire_action);
+        device().set_log([](const std::string &line) { std::cerr << "[device] " << line << " at vblank " << device_now() << "\n"; });
         lcs::host_settings_set_extra_page(gt::mods::services::any_registered() ? &kDevicePage : &kDevicePageOverlayF9);
     }
 #ifdef GT_MOD_DOWNLOADER

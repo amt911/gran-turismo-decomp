@@ -27,7 +27,7 @@ struct Row {
     bool selected = false, submenu = false;
 };
 
-// Up/Down move (wrapping), Left/Right change a value, Enter fires / opens / cycles, Back goes up one level (false at the root:
+// Up/Down move (wrapping), Left/Right change a value (Right also opens a submenu), Enter fires / opens / cycles, Back goes up one level (false at the root:
 // the caller closes the device). The cursor of every page is remembered when the player leaves it and comes back.
 class Navigator {
 public:

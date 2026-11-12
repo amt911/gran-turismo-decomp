@@ -49,7 +49,12 @@ void Navigator::left() {
 void Navigator::right() {
     Entry &page = page_mut();
     if (page.children.empty()) return;
-    Entry &e = page.children[cursor()];
+    const std::size_t at = cursor();
+    Entry &e = page.children[at];
+    if (e.kind == EntryKind::Submenu) {  // Right opens a submenu too (a held CROSS - the throttle - cannot press Enter)
+        stack_.push_back(at);
+        return;
+    }
     if ((e.kind == EntryKind::Toggle || e.kind == EntryKind::Choice || e.kind == EntryKind::Number || e.kind == EntryKind::Row) && e.change)
         e.change(+1);
 }
