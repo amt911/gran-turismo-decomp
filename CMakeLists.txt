@@ -408,7 +408,7 @@ add_executable(lcs_host_menu_tests tools/src/lcs-recomp/tests/lcs_host_menu_test
     "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
 target_include_directories(lcs_host_menu_tests PRIVATE "${GT_LCS_HOST_DIR}")
 target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2)
-foreach(mode menu present f10 f9 extra fps)
+foreach(mode menu present f10 f9 extra fps delegated)
     add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
 endforeach()
 endif()
