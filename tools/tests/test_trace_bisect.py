@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tools import trace_bisect as bisect
 
 
@@ -159,3 +161,30 @@ def test_run_env_disables_mods_unless_kept():
     assert env["GT_NO_MODS"] == "1" and env["GT_PAD"] == "3300:START" and env["LCS_UNCAPPED"] == "1"
     kept = bisect.run_env({"HOME": "/h", "GT_MODS_DIR": "/m"}, "3300:START", keep_mods=True)
     assert "GT_NO_MODS" not in kept and kept["GT_MODS_DIR"] == "/m"
+
+
+def test_crash_summary_counts_runs_and_names_the_faults():
+    crash = "terminate called after throwing an instance of 'psprecomp::Error'\n  what():  Guest memory access outside PSP RAM/EDRAM at 0x3EEE1474\n"
+    other = "terminate called after throwing an instance of 'psprecomp::Error'\n  what():  Guest memory access outside PSP RAM/EDRAM at 0x00000000\n"
+    ok = "Runtime stopped: Wall-clock limit reached at 0x08B2ACDC\n"
+    died, text = bisect.crash_summary([ok, crash, other, ok])
+    assert died and text == "2/4 crashed (0x00000000, 0x3EEE1474)"
+    died, text = bisect.crash_summary([ok, ok])
+    assert not died and text == "0/2 crashed"
+    died, text = bisect.crash_summary(["gt_native error: something else\n"])
+    assert died and text == "1/1 crashed"
+
+
+def test_crash_summary_refuses_a_run_that_never_played():
+    # A run that exits at once (a bad GT_PAD, a missing file) neither crashed nor reached its window: counting it as
+    # "ok" would bisect on runs that never ran. It is an error, named with the log's first line.
+    ok = "Runtime stopped: Wall-clock limit reached at 0x08B2ACDC\n"
+    early = "GT_PAD: 'x.pad': expected <vblank>:<BUTTON> or WAIT:<signal>=<value>\n"
+    with pytest.raises(RuntimeError, match="neither crashed nor reached its time limit.*GT_PAD: 'x.pad'"):
+        bisect.crash_summary([ok, early])
+
+
+def test_registered_functions_list_must_not_be_empty():
+    with pytest.raises(RuntimeError, match="no registered functions"):
+        bisect.require_functions([], "GT_PAD: bad\n")
+    assert bisect.require_functions([0x08804000], "") == [0x08804000]

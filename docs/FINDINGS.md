@@ -3241,3 +3241,23 @@ that goes through `ctx.lo` without the accumulation.
 Found: 2026-11-11 · gt_play --decomp on (user's laptop), GT_PERF_LOG audio cuts, GT_DECOMP_ONLY bisection
 The gate cannot see it: no route returns from the loop, and the synthetic cases pass with and without the `madd` (1 compared,
 0 mismatched, both bodies). The evidence is the laptop measurement above; the old body is its sabotage (106 silent buffers per 5 s).
+
+## Hook crash with `--decomp on`: rare, load-dependent, not reproduced on demand (2026-11-11/12)
+
+"Guest memory access outside PSP RAM/EDRAM at 0x3EEE1474 / 0x00000000", seen only with a mod hook on the world step
+`0x0894DD9C` and `--decomp on`. Measured on the `route_nosel` route (900 s, 6 runs at once, `tools/trace_bisect --crash
+--repeat 6 --keep-mods` with a pass-through probe mod): **3 crashes in the first 12 runs, then 0 in the next 42** on the same
+source (clean main, instrumented builds, `-ftrivial-auto-var-init=pattern`, 12 CPU burners, the slice at MemoryHigh).
+The 3 crashes came while another agent's builds and gates ran in the same slice.
+- **What the crash is:** `dispatch_function_at` (noexcept) of a guest pc that is 0 or garbage, inside `gt::call_guest`
+  (backtraces: an indirect call from `func_089F25E0` and from `func_08866DF8`, two unrelated vtable calls). So a guest code
+  pointer was already corrupt: those functions are victims.
+- **Ruled out:** fiber stack overflow (deepest fiber stack 120 KiB of 2 MiB; fibers now have a guard page and report the
+  deepest stack), a thread switch inside the hooked call (never happened in 6 runs: the trampoline's pc fix-up never runs on
+  another thread's context there), uninitialised native locals (pattern init: no crash; clang `-Wconditional-uninitialized`
+  over host/ and src/: one false positive).
+- **Open:** whatever made the first 12 runs differ (the concurrent load of that moment is the only known difference).
+  Retry with `tools/trace_bisect --crash` next to a running full gate before bisecting; a 1-in-6 rate needs 6+ runs a level.
+- Note for hooks in general: after `call_original`, a hook's own code sees `ctx` of the **next** thread if the original
+  blocked (`--decomp on` at dispatcher level: `fiber::run` returns with the next thread's context). Post-call code that
+  reads guest registers must not assume its own thread (none of the current mods does; the world-step hook never blocked).

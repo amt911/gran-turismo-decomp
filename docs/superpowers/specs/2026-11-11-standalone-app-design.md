@@ -1,6 +1,6 @@
 # Standalone app (Dusklight-style) — design
 
-**Status:** draft for the user's approval (user, 2026-11-11: "me gustaría que la arquitectura de la app fuera como con
+**Status:** approved by the user on 2026-11-12 (distribution A, name Turismo PC). Earlier status: draft for the user's approval (user, 2026-11-11: "me gustaría que la arquitectura de la app fuera como con
 dusklight, que fuera un programa standalone, que pida la iso del juego para el resto de recursos, y que tenga todo con
 interfaz de usuario bonita"). Decisions marked *(Claude)* were taken during unattended work; the open questions at the end
 are the user's, and one of them (distribution) is a legal call only the user makes.

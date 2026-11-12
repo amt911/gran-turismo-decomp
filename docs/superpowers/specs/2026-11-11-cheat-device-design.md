@@ -1,6 +1,7 @@
 # Cheat device — design
 
-**Status:** draft for the user's approval (user, 2026-11-11: "los cheats me gustaría que fuera a lo mod menu de videojuego, como
+**Status:** approved by the user on 2026-11-12 ("apruebo la spec"; the open questions below as proposed: SELECT+START stays,
+the device replaces the F9 MODS page, no extra cheat in v1). Asked for by the user, 2026-11-11: "los cheats me gustaría que fuera a lo mod menu de videojuego, como
 el cheat device del GTA Vice City Stories, que tenga una combinación de teclado y mando y que sea configurable para cambiar los
 hotkeys con el mando y el teclado"). Decisions marked *(Claude)* were taken during unattended work and are open to change.
 Builds on the cheat menu spec (`2026-11-07-cheat-menu-design.md`), the mod API v2/v3 (`docs/MODS.md`) and the pad menu

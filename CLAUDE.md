@@ -66,3 +66,14 @@ import above. Add below only what applies to Claude Code alone. -->
   the decompiled code compiled in** (first start recompiles only what is still undecompiled), and at 100 % the first-start
   build goes away.
 - **Mods must also act in replays** (rollover, cheats such as nitro): a replay that drops a mod's effect is a bug.
+
+## User decisions, 2026-11-12 (asked to be kept in this file)
+
+- **Helper laptops over SSH use the password, never keys.** The user gives the host and a temporary password in the chat;
+  log in with that password every time (an `SSH_ASKPASS` script deleted right after use, or one `ControlMaster` connection
+  per session) and **never install an SSH key** on the laptop. The password is read from the conversation when needed and
+  **never written to the repo, memory or any file that outlives the command** (the repo is public).
+- **Current helper: `andres@192.168.0.133`** (MSI GE63: i7-8750H, 12 threads, 32 GB, Arch), used to run PR verdicts in
+  parallel with the desktop: repo in `~/repos/gran-turismo-decomp`, verdict worktree `~/repos/gt-verify` (with the user's
+  `game_files/`, hash-checked). Jobs there run detached (`setsid nohup`; the wifi drops) and the `gt-heavy.slice` limits are
+  set with `--runtime` (gone after a reboot: set them again). Installing the repo, its tools and builds there is allowed.
