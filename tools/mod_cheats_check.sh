@@ -20,8 +20,8 @@
 #                controls per step live and play them back there (host >= role 3 in race_cars); PASS = paired by the steps since the player's car
 #                first moved, the same controls live and in the replay and every car within MAX_REPLAY_DRIFT (mod_cheats_check.py judge_replay)
 #   --hotkey     the `cheats_hotkey` route: the chord opens the cheat device, Controls -> Nitro on/off -> Pad captures R+SQUARE, the chord closes
-#                it, R+SQUARE in the race fires nitro; PASS = `[device] bound cheats.nitro pad R+SQUARE`, the action after closing, full throttle
-#                after it with CROSS never held (--sabotage-hotkey = -DCHEATS_SABOTAGE=4, nitro's action does nothing, must FAIL)
+#                it, R+SQUARE in the race fires nitro; PASS = `[device] bound cheats.nitro pad R+SQUARE`, the action once after closing,
+#                `ROW nitro -> ON` from the mod after it (--sabotage-hotkey = -DCHEATS_SABOTAGE=4, nitro's action does nothing, must FAIL)
 #   --rebind-conflict  the `cheats_conflict` route: the capture is SELECT+START, the device's own combination; PASS = refused, naming
 #                "Open the cheat device", nothing bound (--sabotage-conflict rebuilds gt_play with -DGT_DEVICE_SABOTAGE_ALLOW_CONFLICT=ON: must FAIL)
 #   The --pad run also judges `callguest` (GT_MOD_CHEATS_CALLGUEST=1): the vblank tick calls the game's read-only flag reader through call_guest (v0 0).

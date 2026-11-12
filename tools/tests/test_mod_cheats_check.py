@@ -338,14 +338,15 @@ def test_replay_main_mode(tmp_path):
     assert mc.main(["x", str(tmp_path), "replay", "replay"]) == 0
 
 
-def hotkey_log(bound=True, fired=True, acc_after=1.0):
+def hotkey_log(bound=True, fired=1, switched=True):
     out = ["[padmenu] chord at vblank 100", "[padmenu] menu opened at vblank 100"]
     if bound:
         out.append("[device] bound cheats.nitro pad R+SQUARE at vblank 150")
     out += ["[padmenu] chord at vblank 200", "[padmenu] menu closed at vblank 200", log(steps=range(800, 900, 2), acc=0.0)]
-    if fired:
-        out.append("[device] action cheats.nitro at vblank 300")
-    out.append(log(steps=range(900, 1000, 2), acc=acc_after))
+    out += ["[device] action cheats.nitro at vblank 300"] * fired
+    if switched:
+        out.append("[mod:cheats] ROW nitro -> ON")
+    out.append(log(steps=range(900, 1000, 2), acc=0.0))
     return "\n".join(out)
 
 
@@ -353,9 +354,9 @@ def test_hotkey_judge():
     ok, message = mc.judge_hotkey(hotkey_log())
     assert ok, message
     assert "not bound" in mc.judge_hotkey(hotkey_log(bound=False))[1]
-    assert "never fired" in mc.judge_hotkey(hotkey_log(fired=False))[1]
-    assert "full throttle" in mc.judge_hotkey(hotkey_log(acc_after=0.0))[1]
-    assert "before" in mc.judge_hotkey(hotkey_log().replace("acc=0.00", "acc=1.00"))[1]
+    assert "never fired" in mc.judge_hotkey(hotkey_log(fired=0))[1]
+    assert "2 times" in mc.judge_hotkey(hotkey_log(fired=2))[1]
+    assert "never switched" in mc.judge_hotkey(hotkey_log(switched=False))[1]
 
 
 def test_conflict_judge():

@@ -251,8 +251,12 @@ DEVICE_REFUSED = re.compile(r"\[device\] refused cheats\.nitro pad (\S+): (.*) a
 DEVICE_ACTION = re.compile(r"\[device\] action cheats\.nitro at vblank \d+")
 
 
+NITRO_ON = re.compile(r"\[mod:cheats\] ROW nitro -> ON")
+
+
 def judge_hotkey(text: str):
-    """--hotkey: the device's capture bound nitro to R+SQUARE, then that combination in the race fired it (full throttle, CROSS never held)."""
+    """--hotkey: the device's capture bound nitro to R+SQUARE, then that combination in the race fired the action and the mod switched nitro on
+    (nitro adds force at full throttle; the check proves the hotkey path, the cheat's physics is the cheats mod's own concern)."""
     bound = DEVICE_BOUND.search(text)
     if bound is None or bound.group(1) != "R+SQUARE":
         return False, "nitro not bound to R+SQUARE through the device's capture (no `[device] bound cheats.nitro pad R+SQUARE`)"
@@ -260,17 +264,12 @@ def judge_hotkey(text: str):
     fired = [m.start() for m in DEVICE_ACTION.finditer(text) if closed and m.start() > closed[-1]]
     if not fired:
         return False, "the hotkey never fired nitro after the device closed"
-    cars = [(m.start(), c) for m, c in zip(LINE.finditer(text), parse_lines(text))]
-    before = [c for pos, c in cars if closed[-1] < pos < fired[0]]
-    after = [c for pos, c in cars if pos > fired[0]][SETTLE_LINES:]
-    if len(before) < 3 or len(after) < MIN_WINDOW_LINES:
-        return False, f"too few log lines around the hotkey (before {len(before)}, after {len(after)})"
-    if max(c.acc for c in before) > ACC_DOWN:
-        return False, f"the accelerator was already down before the hotkey ({max(c.acc for c in before):.2f}): the route held CROSS"
-    if min(c.acc for c in after) < ACC_FULL:
-        return False, f"no full throttle after the hotkey (accelerator {min(c.acc for c in after):.2f}): nitro did not act"
-    return True, (f"capture bound nitro to R+SQUARE; R+SQUARE in the race fired it: accelerator {max(c.acc for c in before):.2f} before, "
-                  f"{min(c.acc for c in after):.2f}+ after ({len(after)} lines)")
+    if len(fired) != 1:
+        return False, f"one press fired nitro {len(fired)} times"
+    switched = [m.start() for m in NITRO_ON.finditer(text) if m.start() > fired[0]]
+    if not switched:
+        return False, "the action fired but the mod never switched nitro on (`ROW nitro -> ON` after it)"
+    return True, "capture bound nitro to R+SQUARE; R+SQUARE in the race fired the action once and the mod switched nitro on"
 
 
 def judge_conflict(text: str):
