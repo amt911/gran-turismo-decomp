@@ -3,9 +3,14 @@
 # a clang build, pytest with coverage, ctest, the full differential gate, the boot check and the synthetic gate after
 # every route some function was verified after. Prints one line per step; the logs stay under recomp/analysis/.
 #   tools/verdict.sh <branch> <tag>        (GT_VERIFY_TREE: the worktree to use, default ../gt-verify)
+# GT_GATE_CPUS / GT_SYNTH_CPUS: the CPUs of the real-time gate and of the synthetic groups (taskset lists). The defaults split
+# the 12-core/24-thread desktop in two halves of whole cores so two verdicts can overlap; a machine that runs one verdict at a
+# time with fewer cores gives both all its CPUs (the helper laptop: 0-11): its gate on half the defaults' cores ran past the
+# CPU lock's 30-min hold and lost five routes (verdict L575, 2026-11-12).
 # Kept in the repo: a scratch copy was wiped by a reboot once (FINDINGS / lessons).
 set -u
 branch=$1 tag=$2
+gate_cpus=${GT_GATE_CPUS:-6-11,18-23} synth_cpus=${GT_SYNTH_CPUS:-0-5,12-17}
 tree=${GT_VERIFY_TREE:-$(dirname "$(git rev-parse --show-toplevel)")/gt-verify}
 cd "$tree" || exit 1
 git fetch -q origin && git checkout -q --detach "origin/$branch" || { echo "no branch $branch"; exit 1; }
@@ -21,8 +26,8 @@ heavy sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ > /dev/nu
 .venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1; tail -1 "$logs/pytest.log"
 ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
 # The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
-GT_GATE_CPU_LOCK="verdict full $tag" taskset -c 6-11,18-23 .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
-  | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head
+GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
+  | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
 # Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
 boot=$logs/boot
 rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$boot/sd/"
@@ -40,9 +45,9 @@ else
   for group in dealer,race save_garage,circuit,buy,options; do
     t=v${tag}_${group%%,*}
     # Its own lock and its own cores (user, 2026-11-10): a synthetic run is CPU-bound, not paced, so it need not wait for
-    # another verdict's real-time gate routes (taskset 6-11,18-23 above); one synthetic group at a time on 0-5,12-17.
+    # another verdict's real-time gate routes (GT_GATE_CPUS above); one synthetic group at a time on GT_SYNTH_CPUS.
     CPU_LOCK_DIR="${CPU_LOCK_DIR:-/tmp/claude-$(id -u)}/synth" GT_SYNTH_ROUTE=$group GT_GATE_CPU_LOCK="verdict synth $tag $group" \
-      taskset -c 0-5,12-17 .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
+      taskset -c "$synth_cpus" .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
       | grep -E "^all routes|exit [^02]" | head -3
     grep -ah "synthetic: [0-9]* functions in" recomp/analysis/gt_diff_${t}_*.log
     echo "mismatched: $(grep -ah 'mismatched [1-9]' recomp/analysis/gt_diff_${t}_*.log | grep -oE '@0x[0-9A-F]+' | sort -u | tr '\n' ' ')"
