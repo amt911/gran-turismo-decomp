@@ -2,7 +2,11 @@
 
 #include "guest_call.hpp"
 
+#include <sys/mman.h>
 #include <ucontext.h>
+
+#include <cstdio>
+#include <cstdlib>
 
 #include <memory>
 #include <vector>
@@ -18,7 +22,7 @@ constexpr std::uint32_t kReturnBase = 0x00000100u;
 struct Fiber {
     ucontext_t context{};
     ucontext_t *parent{};                 // where to switch when done or suspended
-    std::unique_ptr<char[]> stack;
+    char *stack{};  // mmap'd: a PROT_NONE guard page below kStackBytes (an overflow faults at once)
     std::uint32_t id{};
     psprecomp::Runtime *rt{};
     psprecomp::AllegrexContext *live{};   // the runtime's context
@@ -85,7 +89,13 @@ Fiber &acquire(psprecomp::Runtime &rt) {
     }
     auto fiber = std::make_unique<Fiber>();
     fiber->id = static_cast<std::uint32_t>(g_fibers.size());
-    fiber->stack.reset(new char[kStackBytes]);  // uninitialised: pages are committed on use
+    const std::size_t page = 4096u;
+    void *block = mmap(nullptr, kStackBytes + page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (block == MAP_FAILED || mprotect(block, page, PROT_NONE) != 0) {
+        std::fprintf(stderr, "[fiber] stack allocation failed\n");
+        std::abort();
+    }
+    fiber->stack = static_cast<char *>(block) + page;  // zero pages, committed on use
     rt.register_function(return_of(*fiber), &resume_at_return, "fiber_return");
     g_fibers.push_back(std::move(fiber));
     return *g_fibers.back();
@@ -109,7 +119,7 @@ void run(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, DecompiledFn f
     f.done = false;
     f.suspended = false;
     getcontext(&f.context);
-    f.context.uc_stack.ss_sp = f.stack.get();
+    f.context.uc_stack.ss_sp = f.stack;
     f.context.uc_stack.ss_size = kStackBytes;
     f.context.uc_link = nullptr;
     makecontext(&f.context, &fiber_main, 0);
@@ -118,6 +128,16 @@ void run(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, DecompiledFn f
 
 bool on_fiber() noexcept { return g_current != nullptr; }
 std::size_t created() noexcept { return g_fibers.size(); }
+
+std::size_t max_stack_used() noexcept {  // mmap'd stacks start zeroed: the lowest non-zero byte is the high-water mark
+    std::size_t most = 0u;
+    for (const auto &f : g_fibers) {
+        std::size_t i = 0u;
+        while (i < kStackBytes && f->stack[i] == 0) i += 64u;
+        if (kStackBytes - i > most) most = kStackBytes - i;
+    }
+    return most;
+}
 std::uint64_t suspensions() noexcept { return g_suspensions; }
 
 std::uint32_t return_address() noexcept { return g_current != nullptr ? return_of(*g_current) : 0u; }
