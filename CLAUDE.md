@@ -52,3 +52,28 @@ import above. Add below only what applies to Claude Code alone. -->
   generated GE lists with the original's; Vulkan (PC, Android) is one backend. No API feature the GE cannot express.
 - **Ports:** Android is near (Vulkan + SDL2 already; arm64 build, touch controls, user data on device) and needs no
   finished decomp; PSP needs the full decomp without emulated memory (32 MB RAM, 333 MHz) plus the GE backend above.
+
+## User decisions, 2026-11-11 (asked to be kept in this file)
+
+- **Cheats as a game-style cheat device** (like the GTA Vice City Stories Cheat Device): its own menu overlay opened by a
+  button/key combination, with **configurable hotkeys for both keyboard and pad**, rebindable from the menu itself
+  (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`).
+- **Standalone app, Dusklight-style:** a program that runs on its own, asks for the user's game ISO for everything else
+  (verifies it, extracts what it needs), and has a polished user interface (launcher, settings, mods)
+  (spec `docs/superpowers/specs/2026-11-11-standalone-app-design.md`). **2026-11-12:** distribution **A** — the released
+  app carries only our code and recompiles the player's own EBOOT on their machine at first start (nothing game-derived is
+  shipped); name **Turismo PC**. The user wants it Dusklight-like (compiled, only asks for the ISO); **every release must carry
+  the decompiled code compiled in** (first start recompiles only what is still undecompiled), and at 100 % the first-start
+  build goes away.
+- **Mods must also act in replays** (rollover, cheats such as nitro): a replay that drops a mod's effect is a bug.
+
+## User decisions, 2026-11-12 (asked to be kept in this file)
+
+- **Helper laptops over SSH use the password, never keys.** The user gives the host and a temporary password in the chat;
+  log in with that password every time (an `SSH_ASKPASS` script deleted right after use, or one `ControlMaster` connection
+  per session) and **never install an SSH key** on the laptop. The password is read from the conversation when needed and
+  **never written to the repo, memory or any file that outlives the command** (the repo is public).
+- **Current helper: `andres@192.168.0.133`** (MSI GE63: i7-8750H, 12 threads, 32 GB, Arch), used to run PR verdicts in
+  parallel with the desktop: repo in `~/repos/gran-turismo-decomp`, verdict worktree `~/repos/gt-verify` (with the user's
+  `game_files/`, hash-checked). Jobs there run detached (`setsid nohup`; the wifi drops) and the `gt-heavy.slice` limits are
+  set with `--runtime` (gone after a reboot: set them again). Installing the repo, its tools and builds there is allowed.
