@@ -35,7 +35,9 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str]) -> list[str]:
         stub.write_text('#!/bin/sh\ncase "$*" in *verdict_scope*) echo synthetic;; esac\nexit 0\n')
         stub.chmod(0o755)
     (tree / "game_files" / "UCES01245-GAMEDAT").mkdir(parents=True)
-    env = dict(os.environ, PATH=f"{bindir}:{os.environ['PATH']}", GT_VERIFY_TREE=str(tree), **env_extra)
+    # The caller's own GT_GATE_CPUS / GT_SYNTH_CPUS must not leak in (the laptop's verdict exports them: verdict 580).
+    base = {k: v for k, v in os.environ.items() if k not in ("GT_GATE_CPUS", "GT_SYNTH_CPUS")}
+    env = dict(base, PATH=f"{bindir}:{os.environ['PATH']}", GT_VERIFY_TREE=str(tree), **env_extra)
     subprocess.run(["bash", str(REPO / "tools" / "verdict.sh"), "main", "t"], env=env, cwd=tree, capture_output=True, timeout=60)
     return [line for line in calls.read_text().splitlines() if line.startswith("taskset")] if calls.exists() else []
 
