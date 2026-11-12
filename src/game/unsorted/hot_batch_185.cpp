@@ -68,6 +68,40 @@ void call_with(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uin
     call_here(rt, ctx, target);
 }
 
+// Succeeds through `target(a1 + 0x22C)` when 0x08ACA4BC(a1) accepts a1, else v0 is the error code.
+void checked_forward(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 target) {
+    const u32 object = ctx.gpr[5];
+    ctx.gpr[2] = 0u;
+    bool accepted = false;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        if (object != 0u) accepted = call(rt, ctx, 0x08ACA4BCu, {object}) != 0u;
+    }
+    if (accepted) {
+        tail_call(ctx, target, {object + 0x22Cu});
+        return;
+    }
+    ctx.gpr[2] = 0x80001000u;
+}
+// Release (0x08B61FC0) every non-null word of the 16-byte-stride range [a0, a1); v0 is the last word read or call result.
+void release_range(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    u32 cursor = ctx.gpr[4];
+    const u32 end = ctx.gpr[5];
+    while (cursor != end) {
+        ctx.gpr[2] = word(rt, cursor);
+        cursor += 0x10u;
+        if (ctx.gpr[2] != 0u) call(rt, ctx, 0x08B61FC0u, {ctx.gpr[2]});
+    }
+}
+// A lazily created global: nothing when either global word is set, else `0x08B1D7F0(a, b)` is stored at `second`.
+void lazy_global(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 first, u32 second, u32 a, u32 b) {
+    ctx.gpr[2] = word(rt, first);
+    if (ctx.gpr[2] == 0u) {
+        ctx.gpr[2] = word(rt, second);
+        if (ctx.gpr[2] == 0u) put(rt, second, call(rt, ctx, 0x08B1D7F0u, {a, b}));
+    }
+}
+
 } // namespace
 
 #define G ctx.gpr
@@ -456,15 +490,27 @@ void func_08AB6F7C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { co
 void func_08AB7004(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[4]; G[16] = word(rt, G[5] + 0xCu); G[4] = 0x08CB4250u; if (G[16] == 0u) call_here(rt, ctx, 0x08A5BB7Cu); G[5] = G[16]; G[4] = G[17]; call_here(rt, ctx, 0x08AAE224u); G[2] = G[17]; } G[16] = s0; G[17] = s1; }
 void func_08AB7054(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[4]; G[16] = word(rt, G[5] + 0xCu); G[4] = 0x08CB4250u; if (G[16] == 0u) call_here(rt, ctx, 0x08A5BB7Cu); G[5] = G[16]; G[4] = G[17]; call_here(rt, ctx, 0x08AAE2D4u); G[2] = G[17]; } G[16] = s0; G[17] = s1; }
 void func_08ABA914(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = high_half(0x08CFFA2Cu); G[16] = G[4]; G[4] = 0x08CFFA2Cu; call_here(rt, ctx, 0x08B344E0u); G[4] = G[16]; call_here(rt, ctx, 0x08ABA404u); G[4] = 0x08CFFA54u; G[5] = G[16]; call_here(rt, ctx, 0x08B2B800u); G[4] = 0x08CFFA2Cu; } G[16] = s0; G[17] = s1; jump(ctx, 0x08B3457Cu); }
-void func_08ABDCF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[2] = word(rt, 0x08CFFB3Cu); G[16] = high_half(0x08CFFB40u); if (G[2] == 0u) { G[2] = word(rt, 0x08CFFB40u); G[4] = 0x08CB45B4u; G[5] = 0x08CB45C8u; if (G[2] == 0u) { call_here(rt, ctx, 0x08B1D7F0u); put(rt, 0x08CFFB40u, G[2]); } } } G[16] = s0; }
-void func_08ABDDB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[2] = word(rt, 0x08CFFB4Cu); G[16] = high_half(0x08CFFB50u); if (G[2] == 0u) { G[2] = word(rt, 0x08CFFB50u); G[4] = 0x08CB45F8u; G[5] = 0x08CB460Cu; if (G[2] == 0u) { call_here(rt, ctx, 0x08B1D7F0u); put(rt, 0x08CFFB50u, G[2]); } } } G[16] = s0; }
+void func_08ABDCF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    lazy_global(rt, ctx, 0x08CFFB3Cu, 0x08CFFB40u, 0x08CB45B4u, 0x08CB45C8u);
+}
+void func_08ABDDB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    lazy_global(rt, ctx, 0x08CFFB4Cu, 0x08CFFB50u, 0x08CB45F8u, 0x08CB460Cu);
+}
 void func_08AC2FE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x20u); G[6] = frame.at(0u); G[7] = 0u; G[2] = word(rt, G[4] + 4u); G[8] = 0u; G[3] = 0u; G[5] = G[2]; if (G[2] != 0u) { G[2] = word(rt, G[4]); store8(frame.at(0u), 0u); G[3] = word(rt, G[2]); G[9] = word(rt, G[3] + 0x40u); G[4] = G[2]; call_here(rt, ctx, G[9]); G[3] = load8(frame.at(0u)); } G[2] = G[3]; } }
 void func_08AC508C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; const std::uint32_t s2 = G[18]; { GuestFrame frame(ctx, 0x10u); G[17] = G[4] + 8u; G[16] = G[4]; G[4] = G[17]; G[18] = G[5]; call_here(rt, ctx, 0x08B344E0u); G[2] = word(rt, G[16] + 0x25E4u); G[4] = G[17]; G[2] += G[18]; put(rt, G[16] + 0x25E4u, G[2]); } G[16] = s0; G[17] = s1; G[18] = s2; jump(ctx, 0x08B3457Cu); }
 void func_08AC646C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[2] = 0x08CD6690u; G[16] = G[4]; put(rt, G[4], G[2]); G[4] += 8u; call_here(rt, ctx, 0x08B0CC04u); G[2] = 0u; G[3] = 0u; put(rt, G[16] + 0x130u, 0u); put(rt, G[16] + 0x120u, G[2]); put(rt, G[16] + 0x124u, G[3]); put(rt, G[16] + 0x128u, G[2]); put(rt, G[16] + 0x12Cu, G[3]); } G[16] = s0; }
 void func_08AC99A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[2] = high_half(0x08D00118u); G[6] = word(rt, 0x08D00118u); if (G[6] == 0u) { G[3] = 0u; G[2] = 0u; return; } G[3] = word(rt, G[6]); for (;;) { G[2] = word(rt, G[3] + 0x10u); if (G[2] == G[4]) { G[2] = word(rt, G[3] + 0x14u); if (G[2] == G[5]) break; } G[6] = word(rt, G[6] + 8u); if (G[6] == 0u) { G[3] = 0u; break; } G[3] = word(rt, G[6]); } G[2] = G[3]; }
-void func_08ACA584(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; bool tail = false; { GuestFrame frame(ctx, 0x10u); G[4] = G[5]; G[16] = G[5]; G[2] = 0u; if (G[5] != 0u) { call_here(rt, ctx, 0x08ACA4BCu); G[4] = G[16] + 0x22Cu; tail = G[2] != 0u; } if (!tail) G[2] = 0x80001000u; } G[16] = s0; if (tail) jump(ctx, 0x08ACA3D4u); }
-void func_08ACA5D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; bool tail = false; { GuestFrame frame(ctx, 0x10u); G[4] = G[5]; G[16] = G[5]; G[2] = 0u; if (G[5] != 0u) { call_here(rt, ctx, 0x08ACA4BCu); G[4] = G[16] + 0x22Cu; tail = G[2] != 0u; } if (!tail) G[2] = 0x80001000u; } G[16] = s0; if (tail) jump(ctx, 0x08ACA3E0u); }
-void func_08ACA624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; bool tail = false; { GuestFrame frame(ctx, 0x10u); G[4] = G[5]; G[16] = G[5]; G[2] = 0u; if (G[5] != 0u) { call_here(rt, ctx, 0x08ACA4BCu); G[4] = G[16] + 0x22Cu; tail = G[2] != 0u; } if (!tail) G[2] = 0x80001000u; } G[16] = s0; if (tail) jump(ctx, 0x08ACA3F4u); }
+void func_08ACA584(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    checked_forward(rt, ctx, 0x08ACA3D4u);
+}
+void func_08ACA5D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    checked_forward(rt, ctx, 0x08ACA3E0u);
+}
+void func_08ACA624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    checked_forward(rt, ctx, 0x08ACA3F4u);
+}
 void func_08AD8464(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x430u); put(rt, frame.at(0x414u), G[5]); G[5] = G[4]; G[4] = frame.at(0u); put(rt, frame.at(0x418u), G[6]); G[6] = frame.at(0x414u); put(rt, frame.at(0x41Cu), G[7]); put(rt, frame.at(0x420u), G[8]); put(rt, frame.at(0x424u), G[9]); put(rt, frame.at(0x428u), G[10]); put(rt, frame.at(0x42Cu), G[11]); call_here(rt, ctx, 0x08B373ECu); G[3] = high_half(0x08CDFB30u); G[2] = word(rt, 0x08CDFB30u); G[4] = frame.at(0u); call_here(rt, ctx, G[2]); } }
 void func_08ADA4D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[5] = 0x08C90C3Cu; call_here(rt, ctx, 0x08AD9E74u); G[16] = G[2]; G[2] = 0u; if (G[16] != 0u) { call_here(rt, ctx, 0x08AEB808u); G[2] = load16(G[16] + 0x10u) + 1u; store16(G[16] + 0x10u, G[2]); call_here(rt, ctx, 0x08AEB82Cu); G[2] = 1u; } } G[16] = s0; }
 void func_08ADB938(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[16] = G[5]; G[5] = 0x08C90DD0u; call_here(rt, ctx, 0x08ADB278u); G[3] = G[2]; G[2] = 0u; if (G[3] != 0u) { G[2] = 1u; put(rt, G[3] + 0x8Cu, G[2]); put(rt, G[3] + 0x94u, G[16]); put(rt, G[3] + 0x90u, 0u); call_here(rt, ctx, 0x08C7AAE0u); G[2] = 1u; } } G[16] = s0; }
@@ -533,7 +579,10 @@ void func_08C24F48(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { co
 void func_08C30ED8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; const std::uint32_t s2 = G[18]; { GuestFrame frame(ctx, 0x10u); G[18] = G[6]; G[17] = G[5]; if (G[5] != G[4]) { G[16] = G[4]; do { G[5] = G[18]; call_here(rt, ctx, 0x08B855E0u); G[4] = G[16] + 0x4u; G[16] = G[4]; } while (G[17] != G[4]); } } G[16] = s0; G[17] = s1; G[18] = s2; }
 void func_08C2815C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[2] = 0x08CD4108u; G[16] = G[4]; G[4] += 0xCu; put(rt, G[16], G[2]); G[5] = word(rt, G[4] + 8u); call_here(rt, ctx, 0x08C00860u); G[4] = G[16] + 8u; call_here(rt, ctx, 0x08A5B9ECu); G[2] = 0x08CD1F30u; put(rt, G[16], G[2]); G[4] = G[16] + 4u; } G[16] = s0; jump(ctx, 0x08A5B9ECu); }
 void func_08C3C3C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[6] = G[5]; G[3] = G[4]; if (static_cast<std::int32_t>(G[5]) < 0) { G[2] = 0u; return; } G[4] = word(rt, G[3] + 4u); G[2] = word(rt, G[3] + 0xCu); G[5] = word(rt, G[3] + 8u); G[3] = (G[4] + 0x7Fu) & ~0x7Fu; G[2] = (G[2] + 0x7Fu) & ~0x7Fu; ctx.lo = G[3]; const std::uint64_t accumulator = (static_cast<std::uint64_t>(ctx.hi) << 32 | ctx.lo) + static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int32_t>(G[6])) * static_cast<std::int32_t>(G[2])); ctx.lo = static_cast<std::uint32_t>(accumulator); ctx.hi = static_cast<std::uint32_t>(accumulator >> 32); G[4] += G[5]; G[3] = ctx.lo; G[4] = G[3] < G[4] ? 1u : 0u; G[2] = G[3]; if (G[4] == 0u) G[2] = 0u; }
-void func_08C4F218(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[5]; G[16] = G[4]; while (G[16] != G[17]) { G[2] = word(rt, G[16]); G[16] += 0x10u; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08B61FC0u); } } G[16] = s0; G[17] = s1; }
+void func_08C4F218(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    release_range(rt, ctx);
+}
 void func_08C50744(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[5]; G[16] = G[4]; while (G[16] != G[17]) { G[2] = word(rt, G[16]); G[16] += 0x10u; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08B61FC0u); } } G[16] = s0; G[17] = s1; }
 void func_08C5457C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[2] = 0x08CDC298u; G[17] = G[4]; put(rt, G[4], G[2]); call_here(rt, ctx, 0x08C78130u); G[4] = G[17] + 0x24u; call_here(rt, ctx, 0x08B61708u); G[2] = 0x08CDBDF0u; put(rt, G[17], G[2]); G[4] = G[17] + 0x1Cu; } G[16] = s0; G[17] = s1; jump(ctx, 0x08B5D34Cu); }
 void func_08C545EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[2] = 0x08CDC298u; G[17] = G[4]; put(rt, G[4], G[2]); call_here(rt, ctx, 0x08C78130u); G[4] = G[17] + 0x24u; call_here(rt, ctx, 0x08B61708u); G[2] = 0x08CDBDF0u; put(rt, G[17], G[2]); G[4] = G[17] + 0x1Cu; } G[16] = s0; G[17] = s1; jump(ctx, 0x08B5D34Cu); }
