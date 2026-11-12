@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <optional>
 #include <string>
@@ -66,6 +67,11 @@ public:
     // with a warning; a clash keeps the default and warns.
     std::string to_text() const;
     void load_text(const std::string &text, std::vector<std::string> &warnings);
+    // bindings.toml on disk: written to `<path>.tmp`, flushed, then renamed over the old file (a crash mid-write leaves the old
+    // one). False with the reason in `error` when it cannot be written; the old file is untouched then. A missing file loads
+    // nothing and warns nothing (first start); an unreadable one keeps the defaults and warns.
+    bool save_file(const std::filesystem::path &path, std::string &error) const;
+    void load_file(const std::filesystem::path &path, std::vector<std::string> &warnings);
     // Warnings of saved lines applied late (their action was declared after load_text), taken once.
     std::vector<std::string> take_warnings();
 

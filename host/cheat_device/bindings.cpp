@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <bit>
 #include <cctype>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
+#include <fstream>
 #include <sstream>
 
 namespace gt::cheat_device {
@@ -278,6 +282,44 @@ void BindingTable::load_text(const std::string &text, std::vector<std::string> &
         }
         if (!ok) warnings.push_back(where + error + " (default kept)");
     }
+}
+
+bool BindingTable::save_file(const std::filesystem::path &path, std::string &error) const {
+    const std::filesystem::path tmp = path.string() + ".tmp";
+    const std::string text = to_text();
+    std::FILE *file = std::fopen(tmp.c_str(), "wb");
+    if (file == nullptr) {
+        error = "cannot write " + tmp.string() + ": " + std::strerror(errno);
+        return false;
+    }
+    const bool written = std::fwrite(text.data(), 1, text.size(), file) == text.size() && std::fflush(file) == 0;
+    const bool closed = std::fclose(file) == 0;
+    if (!written || !closed) {
+        error = "cannot write " + tmp.string() + ": " + std::strerror(errno);
+        std::filesystem::remove(tmp);
+        return false;
+    }
+    std::error_code code;
+    std::filesystem::rename(tmp, path, code);
+    if (code) {
+        error = "cannot replace " + path.string() + ": " + code.message();
+        std::filesystem::remove(tmp, code);
+        return false;
+    }
+    return true;
+}
+
+void BindingTable::load_file(const std::filesystem::path &path, std::vector<std::string> &warnings) {
+    std::error_code code;
+    if (!std::filesystem::exists(path, code)) return;
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        warnings.push_back("cannot read " + path.string() + " (default hotkeys kept)");
+        return;
+    }
+    std::ostringstream text;
+    text << in.rdbuf();
+    load_text(text.str(), warnings);
 }
 
 std::vector<std::string> PadHotkeys::poll(const BindingTable &table, std::uint32_t raw) {

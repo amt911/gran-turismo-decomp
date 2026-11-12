@@ -5,6 +5,9 @@
 #include "pad_menu.hpp"
 
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -158,6 +161,51 @@ void test_text_round_trip() {
     check(table_with_defaults().to_text().find(".key") == std::string::npos, "defaults are not written");
 }
 
+std::string slurp(const std::filesystem::path &path) {
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
+}
+
+void test_file_round_trip() {
+    const auto dir = std::filesystem::temp_directory_path() / "cheat_device_test_rt";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    BindingTable t = table_with_defaults();
+    std::string error;
+    t.set_key("cheats.nitro", KeyBinding{"F6", kAlt}, error);
+    check(t.save_file(dir / "bindings.toml", error), "save_file succeeds");
+    check(!std::filesystem::exists(dir / "bindings.toml.tmp"), "no temporary file is left behind");
+    BindingTable later = table_with_defaults();
+    std::vector<std::string> warnings;
+    later.load_file(dir / "bindings.toml", warnings);
+    check(later.find("cheats.nitro")->key == (KeyBinding{"F6", kAlt}) && warnings.empty(), "load_file restores the saved binding");
+    BindingTable none = table_with_defaults();
+    none.load_file(dir / "missing.toml", warnings);
+    check(warnings.empty() && none.find("cheats.nitro")->key == (KeyBinding{"N", kCtrl}), "a missing file is no warning, defaults stay");
+    std::filesystem::remove_all(dir);
+}
+
+void test_failed_save_keeps_old_file() {
+    const auto dir = std::filesystem::temp_directory_path() / "cheat_device_test_ro";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    BindingTable t = table_with_defaults();
+    std::string error;
+    t.set_key("cheats.nitro", KeyBinding{"F6", kAlt}, error);
+    t.save_file(dir / "bindings.toml", error);
+    const std::string before = slurp(dir / "bindings.toml");
+    std::filesystem::permissions(dir, std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
+    t.set_key("cheats.nitro", KeyBinding{"F7", 0}, error);
+    error.clear();
+    const bool saved = t.save_file(dir / "bindings.toml", error);
+    std::filesystem::permissions(dir, std::filesystem::perms::owner_all);
+    check(!saved && !error.empty(), "a save into a read-only folder fails with a reason");
+    check(slurp(dir / "bindings.toml") == before, "and leaves the old file as it was");
+    std::filesystem::remove_all(dir);
+}
+
 }  // namespace
 
 int main() {
@@ -167,6 +215,8 @@ int main() {
     test_pad_hotkeys();
     test_capture();
     test_text_round_trip();
+    test_file_round_trip();
+    test_failed_save_keeps_old_file();
     if (failures == 0) std::puts("cheat_device: all tests passed");
     return failures == 0 ? 0 : 1;
 }
