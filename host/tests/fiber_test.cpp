@@ -4,7 +4,11 @@
 #include "fiber.hpp"
 #include "guest_call.hpp"
 
+#include <csignal>
 #include <cstdio>
+#include <cstring>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace {
 
@@ -46,6 +50,13 @@ void thread_b(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
 }
 
 // The decompiled function: v0 = blocking() + 1.
+// Uses about `kib` KiB of stack, 1 KiB per frame, every byte written (no optimiser can drop it).
+__attribute__((noinline)) unsigned dig(unsigned kib) {
+    volatile unsigned char frame[1024];
+    for (unsigned i = 0; i < sizeof frame; ++i) frame[i] = static_cast<unsigned char>(i | 1u);
+    return kib == 0u ? frame[7] : dig(kib - 1u) + frame[kib % 1024u];
+}
+
 void decompiled(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = gt::call_guest(rt, ctx, kBlocking, {}) + 1u;
 }
@@ -95,6 +106,33 @@ int main() {
         escaped = true;
     }
     check(!escaped && !gt::fiber::on_fiber(), "GuestStopped thrown on a fiber ends the fiber and returns to the dispatcher");
+
+    // The high-water mark sees a deep call (a 512 KiB local array on the fiber stack).
+    psprecomp::AllegrexContext deep{};
+    deep.gpr[31] = kCallerReturn;
+    gt::fiber::run(rt, deep, [](psprecomp::Runtime &, psprecomp::AllegrexContext &c) { c.gpr[2] = dig(256u); }, kEntry);
+    const std::size_t used256 = gt::fiber::max_stack_used();
+    gt::fiber::run(rt, deep, [](psprecomp::Runtime &, psprecomp::AllegrexContext &c) { c.gpr[2] = dig(512u); }, kEntry);
+    check(gt::fiber::max_stack_used() >= 512u * 1024u, "max_stack_used reports a 512 KiB deep call");
+
+    // An overflow faults on the guard page at once (a child process runs it), never writes past the stack. The child
+    // goes ~2 KiB past the stack's end, so it lands on the 4 KiB guard page (without one it would run on unnoticed);
+    // the depth comes from the measured size of one dig() frame.
+    const std::size_t per_frame = (gt::fiber::max_stack_used() - used256) / 256u;
+    const std::size_t base = used256 - 256u * per_frame;  // fiber_main and the lambda
+    static unsigned overflow_depth = 0u;
+    overflow_depth = static_cast<unsigned>((2u * 1024u * 1024u + 2048u - base) / per_frame);
+    const pid_t child = fork();
+    if (child == 0) {
+        psprecomp::AllegrexContext over{};
+        over.gpr[31] = kCallerReturn;
+        gt::fiber::run(rt, over, [](psprecomp::Runtime &, psprecomp::AllegrexContext &c) { c.gpr[2] = dig(overflow_depth); }, kEntry);
+        _exit(0);
+    }
+    int status = 0;
+    waitpid(child, &status, 0);
+    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV, "a fiber stack overflow is a SIGSEGV on the guard page");
+
     if (failures == 0) std::puts("fiber: all tests passed");
     return failures == 0 ? 0 : 1;
 }
