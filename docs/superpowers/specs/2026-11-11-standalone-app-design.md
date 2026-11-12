@@ -29,9 +29,9 @@ Play, Mods, Cheats, Settings. Everything the player can configure is reachable f
 The game runs today because PSPRecomp translates the EBOOT to C++ at build time. That translation is game-derived
 (AGENTS.md: never committed). **A binary that contains it is game-derived too**, so a downloadable "app" that works on the
 ISO alone is only clean once no recompiled code is left (end state 1 of the roadmap). Until then there are three ways, and
-the choice is the user's (open question 1):
+the user chose **A** (2026-11-12):
 
-- **A. Build on the player's machine, hidden behind the app** *(Claude's recommendation for now)*: the released app contains
+- **A. Build on the player's machine, hidden behind the app** *(chosen by the user, 2026-11-12)*: the released app contains
   only our code (host, decompiled functions, UI, launcher) and the pinned recompiler; on first start, after the ISO is
   verified, it runs the recompile and a compile of the generated code with a bundled toolchain (clang + lld, ~150 MB
   download, pinned), showing progress (recomp peaks at 3.8 GB, AGENTS.md; the time of the recomp and of the generated C++
@@ -47,7 +47,7 @@ Everything below holds for all three; only the first-start pipeline (§2) differ
 
 ### 1. One executable, two modes *(Claude)*
 
-`gt-psp` (name to be chosen by the user, open question 2: the product must not use the game's trademark) is a single
+**Turismo PC** (name chosen by the user, 2026-11-12; executable `turismo-pc`) is a single
 process. It starts in **launcher mode** (UI only, the emulated runtime not started); **Play** starts the runtime in the
 same window. Quitting the game closes the program in version 1 (the runtime cannot be torn down and restarted today;
 returning to the launcher is a later step).
@@ -61,7 +61,7 @@ returning to the launcher is a later step).
 - **Take what is needed:** the ISO9660 contents the game reads (`disc0:`) are read **straight from the ISO** by a small
   ISO9660 reader in the host (our code), so nothing is copied; the EBOOT is decrypted with pspdecrypt run as a **separate
   bundled program** (it is GPL-3.0: run, not linked) into the app's data folder, and its SHA1 checked.
-- **Data folder per platform:** Linux `$XDG_DATA_HOME/gt-psp`, Windows `%APPDATA%\gt-psp`, Android app storage. Holds the
+- **Data folder per platform:** Linux `$XDG_DATA_HOME/turismo-pc`, Windows `%APPDATA%\turismo-pc`, Android app storage. Holds the
   ISO path, the decrypted EBOOT, (option A) the build cache, saves, mods, `bindings.toml` and settings.
 - The ISO path is remembered; if the file moves, the launcher asks again (hash checked again).
 
@@ -114,7 +114,6 @@ Bundling any game data or art; online features; a console port (Android follows 
 
 ## Open questions (the user's)
 
-1. **Distribution:** A (build on the player's machine), B (ship the recompiled code) or C (no release until fully
-   decompiled)? This is a legal decision.
-2. **Name** of the program (not the game's trademark).
-3. Should Play return to the launcher when the game quits (needs a restartable runtime; proposed: later)?
+Answered 2026-11-12: distribution **A** (build on the player's machine); name **Turismo PC**.
+
+1. Should Play return to the launcher when the game quits (needs a restartable runtime; proposed: later)?

@@ -60,5 +60,7 @@ import above. Add below only what applies to Claude Code alone. -->
   (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`).
 - **Standalone app, Dusklight-style:** a program that runs on its own, asks for the user's game ISO for everything else
   (verifies it, extracts what it needs), and has a polished user interface (launcher, settings, mods)
-  (spec `docs/superpowers/specs/2026-11-11-standalone-app-design.md`).
+  (spec `docs/superpowers/specs/2026-11-11-standalone-app-design.md`). **2026-11-12:** distribution **A** — the released
+  app carries only our code and recompiles the player's own EBOOT on their machine at first start (nothing game-derived is
+  shipped); name **Turismo PC**.
 - **Mods must also act in replays** (rollover, cheats such as nitro): a replay that drops a mod's effect is a bug.
