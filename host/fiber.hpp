@@ -30,6 +30,7 @@ void suspend(psprecomp::AllegrexContext &local);
 
 // Fibers created and suspensions so far (for the --decomp report).
 std::size_t created() noexcept;
+std::size_t max_stack_used() noexcept;  // bytes, the deepest any fiber went (approximate, 64-byte steps)
 std::uint64_t suspensions() noexcept;
 
 } // namespace gt::fiber
