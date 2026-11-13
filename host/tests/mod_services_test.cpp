@@ -42,7 +42,9 @@ int main() {
     psprecomp::Runtime rt;
     rt.register_function(kGuest, &guest_sum, "guest");
 
-    GtMod v2a, v2b, v1;
+    GtMod v2a, v2b, v1, v3_for_v4;
+    v3_for_v4.id = "v3x";
+    v3_for_v4.api_version = 3;
     v2a.id = "a";
     v2a.api_version = 2;
     v2b.id = "b";
@@ -163,6 +165,61 @@ int main() {
     end_init();
     remove_for(&v2b);
     check(menu_row_count() == 0, "remove_for drops the rows");
+
+    {  // v4: actions (a hotkey or the device's menu fires them; they run on the vblank tick) and entries placed in a category
+        clear_for_tests();
+        GtMod v4, v4b;
+        v4.id = "cheats";
+        v4.api_version = 4;
+        v4b.id = "boost";
+        v4b.api_version = 4;
+        const GtModApi &api4 = mod_api(4);
+        check(api4.version == 4, "a v4 mod sees version 4");
+        static int nitro_runs = 0;
+        static bool nitro_in_tick = false;
+        const GtActionFn nitro = [](GtMod *, GtModCtx *c) {
+            ++nitro_runs;
+            nitro_in_tick = c != nullptr && c->tick;
+        };
+        check(api4.add_action(&v4, "nitro", "Nitro", "Race", nitro, "Ctrl+N", "L+TRIANGLE") != 0, "action refused outside gt_mod_init");
+        begin_init(&v3_for_v4);
+        check(mod_api(3).add_action == nullptr || mod_api(3).add_action(&v3_for_v4, "x", "X", "Race", nitro, "", "") != 0,
+              "add_action refused to an api-3 mod");
+        end_init();
+        begin_init(&v4);
+        check(api4.add_action(&v4, "nitro", "Nitro", "Race", nitro, "Ctrl+N", "L+TRIANGLE") == 0, "v4 add_action");
+        check(api4.add_action(&v4, "nitro", "Nitro", "Race", nitro, "", "") != 0, "the same action twice is refused");
+        check(api4.add_action(&v4, "warp", "Warp", "Mods", nitro, "", "") != 0, "Mods and Controls are the host's categories");
+        check(api4.add_entry(&v4, "Race", "slowmo", label_a, act) == 0, "v4 add_entry in a category");
+        check(api4.add_entry(&v4, "Nowhere", "x", label_a, act) != 0, "an unknown category is refused");
+        end_init();
+        check(actions().size() == 1 && actions()[0].id == "cheats.nitro" && actions()[0].key == "Ctrl+N" && actions()[0].pad == "L+TRIANGLE" &&
+                  actions()[0].category == "Race", "the action is declared as <mod>.<id> with its defaults");
+        check(entries().size() == 1 && entries()[0].category == "Race", "the entry is listed in its category");
+        check(any_registered(), "an action makes the host install the pad filter and the tick");
+        psprecomp::Runtime rt4;
+        psprecomp::AllegrexContext ctx4{};
+        queue_action("cheats.nitro");
+        queue_action("cheats.nitro");  // twice before a tick: runs once (a hotkey and the menu in one vblank)
+        check(nitro_runs == 0, "a queued action waits for the tick");
+        run_vblank_tick(rt4, ctx4, 10);
+        check(nitro_runs == 1 && nitro_in_tick, "the tick runs the queued action once, with a tick ctx");
+        set_active(&v4, false);
+        queue_action("cheats.nitro");
+        run_vblank_tick(rt4, ctx4, 11);
+        check(nitro_runs == 1, "a switched-off mod's action does not run");
+        set_active(&v4, true);
+        run_vblank_tick(rt4, ctx4, 12);
+        check(nitro_runs == 1, "nor later: the queue is emptied every tick");
+        char text[32];
+        set_active(&v4, false);
+        check(entry_text(0, text, sizeof text) && std::string(text) == "cheats mod OFF" && !entry_activate(0, 1),
+              "an entry of a switched-off mod reads OFF and ignores keys");
+        set_active(&v4, true);
+        remove_for(&v4);
+        check(actions().empty() && entries().empty(), "a failed init drops the actions and entries");
+        clear_for_tests();
+    }
 
     if (failures == 0) std::puts("mod_services tests passed");
     return failures == 0 ? 0 : 1;

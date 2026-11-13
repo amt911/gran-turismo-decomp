@@ -78,9 +78,9 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
             skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
-        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_3) {
+        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_4) {
             skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + " to " +
-                 std::to_string(GT_MOD_API_VERSION_3) + ")");
+                 std::to_string(GT_MOD_API_VERSION_4) + ")");
             continue;
         }
         const std::filesystem::path library = mod_dir / manifest->library;
