@@ -204,7 +204,7 @@ u32 call_virtual(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 ta
     call_here(rt, ctx, target);
     return ctx.gpr[2];
 }
-// `a0 == 1 && a1 == 1` registers the module (0x08A92114 with its table) and tail calls 0x0897D534 with the second argument set;
+// `a0 == 1 && a1 == 0xFFFF` registers the module (0x08A92114 with its table) and tail calls 0x0897D534 with the second argument set;
 // a0 == 1 alone answers 0xFFFF, any other phase 1 (v1 keeps a1).
 void register_module_once(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 object, u32 klass, u32 size, u32 first,
                           u32 second, u32 third, u32 object2, u32 table_a, u32 table_b) {
@@ -217,7 +217,7 @@ void register_module_once(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
         ctx.gpr[3] = argument;
         if (phase == 1u) {
             ctx.gpr[2] = 0xFFFFu;
-            if (argument == 1u) {
+            if (argument == 0xFFFFu) {  // bne v1, v0 with v0 = 0xFFFF (0x0898DB00 / 0x089BE9BC)
                 call_args(rt, ctx, 0x08A92114u, {object, klass, size, first, second, third});
                 jump_on = true;
             }
