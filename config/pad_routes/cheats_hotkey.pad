@@ -1,0 +1,19 @@
+# Route cheats_hotkey: cheats.pad up to the race, then the cheat device from the pad (tools/mod_cheats_check.sh --hotkey). Throttle never held.
+# +1500 chord opens the device (on Mods), +1600 CIRCLE up to the categories (Race, Money & garage, Mods, Controls), three DOWN to Controls,
+# RIGHT opens it (device.open, cheats.nitro, cheats.jump, Reset all), DOWN to Nitro on/off, RIGHT opens it (Keyboard, Pad, Clear, Reset), DOWN to
+# Pad, +2000 CROSS starts the capture, +2100 R+SQUARE held 20 vblanks then released = the new binding, +2200 the chord closes the device,
+# +2300 R+SQUARE in the race fires nitro (full throttle without CROSS). Waits for the game, not for a time (host/pad_sequence.hpp).
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:SELECT:6,1500:START:6,1600:CIRCLE:6,1650:DOWN:6,1700:DOWN:6,1750:DOWN:6,1800:RIGHT:6,1850:DOWN:6,1900:RIGHT:6,1950:DOWN:6,2000:CROSS:6,2100:R:20,2100:SQUARE:20,2200:SELECT:6,2200:START:6,2300:R:6,2300:SQUARE:6

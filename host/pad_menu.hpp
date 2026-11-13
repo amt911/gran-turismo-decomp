@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace gt {
 
@@ -42,12 +43,26 @@ struct PadMenuConfig {
     bool ignore_chord = false;                     // verification only (GT_PAD_MENU_SABOTAGE_IGNORE_CHORD): the chord never fires
 };
 
+// A cheat device hotkey on the pad (host/cheat_device/bindings.hpp PadBinding, without the dependency): its buttons are held back
+// from the game like the chord's, for hold_back polls (a press combination) or `hold` polls (a hold binding, e.g. reset's SELECT
+// held 30). When the combination completes (or is held `hold` polls) the game never sees those buttons until they are released;
+// otherwise it gets them late with their real length.
+struct PadHotkeyMask {
+    std::uint32_t buttons = 0;
+    unsigned hold = 0;
+    bool operator==(const PadHotkeyMask &) const = default;
+};
+
 // "SELECT+START", "L+R+START": names as the GT_PAD script uses them; 0 (and error filled) for an unknown name or an empty list.
 std::uint32_t parse_pad_chord(const std::string &text, std::string &error);
 
 class PadMenuFilter {
 public:
     explicit PadMenuFilter(PadMenuConfig config = {}) : config_(config) {}
+    // The cheat device's open combination after the player rebinds it (0 = no pad way in: the chord never fires).
+    void set_chord(std::uint32_t chord) { config_.chord = chord; }
+    // The device's other pad bindings (replaced whole when the player rebinds; the chord stays apart).
+    void set_hotkeys(std::vector<PadHotkeyMask> hotkeys);
 
     // Once per vblank, with the raw buttons the game would read and whether the overlay is open now: the overlay keys to apply, in order.
     PadMenuKeys poll(std::uint32_t raw, bool menu_open);
@@ -58,7 +73,9 @@ public:
     }
 
 private:
-    void update_hold_back(std::uint32_t raw, std::uint32_t pressed, bool chord_fire, bool menu_open);
+    void update_hold_back(std::uint32_t raw, std::uint32_t pressed, std::uint32_t fired, bool menu_open);
+    std::uint32_t fire_hotkeys(std::uint32_t raw, bool menu_open);  // the buttons of the hotkeys that completed on this poll
+    unsigned window(unsigned bit) const;
     PadMenuConfig config_;
     std::uint32_t previous_ = 0;
     std::uint32_t suppressed_ = 0;
@@ -68,6 +85,9 @@ private:
     std::array<unsigned, 16> age_{};     // polls each pending button has been down
     std::array<unsigned, 16> replay_left_{};  // polls of late tap still to give, per button
     std::array<unsigned, 4> held_{};  // polls Up, Down, Left, Right have been held while the menu was open
+    std::vector<PadHotkeyMask> hotkeys_;
+    std::vector<bool> hotkey_down_;
+    std::vector<unsigned> hotkey_held_;
 };
 
 }  // namespace gt

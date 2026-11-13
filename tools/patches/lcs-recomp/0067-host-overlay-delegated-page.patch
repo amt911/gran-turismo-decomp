@@ -1,0 +1,200 @@
+diff --git a/lcs/host/display_window.cpp b/lcs/host/display_window.cpp
+index da5bc4a..d9973a5 100644
+--- a/lcs/host/display_window.cpp
++++ b/lcs/host/display_window.cpp
+@@ -226,7 +226,7 @@ void paint_host_overlay(HDC hdc) noexcept {
+         SetTextColor(hdc, RGB(180, 200, 230));
+         TextOutA(hdc, origin_x + 12, origin_y + 8, view.title, static_cast<int>(std::strlen(view.title)));
+         TextOutA(hdc, origin_x + 12, origin_y + 8 + line, view.footer, static_cast<int>(std::strlen(view.footer)));
+-        for (int row = 0; row < 5; ++row) {
++        for (int row = 0; row < view.row_count; ++row) {
+             const int y = origin_y + 8 + line * (2 + row);
+             if (row == view.selected) {
+                 RECT highlight{origin_x + 6, y - 2, origin_x + panel_w - 6, y + font_h + 4};
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index fa61a4e..b7da9c2 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -151,7 +151,7 @@ void pump_events() noexcept {
+             host_settings_handle(HostSettingsKey::Toggle);
+             if (was_open) discard_pending_pointer();
+         } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0 &&
+-                   event.key.keysym.scancode == SDL_SCANCODE_F9 && host_settings_has_extra_page()) {
++                   event.key.keysym.scancode == SDL_SCANCODE_F9 && host_settings_f9_is_overlay()) {
+             const bool was_open = host_settings_open();
+             host_settings_handle(HostSettingsKey::TogglePage);
+             if (was_open && !host_settings_open()) discard_pending_pointer();
+@@ -295,7 +295,7 @@ void paint_host_settings(SDL_Renderer *renderer) noexcept {
+     const int scale = std::max(2, output_h / 280);
+     const HostSettingsView view = host_settings_view();
+     const int panel_w = 42 * 6 * scale;
+-    const int panel_h = 16 * 8 * scale;
++    const int panel_h = std::max(16 * 8, 28 + view.row_count * 12 + 4) * scale;
+     const int margin = 8 * scale;
+     const int origin_x = std::max(margin, output_w - panel_w - margin);
+     const int origin_y = margin;
+@@ -304,7 +304,7 @@ void paint_host_settings(SDL_Renderer *renderer) noexcept {
+     SDL_SetRenderDrawColor(renderer, 180, 200, 230, 255);
+     draw_text(renderer, origin_x + 8 * scale, origin_y + 6 * scale, scale, view.title);
+     draw_text(renderer, origin_x + 8 * scale, origin_y + 16 * scale, scale, view.footer);
+-    for (int row = 0; row < 5; ++row) {
++    for (int row = 0; row < view.row_count; ++row) {
+         const int y = origin_y + (28 + row * 12) * scale;
+         if (row == view.selected) {
+             SDL_SetRenderDrawColor(renderer, 40, 70, 120, 255);
+diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index 93da2e5..526c024 100644
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -260,6 +260,8 @@ bool host_settings_open() noexcept { return g_open; }
+ 
+ bool host_settings_has_extra_page() noexcept { return g_extra != nullptr; }
+ 
++bool host_settings_f9_is_overlay() noexcept { return g_extra != nullptr && !g_extra->owns_open_key; }
++
+ namespace {
+ std::atomic<void (*)()> g_debug_key{nullptr};
+ }
+@@ -305,6 +307,13 @@ bool host_settings_handle(HostSettingsKey key) noexcept {
+         return true;
+     }
+     if (!g_open) return false;
++    if (g_extra_shown && g_extra != nullptr && g_extra->key != nullptr && key != HostSettingsKey::Toggle) {
++        if (!g_extra->key(key)) {
++            g_open = false;
++            g_extra_shown = false;
++        }
++        return true;
++    }
+     if (key == HostSettingsKey::Close) {
+         g_open = false;
+         g_extra_shown = false;
+@@ -341,7 +350,7 @@ Win32HostKeyDecision classify_win32_host_key(std::uint32_t message, std::uint32_
+         return decision;
+     }
+     const bool f10 = wparam == kWin32VkF10;
+-    const bool f9 = wparam == kWin32VkF9 && g_extra != nullptr;  // without an extra page F9 stays the game's
++    const bool f9 = wparam == kWin32VkF9 && host_settings_f9_is_overlay();  // without an extra page (or with one that owns its open key) F9 is not the overlay's
+     const bool down = message == kWin32KeyDown || message == kWin32SysKeyDown;
+     const bool up = message == kWin32KeyUp || message == kWin32SysKeyUp;
+     if (!(f10 || f9) || (!down && !up)) return decision;
+@@ -441,7 +450,7 @@ void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba
+                  8u, 12u, 28u, 230u);
+     overlay_text(rgba, width, height, 8 * scale, 6 * scale, scale, view.title, 180u, 200u, 230u);
+     overlay_text(rgba, width, height, 8 * scale, 6 * scale + line, scale, view.footer, 180u, 200u, 230u);
+-    for (int row = 0; row < 5; ++row) {
++    for (int row = 0; row < view.row_count; ++row) {
+         const int y = 6 * scale + line * (2 + row);
+         if (row == view.selected)
+             overlay_fill(rgba, width, height, 4 * scale, y - scale,
+@@ -471,6 +480,11 @@ void rasterize_fps_overlay(std::uint8_t *rgba, std::uint32_t width,
+ HostSettingsView host_settings_view() noexcept {
+     remember_applied_resolution();
+     HostSettingsView view{};
++    if (g_extra_shown && g_extra != nullptr && g_extra->view != nullptr) {
++        g_extra->view(view);
++        view.row_count = std::clamp(view.row_count, 0, kViewRows);
++        return view;
++    }
+     if (g_extra_shown && g_extra != nullptr) {
+         // The extra page shows a window of 5 rows that scrolls with the selection.
+         const int count = extra_count();
+diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index eb76a98..cad8cef 100644
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -16,6 +16,10 @@ enum class HostSettingsKey {
+     Activate,    // Enter: toggles the selected row of the extra page
+ };
+ 
++inline constexpr int kViewRows = 8;  // rows a view can hold; the main page and the row-list pages use 5 of them
++
++struct HostSettingsView;
++
+ // An extra page the host program registers (GT: the MODS page). Rows are text; `toggle` flips the row's setting and
+ // returns true if it changed anything. `title` must outlive the registration (a string literal). `adjust`, when set, replaces
+ // `toggle` and tells the keys apart: direction 0 = Enter, -1 = Left, +1 = Right.
+@@ -25,11 +29,19 @@ struct HostExtraPage {
+     void (*row)(std::size_t index, char *out, std::size_t capacity);
+     bool (*toggle)(std::size_t index);
+     bool (*adjust)(std::size_t index, int direction) = nullptr;
++    // A delegated page (GT: the cheat device) drives itself: when `key` is set the overlay hands it Up/Down/Left/Right/
++    // Activate/Close while the page is shown (no row list, no selection of its own) and closes when it returns false; `view`
++    // fills the whole view (title, footer, up to kViewRows rows, row_count, selected). With `owns_open_key` the overlay leaves
++    // F9 alone (the host binds the page's open key itself and calls TogglePage).
++    bool (*key)(HostSettingsKey key) = nullptr;
++    void (*view)(HostSettingsView &view) = nullptr;
++    bool owns_open_key = false;
+ };
+ 
+ struct HostSettingsView {
+     int selected{0};
+-    char rows[5][48]{};
++    char rows[kViewRows][48]{};
++    int row_count{5};  // rows to draw
+     bool resolution_pending{false};
+     char title[32]{};   // HOST SETTINGS on the main page, the extra page's title otherwise
+     char footer[32]{};  // F10 CLOSE on the main page, F9 CLOSE on the extra page
+@@ -38,6 +50,8 @@ struct HostSettingsView {
+ // Registers (or, with nullptr, removes) the extra page opened by F9. Without one F9 does nothing.
+ void host_settings_set_extra_page(const HostExtraPage *page) noexcept;
+ [[nodiscard]] bool host_settings_has_extra_page() noexcept;
++// True when F9 belongs to the overlay (an extra page is registered and does not own its open key).
++[[nodiscard]] bool host_settings_f9_is_overlay() noexcept;
+ // A debug key the host program can claim (GT: F8 = trace the GE lists of the next frame). Null = the key does nothing.
+ void host_set_debug_key_handler(void (*handler)()) noexcept;
+ void host_debug_key_pressed() noexcept;
+diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
+index 541e030..7c482d8 100644
+--- a/tests/lcs_host_menu_test.cpp
++++ b/tests/lcs_host_menu_test.cpp
+@@ -354,6 +354,42 @@ int f9_key() {
+     return 0;
+ }
+ 
++// A delegated page (GT: the cheat device): the page gets the keys and fills the view itself; false from `key` closes the overlay.
++std::vector<int> g_delegated_keys;
++bool delegated_key(lcs::HostSettingsKey key) {
++    g_delegated_keys.push_back(static_cast<int>(key));
++    return key != lcs::HostSettingsKey::Close;  // the page is at its root: Close closes
++}
++void delegated_view(lcs::HostSettingsView &view) {
++    view.row_count = lcs::kViewRows;
++    view.selected = 7;
++    for (int row = 0; row < lcs::kViewRows; ++row) std::snprintf(view.rows[row], sizeof(view.rows[row]), "ROW%d", row);
++    std::snprintf(view.title, sizeof(view.title), "Cheats > Race");
++}
++
++int delegated_page() {
++    using namespace lcs;
++    static const HostExtraPage page{"CHEATS", nullptr, nullptr, nullptr, nullptr, delegated_key, delegated_view, true};
++    host_settings_set_extra_page(&page);
++    if (!host_settings_handle(HostSettingsKey::TogglePage) || !host_settings_open()) return fail("open the delegated page");
++    host_settings_handle(HostSettingsKey::Up);
++    host_settings_handle(HostSettingsKey::Activate);
++    if (g_delegated_keys != std::vector<int>{static_cast<int>(HostSettingsKey::Up), static_cast<int>(HostSettingsKey::Activate)})
++        return fail("the page gets Up and Activate");
++    const HostSettingsView view = host_settings_view();
++    if (view.row_count != kViewRows || std::string(view.rows[7]) != "ROW7" || view.selected != 7 ||
++        std::string(view.title) != "Cheats > Race")
++        return fail("the page fills the view (8 rows)");
++    host_settings_handle(HostSettingsKey::Close);
++    if (host_settings_open()) return fail("Close at the page's root closes the overlay");
++    // The page owns its open key: F9 is not the overlay's (the host binds the device's open key itself).
++    const Win32HostKeyDecision f9 = classify_win32_host_key(kWin32KeyDown, kWin32VkF9, false);
++    if (f9.consume || f9.toggle_page) return fail("F9 left to the host for a page that owns its open key");
++    host_settings_set_extra_page(nullptr);
++    std::cout << "delegated=keys to the page, 8 rows, close on false, F9 free\n";
++    return 0;
++}
++
+ }  // namespace
+ 
+ int main(int argc, char **argv) {
+@@ -366,5 +402,6 @@ int main(int argc, char **argv) {
+     if (mode == "fps") return fps_counter();
+     if (mode == "extra") return extra_page();
+     if (mode == "f9") return f9_key();
++    if (mode == "delegated") return delegated_page();
+     return 2;
+ }

@@ -32,15 +32,44 @@ std::uint32_t parse_pad_chord(const std::string &text, std::string &error) {
     return mask;
 }
 
-// The hold-back window of the chord buttons (see pad_menu.hpp). `age_` counts the polls a pending button has been down, which is also the
-// length of the late tap it gets if it is released first.
-void PadMenuFilter::update_hold_back(std::uint32_t raw, std::uint32_t pressed, bool chord_fire, bool menu_open) {
+void PadMenuFilter::set_hotkeys(std::vector<PadHotkeyMask> hotkeys) {
+    hotkeys_ = std::move(hotkeys);
+    hotkey_down_.assign(hotkeys_.size(), false);
+    hotkey_held_.assign(hotkeys_.size(), 0u);
+}
+
+// Polls a held-back button waits before it goes through: the chord's and a press hotkey's `hold_back`, a hold hotkey's `hold`.
+unsigned PadMenuFilter::window(unsigned bit) const {
+    unsigned w = config_.hold_back;
+    for (const PadHotkeyMask &h : hotkeys_)
+        if ((h.buttons & (1u << bit)) != 0 && h.hold > w) w = h.hold;
+    return w;
+}
+
+std::uint32_t PadMenuFilter::fire_hotkeys(std::uint32_t raw, bool menu_open) {
+    std::uint32_t fired = 0;
+    for (std::size_t i = 0; i < hotkeys_.size(); ++i) {
+        const PadHotkeyMask &h = hotkeys_[i];
+        const bool down = h.buttons != 0 && (raw & h.buttons) == h.buttons;
+        hotkey_held_[i] = down ? hotkey_held_[i] + 1 : 0u;
+        const bool completes = h.hold == 0 ? down && !hotkey_down_[i] : hotkey_held_[i] == h.hold;
+        hotkey_down_[i] = down;
+        if (completes && !menu_open) fired |= h.buttons;
+    }
+    return fired;
+}
+
+// The hold-back window of the chord's and the hotkeys' buttons (see pad_menu.hpp). `age_` counts the polls a pending button has been
+// down, which is also the length of the late tap it gets if it is released first.
+void PadMenuFilter::update_hold_back(std::uint32_t raw, std::uint32_t pressed, std::uint32_t fired, bool menu_open) {
     replay_ = 0;
-    if (config_.chord == 0 || config_.hold_back == 0 || config_.ignore_chord) return;
+    if (config_.hold_back == 0) return;
+    std::uint32_t held = config_.ignore_chord ? 0u : config_.chord;
+    for (const PadHotkeyMask &h : hotkeys_) held |= h.buttons;
     for (unsigned bit = 0; bit < 16; ++bit) {
         const std::uint32_t mask = 1u << bit;
-        if ((config_.chord & mask) == 0) continue;
-        if (chord_fire || menu_open) {  // the chord completed, or the menu is up: nothing is replayed or held back
+        if ((held & mask) == 0) continue;
+        if ((fired & mask) != 0 || menu_open) {  // its combination completed, or the menu is up: nothing is replayed or held back
             pending_ &= ~mask;
             replay_left_[bit] = 0;
             continue;
@@ -60,7 +89,7 @@ void PadMenuFilter::update_hold_back(std::uint32_t raw, std::uint32_t pressed, b
                     replay_ |= mask;
                     --replay_left_[bit];
                 }
-            } else if (++age_[bit] >= config_.hold_back) {  // the window is over: the press goes through from now on
+            } else if (++age_[bit] >= window(bit)) {  // the window is over: the press goes through from now on
                 pending_ &= ~mask;
             }
         }
@@ -80,7 +109,9 @@ PadMenuKeys PadMenuFilter::poll(std::uint32_t raw, bool menu_open) {
         suppressed_ |= config_.chord;
         out.push(MenuKey::TogglePage);
     }
-    update_hold_back(raw, pressed, chord_fire, menu_open);
+    const std::uint32_t fired = fire_hotkeys(raw, menu_open) | (chord_fire ? config_.chord : 0u);
+    suppressed_ |= fired;
+    update_hold_back(raw, pressed, fired, menu_open);
 
     static constexpr std::uint32_t kDirections[4] = {kPadUp, kPadDown, kPadLeft, kPadRight};
     static constexpr MenuKey kDirectionKeys[4] = {MenuKey::Up, MenuKey::Down, MenuKey::Left, MenuKey::Right};

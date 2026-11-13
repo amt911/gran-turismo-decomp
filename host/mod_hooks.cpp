@@ -149,10 +149,17 @@ const GtModApi &mod_api(int version) {
                         services::api_add_menu_row, services::api_on_vblank, services::api_call_guest,
                         services::api_is_menu_open, services::api_vblank_index,
                         services::api_money_get, services::api_money_set, services::api_race_cars,
-                        services::api_player_car, services::api_car_state, services::api_car_set_state};
+                        services::api_player_car, services::api_car_state, services::api_car_set_state,
+                        services::api_add_action, services::api_add_entry};
     };
-    static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3);
-    return version == GT_MOD_API_VERSION ? v1 : version == GT_MOD_API_VERSION_2 ? v2 : v3;
+    static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
+                          v4 = table(GT_MOD_API_VERSION_4);
+    switch (version) {
+    case GT_MOD_API_VERSION: return v1;
+    case GT_MOD_API_VERSION_2: return v2;
+    case GT_MOD_API_VERSION_3: return v3;
+    default: return v4;
+    }
 }
 
 void set_active(GtMod *mod, bool on) {
