@@ -41,6 +41,7 @@ struct PadMenuConfig {
     unsigned repeat_period = 4;                    // polls between repeats
     unsigned hold_back = 8;                        // vblanks (~130 ms) a lone chord button is held back
     bool ignore_chord = false;                     // verification only (GT_PAD_MENU_SABOTAGE_IGNORE_CHORD): the chord never fires
+    bool no_replay = false;                        // verification only (GT_PAD_MENU_SABOTAGE_NO_REPLAY): a hotkey button released in its window is swallowed
 };
 
 // A cheat device hotkey on the pad (host/cheat_device/bindings.hpp PadBinding, without the dependency): its buttons are held back

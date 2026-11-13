@@ -211,7 +211,27 @@ gt::PadMenuConfig pad_menu_config() {
 #ifdef GT_PAD_MENU_SABOTAGE_IGNORE_CHORD  // verification only (tools/mod_cheats_check.sh --sabotage-chord must FAIL)
     config.ignore_chord = true;
 #endif
+#ifdef GT_PAD_MENU_SABOTAGE_NO_REPLAY  // verification only (tools/mod_reset_check.sh --tap --sabotage-notap with an API-4 mod must FAIL)
+    config.no_replay = true;
+#endif
     return config;
+}
+
+// GT_PAD_LOG=1: one line per press and release of Select, the camera button that reset-to-track's hold binding shares ("PADSEL down
+// step=<vblank>", "PADSEL up step=<vblank> tap=<0|1>": tap = the game saw the press at all, late or not). tools/mod_reset_check.py reads
+// them: a held Select that fired the reset must be hidden (tap=0), a short press must reach the game (tap=1).
+void log_select_press(const gt::PadMenuFilter &filter, std::uint32_t raw, std::uint64_t vblank) {
+    static const bool log = std::getenv("GT_PAD_LOG") != nullptr;
+    static bool down = false, seen = false;
+    if (!log) return;
+    const bool now = (raw & gt::kPadSelect) != 0;
+    if (now && !down) {
+        seen = false;
+        std::cerr << "[padmenu] PADSEL down step=" << vblank << "\n";
+    }
+    seen = seen || (filter.visible(raw, any_overlay_open()) & gt::kPadSelect) != 0;  // the release poll carries the late tap
+    if (!now && down) std::cerr << "[padmenu] PADSEL up step=" << vblank << " tap=" << (seen ? 1 : 0) << "\n";
+    down = now;
 }
 
 // Plain statics: guest threads are scheduled cooperatively on one OS thread, so the pad reads never overlap.
@@ -245,6 +265,7 @@ void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t 
         if (const bool open = any_overlay_open(); open != was_open)
             std::cerr << "[padmenu] menu " << (open ? "opened" : "closed") << " at vblank " << vblank
                       << (open ? (lcs::host_panel_open() ? " panel" : " overlay") : "") << "\n";
+        log_select_press(filter, buttons, vblank);
     }
     const bool open = any_overlay_open();
 #ifdef GT_PAD_MENU_SABOTAGE_NO_HIDE  // verification only (tools/mod_cheats_check.sh --sabotage-hide must FAIL): the game keeps seeing the pad

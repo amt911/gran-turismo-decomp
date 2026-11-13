@@ -267,6 +267,13 @@ sceCtrlReadBufferPositive, despachado en `--decomp off` y `on`, FACTS): en carre
 0,5 s, se lo devuelve como un toque de 3 lecturas (la vista cambia igual que sin el mod); si se suelta después, se dispara el reset y la vista NO cambia.
 Fuera de carrera (menús, pausa) Select pasa sin tocar. La tecla R no toca el mando.
 
+**Con la API 4 (reset-to-track 0.3.0).** El botón es la acción `reset` del cheat device (categoría Race; por defecto tecla R y Select mantenido 30 vblanks,
+`SELECT@30`, reasignables en Controls). Ya no lo lee el mod: el host retiene Select mientras puede ser el comienzo de esa pulsación larga, se lo devuelve al juego
+como toque tardío con su duración real si se suelta antes, y lanza la acción en el tic de vblank si se completa (el juego no ve ese Select). Con `GT_PAD_LOG=1` el
+host escribe `[padmenu] PADSEL down|up step=<vblank> tap=<0|1>` (tap = el juego vio la pulsación), que la comprobación lee igual que las líneas del mod API 1.
+Los fotogramas de referencia de la comprobación salen con el mismo mod instalado y **desactivado** (el device está activo igual y retiene Select/Start igual),
+no con la carpeta de mods vacía: ver docs/FINDINGS.md.
+
 **Límites conocidos.** (1) Marcha, rpm y la posición previa del coche no se restauran (no se localizaron); el cambio automático relanza bien desde parado
 (la comprobación exige > 15 m/s con el acelerador pisado después del reset). (2) Vueltas y tiempo: el cronómetro y el contador de vueltas siguen su curso
 (no se rebobinan; medido con un reset a mitad de vuelta: HUD 0'24.000 -> 0'27.000 en 3 s de juego, vuelta 1/2 sin cambio); un reset que cruce la línea de meta no se pudo probar (ninguna ruta completa una vuelta) y podría contar la vuelta dos veces: no hay bloqueo.
@@ -287,6 +294,7 @@ tools/mod_reset_check.sh --sabotage-rates     # no pone a cero las velocidades a
 tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (fuera de pista): debe FALLAR
 tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR
 tools/mod_reset_check.sh --without-mod        # sin mod: debe FALLAR (nada se restaura)
+tools/mod_reset_check.sh --tap --sabotage-notap   # el toque no se devuelve al juego: debe FALLAR (API 1: -DRESET_SABOTAGE=4 en el mod; API 4: recompila gt_play con -DGT_PAD_MENU_SABOTAGE_NO_REPLAY=ON, y lo deja como estaba al salir)
 ```
 
 ## Construir e instalar `rollover`

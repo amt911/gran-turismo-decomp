@@ -27,6 +27,8 @@ STATE = re.compile(TAG + rf"t=(-?\d+) step=(\d+) wheels=(\d) up_z=({NUM}) spd=({
                    rf"yaw=({NUM}) rates=((?:{NUM},){{4}}{NUM})(?: vel={NUM},{NUM},{NUM} fwdcos=({NUM}))? ring=(\d+) restores=(\d+)"
                    rf"(?: acc=({NUM}) thr=({NUM}) brk=({NUM}))?(?: pad=\d+/\d+/\d+)?")
 PADSEL = re.compile(TAG + r"PADSEL (down|up) step=(\d+)(?: tap=(\d))?")
+# API 4: the host does the Select hold (the cheat device's binding SELECT@30) and logs the same lines (vblank for step; tap = the game saw it)
+HOST_PADSEL = re.compile(r"\[padmenu\] PADSEL (down|up) step=(\d+)(?: tap=(\d))?")
 RESTORE = re.compile(TAG + r"RESTORE step=(\d+) pos=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+)(?: run=(-?[\d.]+))?")
 SCRIPT_DONE = re.compile(r"script done at vblank (\d+)")
 FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
@@ -102,9 +104,14 @@ def wrap_pi(a):
     return (a + math.pi) % (2 * math.pi) - math.pi
 
 
+def padsel_lines(text):
+    """The Select press lines: the mod's own (API 1, it reads the pad) when it wrote any, else the host's (API 4)."""
+    return PADSEL if PADSEL.search(text) else HOST_PADSEL
+
+
 def parse_padsel(text):
-    """[(kind, step, tap)] for the mod's `PADSEL down|up` lines (a held Select hidden from the game; tap = replayed on release)."""
-    return [(m.group(1), int(m.group(2)), None if m.group(3) is None else m.group(3) == "1") for m in PADSEL.finditer(text)]
+    """[(kind, step, tap)] for the `PADSEL down|up` lines (a held Select hidden from the game; tap = replayed on release)."""
+    return [(m.group(1), int(m.group(2)), None if m.group(3) is None else m.group(3) == "1") for m in padsel_lines(text).finditer(text)]
 
 
 def judge_select_hidden(text):
@@ -143,7 +150,7 @@ def judge_restore(text, calm_steps=CALM_STEPS):
     if len(restores) != 1:
         return False, f"{len(restores)} RESTORE lines (expected exactly 1)"
     rs = restores[0]
-    ok_sel, msg_sel = judge_select_hidden(text) if PADSEL.search(text) else (True, "")  # fake-button runs have no pad lines
+    ok_sel, msg_sel = judge_select_hidden(text) if padsel_lines(text).search(text) else (True, "")  # fake-button runs have no pad lines
     if not ok_sel:
         return False, msg_sel
     before = [s for s in states if s["t"] < 0 and s["step"] < rs["step"]]
