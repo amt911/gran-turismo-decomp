@@ -222,6 +222,11 @@ if(GT_PLAY)
     if(GT_PANEL_SABOTAGE_USE_OVERLAY)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PANEL_SABOTAGE_USE_OVERLAY=1)
     endif()
+    # Verification only: a held-back button released inside its window never reaches the game (mod_reset_check.sh --tap --sabotage-notap, API 4).
+    option(GT_PAD_MENU_SABOTAGE_NO_REPLAY "sabotage: the late tap of a held-back button is swallowed" OFF)
+    if(GT_PAD_MENU_SABOTAGE_NO_REPLAY)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_NO_REPLAY=1)
+    endif()
     # Verification only: the cheat device's bindings accept a combination another action holds (mod_cheats_check.sh --sabotage-conflict must FAIL).
     option(GT_DEVICE_SABOTAGE_ALLOW_CONFLICT "sabotage: the cheat device does not refuse a taken binding" OFF)
     if(GT_DEVICE_SABOTAGE_ALLOW_CONFLICT)

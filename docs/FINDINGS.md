@@ -3139,6 +3139,17 @@ in both modes before building on it.
 **Cause.** Not the mod: with an API-2 mod installed the host delays every lone Select/Start by the window. Identity checks compare a run with the pad menu against one without it.
 **Fix.** The identity runs of `tools/mod_cheats_check.sh` set `GT_PAD_MENU_HOLD_BACK=0` (host/play_backends.cpp); `--pad` and `--pad-reset` run with the real 8. Any new identity check with an API-2 mod must do the same.
 
+## Identity baselines with an API-4 mod: the mod installed and disabled, not an empty mods dir (2026-11-13)
+
+**Symptom.** reset-to-track migrated to API 4 failed `tools/mod_reset_check.sh`'s quiet run ("frame 111 differs from the run without the mod", every pad WAIT 6 vblanks later)
+while the API-1 mod passed; `--tap` failed the camera-view comparison (99 > 90).
+**Cause.** Not the mod: any mod of API >= 2 registers with the cheat device, whose SELECT+START chord (and the mod's own `SELECT@30` binding) holds a lone Select/Start
+back; the route's START in the menus reached the game later than in the baseline with no mods.
+**Fix.** The baselines run the same mods dir with reset-to-track `enabled = false` (`$OUT/mods_off`): its actions are still declared, so the device and its hold-back
+are the same and only the mod's own work differs (the alternative, `GT_PAD_MENU_HOLD_BACK=0` as in the cheats identity runs, would also turn off the `SELECT@30` hold
+under test). `tools/mod_camera_check.sh` had the same problem with orbit-camera on API 4 (the mod runs 12 vblanks behind an empty-dir baseline, more than the
+lap-timer pairing window of 4: "0/23869 frames show the baseline's same game frame") and the same fix. A sabotage that rebuilds gt_play must run after the baseline, or the baseline carries the sabotage too (the `--tap --sabotage-notap` frames matched, 0 difference).
+
 ## reset-to-track check with the pad menu installed, `--decomp on`: wobble 0.41 rad/s (2026-11-08)
 
 `WITH_CHEATS=1 tools/mod_reset_check.sh --decomp on --reset-only` (cheats installed, so Select reaches reset-to-track 8 vblanks late) fails "an angular rate of 0.41 rad/s in the first 10 steps (max 0.3)";
