@@ -3272,3 +3272,15 @@ The 3 crashes came while another agent's builds and gates ran in the same slice.
 - Note for hooks in general: after `call_original`, a hook's own code sees `ctx` of the **next** thread if the original
   blocked (`--decomp on` at dispatcher level: `fiber::run` returns with the next thread's context). Post-call code that
   reads guest registers must not assume its own thread (none of the current mods does; the world-step hook never blocked).
+
+## The cheat device as an F9 overlay page could not be driven from a real controller (2026-11-13)
+
+**Symptom.** On the user's laptop (Xbox One pad over Bluetooth) SELECT+START opened the cheat device but the menu could not be
+navigated or closed; every in-game check (`mod_cheats_check.sh --pad`, `--hotkey`, `--rebind-conflict`) had passed.
+**Cause.** lcs's `display_window_input` returns an empty input state while the host settings overlay (F9 / F10) is open, so the
+real pad never reaches the host's pad filter; phase 1 drew the device as a page of that overlay. The checks inject the pad with
+`GT_PAD` below lcs, which the overlay does not gate.
+**Fix.** The device is its own overlay, the host panel (lcs patch 0068), which leaves the input alone (only the keyboard's game
+bindings are held back so the panel can read the keys). `mod_cheats_check.py` requires every `menu opened` to be `panel`;
+`--sabotage-overlay` (phase 1's behaviour) must FAIL. The real-controller path itself (SDL GameController) has no headless route:
+check it by hand.

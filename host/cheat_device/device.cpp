@@ -29,7 +29,7 @@ std::string or_dash(const std::string &text) { return text.empty() ? "-" : text;
 
 Device::Device(ModRows mods) : mods_(std::move(mods)) {
     std::string error;
-    bindings_.add_action(kOpenAction, "Open the cheat device", KeyBinding{"F9", 0}, PadBinding{kPadSelect | kPadStart, 0}, true, error);
+    bindings_.add_action(kOpenAction, "Open the cheat device", KeyBinding{"F7", 0}, PadBinding{kPadSelect | kPadStart, 0}, true, error);
 }
 
 bool Device::add_action(const std::string &id, const std::string &label, const std::string &category, KeyBinding key, PadBinding pad,
@@ -197,7 +197,7 @@ View Device::view(std::size_t rows, std::uint64_t now) {
     if (!opened_once_) open_locked();  // shown by a path that did not call open() (the overlay's own F9)
     View v;
     v.title = fit(now < message_until_ ? message_ : nav_.path(), 31);
-    v.footer = fit(binding_text_locked(kOpenAction) + " CLOSE", 31);
+    v.footer = capture_id_.empty() ? std::string(kFooter) : std::string(kCaptureFooter);
     for (const Row &r : nav_.rows(rows)) {
         if (r.selected) v.selected = static_cast<int>(v.rows.size());
         // A mod row (Row kind, empty title) carries all its text in the value.

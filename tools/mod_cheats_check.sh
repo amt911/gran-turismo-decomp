@@ -27,7 +27,8 @@
 #   The --pad run also judges `callguest` (GT_MOD_CHEATS_CALLGUEST=1): the vblank tick calls the game's read-only flag reader through call_guest (v0 0).
 #   Only that run does: a call_guest shifts frame timing (docs/FINDINGS.md), so the identity runs leave it off.
 #   Each of these must FAIL (exit 1): --sabotage-slowmo (-DCHEATS_SABOTAGE=1: slow motion does nothing), --sabotage-freeze (=2: freeze does
-#   nothing), --sabotage-norecord (=3: nothing recorded: --replay must fail), --sabotage-hide (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_NO_HIDE=ON: the game keeps seeing the pad while the menu is open; with --pad), --sabotage-chord (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=ON and runs --pad: the chord never opens the menu; the
+#   nothing), --sabotage-norecord (=3: nothing recorded: --replay must fail), --sabotage-hide (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_NO_HIDE=ON: the game keeps seeing the pad while the menu is open; with --pad), --sabotage-overlay (rebuilds gt_play with -DGT_PANEL_SABOTAGE_USE_OVERLAY=ON and runs --pad: the device opens as phase 1's F9
+#   overlay page, which zeroes a real controller), --sabotage-chord (rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=ON and runs --pad: the chord never opens the menu; the
 #   normal gt_play is rebuilt afterwards)
 # The runs set GT_PAD_MENU_HOLD_BACK=0 (no 8-vblank delay of a lone Select/Start) except --pad and --pad-reset, so that "mod installed" vs "no mod" frames differ
 # only by what the mod does (the baseline has no mod, so no pad menu).
@@ -42,12 +43,12 @@ mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_cheats_check}
 case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
-decomp=off seconds=170 pad=0 sabotage=0 chord_sabotage=0 hide_sabotage=0 slow_only=0 runs=3 padoff=0 padreset=0 toggle=0 toggle_at=14500 replay=0
+decomp=off seconds=170 pad=0 sabotage=0 chord_sabotage=0 hide_sabotage=0 overlay_sabotage=0 slow_only=0 runs=3 padoff=0 padreset=0 toggle=0 toggle_at=14500 replay=0
 hotkey=0 conflict=0 conflict_sabotage=0
 [ -n "${KEEP_BASELINE:-}" ] && keep=1 || keep=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --pad) pad=1;; --keep-baseline) keep=1;; --sabotage-slowmo) sabotage=1;; --sabotage-freeze) sabotage=2;; --sabotage-norecord) sabotage=3; replay=1;; --replay) replay=1;; --sabotage-chord) chord_sabotage=1; pad=1;; --sabotage-hide) hide_sabotage=1; pad=1;; --slow-only) slow_only=1;; --runs) runs=$2; shift;; --pad-off) padoff=1;; --pad-reset) padreset=1;;
+    --pad) pad=1;; --keep-baseline) keep=1;; --sabotage-slowmo) sabotage=1;; --sabotage-freeze) sabotage=2;; --sabotage-norecord) sabotage=3; replay=1;; --replay) replay=1;; --sabotage-chord) chord_sabotage=1; pad=1;; --sabotage-hide) hide_sabotage=1; pad=1;; --sabotage-overlay) overlay_sabotage=1; pad=1;; --slow-only) slow_only=1;; --runs) runs=$2; shift;; --pad-off) padoff=1;; --pad-reset) padreset=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;;
     --hotkey) hotkey=1;; --rebind-conflict) conflict=1;; --sabotage-hotkey) sabotage=4; hotkey=1;; --sabotage-conflict) conflict_sabotage=1; conflict=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;;
@@ -119,11 +120,11 @@ if [ $hotkey -eq 1 ] || [ $conflict -eq 1 ]; then
   exit $?
 fi
 if [ $pad -eq 1 ] || [ $padoff -eq 1 ] || [ $padreset -eq 1 ]; then
-  if [ $chord_sabotage -eq 1 ] || [ $hide_sabotage -eq 1 ]; then  # a gt_play whose chord never fires / that does not hide the pad; rebuilt as it was afterwards
-    restore() { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=OFF -DGT_PAD_MENU_SABOTAGE_NO_HIDE=OFF > /dev/null 2>&1 && cmake --build "$build" -j4 --target gt_play > /dev/null 2>&1; }
+  if [ $chord_sabotage -eq 1 ] || [ $hide_sabotage -eq 1 ] || [ $overlay_sabotage -eq 1 ]; then  # a gt_play whose chord never fires / that does not hide the pad / that opens the device as the F9 overlay; rebuilt as it was afterwards
+    restore() { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=OFF -DGT_PAD_MENU_SABOTAGE_NO_HIDE=OFF -DGT_PANEL_SABOTAGE_USE_OVERLAY=OFF > /dev/null 2>&1 && cmake --build "$build" -j4 --target gt_play > /dev/null 2>&1; }
     trap restore EXIT
-    chord_flag=OFF; hide_flag=OFF; [ $chord_sabotage -eq 1 ] && chord_flag=ON; [ $hide_sabotage -eq 1 ] && hide_flag=ON
-    { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=$chord_flag -DGT_PAD_MENU_SABOTAGE_NO_HIDE=$hide_flag && cmake --build "$build" -j4 --target gt_play; } > "$out/gt_play-sabotage-build.log" 2>&1 \
+    chord_flag=OFF; hide_flag=OFF; overlay_flag=OFF; [ $chord_sabotage -eq 1 ] && chord_flag=ON; [ $hide_sabotage -eq 1 ] && hide_flag=ON; [ $overlay_sabotage -eq 1 ] && overlay_flag=ON
+    { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=$chord_flag -DGT_PAD_MENU_SABOTAGE_NO_HIDE=$hide_flag -DGT_PANEL_SABOTAGE_USE_OVERLAY=$overlay_flag && cmake --build "$build" -j4 --target gt_play; } > "$out/gt_play-sabotage-build.log" 2>&1 \
       || { echo "mod_cheats_check: sabotage build failed (log $out/gt_play-sabotage-build.log)" >&2; exit 2; }
   fi
   if [ $padreset -eq 1 ]; then
