@@ -436,7 +436,32 @@ void func_08AAE904(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     destroy_with_buffer(rt, ctx);
 }
 void func_08A83FB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; const std::uint32_t s2 = G[18]; const std::uint32_t s3 = G[19]; { GuestFrame frame(ctx, 0x30u); G[17] = G[5]; G[16] = word(rt, G[7]); G[18] = word(rt, G[4] + 0x18u); G[19] = word(rt, G[4] + 0x1Cu); G[4] = 0x08CB168Cu; if (G[16] == 0u) call_here(rt, ctx, 0x08A5BB7Cu); G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x50u); G[4] = G[16]; call_here(rt, ctx, G[2]); G[6] = G[18] ^ G[2]; G[4] = frame.at(0u); G[7] = G[19] ^ G[3]; call_here(rt, ctx, 0x08A83160u); G[4] = G[17]; if (G[17] != frame.at(0u)) { G[5] = word(rt, frame.at(0u)); call_here(rt, ctx, 0x08A5BAD8u); } G[4] = frame.at(0u); call_here(rt, ctx, 0x08A5B9ECu); } G[16] = s0; G[17] = s1; G[18] = s2; G[19] = s3; }
-void func_08A83F28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; const std::uint32_t s2 = G[18]; const std::uint32_t s3 = G[19]; { GuestFrame frame(ctx, 0x30u); G[17] = G[5]; G[16] = word(rt, G[7]); G[18] = word(rt, G[4] + 0x18u); G[19] = word(rt, G[4] + 0x1Cu); G[4] = 0x08CB168Cu; if (G[16] == 0u) call_here(rt, ctx, 0x08A5BB7Cu); G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x50u); G[4] = G[16]; call_here(rt, ctx, G[2]); G[6] = G[18] | G[2]; G[4] = frame.at(0u); G[7] = G[19] | G[3]; call_here(rt, ctx, 0x08A83160u); G[4] = G[17]; if (G[17] != frame.at(0u)) { G[5] = word(rt, frame.at(0u)); call_here(rt, ctx, 0x08A5BAD8u); } G[4] = frame.at(0u); call_here(rt, ctx, 0x08A5B9ECu); } G[16] = s0; G[17] = s1; G[18] = s2; G[19] = s3; }
+void func_08A83F28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const std::uint32_t self = G[4];
+    const std::uint32_t destination = G[5];
+    GuestFrame frame(ctx, 0x30u);
+    const std::uint32_t scratch = frame.at(0u);
+    const std::uint32_t object = word(rt, G[7]);
+    const std::uint32_t low = word(rt, self + 0x18u);
+    const std::uint32_t high = word(rt, self + 0x1Cu);
+    G[4] = 0x08CB168Cu;
+    if (object == 0u) call_here(rt, ctx, 0x08A5BB7Cu);
+    G[3] = word(rt, object);
+    G[2] = word(rt, G[3] + 0x50u);
+    G[4] = object;
+    call_here(rt, ctx, G[2]);
+    G[6] = low | G[2];
+    G[4] = scratch;
+    G[7] = high | G[3];
+    call_here(rt, ctx, 0x08A83160u);
+    G[4] = destination;
+    if (destination != scratch) {
+        G[5] = word(rt, scratch);
+        call_here(rt, ctx, 0x08A5BAD8u);
+    }
+    G[4] = scratch;
+    call_here(rt, ctx, 0x08A5B9ECu);
+}
 void func_089A698C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     register_module(rt, ctx, 0x08CF4978u, 0x08CA4F24u, 0x3Cu, 0x089A6934u, 0x089A79E8u, 0x089A6958u, 0x08CF4994u, 0x08B28DCCu);
 }
