@@ -115,7 +115,7 @@ def pad_log(acc_inside=0.0, rows=True, keys=("chord", "close", "right", "right",
     out.append(log(steps=range(800, 900, 2), acc=1.0))
     out.append(f"[padmenu] {keys[0]} at vblank 100")
     if "opened" in states:
-        out.append("[padmenu] menu opened at vblank 100")
+        out.append("[padmenu] menu opened at vblank 100 panel")
     out.append(log(steps=range(900, 960, 2), acc=acc_inside))
     for i, k in enumerate(keys[1:-1]):
         out.append(f"[padmenu] {k} at vblank {110 + i}")
@@ -144,7 +144,7 @@ def test_pad_fails_for_each_missing_piece():
     assert "keys" in mc.judge_pad("")[1]
     assert "keys" in mc.judge_pad(pad_log(keys=("chord", "down", "right", "down", "right", "chord")))[1]  # the old F9 list's keys
     assert "keys" in mc.judge_pad(good_pad().replace("[padmenu] chord at vblank 100", ""))[1]
-    assert "opened then closed" in mc.judge_pad(good_pad().replace("[padmenu] menu opened at vblank 100", ""))[1]
+    assert "opened then closed" in mc.judge_pad(good_pad().replace("[padmenu] menu opened at vblank 100 panel", ""))[1]
     assert "menu rows changed" in mc.judge_pad(good_pad().replace("[mod:cheats] ROW freeze_ai -> ON", ""))[1]
     assert "game saw the throttle" in mc.judge_pad(good_pad().replace("acc=0.00", "acc=1.00"))[1]
     assert "not held before" in mc.judge_pad(good_pad().replace("acc=1.00", "acc=0.00"))[1]
@@ -339,7 +339,7 @@ def test_replay_main_mode(tmp_path):
 
 
 def hotkey_log(bound=True, fired=1, switched=True):
-    out = ["[padmenu] chord at vblank 100", "[padmenu] menu opened at vblank 100"]
+    out = ["[padmenu] chord at vblank 100", "[padmenu] menu opened at vblank 100 panel"]
     if bound:
         out.append("[device] bound cheats.nitro pad R+SQUARE at vblank 150")
     out += ["[padmenu] chord at vblank 200", "[padmenu] menu closed at vblank 200", log(steps=range(800, 900, 2), acc=0.0)]
@@ -367,3 +367,11 @@ def test_conflict_judge():
     assert "not refused" in mc.judge_conflict("[device] bound cheats.nitro pad SELECT+START at vblank 150")[1]
     assert "not refused" in mc.judge_conflict("")[1]
     assert "owner" in mc.judge_conflict(refused.replace("Open the cheat device", "something"))[1]
+
+
+def test_pad_device_must_open_as_the_panel():
+    # lcs patch 0068: the F9 / F10 overlay zeroes a real controller; the device must open as the host panel
+    ok, message = mc.judge_pad(good_pad().replace("menu opened at vblank 100 panel", "menu opened at vblank 100 overlay"))
+    assert not ok and "panel" in message
+    ok, message = mc.judge_pad(good_pad().replace("menu opened at vblank 100 panel", "menu opened at vblank 100"))
+    assert not ok and "no `menu opened" in message

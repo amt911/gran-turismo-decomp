@@ -154,6 +154,18 @@ int main() {
             const auto seen = run({kPadSelect, kPadSelect, kPadSelect, 0, 0, 0, 0, 0, 0});
             check(seen == std::vector<std::uint32_t>({0, 0, 0, kPadSelect, kPadSelect, kPadSelect, 0, 0, 0}), "Select tap: held back, then replayed with its real length (3)");
         }
+        {  // the no-replay sabotage config (verification only): the same tap never reaches the game
+            gt::PadMenuConfig config;
+            config.no_replay = true;
+            Driver d(config);
+            d.filter.set_hotkeys({gt::PadHotkeyMask{kPadSelect, 30}});  // reset-to-track's SELECT@30
+            std::uint32_t seen = 0;
+            for (const std::uint32_t raw : {kPadSelect, kPadSelect, kPadSelect, 0u, 0u, 0u, 0u}) seen |= d.step(raw);
+            check(seen == 0u, "no_replay: a hotkey's Select tap inside the window is swallowed");
+            seen = 0;
+            for (const std::uint32_t raw : {kPadStart, 0u, 0u, 0u}) seen |= d.step(raw);
+            check(seen == kPadStart, "no_replay: a chord-only button (Start) is still replayed: the menus keep working");
+        }
         {  // a one-poll tap
             const auto seen = run({kPadStart, 0, 0, 0});
             check(seen == std::vector<std::uint32_t>({0, kPadStart, 0, 0}), "Start tap of 1 poll: replayed 1 poll later, length 1");
