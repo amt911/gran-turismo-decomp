@@ -48,6 +48,11 @@ if [ $without -eq 0 ]; then
     || { echo "mod_camera_check: mod build failed (log $out/mod-build.log)" >&2; exit 2; }
   cp "$mbuild/orbit-camera/liborbit_camera.so" "$out/mods/orbit-camera/" || exit 2
   sed 's/^enabled = false/enabled = true/' "$mods_repo/orbit-camera/mod.toml" > "$out/mods/orbit-camera/mod.toml"
+  # The baseline runs the mod installed but disabled: an API >= 2 mod registers with the cheat device, whose chord holds a lone Select/Start
+  # back, so an empty mods dir would put the baseline game steps ahead (docs/FINDINGS.md, "Identity baselines with an API-4 mod").
+  rm -rf "$out/mods_off" && cp -r "$out/mods" "$out/mods_off" && sed -i 's/^enabled = true/enabled = false/' "$out/mods_off/orbit-camera/mod.toml" || exit 2
+else
+  rm -rf "$out/mods_off" && mkdir -p "$out/mods_off" || exit 2
 fi
 pad=$(grep -v '^#' config/pad_routes/chase.pad)
 toggle_env=""; [ $toggle -eq 1 ] && toggle_env="orbit-camera@v$toggle_at"
@@ -70,7 +75,7 @@ locked_run_one() {
   if [ -n "${MOD_CHECK_NO_LOCK:-}" ]; then run_one "$@"; return $?; fi  # the caller already holds the lock
   tools/cpu_lock.sh "mod_camera_check:$1" env MOD_CHECK_ONLY="$*" "$0" "${orig_args[@]}"
 }
-if [ $keep -eq 0 ] || [ ! -d "$out/baseline/frames" ]; then locked_run_one baseline "$out/nomods" || exit 2; fi
+if [ $keep -eq 0 ] || [ ! -d "$out/baseline/frames" ]; then locked_run_one baseline "$out/mods_off" || exit 2; fi
 mdir="$out/mods"; [ $without -eq 1 ] && mdir="$out/nomods"
 if [ $toggle -eq 1 ]; then
   locked_run_one toggle_90 "$mdir" 90 || exit 2
