@@ -1,0 +1,341 @@
+diff --git a/lcs/host/display_window.cpp b/lcs/host/display_window.cpp
+index d9973a5..82cc1ef 100644
+--- a/lcs/host/display_window.cpp
++++ b/lcs/host/display_window.cpp
+@@ -212,8 +212,7 @@ void paint_host_overlay(HDC hdc) noexcept {
+         SetTextColor(hdc, RGB(232, 248, 255));
+         TextOutA(hdc, 18, 16, label, static_cast<int>(std::strlen(label)));
+     }
+-    if (host_settings_open()) {
+-        const HostSettingsView view = host_settings_view();
++    if (HostSettingsView view{}; host_overlay_view(view)) {  // GT patch 0068: the settings overlay, or else the host panel
+         const int line = font_h + 8;
+         const int panel_w = font_h * 22;
+         const int panel_h = line * 10;
+@@ -293,6 +292,14 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpar
+             host_settings_note_fullscreen(g_fullscreen);
+             return 0;
+         }
++        if (!host_settings_open() && host_panel_open()) {  // GT patch 0068: the host panel's navigation keys
++            if (wparam == VK_UP) return host_panel_handle(HostSettingsKey::Up), 0;
++            if (wparam == VK_DOWN) return host_panel_handle(HostSettingsKey::Down), 0;
++            if (wparam == VK_LEFT) return host_panel_handle(HostSettingsKey::Left), 0;
++            if (wparam == VK_RIGHT) return host_panel_handle(HostSettingsKey::Right), 0;
++            if (wparam == VK_RETURN && !repeat) return host_panel_handle(HostSettingsKey::Activate), 0;
++            if ((wparam == VK_ESCAPE || wparam == VK_BACK) && !repeat) return host_panel_handle(HostSettingsKey::Close), 0;
++        }
+         if (host_settings_open()) {
+             if (wparam == VK_UP) host_settings_handle(HostSettingsKey::Up);
+             else if (wparam == VK_DOWN) host_settings_handle(HostSettingsKey::Down);
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index b7da9c2..b086a68 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -140,6 +140,21 @@ void apply_fullscreen_request() noexcept {
+         SDL_SetWindowFullscreen(g_window, request != 0 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0u);
+ }
+ 
++// GT patch 0068: the open panel's navigation keys (Toggle = not one of them). Enter and Escape do not repeat.
++HostSettingsKey panel_key(SDL_Scancode code, bool repeat) noexcept {
++    switch (code) {
++    case SDL_SCANCODE_UP: return HostSettingsKey::Up;
++    case SDL_SCANCODE_DOWN: return HostSettingsKey::Down;
++    case SDL_SCANCODE_LEFT: return HostSettingsKey::Left;
++    case SDL_SCANCODE_RIGHT: return HostSettingsKey::Right;
++    case SDL_SCANCODE_RETURN:
++    case SDL_SCANCODE_KP_ENTER: return repeat ? HostSettingsKey::Toggle : HostSettingsKey::Activate;
++    case SDL_SCANCODE_ESCAPE:
++    case SDL_SCANCODE_BACKSPACE: return repeat ? HostSettingsKey::Toggle : HostSettingsKey::Close;
++    default: return HostSettingsKey::Toggle;
++    }
++}
++
+ void pump_events() noexcept {
+     apply_fullscreen_request();
+     SDL_Event event;
+@@ -168,6 +183,9 @@ void pump_events() noexcept {
+                 host_settings_handle(HostSettingsKey::Close);
+                 discard_pending_pointer();
+             }
++        } else if (event.type == SDL_KEYDOWN && host_panel_open() &&
++                   panel_key(event.key.keysym.scancode, event.key.repeat != 0) != HostSettingsKey::Toggle) {
++            host_panel_handle(panel_key(event.key.keysym.scancode, event.key.repeat != 0));
+         } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0 &&
+                    event.key.keysym.scancode == SDL_SCANCODE_F8) {
+             host_debug_key_pressed();
+@@ -287,8 +305,36 @@ void paint_fps(SDL_Renderer *renderer) noexcept {
+     draw_text(renderer, margin + 2 * scale, margin + 2 * scale, scale, label);
+ }
+ 
++// GT patch 0068: the host panel, rasterized like the GPU paths do (one look everywhere) and drawn top right.
++void paint_host_panel(SDL_Renderer *renderer) noexcept {
++    HostSettingsView view{};
++    if (renderer == nullptr || !host_overlay_view(view)) return;
++    static SDL_Renderer *owner = nullptr;
++    static SDL_Texture *texture = nullptr;
++    static std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kSettingsOverlayWidth) * kSettingsOverlayHeight * 4u);
++    if (owner != renderer || texture == nullptr) {
++        if (texture != nullptr && owner == renderer) SDL_DestroyTexture(texture);
++        texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
++                                    static_cast<int>(kSettingsOverlayWidth), static_cast<int>(kSettingsOverlayHeight));
++        owner = renderer;
++        if (texture == nullptr) return;
++        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
++    }
++    rasterize_settings_overlay(view, pixels.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
++    SDL_UpdateTexture(texture, nullptr, pixels.data(), static_cast<int>(kSettingsOverlayWidth * 4u));
++    int output_w = 960, output_h = 544;
++    SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
++    const int panel_w = std::min(static_cast<int>(static_cast<float>(output_w) * 0.46f), static_cast<int>(kSettingsOverlayWidth));
++    const SDL_Rect destination{output_w - panel_w - 24, 24, panel_w, panel_w / 2};
++    SDL_RenderCopy(renderer, texture, nullptr, &destination);
++}
++
+ void paint_host_settings(SDL_Renderer *renderer) noexcept {
+-    if (!host_settings_open() || renderer == nullptr) return;
++    if (!host_settings_open()) {
++        paint_host_panel(renderer);
++        return;
++    }
++    if (renderer == nullptr) return;
+     int output_w = 960;
+     int output_h = 544;
+     SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
+@@ -614,7 +660,10 @@ HostInputState display_window_input() {
+             default: return false;
+             }
+         };
+-        const KeyboardSample keys = sample_keyboard(controls.bindings, driving, is_down);
++        // GT patch 0068: while the host panel is open the keyboard is the panel's (it reads the keys itself); the pad stays.
++        const bool panel = host_panel_open();
++        const auto game_key_down = [&](HostKey key) { return !panel && is_down(key); };
++        const KeyboardSample keys = sample_keyboard(controls.bindings, driving, game_key_down);
+         input.buttons |= keys.buttons;
+         input.accelerate = keys.accelerate;
+         input.brake = keys.brake;
+diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index 526c024..591fa3e 100644
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -258,6 +258,48 @@ void follow_extra_selection() noexcept {
+ 
+ bool host_settings_open() noexcept { return g_open; }
+ 
++namespace {
++std::atomic<const HostPanel *> g_panel{nullptr};
++std::atomic<bool> g_panel_open{false};
++}  // namespace
++
++void host_panel_set(const HostPanel *panel) noexcept {
++    g_panel.store(panel);
++    if (panel == nullptr) g_panel_open.store(false);
++}
++
++void host_panel_set_open(bool open) noexcept {
++    if (g_panel.load() == nullptr) return;
++    if (open && g_open) {  // one overlay at a time: the panel replaces the settings overlay
++        g_open = false;
++        g_extra_shown = false;
++    }
++    g_panel_open.store(open);
++}
++
++bool host_panel_open() noexcept { return g_panel_open.load() && g_panel.load() != nullptr; }
++
++bool host_panel_handle(HostSettingsKey key) noexcept {
++    const HostPanel *panel = g_panel.load();
++    if (!host_panel_open() || panel->key == nullptr) return false;
++    if (!panel->key(key)) g_panel_open.store(false);
++    return true;
++}
++
++bool host_overlay_view(HostSettingsView &view) noexcept {
++    if (g_open) {
++        view = host_settings_view();
++        return true;
++    }
++    const HostPanel *panel = g_panel.load();
++    if (!g_panel_open.load() || panel == nullptr || panel->view == nullptr) return false;
++    view = HostSettingsView{};
++    panel->view(view);
++    view.row_count = std::clamp(view.row_count, 0, kViewRows);
++    view.panel = true;
++    return true;
++}
++
+ bool host_settings_has_extra_page() noexcept { return g_extra != nullptr; }
+ 
+ bool host_settings_f9_is_overlay() noexcept { return g_extra != nullptr && !g_extra->owns_open_key; }
+@@ -291,6 +333,7 @@ bool host_settings_handle(HostSettingsKey key) noexcept {
+     if (key == HostSettingsKey::Toggle) {
+         g_open = !g_open;
+         g_extra_shown = false;
++        if (g_open) g_panel_open.store(false);
+         return true;
+     }
+     if (key == HostSettingsKey::TogglePage) {
+@@ -303,6 +346,7 @@ bool host_settings_handle(HostSettingsKey key) noexcept {
+             g_extra_shown = true;
+             g_extra_selected = 0;
+             g_extra_top = 0;
++            g_panel_open.store(false);
+         }
+         return true;
+     }
+@@ -362,8 +406,7 @@ Win32HostKeyDecision classify_win32_host_key(std::uint32_t message, std::uint32_
+ 
+ Dx12FramePresentDecision decide_dx12_frame_present(bool direct_presentation_possible) noexcept {
+     Dx12FramePresentDecision decision{};
+-    decision.composite_settings = host_settings_open();
+-    if (decision.composite_settings) decision.settings = host_settings_view();
++    decision.composite_settings = host_overlay_view(decision.settings);
+     decision.composite_fps = lcs_render_configuration().display.show_fps;
+     decision.present_directly = direct_presentation_possible;
+     decision.map_full_frame_readback = !direct_presentation_possible;
+@@ -440,10 +483,41 @@ void host_fps_format(char *label, std::size_t size) noexcept {
+         std::snprintf(label, size, "FPS --");
+ }
+ 
++namespace {
++
++// GT patch 0068: the host panel's look (a cheat device): a framed box, an amber title bar, the selected row on a blue bar,
++// a footer bar with the button hints. Rows are 40 characters (values already right-aligned by the host) at scale 2.
++void rasterize_panel(const HostSettingsView &view, std::uint8_t *rgba, std::uint32_t width, std::uint32_t height) noexcept {
++    const int w = static_cast<int>(width), h = static_cast<int>(height);
++    constexpr int scale = 2, bar = 26, row_h = 22, rows_y = bar + 8, pad = 10;
++    overlay_fill(rgba, width, height, 0, 0, w, h, 236u, 160u, 40u, 255u);                       // frame
++    overlay_fill(rgba, width, height, 2, 2, w - 2, h - 2, 12u, 14u, 24u, 228u);                  // body
++    overlay_fill(rgba, width, height, 2, 2, w - 2, bar, 236u, 160u, 40u, 255u);                  // title bar
++    overlay_text(rgba, width, height, pad, 7, scale, view.title, 18u, 16u, 12u);
++    for (int row = 0; row < view.row_count; ++row) {
++        const int y = rows_y + row * row_h;
++        const bool selected = row == view.selected;
++        if (selected) {
++            overlay_fill(rgba, width, height, 6, y - 4, w - 6, y + 7 * scale + 4, 46u, 84u, 160u, 255u);
++            overlay_fill(rgba, width, height, 6, y - 4, 10, y + 7 * scale + 4, 236u, 160u, 40u, 255u);  // marker
++        }
++        overlay_text(rgba, width, height, pad + 6, y, scale, view.rows[row], selected ? 255u : 176u,
++                     selected ? 255u : 186u, selected ? 255u : 204u);
++    }
++    overlay_fill(rgba, width, height, 2, h - bar, w - 2, h - 2, 30u, 34u, 50u, 240u);            // footer bar
++    overlay_text(rgba, width, height, pad, h - bar + 6, scale, view.footer, 214u, 218u, 230u);
++}
++
++}  // namespace
++
+ void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba,
+                                 std::uint32_t width, std::uint32_t height) noexcept {
+     if (rgba == nullptr || width == 0u || height == 0u) return;
+     std::memset(rgba, 0, static_cast<std::size_t>(width) * height * 4u);
++    if (view.panel) {
++        rasterize_panel(view, rgba, width, height);
++        return;
++    }
+     constexpr int scale = 2;
+     const int line = 12 * scale;
+     overlay_fill(rgba, width, height, 0, 0, static_cast<int>(width), static_cast<int>(height),
+diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index cad8cef..40ea77e 100644
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -44,9 +44,28 @@ struct HostSettingsView {
+     int row_count{5};  // rows to draw
+     bool resolution_pending{false};
+     char title[32]{};   // HOST SETTINGS on the main page, the extra page's title otherwise
+-    char footer[32]{};  // F10 CLOSE on the main page, F9 CLOSE on the extra page
++    char footer[48]{};  // F10 CLOSE on the main page, F9 CLOSE on the extra page
++    bool panel{false};  // drawn as the host panel (GT: the cheat device), not as the settings overlay
+ };
+ 
++// GT patch 0068: the host panel, a second overlay the host program opens and drives itself (GT: the cheat device). It is
++// drawn when the settings overlay is closed and, unlike it, leaves the input alone: the pad still reaches the host (which
++// hides it from the game itself) and only the keyboard's game bindings are held back, so the host can read the keys.
++struct HostPanel {
++    void (*view)(HostSettingsView &view);  // fills title, footer, rows, row_count, selected
++    // The window's navigation keys while the panel is open (arrows, Enter, Escape/Backspace = Close; with the OS key repeat);
++    // false closes the panel.
++    bool (*key)(HostSettingsKey key) = nullptr;
++};
++// A navigation key for the open panel (the window paths call it); false when no panel is open.
++bool host_panel_handle(HostSettingsKey key) noexcept;
++void host_panel_set(const HostPanel *panel) noexcept;  // nullptr removes it (and closes it)
++void host_panel_set_open(bool open) noexcept;          // ignored without a panel; opening it closes the settings overlay
++[[nodiscard]] bool host_panel_open() noexcept;
++// The view the overlay paths draw this frame: the settings overlay's when it is open, else the panel's (panel = true);
++// false when neither is open.
++[[nodiscard]] bool host_overlay_view(HostSettingsView &view) noexcept;
++
+ // Registers (or, with nullptr, removes) the extra page opened by F9. Without one F9 does nothing.
+ void host_settings_set_extra_page(const HostExtraPage *page) noexcept;
+ [[nodiscard]] bool host_settings_has_extra_page() noexcept;
+diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
+index 7c482d8..22d8fef 100644
+--- a/tests/lcs_host_menu_test.cpp
++++ b/tests/lcs_host_menu_test.cpp
+@@ -390,6 +390,59 @@ int delegated_page() {
+     return 0;
+ }
+ 
++// GT patch 0068: the host panel, a second overlay the host opens itself; it is drawn with its own look and closes on false.
++std::vector<int> g_panel_keys;
++bool panel_key(lcs::HostSettingsKey key) {
++    g_panel_keys.push_back(static_cast<int>(key));
++    return key != lcs::HostSettingsKey::Close;
++}
++void panel_view(lcs::HostSettingsView &view) {
++    view.row_count = 3;
++    view.selected = 1;
++    for (int row = 0; row < 3; ++row) std::snprintf(view.rows[row], sizeof(view.rows[row]), "ROW%d", row);
++    std::snprintf(view.title, sizeof(view.title), "CHEATS > RACE");
++    std::snprintf(view.footer, sizeof(view.footer), "X OK  O BACK  <> CHANGE");
++}
++
++int panel() {
++    using namespace lcs;
++    static const HostPanel panel{panel_view, panel_key};
++    HostSettingsView view{};
++    host_panel_set_open(true);
++    if (host_panel_open()) return fail("no panel registered: opening does nothing");
++    host_panel_set(&panel);
++    if (host_overlay_view(view)) return fail("closed panel: nothing to draw");
++    host_panel_set_open(true);
++    if (!host_panel_open() || host_settings_open()) return fail("the panel opens on its own, the settings overlay stays closed");
++    if (!host_overlay_view(view) || !view.panel || view.row_count != 3 || std::string(view.rows[1]) != "ROW1" ||
++        std::string(view.title) != "CHEATS > RACE")
++        return fail("the panel's view is drawn, marked as the panel");
++    if (!decide_dx12_frame_present(true).composite_settings || !decide_dx12_frame_present(true).settings.panel)
++        return fail("the GPU paths composite the panel");
++    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(kSettingsOverlayWidth) * kSettingsOverlayHeight * 4u);
++    rasterize_settings_overlay(view, rgba.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
++    const auto pixel = [&](int x, int y) { return &rgba[(static_cast<std::size_t>(y) * kSettingsOverlayWidth + x) * 4u]; };
++    if (pixel(100, 4)[0] != 236u || pixel(100, 4)[2] != 40u) return fail("amber title bar");
++    if (pixel(300, 34 + 22 + 16)[2] != 160u) return fail("the selected row (1) on the blue bar");
++    if (pixel(300, 34 + 16)[2] == 160u) return fail("an unselected row has no bar");
++    if (pixel(500, kSettingsOverlayHeight - 4)[0] != 30u) return fail("footer bar");
++    if (host_panel_handle(HostSettingsKey::Down), g_panel_keys != std::vector<int>{static_cast<int>(HostSettingsKey::Down)})
++        return fail("the panel gets its keys");
++    host_settings_handle(HostSettingsKey::Toggle);  // F10 opens the settings overlay: it replaces the panel
++    if (host_panel_open() || !host_settings_open()) return fail("F10 closes the panel");
++    if (!host_overlay_view(view) || view.panel) return fail("the settings overlay is drawn, not the panel");
++    host_panel_set_open(true);
++    if (!host_panel_open() || host_settings_open()) return fail("opening the panel closes the settings overlay");
++    host_panel_handle(HostSettingsKey::Close);
++    if (host_panel_open()) return fail("false from the panel's key closes it");
++    if (host_panel_handle(HostSettingsKey::Up)) return fail("a closed panel takes no keys");
++    host_panel_set_open(true);
++    host_panel_set(nullptr);
++    if (host_panel_open()) return fail("removing the panel closes it");
++    std::cout << "panel=own overlay, own look, keys, one overlay at a time\n";
++    return 0;
++}
++
+ }  // namespace
+ 
+ int main(int argc, char **argv) {
+@@ -403,5 +456,6 @@ int main(int argc, char **argv) {
+     if (mode == "extra") return extra_page();
+     if (mode == "f9") return f9_key();
+     if (mode == "delegated") return delegated_page();
++    if (mode == "panel") return panel();
+     return 2;
+ }
