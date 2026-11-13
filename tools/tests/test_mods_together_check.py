@@ -67,6 +67,17 @@ def test_reset_to_track_must_show_the_replayed_tap():
     assert not ok and problems[0].startswith("reset-to-track: no log line")
 
 
+def test_reset_to_track_api4_host_tap_and_state_line():
+    ids = IDS + ["reset-to-track"]
+    base = GOOD.replace("orbit-camera skipped:", "orbit-camera reset-to-track skipped:")
+    host = "\n[padmenu] PADSEL up step=620 tap=1"
+    state = "\n[mod:reset-to-track] t=-1 step=40 wheels=4 up_z=1.000"
+    assert m.judge(base + host + state, ids) == (True, [])
+    assert not m.judge(base + host, ids)[0]                              # the host replayed a tap, but the mod never ran
+    assert not m.judge(base + state, ids)[0]                             # the mod ran, but no press reached the game
+    assert not m.judge(base + host.replace("tap=1", "tap=0") + state, ids)[0]
+
+
 def test_rollover_must_show_an_impulse():
     ids = IDS + ["rollover"]
     good = GOOD.replace("orbit-camera skipped:", "orbit-camera rollover skipped:") + "\n[mod:rollover] IMPULSE st=900 held=3.75"
