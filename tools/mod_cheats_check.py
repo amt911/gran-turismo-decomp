@@ -37,6 +37,19 @@ AI = re.compile(rf"A\d+={VEC}")
 ROW = re.compile(r"\[mod:cheats\] ROW (\w+) -> (\S+)")
 PADMENU = re.compile(r"\[padmenu\] (\w+) at vblank (\d+)")
 PADMENU_STATE = re.compile(r"\[padmenu\] menu (opened|closed) at vblank (\d+)")
+# The cheat device opens as the host panel (lcs patch 0068), never as the F9 / F10 overlay: lcs zeroes a real controller while
+# the overlay is open, so a device opened there could not be navigated or closed from a pad (the routes inject below lcs).
+OPENED_AS = re.compile(r"\[padmenu\] menu opened at vblank \d+ (panel|overlay)")
+
+
+def opened_as_panel(text: str):
+    """(ok, message): every opening of the menu in the run was the host panel."""
+    kinds = [m.group(1) for m in OPENED_AS.finditer(text)]
+    if not kinds:
+        return False, "no `menu opened ... panel|overlay` line"
+    if any(k != "panel" for k in kinds):
+        return False, f"the device opened as {kinds}: the F9 overlay zeroes a real controller (it must be the panel)"
+    return True, ""
 SCRIPT_DONE = re.compile(r"script done at vblank \d+")
 # cheats >= 0.4.0 append ` since=<steps since the player's car first moved, -1 before> rep=<0 live|1 replay> ai=<AI speed>`
 REPLAY_LINE = re.compile(rf"\[mod:cheats\] st=\d+ slow=(\S+) freeze=([01]) P={VEC} spd={NUM} acc={NUM}((?: A\d+={VEC})*) since=(-?\d+) rep=([01]) ai=(\S+)")
@@ -216,6 +229,9 @@ def judge_pad(text: str):
     states = [(m.group(1), m.start()) for m in PADMENU_STATE.finditer(text)]
     if [s for s, _ in states] != ["opened", "closed"]:
         return False, f"menu state changes {[s for s, _ in states]}, expected opened then closed"
+    ok, message = opened_as_panel(text)
+    if not ok:
+        return False, message
     opened, closed = states[0][1], states[1][1]
     rows = [(m.group(1), m.group(2), m.start()) for m in ROW.finditer(text)]
     if [(r, v) for r, v, _ in rows] != [("slow_motion", "0.5x"), ("freeze_ai", "ON")]:

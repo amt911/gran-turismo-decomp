@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # In-game check of the reset-to-track mod (gt-mods repo): headless gt_play on the `reset` pad route (the race, throttle held until the
 # car leaves the road at the end of the straight and hits the barrier, then SELECT held 80 vblanks, then throttle and brake), the mod's
-# state log (GT_MOD_RESET_LOG=1) and tools/mod_reset_check.py as judge. The SELECT hold is real: the mod reads the game's own pad buffer.
+# state log (GT_MOD_RESET_LOG=1) and tools/mod_reset_check.py as judge. The SELECT hold is real: an API-1 mod reads the game's own pad buffer, an API-4 one gets the cheat device's action (the host holds Select).
 #   tools/mod_reset_check.sh [--decomp off|on] [--fake STEP] [--seconds N] [--every N] [--reset-only] [--tap] [--toggle-off]
 #                            [--without-mod|--sabotage-rates|--sabotage-newest|--sabotage-norewind]
-#   (default)    baseline_nosel (no mod, route without the SELECT hold), quiet (mod, same route: frames byte-identical, the mod ran), reset (mod,
+#   (default)    baseline_nosel (the mod installed, disabled; route without the SELECT hold), quiet (mod, same route: frames byte-identical, the mod ran), reset (mod,
 #                full route: 4/4 wheels on asphalt, up.z > 0.9, restart from rest, calm, heading kept, >= 15 m/s with the throttle held,
 #                rewound >= 1.5 s of travel, Select hidden from the game with no tap); PASS only if both judge well
 #   --tap        the chase route's three short SELECT presses with and without the mod: replayed as taps, same camera view afterwards
@@ -15,7 +15,7 @@
 #   --reset-only just the reset run (no baseline), judged by the restore criteria
 #   Each of these must FAIL (--sabotage-notap with --tap): --without-mod (nothing resets), --sabotage-rates (-DRESET_SABOTAGE=1: rates not zeroed), --sabotage-newest
 #   (=2: newest pose, off-track included), --sabotage-norewind (=3: newest good pose, no rewind), --sabotage-notap (=4: the short
-#   press is not replayed to the game), --sabotage-lookahead-off (=5: the straight-ahead rule off, the old pick; with --multi)
+#   press is not replayed to the game; with an API-4 mod it rebuilds gt_play with -DGT_PAD_MENU_SABOTAGE_NO_REPLAY=ON, the host's replay), --sabotage-lookahead-off (=5: the straight-ahead rule off, the old pick; with --multi)
 # WITH_CHEATS=1 also installs the cheats mod (enabled): the pad menu is then active, so a lone Select reaches reset-to-track 8 vblanks late (use with --reset-only and --tap; the quiet run's
 # byte-identity does not hold with the delay).
 # Env: ROUTE (a pad route file, default config/pad_routes/reset.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
@@ -44,11 +44,14 @@ done
 route=${ROUTE:-config/pad_routes/reset.pad}
 [ $multi -eq 1 ] && route=${ROUTE:-config/pad_routes/reset_multi.pad}
 [ -f "$route" ] || { echo "mod_reset_check: no pad route $route" >&2; exit 2; }
+# API 4 (the cheat device): the host reads the button (action `reset`, SELECT held 30 / R) and replays a short Select as a late tap
+api4=0; grep -Eq '^api *= *[4-9]' "$mods_repo/reset-to-track/mod.toml" 2>/dev/null && api4=1
 mkdir -p "$out/nomods" || exit 2
 mkdir -p "$out/mods/reset-to-track"
 if [ $without -eq 0 ]; then
   mbuild="$out/mod-build-s$sabotage"
   flags=""; [ $sabotage -ne 0 ] && flags="-DRESET_SABOTAGE=$sabotage"
+  [ $sabotage -eq 4 ] && [ $api4 -eq 1 ] && flags=""  # API 4: the host replays the tap, the sabotage is the host's (below)
   { cmake -S "$mods_repo" -B "$mbuild" -DCMAKE_CXX_COMPILER=clang++ -DGT_SDK_DIR="$repo/include" "-DCMAKE_CXX_FLAGS=$flags" \
       && cmake --build "$mbuild" -j2 --target reset_to_track ${WITH_CHEATS:+cheats}; } > "$out/mod-build-s$sabotage.log" 2>&1 \
     || { echo "mod_reset_check: mod build failed (log $out/mod-build-s$sabotage.log)" >&2; exit 2; }
@@ -59,6 +62,10 @@ if [ $without -eq 0 ]; then
   fi
   rewind='s/^rewind_ms *=.*/rewind_ms = 4500/'; [ $multi -eq 1 ] && rewind=''  # --multi: the mod's own default (2500)
   sed "s/^enabled = false/enabled = true/; $rewind" "$mods_repo/reset-to-track/mod.toml" > "$out/mods/reset-to-track/mod.toml"
+  # The baselines run the same mods installed but reset-to-track disabled: a mod of API >= 2 registers with the cheat device, whose
+  # SELECT+START chord holds a lone Select/Start back a few vblanks; the device is active either way, so only the mod's own work differs.
+  rm -rf "$out/mods_off" && cp -r "$out/mods" "$out/mods_off" || exit 2
+  sed -i 's/^enabled = true/enabled = false/' "$out/mods_off/reset-to-track/mod.toml" || exit 2
 fi
 # the same route without the SELECT hold (the quiet run: no button), and the camera-tap route
 sed -E 's/,[0-9]+:SELECT:[0-9]+//' "$route" > "$out/route_nosel.pad"
@@ -89,17 +96,27 @@ run_one() {
   cp "$out/$label/run.log" "$out/$label-s$sabotage-$decomp.log"  # kept: the next run of the same label removes $out/$label
   grep -h '^\[mods\]' "$out/$label/run.log"; grep -h 'script done' "$out/$label/run.log"
 }
-mdir="$out/mods"; [ $without -eq 1 ] && mdir="$out/nomods"
+mdir="$out/mods"; [ $without -eq 1 ] && { mdir="$out/nomods"; rm -rf "$out/mods_off"; mkdir -p "$out/mods_off"; }  # no mod: no baseline mods either
 py=.venv/bin/python
 need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/$1/frames" ]; }
+# API 4, --sabotage-notap: a gt_play whose held-back hotkey buttons are never replayed as late taps, rebuilt as it was on exit. Called after
+# the baseline runs: those keep the real build.
+sabotage_build() {
+  [ $sabotage -eq 4 ] && [ $api4 -eq 1 ] || return 0
+  restore() { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_NO_REPLAY=OFF > /dev/null 2>&1 && cmake --build "$build" -j4 --target gt_play > /dev/null 2>&1; }
+  trap restore EXIT
+  { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_NO_REPLAY=ON && cmake --build "$build" -j4 --target gt_play; } > "$out/gt_play-sabotage-build.log" 2>&1 \
+    || { echo "mod_reset_check: sabotage build failed (log $out/gt_play-sabotage-build.log)" >&2; exit 2; }
+}
 if [ $tap -eq 1 ]; then  # the chase route's three short SELECT presses: hidden while down, replayed as taps, the camera view reached is the same
-  need_baseline baseline_chase && { run_one baseline_chase "$out/nomods" - - 1 config/pad_routes/chase.pad || exit 2; }
+  need_baseline baseline_chase && { run_one baseline_chase "$out/mods_off" - - 1 config/pad_routes/chase.pad || exit 2; }
+  sabotage_build
   run_one tap "$mdir" - - 1 config/pad_routes/chase.pad || exit 2
   $py -I tools/mod_reset_check.py "$out" tap
   exit $?
 fi
 if [ $toggle -eq 1 ]; then
-  need_baseline baseline && { run_one baseline "$out/nomods" - - 1 "$route" || exit 2; }
+  need_baseline baseline && { run_one baseline "$out/mods_off" - - 1 "$route" || exit 2; }
   run_one toggle "$mdir" "$fake" "reset-to-track@v$toggle_at" 1 "$route" || exit 2
   $py -I tools/mod_reset_check.py "$out" toggle
   exit $?
@@ -110,11 +127,12 @@ if [ $multi -eq 1 ]; then  # one run, judged on every restore (a sabotage or --w
   exit $?
 fi
 if [ $sabotage -ne 0 ] || [ $without -eq 1 ] || [ $reset_only -eq 1 ]; then  # a failing run is all that is asked of a sabotage: no baseline needed
+  sabotage_build
   run_one reset "$mdir" "$fake" - 0 "$route" || exit 2
   $py -I tools/mod_reset_check.py "$out" restore
   exit $?
 fi
-need_baseline baseline_nosel && { run_one baseline_nosel "$out/nomods" - - 1 "$out/route_nosel.pad" || exit 2; }
+need_baseline baseline_nosel && { run_one baseline_nosel "$out/mods_off" - - 1 "$out/route_nosel.pad" || exit 2; }
 run_one quiet "$mdir" - - 1 "$out/route_nosel.pad" || exit 2
 run_one reset "$mdir" "$fake" - 1 "$route" || exit 2
 rc=0

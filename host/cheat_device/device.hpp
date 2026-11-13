@@ -26,6 +26,9 @@ constexpr const char *kOpenAction = "device.open";
 constexpr std::uint64_t kMessageVblanks = 180;  // a refused binding's reason stays 3 s in the title line
 constexpr unsigned kCancelHold = 30;           // CIRCLE held this many vblanks cancels a pad capture
 constexpr std::size_t kWidth = 40;             // characters of a row
+// The panel's footer bar: the pad's buttons (Cross / Circle / Left-Right; the keyboard's Enter / Escape / arrows do the same).
+constexpr const char *kFooter = "X OK   O BACK   <> CHANGE";
+constexpr const char *kCaptureFooter = "PRESS THE NEW BINDING   HOLD O CANCEL";
 
 // The F9 MODS list as it is today (host/mod_menu.hpp): the device shows it as the Mods category.
 struct ModRows {

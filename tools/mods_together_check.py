@@ -36,6 +36,14 @@ ACTED: dict[str, re.Pattern[str]] = {
 }
 
 
+# A second proof, every pattern required. reset-to-track on API 4: the host holds Select (the cheat device's SELECT@30) and replays the
+# short presses (GT_PAD_LOG: `[padmenu] PADSEL up ... tap=1`); the mod's own state lines show it ran with the others.
+ACTED_ALL = {
+    "reset-to-track": [re.compile(r"^\[padmenu\] PADSEL up step=\d+ tap=1", re.M),
+                       re.compile(r"^\[mod:reset-to-track\] t=-?\d+ step=\d+ ", re.M)],
+}
+
+
 def judge(log: str, ids: list[str]) -> tuple[bool, list[str]]:
     """(passed, one line per problem) for a run log and the installed mod ids."""
     problems: list[str] = []
@@ -53,8 +61,12 @@ def judge(log: str, ids: list[str]) -> tuple[bool, list[str]]:
         problems.append("no `script done` (the route did not finish)")
     for mod_id in ids:
         rule = ACTED.get(mod_id)
-        if rule is not None and not rule.search(log):
-            problems.append(f"{mod_id}: no log line proving it acted ({rule.pattern})")
+        if rule is None or rule.search(log):
+            continue
+        both = ACTED_ALL.get(mod_id)  # the other way to prove it: every one of these lines
+        if both is not None and all(r.search(log) for r in both):
+            continue
+        problems.append(f"{mod_id}: no log line proving it acted ({rule.pattern})")
     return not problems, problems
 
 
