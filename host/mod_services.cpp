@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,10 @@ struct Tick {
 
 std::vector<Row> g_rows;
 std::vector<Tick> g_ticks;
+std::vector<ActionDecl> g_actions;
+std::vector<EntryDecl> g_entries;
+std::mutex g_queue_mutex;
+std::vector<std::string> g_queue;  // actions to run on the next tick (hotkeys: the pad/keyboard poll; the menu: the window thread)
 GtMod *g_initializing = nullptr;
 std::atomic<std::uint64_t> g_vblank{0};
 std::atomic<bool (*)()> g_menu_open{nullptr};
@@ -48,6 +53,19 @@ bool v3_mod(GtMod *self, const char *what) {
     if (self == nullptr) return false;
     if (self->api_version < GT_MOD_API_VERSION_3) {
         std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 3)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    return true;
+}
+
+bool v4_mod(GtMod *self, const char *what) {
+    if (self == nullptr) return false;
+    if (self->api_version < GT_MOD_API_VERSION_4) {
+        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 4)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    if (g_initializing != self) {
+        std::fprintf(stderr, "[mod:%s] %s refused: during gt_mod_init only\n", self->id.c_str(), what);
         return false;
     }
     return true;
@@ -149,7 +167,84 @@ bool menu_row_activate(std::size_t index, int direction) {
 
 const std::string &menu_row_mod_id(std::size_t index) { return index < g_rows.size() ? g_rows[index].mod->id : kEmpty; }
 
-bool any_registered() { return !g_rows.empty() || !g_ticks.empty(); }
+bool any_registered() { return !g_rows.empty() || !g_ticks.empty() || !g_actions.empty() || !g_entries.empty(); }
+
+bool mod_category(const std::string &category) {
+    return category == "Race" || category == "Car" || category == "Money & garage" || category == "Camera" || category == "Settings";
+}
+
+int api_add_action(GtMod *self, const char *id, const char *label, const char *category, GtActionFn fn, const char *default_key,
+                   const char *default_pad) {
+    if (!v4_mod(self, "add_action")) return 1;
+    if (id == nullptr || *id == '\0' || std::strlen(id) > kMaxRowIdLength || label == nullptr || *label == '\0' || fn == nullptr) {
+        std::fprintf(stderr, "[mod:%s] add_action refused: needs an id of 1-%zu chars, a label and a function\n", self->id.c_str(),
+                     kMaxRowIdLength);
+        return 3;
+    }
+    if (category == nullptr || !mod_category(category)) {
+        std::fprintf(stderr, "[mod:%s] add_action '%s' refused: unknown category '%s'\n", self->id.c_str(), id,
+                     category != nullptr ? category : "(null)");
+        return 3;
+    }
+    const std::string full = self->id + "." + id;
+    for (const ActionDecl &a : g_actions)
+        if (a.id == full) {
+            std::fprintf(stderr, "[mod:%s] add_action refused: '%s' already declared\n", self->id.c_str(), full.c_str());
+            return 4;
+        }
+    g_actions.push_back(ActionDecl{self, full, label, category, fn, default_key != nullptr ? default_key : "",
+                                   default_pad != nullptr ? default_pad : ""});
+    return 0;
+}
+
+int api_add_entry(GtMod *self, const char *category, const char *id, GtMenuLabelFn label, GtMenuActivateFn activate) {
+    if (!v4_mod(self, "add_entry")) return 1;
+    if (id == nullptr || *id == '\0' || std::strlen(id) > kMaxRowIdLength || label == nullptr || activate == nullptr) {
+        std::fprintf(stderr, "[mod:%s] add_entry refused: needs an id of 1-%zu chars and both functions\n", self->id.c_str(), kMaxRowIdLength);
+        return 3;
+    }
+    if (category == nullptr || !mod_category(category)) {
+        std::fprintf(stderr, "[mod:%s] add_entry '%s' refused: unknown category '%s'\n", self->id.c_str(), id,
+                     category != nullptr ? category : "(null)");
+        return 3;
+    }
+    for (const EntryDecl &e : g_entries)
+        if (e.mod == self && e.id == id) {
+            std::fprintf(stderr, "[mod:%s] add_entry refused: '%s' already added by this mod\n", self->id.c_str(), id);
+            return 4;
+        }
+    g_entries.push_back(EntryDecl{self, category, id, label, activate});
+    return 0;
+}
+
+const std::vector<ActionDecl> &actions() { return g_actions; }
+const std::vector<EntryDecl> &entries() { return g_entries; }
+
+bool entry_text(std::size_t index, char *out, std::size_t capacity) {
+    if (index >= g_entries.size() || out == nullptr || capacity == 0) return false;
+    const EntryDecl &e = g_entries[index];
+    if (!is_on(e.mod)) {
+        std::snprintf(out, capacity, "%s mod OFF", e.mod->id.c_str());
+        return true;
+    }
+    out[0] = '\0';
+    e.label(e.mod, out, static_cast<std::uint32_t>(std::min<std::size_t>(capacity, 0xFFFFu)));
+    out[capacity - 1] = '\0';
+    return true;
+}
+
+bool entry_activate(std::size_t index, int direction) {
+    if (index >= g_entries.size()) return false;
+    const EntryDecl &e = g_entries[index];
+    if (!is_on(e.mod)) return false;
+    e.activate(e.mod, direction < 0 ? -1 : direction > 0 ? 1 : 0);
+    return true;
+}
+
+void queue_action(const std::string &id) {
+    std::lock_guard<std::mutex> lock(g_queue_mutex);
+    if (std::find(g_queue.begin(), g_queue.end(), id) == g_queue.end()) g_queue.push_back(id);
+}
 void set_menu_open_query(bool (*query)()) { g_menu_open.store(query, std::memory_order_release); }
 int api_is_menu_open(GtMod *) {
     const auto query = g_menu_open.load(std::memory_order_acquire);
@@ -203,16 +298,35 @@ void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
         GtModCtx tick_ctx{&rt, &ctx, 0u, 0u, true, t.mod};
         t.fn(&tick_ctx);
     }
+    std::vector<std::string> queued;
+    {
+        std::lock_guard<std::mutex> lock(g_queue_mutex);
+        queued.swap(g_queue);
+    }
+    for (const std::string &id : queued)
+        for (const ActionDecl &a : g_actions)
+            if (a.id == id && is_on(a.mod)) {
+                GtModCtx action_ctx{&rt, &ctx, 0u, 0u, true, a.mod};
+                a.fn(a.mod, &action_ctx);
+            }
 }
 
 void remove_for(const GtMod *mod) {
     g_rows.erase(std::remove_if(g_rows.begin(), g_rows.end(), [mod](const Row &r) { return r.mod == mod; }), g_rows.end());
     g_ticks.erase(std::remove_if(g_ticks.begin(), g_ticks.end(), [mod](const Tick &t) { return t.mod == mod; }), g_ticks.end());
+    g_actions.erase(std::remove_if(g_actions.begin(), g_actions.end(), [mod](const ActionDecl &a) { return a.mod == mod; }), g_actions.end());
+    g_entries.erase(std::remove_if(g_entries.begin(), g_entries.end(), [mod](const EntryDecl &e) { return e.mod == mod; }), g_entries.end());
 }
 
 void clear_for_tests() {
     g_rows.clear();
     g_ticks.clear();
+    g_actions.clear();
+    g_entries.clear();
+    {
+        std::lock_guard<std::mutex> lock(g_queue_mutex);
+        g_queue.clear();
+    }
     g_initializing = nullptr;
     g_vblank.store(0);
     g_menu_open.store(nullptr);
