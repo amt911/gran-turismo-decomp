@@ -38,18 +38,26 @@ sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de ca
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
 del menú pasado ese tiempo (`[mods] <id> -> OFF`).
 
-## Cheat device (F9 / SELECT+START)
+## Cheat device (SELECT+START / F7)
 
-Desde 2026-11-12 (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`, aprobada) **F9** y **SELECT+START** abren el
-**cheat device**: un menú por categorías (Race, Car, Money & garage, Camera, **Mods**, **Controls**, Settings; las vacías no salen).
-La primera vez se abre en **Mods**, que es la lista de antes (una fila por mod ON/OFF y las filas de API v2), así que las rutas y
-costumbres de la página MODS siguen valiendo. Arriba/Abajo eligen, Izquierda/Derecha/Intro cambian o entran, Escape/Círculo vuelven
-atrás (en la raíz cierran). Se ven 8 filas (parche lcs 0067: página delegada).
+Desde 2026-11-12 (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`, aprobada) **SELECT+START** (mando) y **F7**
+(teclado) abren el **cheat device**: un menú por categorías (Race, Car, Money & garage, Camera, **Mods**, **Controls**, Settings; las
+vacías no salen). La primera vez se abre en **Mods** (la lista de mods ON/OFF y sus filas de API v2). Arriba/Abajo eligen,
+Izquierda/Derecha/Intro (Cruz) cambian o entran, Escape/Retroceso/Círculo vuelven atrás (en la raíz cierran). Se ven 8 filas.
+
+**Panel propio, aparte de F9** (2026-11-13, spec `docs/superpowers/specs/2026-11-13-cheat-device-panel-design.md`, parche lcs 0068):
+el device es un panel del host con su aspecto (marco y cabecera ámbar con la ruta, fila elegida sobre barra azul, pie con
+`X OK   O BACK   <> CHANGE`), dibujado arriba a la derecha por el mismo camino que el overlay (SDL, Vulkan, DX12). **No toca la
+entrada**: el mando real sigue llegando al filtro del host, que se lo oculta al juego; el teclado deja de ir al juego mientras está
+abierto y las flechas/Intro/Escape mueven el panel. Antes era una página del overlay F9, y lcs pone el mando a cero con el overlay
+abierto: con un mando real (Xbox One por BT) el device se abría con SELECT+START pero no se podía mover ni cerrar (las rutas de
+prueba inyectan el mando por debajo de lcs y no lo vieron; docs/FINDINGS.md). **F9** vuelve a ser la página MODS de siempre (mods,
+actualizar, descargar) y **F10** los ajustes del host; abrir uno cierra el panel y viceversa. F8 sigue siendo la traza GE de lcs.
 
 - **Controls**: una página por acción con *Keyboard*, *Pad*, *Clear* y *Reset to default*. Intro en *Keyboard*/*Pad* captura la
   próxima tecla / combinación (la unión de los botones pulsados, hecha al soltarlos; un botón solo mantenido 30 vblanks es "mantener";
   Círculo mantenido 30 vblanks cancela). **Un atajo ya usado se rechaza** y el motivo sale 3 s en la cabecera (nunca "gana el último");
-  un botón de carrera solo, sin otro ni tiempo de mantener, también se rechaza. `device.open` (F9 / SELECT+START) no puede quedarse
+  un botón de carrera solo, sin otro ni tiempo de mantener, también se rechaza. `device.open` (F7 / SELECT+START) no puede quedarse
   sin ninguno.
 - **`bindings.toml`** junto a la carpeta `mods/`: solo los atajos distintos del defecto (`<acción>.key = "Ctrl+N"`,
   `<acción>.pad = "L+TRIANGLE"`, `"SELECT@30"` = mantener 30 vblanks); se escribe atómico (tmp + rename). Las líneas de mods que hoy
@@ -57,8 +65,8 @@ atrás (en la raíz cierran). Se ven 8 filas (parche lcs 0067: página delegada)
 - **Lo que ve el juego**: los botones de cualquier atajo del mando se retienen como los del acorde (hasta 8 vblanks; un atajo de
   mantener, su tiempo): si el atajo se completa el juego no los ve; si no, los recibe tarde con su duración real. Las teclas nunca
   llegan al juego.
-- Sin ningún mod de API ≥ 2 cargado el host no lee el mando ni el teclado (identidad con el juego intacto) y F9 sigue siendo del
-  overlay; entonces la tecla de abrir no se puede reasignar (no hay otra acción con la que chocar).
+- Sin ningún mod de API ≥ 2 cargado el host no lee el mando ni el teclado (identidad con el juego intacto) y no hay panel: los
+  mods se encienden y apagan desde F9 (página MODS).
 
 ### API v4 (acciones y entradas por categoría)
 
@@ -90,7 +98,7 @@ no cambian. Las funciones v2 **rechazan** (devuelven distinto de 0 y dicen por q
   decompilada (su fibra queda suspendida ahí), y el hilo del GE es un hilo real del SO que sigue leyendo memoria del invitado. Por eso: getters, o setters seguros entre dos instrucciones
   cualesquiera del propio código del juego. **Probado en el juego:** el tic de `cheats` llama al lector de la bandera de vuelco (`0x0894CCB8`, solo lee) y la comprobación exige `status 0, v0 0`;
   ningún setter se ha probado todavía (la pieza 2 será la primera).
-- `is_menu_open(self)`: distinto de 0 mientras el overlay F9/F10 del host está abierto (cualquier versión de api). `vblank_index(self)`: el contador de vblanks del juego en el último tic
+- `is_menu_open(self)`: distinto de 0 mientras el cheat device (panel) o el overlay F9/F10 del host está abierto (cualquier versión de api). `vblank_index(self)`: el contador de vblanks del juego en el último tic
   (se actualiza aunque el mod esté apagado): sirve para saber que un estado quedó viejo sin mirar el reloj de pared (que va a otro ritmo que el tiempo virtual del juego).
 
 ## Menú con el mando

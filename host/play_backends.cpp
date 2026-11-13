@@ -71,8 +71,8 @@ void gt::frontend_shutdown() { lcs::audio_output_shutdown(); }
 
 namespace {
 
-// The cheat device (host/cheat_device/device.hpp, spec 2026-11-11-cheat-device-design.md) is the F9 page: a delegated page
-// (lcs patch 0067) whose keys and view are the device's. Its Mods category is the old F9 MODS list (host/mod_menu.hpp).
+// The cheat device (host/cheat_device/device.hpp, spec 2026-11-11-cheat-device-design.md) is the host panel (lcs patch 0068) whose
+// keys and view are the device's. Its Mods category is the F9 MODS list (host/mod_menu.hpp).
 namespace device_ns = gt::cheat_device;
 device_ns::Device &device() {
     static device_ns::Device d(device_ns::ModRows{&gt::mods::menu::count, &gt::mods::menu::row, &gt::mods::menu::adjust});
@@ -98,14 +98,37 @@ void device_page_view(lcs::HostSettingsView &view) {
     view.selected = v.selected;
     for (std::size_t i = 0; i < v.rows.size(); ++i) std::snprintf(view.rows[i], sizeof view.rows[i], "%s", v.rows[i].c_str());
 }
-// With the pad filter installed (a v2 mod is loaded) the host reads the keyboard each vblank and owns the open key; without it
-// the overlay keeps F9 as before (the device's open key cannot be rebound then: there is no other action to clash with).
+// The cheat device is the host panel (lcs patch 0068, spec 2026-11-13-cheat-device-panel-design.md): its own overlay, opened by
+// the action `device.open` (SELECT+START / F7), drawn apart from F9 / F10. Unlike the settings overlay it leaves the pad alone, so a
+// real controller reaches this filter (lcs zeroes the pad while F9 / F10 is open: phase 1's page could not be closed from a pad).
+bool device_panel_key(lcs::HostSettingsKey key) { return device_page_key(key); }
+const lcs::HostPanel kDevicePanel{&device_page_view, &device_panel_key};
+// F9 is the MODS page again: the mods list, their switches and the update / download rows (host/mod_menu.hpp).
+void mods_page_row(std::size_t index, char *out, std::size_t capacity) {
+    std::snprintf(out, capacity, "%s", gt::mods::menu::row(index).c_str());
+}
+const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle, &gt::mods::menu::adjust};
+#ifdef GT_PANEL_SABOTAGE_USE_OVERLAY  // verification only (mod_cheats_check.sh --sabotage-overlay must FAIL): phase 1's overlay page
 const lcs::HostExtraPage kDevicePage{"CHEATS", nullptr, nullptr, nullptr, nullptr, &device_page_key, &device_page_view, true};
-const lcs::HostExtraPage kDevicePageOverlayF9{"CHEATS", nullptr, nullptr, nullptr, nullptr, &device_page_key, &device_page_view, false};
+#endif
+
+// Open: the panel (or, with neither overlay up, nothing). The pad filter hides the pad from the game while either is open.
+bool device_open() { return lcs::host_panel_open(); }
+bool any_overlay_open() { return lcs::host_panel_open() || lcs::host_settings_open(); }
 
 void toggle_device() {
+#ifdef GT_PANEL_SABOTAGE_USE_OVERLAY
     if (!lcs::host_settings_open()) device().open();
+    lcs::host_settings_set_extra_page(&kDevicePage);
     lcs::host_settings_handle(lcs::HostSettingsKey::TogglePage);
+    return;
+#endif
+    if (device_open()) {
+        lcs::host_panel_set_open(false);
+        return;
+    }
+    device().open();
+    lcs::host_panel_set_open(true);
 }
 
 // Actions fired by a hotkey or from the menu run on the next vblank tick (mod API v4, host/mod_services.hpp).
@@ -154,7 +177,7 @@ void poll_device_keyboard(std::uint64_t vblank) {
         const std::optional<std::string> id = device().action_for_key(key);
         if (!id) continue;
         if (*id == device_ns::kOpenAction) toggle_device();
-        else if (!lcs::host_settings_open()) fire_action(*id);
+        else if (!any_overlay_open()) fire_action(*id);  // the panel's keys are its own (the window hands it the arrows, Enter, Escape)
     }
 }
 
@@ -205,25 +228,27 @@ void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t 
             hotkeys = now;
             filter.set_hotkeys(std::move(now));
         }
-        const bool was_open = lcs::host_settings_open();
+        const bool was_open = any_overlay_open();
         const gt::PadMenuKeys keys = filter.poll(buttons, was_open);
         if (device().capturing()) {
             device().poll_pad(buttons, vblank);  // the Controls page captures a combination: the buttons are not menu keys
         } else {
             for (std::size_t i = 0; i < keys.count; ++i) {
                 std::cerr << "[padmenu] " << key_name(keys.keys[i]) << " at vblank " << vblank << "\n";
-                if (keys.keys[i] == gt::MenuKey::TogglePage && !was_open) device().open();
-                lcs::host_settings_handle(overlay_key(keys.keys[i]));
+                if (keys.keys[i] == gt::MenuKey::TogglePage) toggle_device();
+                else if (lcs::host_panel_open()) lcs::host_panel_handle(overlay_key(keys.keys[i]));
+                else lcs::host_settings_handle(overlay_key(keys.keys[i]));
             }
         }
         poll_device_keyboard(vblank);
-        if (!lcs::host_settings_open())
+        if (!any_overlay_open())
             for (const std::string &id : device().poll_pad_hotkeys(buttons))
                 if (id != device_ns::kOpenAction) fire_action(id);  // the chord above opens the device
-        if (const bool open = lcs::host_settings_open(); open != was_open)
-            std::cerr << "[padmenu] menu " << (open ? "opened" : "closed") << " at vblank " << vblank << "\n";
+        if (const bool open = any_overlay_open(); open != was_open)
+            std::cerr << "[padmenu] menu " << (open ? "opened" : "closed") << " at vblank " << vblank
+                      << (open ? (lcs::host_panel_open() ? " panel" : " overlay") : "") << "\n";
     }
-    const bool open = lcs::host_settings_open();
+    const bool open = any_overlay_open();
 #ifdef GT_PAD_MENU_SABOTAGE_NO_HIDE  // verification only (tools/mod_cheats_check.sh --sabotage-hide must FAIL): the game keeps seeing the pad
     return;
 #endif
@@ -234,7 +259,7 @@ void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t 
 void mods_vblank_tick(psprecomp::Runtime &runtime, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {
     gt::mods::services::run_vblank_tick(runtime, ctx, vblank);
 }
-bool overlay_open() { return lcs::host_settings_open(); }
+bool overlay_open() { return any_overlay_open(); }
 } // namespace
 
 void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool allowed) {
@@ -250,7 +275,8 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
         for (const std::string &warning : device().use_bindings_file(bindings)) std::cerr << "[device] " << warning << "\n";
         device().set_fire(&fire_action);
         device().set_log([](const std::string &line) { std::cerr << "[device] " << line << " at vblank " << device_now() << "\n"; });
-        lcs::host_settings_set_extra_page(gt::mods::services::any_registered() ? &kDevicePage : &kDevicePageOverlayF9);
+        lcs::host_settings_set_extra_page(&kModsPage);
+        if (gt::mods::services::any_registered()) lcs::host_panel_set(&kDevicePanel);  // the pad filter (below) is its way in
     }
 #ifdef GT_MOD_DOWNLOADER
     // GET MODS rows on the same page (host/mod_store.hpp). GT_MODS_GET_TEST=<id> (verification only): a detached thread
