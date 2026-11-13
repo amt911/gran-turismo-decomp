@@ -22,6 +22,10 @@ VKHEADERS_REV=354fab82dbd91d2526a41ee4dbfff1012a623798
 # in /usr/share/ppsspp/assets/flash0/font), tag v1.20.4; hashes in config/ppsspp_fonts.sha256.
 PPSSPP_URL=https://github.com/hrydgard/ppsspp.git
 PPSSPP_REV=3a31057b7e44270b4d5cef8c31b6559d51802a3b
+# Host UI (cheat device panel, F9 / F10): Barlow (SIL OFL 1.1) from google/fonts and stb_truetype (public domain) from
+# nothings/stb, both at a pinned commit and a sha256 (config/ui_assets.sha256), never committed.
+UIFONTS_COMMIT=3e5667764ccfea32ce0c3d58a3a4756de890adc1
+STB_COMMIT=9600522de53973336fa033a289858a4354cbb04c
 GHIDRA_URL=https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip
 GHIDRA_SHA256=93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54
 GHIDRA_HOME="$GHIDRA_DIR/ghidra_12.1.3_PUBLIC"
@@ -116,6 +120,8 @@ if [ "$(cat "$fw/.gt-patches" 2>/dev/null)" = "$series" ]; then
   echo "    patches up to date"
 else
   git -C "$fw" checkout --quiet -- .
+  # files a patch creates (since 0069) are untracked: remove them so the series applies again onto the pinned tree
+  grep -h -A1 '^--- /dev/null' "$PATCHES"/*.patch | sed -n 's|^+++ b/||p' | while read -r created; do rm -f "$fw/$created"; done
   for patch in "$PATCHES"/*.patch; do
     git -C "$fw" apply "$patch" || { echo "patch does not apply: $patch" >&2; exit 1; }
     echo "    applied $(basename "$patch")"
@@ -171,5 +177,16 @@ if [ "$with_ghidra" = 1 ]; then
   echo "    GHIDRA_INSTALL_DIR=$GHIDRA_HOME"
   echo "    JAVA_HOME=$jdk"
 fi
+
+step "Host UI font (Barlow, SIL OFL) + stb_truetype @ ${STB_COMMIT:0:7}"
+mkdir -p "$SRC/fonts" "$SRC/stb"
+gf="https://raw.githubusercontent.com/google/fonts/$UIFONTS_COMMIT/ofl"
+while read -r sum name; do
+  case "$name" in
+    stb_truetype.h) fetch_verified "https://raw.githubusercontent.com/nothings/stb/$STB_COMMIT/stb_truetype.h" "$sum" "$SRC/stb/$name" ;;
+    BarlowCondensed-*) fetch_verified "$gf/barlowcondensed/$name" "$sum" "$SRC/fonts/$name" ;;
+    *) fetch_verified "$gf/barlow/$name" "$sum" "$SRC/fonts/$name" ;;
+  esac
+done < "$REPO/config/ui_assets.sha256"
 
 step "done"

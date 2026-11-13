@@ -3273,3 +3273,13 @@ real pad never reaches the host's pad filter; phase 1 drew the device as a page 
 bindings are held back so the panel can read the keys). `mod_cheats_check.py` requires every `menu opened` to be `panel`;
 `--sabotage-overlay` (phase 1's behaviour) must FAIL. The real-controller path itself (SDL GameController) has no headless route:
 check it by hand.
+
+## Host UI: the panel is translucent, so the compositing and the 5x7 fallback have rules (2026-11-13)
+
+**Straight alpha everywhere.** The overlay texture holds straight (non-premultiplied) RGBA, as the 5x7 look always did; every
+present path blends it with source-alpha (SDL `BLENDMODE_BLEND`, Vulkan/DX12 present pipelines). `lcs_host_style.cpp` composites its
+own layers with the "over" operator on straight alpha, so a pixel inside the panel is `(r, g, b, 255)` only where an opaque layer
+(the pills, the blue bar, the underline) covers it; tests sample those boxes. The Vulkan overlay got a linear sampler of its own
+(`settings_sampler`): the 2x raster is shown at 40 % of the window width, and nearest filtering made the glyphs jagged.
+**Missing font is not an error.** `tools/setup.sh` fetches Barlow and stb_truetype (`config/ui_assets.sha256`); a checkout that never
+ran it draws the old 5x7 look (doubled to fit the 2x texture) and logs `[lcs] host UI font not found` once.

@@ -25,6 +25,8 @@ struct Entry {
 struct Row {
     std::string title, value;
     bool selected = false, submenu = false;
+    EntryKind kind = EntryKind::Info;  // the entry's kind and id: the styled view draws a toggle, a bar, a chip... by kind
+    std::string id;
 };
 
 // Up/Down move (wrapping), Left/Right change a value (Right also opens a submenu), Enter fires / opens / cycles, Back goes up one level (false at the root:

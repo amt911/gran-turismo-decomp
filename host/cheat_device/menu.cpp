@@ -109,7 +109,7 @@ std::vector<Row> Navigator::rows(std::size_t capacity) const {
     const std::size_t first = at < capacity ? 0 : at - capacity + 1;
     for (std::size_t i = first; i < p.children.size() && out.size() < capacity; ++i) {
         const Entry &e = p.children[i];
-        out.push_back(Row{e.title, e.value ? e.value() : "", i == at, e.kind == EntryKind::Submenu});
+        out.push_back(Row{e.title, e.value ? e.value() : "", i == at, e.kind == EntryKind::Submenu, e.kind, e.id});
     }
     return out;
 }
