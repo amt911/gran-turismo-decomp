@@ -188,6 +188,7 @@ if(GT_PLAY)
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
         host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/game_state.cpp host/pad_menu.cpp
+        host/cheat_device/bindings.cpp host/cheat_device/menu.cpp host/cheat_device/device.cpp host/cheat_device/keyboard_sdl.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -215,6 +216,11 @@ if(GT_PLAY)
     endif()
     if(GT_PAD_MENU_SABOTAGE_NO_HIDE)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PAD_MENU_SABOTAGE_NO_HIDE=1)
+    endif()
+    # Verification only: the cheat device's bindings accept a combination another action holds (mod_cheats_check.sh --sabotage-conflict must FAIL).
+    option(GT_DEVICE_SABOTAGE_ALLOW_CONFLICT "sabotage: the cheat device does not refuse a taken binding" OFF)
+    if(GT_DEVICE_SABOTAGE_ALLOW_CONFLICT)
+        set_property(SOURCE host/cheat_device/bindings.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_DEVICE_SABOTAGE_ALLOW_CONFLICT=1)
     endif()
     if(EXISTS "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include/vulkan/vulkan.h")  # tools/setup.sh
         target_include_directories(gt_play BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/tools/src/Vulkan-Headers/include")
@@ -347,6 +353,10 @@ add_test(NAME mod_services COMMAND mod_services_tests)
 add_executable(pad_menu_tests host/tests/pad_menu_test.cpp host/pad_menu.cpp host/pad_sequence.cpp)
 target_include_directories(pad_menu_tests PRIVATE host)
 add_test(NAME pad_menu COMMAND pad_menu_tests)
+add_executable(cheat_device_tests host/tests/cheat_device_test.cpp host/cheat_device/bindings.cpp host/cheat_device/menu.cpp
+               host/cheat_device/device.cpp host/pad_sequence.cpp)
+target_include_directories(cheat_device_tests PRIVATE host)
+add_test(NAME cheat_device COMMAND cheat_device_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
 target_include_directories(ps_demux_tests PRIVATE host)
 add_test(NAME ps_demux COMMAND ps_demux_tests)
@@ -404,7 +414,7 @@ add_executable(lcs_host_menu_tests tools/src/lcs-recomp/tests/lcs_host_menu_test
     "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
 target_include_directories(lcs_host_menu_tests PRIVATE "${GT_LCS_HOST_DIR}")
 target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2)
-foreach(mode menu present f10 f9 extra fps)
+foreach(mode menu present f10 f9 extra fps delegated)
     add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
 endforeach()
 endif()

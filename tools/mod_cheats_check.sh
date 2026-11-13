@@ -19,6 +19,11 @@
 #                step 700 (GT_MOD_CHEATS_SLOWMO/MOON/FROM, a line every step): the replay re-simulates the race, so cheats >= 0.4.0 record their
 #                controls per step live and play them back there (host >= role 3 in race_cars); PASS = paired by the steps since the player's car
 #                first moved, the same controls live and in the replay and every car within MAX_REPLAY_DRIFT (mod_cheats_check.py judge_replay)
+#   --hotkey     the `cheats_hotkey` route: the chord opens the cheat device, Controls -> Nitro on/off -> Pad captures R+SQUARE, the chord closes
+#                it, R+SQUARE in the race fires nitro; PASS = `[device] bound cheats.nitro pad R+SQUARE`, the action once after closing,
+#                `ROW nitro -> ON` from the mod after it (--sabotage-hotkey = -DCHEATS_SABOTAGE=4, nitro's action does nothing, must FAIL)
+#   --rebind-conflict  the `cheats_conflict` route: the capture is SELECT+START, the device's own combination; PASS = refused, naming
+#                "Open the cheat device", nothing bound (--sabotage-conflict rebuilds gt_play with -DGT_DEVICE_SABOTAGE_ALLOW_CONFLICT=ON: must FAIL)
 #   The --pad run also judges `callguest` (GT_MOD_CHEATS_CALLGUEST=1): the vblank tick calls the game's read-only flag reader through call_guest (v0 0).
 #   Only that run does: a call_guest shifts frame timing (docs/FINDINGS.md), so the identity runs leave it off.
 #   Each of these must FAIL (exit 1): --sabotage-slowmo (-DCHEATS_SABOTAGE=1: slow motion does nothing), --sabotage-freeze (=2: freeze does
@@ -38,11 +43,13 @@ build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_cheats_check}
 case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 decomp=off seconds=170 pad=0 sabotage=0 chord_sabotage=0 hide_sabotage=0 slow_only=0 runs=3 padoff=0 padreset=0 toggle=0 toggle_at=14500 replay=0
+hotkey=0 conflict=0 conflict_sabotage=0
 [ -n "${KEEP_BASELINE:-}" ] && keep=1 || keep=0
 while [ $# -gt 0 ]; do
   case $1 in
     --pad) pad=1;; --keep-baseline) keep=1;; --sabotage-slowmo) sabotage=1;; --sabotage-freeze) sabotage=2;; --sabotage-norecord) sabotage=3; replay=1;; --replay) replay=1;; --sabotage-chord) chord_sabotage=1; pad=1;; --sabotage-hide) hide_sabotage=1; pad=1;; --slow-only) slow_only=1;; --runs) runs=$2; shift;; --pad-off) padoff=1;; --pad-reset) padreset=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;;
+    --hotkey) hotkey=1;; --rebind-conflict) conflict=1;; --sabotage-hotkey) sabotage=4; hotkey=1;; --sabotage-conflict) conflict_sabotage=1; conflict=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;;
     *) echo "mod_cheats_check: unknown argument $1" >&2; exit 2;;
   esac
@@ -52,6 +59,8 @@ done
 route=config/pad_routes/cheats.pad; [ $pad -eq 1 ] && route=config/pad_routes/cheats_pad.pad
 [ $padoff -eq 1 ] && route=config/pad_routes/cheats_off.pad
 [ $padreset -eq 1 ] && route=config/pad_routes/cheats_pad_stagger.pad
+[ $hotkey -eq 1 ] && route=config/pad_routes/cheats_hotkey.pad
+[ $conflict -eq 1 ] && route=config/pad_routes/cheats_conflict.pad
 [ $replay -eq 1 ] && { route=config/pad_routes/circuit.pad; [ "$seconds" = 170 ] && seconds=330; }
 [ -f "$route" ] || { echo "mod_cheats_check: no pad route $route" >&2; exit 2; }
 mkdir -p "$out/nomods" "$out/mods/cheats" "$out/mods_disabled/cheats" "$out/mods_reset/cheats" "$out/mods_reset/reset-to-track" || exit 2
@@ -70,6 +79,7 @@ cp "$mods_repo/cheats/mod.toml" "$out/mods_disabled/cheats/mod.toml"   # shipped
 run_one() {
   local label=$1 mdir=$2 frames=$3 rfile=$4; shift 4
   rm -rf "$out/$label" && mkdir -p "$out/$label/frames" "$out/$label/savedata" || return 2
+  rm -f "$repo/$(dirname "$mdir")/bindings.toml"  # the device's saved hotkeys (next to the mods folder): every run starts from the defaults
   # only the variables that are set: the host reads an empty GT_FRAME_DUMP as a path and aborts
   local -a vars=(GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/$label/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1
                  GT_PAD_MENU_HOLD_BACK=0 GT_MOD_CHEATS_LOG=1 GT_MOD_RESET_LOG=1 GT_MOD_CHEATS_LOG_EVERY=2 GT_PAD="$(grep -v '^#' "$rfile")" GT_PAD_LOG=1 GT_PAD_EXIT_AFTER=120 GT_FRAME_EVERY=30 "$@")
@@ -92,6 +102,22 @@ run_one() {
 py=.venv/bin/python
 judge() { $py -I tools/mod_cheats_check.py "$out" "$@"; }
 
+if [ $hotkey -eq 1 ] || [ $conflict -eq 1 ]; then
+  if [ $conflict_sabotage -eq 1 ]; then  # a gt_play whose bindings accept a combination another action holds; rebuilt as it was afterwards
+    restore() { cmake -S . -B "$build" -DGT_DEVICE_SABOTAGE_ALLOW_CONFLICT=OFF > /dev/null 2>&1 && cmake --build "$build" -j4 --target gt_play > /dev/null 2>&1; }
+    trap restore EXIT
+    { cmake -S . -B "$build" -DGT_DEVICE_SABOTAGE_ALLOW_CONFLICT=ON && cmake --build "$build" -j4 --target gt_play; } > "$out/gt_play-sabotage-build.log" 2>&1 \
+      || { echo "mod_cheats_check: sabotage build failed (log $out/gt_play-sabotage-build.log)" >&2; exit 2; }
+  fi
+  if [ $hotkey -eq 1 ]; then
+    run_one hotkey "$out/mods" 0 "$route" GT_PAD_MENU_HOLD_BACK=8 GT_PAD_EXIT_AFTER=300 || exit 2
+    judge hotkey hotkey
+  else
+    run_one conflict "$out/mods" 0 "$route" GT_PAD_MENU_HOLD_BACK=8 || exit 2
+    judge conflict conflict
+  fi
+  exit $?
+fi
 if [ $pad -eq 1 ] || [ $padoff -eq 1 ] || [ $padreset -eq 1 ]; then
   if [ $chord_sabotage -eq 1 ] || [ $hide_sabotage -eq 1 ]; then  # a gt_play whose chord never fires / that does not hide the pad; rebuilt as it was afterwards
     restore() { cmake -S . -B "$build" -DGT_PAD_MENU_SABOTAGE_IGNORE_CHORD=OFF -DGT_PAD_MENU_SABOTAGE_NO_HIDE=OFF > /dev/null 2>&1 && cmake --build "$build" -j4 --target gt_play > /dev/null 2>&1; }
