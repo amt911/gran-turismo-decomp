@@ -78,6 +78,16 @@ std::string row(std::size_t index) {
     return name + " " + tail;
 }
 
+ui::Row item(std::size_t index) {
+    std::size_t mods = 0, own = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        mods = g_rows.size();
+        own = mods + services::menu_row_count();
+    }
+    return ui::from_text(row(index), index >= mods && index < own);
+}
+
 bool adjust(std::size_t index, int direction) {
     std::size_t mods = 0;
     {

@@ -139,6 +139,11 @@ add_dependencies(gt_host_objs gt_kirk_slot_keys)
 target_compile_definitions(gt_host_objs PRIVATE
     GT_DEFAULT_FONT_DIR="${CMAKE_SOURCE_DIR}/tools/src/ppsspp-fonts/assets/flash0/font")
 
+# Host UI (lcs patch 0069): Barlow + stb_truetype fetched by tools/setup.sh (never committed); without the font the UI draws in 5x7.
+set(GT_UI_FONT_DIR "${CMAKE_SOURCE_DIR}/tools/src/fonts")
+set_source_files_properties("${GT_LCS_HOST_DIR}/lcs_host_style.cpp" PROPERTIES
+    INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/tools/src/stb" COMPILE_DEFINITIONS "GT_UI_FONT_DIR=\"${GT_UI_FONT_DIR}\"")
+
 # gt_native: headless (no window, audio or input; GT_PAD scripts the pad). The differential harness
 # and the boot checks run this one.
 add_executable(gt_native $<TARGET_OBJECTS:gt_host_objs> host/headless_backends.cpp)
@@ -187,7 +192,7 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
-        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/game_state.cpp host/pad_menu.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/game_state.cpp host/pad_menu.cpp host/ui_row.cpp host/ui_view.cpp
         host/cheat_device/bindings.cpp host/cheat_device/menu.cpp host/cheat_device/device.cpp host/cheat_device/keyboard_sdl.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
@@ -195,6 +200,7 @@ if(GT_PLAY)
         "${GT_LCS_HOST_DIR}/lcs_audio_output.cpp"
         "${GT_LCS_HOST_DIR}/lcs_controls.cpp"
         "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp"
+        "${GT_LCS_HOST_DIR}/lcs_host_style.cpp"
         "${GT_LCS_HOST_DIR}/lcs_fps_overlay.cpp"
         "${GT_LCS_HOST_DIR}/lcs_frame_limit.cpp"
         "${GT_LCS_HOST_DIR}/lcs_menu.cpp"
@@ -352,7 +358,7 @@ target_link_libraries(mod_loader_tests PRIVATE psprecomp_core ${CMAKE_DL_LIBS})
 target_compile_definitions(mod_loader_tests PRIVATE TEST_MOD_LIB="$<TARGET_FILE:test_mod>")
 add_dependencies(mod_loader_tests test_mod)
 add_test(NAME mod_loader COMMAND mod_loader_tests)
-add_executable(mod_menu_tests host/tests/mod_menu_test.cpp host/mod_menu.cpp host/mod_manifest.cpp ${GT_MOD_CORE})
+add_executable(mod_menu_tests host/tests/mod_menu_test.cpp host/mod_menu.cpp host/ui_row.cpp host/mod_manifest.cpp ${GT_MOD_CORE})
 target_include_directories(mod_menu_tests PRIVATE host include)
 target_link_libraries(mod_menu_tests PRIVATE psprecomp_core Threads::Threads)
 add_test(NAME mod_menu COMMAND mod_menu_tests)
@@ -364,9 +370,12 @@ add_executable(pad_menu_tests host/tests/pad_menu_test.cpp host/pad_menu.cpp hos
 target_include_directories(pad_menu_tests PRIVATE host)
 add_test(NAME pad_menu COMMAND pad_menu_tests)
 add_executable(cheat_device_tests host/tests/cheat_device_test.cpp host/cheat_device/bindings.cpp host/cheat_device/menu.cpp
-               host/cheat_device/device.cpp host/pad_sequence.cpp)
+               host/cheat_device/device.cpp host/pad_sequence.cpp host/ui_row.cpp)
 target_include_directories(cheat_device_tests PRIVATE host)
 add_test(NAME cheat_device COMMAND cheat_device_tests)
+add_executable(ui_row_tests host/tests/ui_row_test.cpp host/ui_row.cpp)
+target_include_directories(ui_row_tests PRIVATE host)
+add_test(NAME ui_row COMMAND ui_row_tests)
 add_executable(ps_demux_tests host/tests/ps_demux_test.cpp host/ps_demux.cpp)
 target_include_directories(ps_demux_tests PRIVATE host)
 add_test(NAME ps_demux COMMAND ps_demux_tests)
@@ -421,10 +430,19 @@ endif()
 # lcs-recomp's host overlay test (the framework's own CMake isn't used here): the F10 settings overlay and the extra page F9 opens.
 if(SDL2_FOUND)
 add_executable(lcs_host_menu_tests tools/src/lcs-recomp/tests/lcs_host_menu_test.cpp
-    "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
+    "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_host_style.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
 target_include_directories(lcs_host_menu_tests PRIVATE "${GT_LCS_HOST_DIR}")
 target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2)
-foreach(mode menu present f10 f9 extra fps delegated panel)
+foreach(mode menu present f10 f9 extra fps delegated panel styled styled_nofont)
     add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
 endforeach()
+# The host UI as PNGs (cheat device Race / Controls capture / F9 MODS / F10): built from the real Device and mod menu code, only
+# our own UI text; `ui_panel_dump <dir>` writes them, the ctest checks they are written and show the colours.
+add_executable(ui_panel_dump host/tests/ui_panel_dump.cpp host/ui_row.cpp host/ui_view.cpp host/cheat_device/bindings.cpp
+    host/cheat_device/menu.cpp host/cheat_device/device.cpp host/pad_sequence.cpp
+    "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_host_style.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp"
+    "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
+target_include_directories(ui_panel_dump PRIVATE host "${GT_LCS_HOST_DIR}")
+target_link_libraries(ui_panel_dump PRIVATE psprecomp_core PkgConfig::SDL2)
+add_test(NAME ui_panel_dump COMMAND ui_panel_dump ${CMAKE_BINARY_DIR}/ui_png)
 endif()

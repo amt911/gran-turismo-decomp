@@ -54,6 +54,18 @@ abierto: con un mando real (Xbox One por BT) el device se abría con SELECT+STAR
 prueba inyectan el mando por debajo de lcs y no lo vieron; docs/FINDINGS.md). **F9** vuelve a ser la página MODS de siempre (mods,
 actualizar, descargar) y **F10** los ajustes del host; abrir uno cierra el panel y viceversa. F8 sigue siendo la traza GE de lcs.
 
+**Aspecto nuevo** (2026-11-13, parche lcs 0069): el panel, **F9 (MODS)** y **F10 (ajustes)** comparten marco, colores y letra:
+cuerpo azul marino casi negro con borde fino y esquinas redondeadas, **azul** del juego (subrayado de la cabecera, última parte de
+la ruta, fila elegida con barra de 4 px) y **rojo** para los rechazos (caja "Refused: …" 3 s bajo la cabecera) y el icono Círculo; píldoras
+ON verde / OFF gris / UPDATE-INSTALL ámbar / ERROR rojo; texto en **Barlow** (SIL OFL; `tools/setup.sh` la baja a `tools/src/fonts`,
+con stb_truetype en `tools/src/stb`; sin la fuente vuelve al 5x7 y lo dice una vez en el log). Las filas son datos (`ui_row.hpp`):
+ON/OFF = interruptor, `NN%` = barra, `‹ valor ›` = elección (flechas azules en la fila elegida), acción = chip con su atajo
+(`L + Triangle`, `Ctrl + N`), `›` = submenú; las filas de texto de los mods v4 se clasifican por su texto, sin cambiar los mods. Cabecera:
+`CHEAT DEVICE`, ruta `Cheats › Race` y `3 / 6`; pie: botones del mando dibujados (Select / Back / Change) y la combinación de abrir
+(`SELECT + START · F7`); al capturar: "Press the new combination" y "hold to cancel". F9 y F10 llevan una tira `SETTINGS  MODS`.
+Se rasteriza al doble (1040x1024) y se presenta arriba a la derecha al 40 % del ancho (mínimo 520). `build/ui_panel_dump <dir>` (o
+`ctest -R ui_panel_dump`) escribe los PNG del panel (solo texto de la interfaz).
+
 - **Controls**: una página por acción con *Keyboard*, *Pad*, *Clear* y *Reset to default*. Intro en *Keyboard*/*Pad* captura la
   próxima tecla / combinación (la unión de los botones pulsados, hecha al soltarlos; un botón solo mantenido 30 vblanks es "mantener";
   Círculo mantenido 30 vblanks cancela). **Un atajo ya usado se rechaza** y el motivo sale 3 s en la cabecera (nunca "gana el último");
