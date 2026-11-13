@@ -64,8 +64,10 @@ std::uint32_t PadMenuFilter::fire_hotkeys(std::uint32_t raw, bool menu_open) {
 void PadMenuFilter::update_hold_back(std::uint32_t raw, std::uint32_t pressed, std::uint32_t fired, bool menu_open) {
     replay_ = 0;
     if (config_.hold_back == 0) return;
-    std::uint32_t held = config_.ignore_chord ? 0u : config_.chord;
-    for (const PadHotkeyMask &h : hotkeys_) held |= h.buttons;
+    std::uint32_t held = config_.ignore_chord ? 0u : config_.chord, hotkey_buttons = 0;
+    for (const PadHotkeyMask &h : hotkeys_) hotkey_buttons |= h.buttons;
+    held |= hotkey_buttons;
+    const std::uint32_t swallowed = config_.no_replay ? hotkey_buttons : 0u;  // the sabotage hits the hotkeys only: menus still work
     for (unsigned bit = 0; bit < 16; ++bit) {
         const std::uint32_t mask = 1u << bit;
         if ((held & mask) == 0) continue;
@@ -84,7 +86,7 @@ void PadMenuFilter::update_hold_back(std::uint32_t raw, std::uint32_t pressed, s
         } else if ((pending_ & mask) != 0) {
             if ((raw & mask) == 0) {  // released inside the window: give the game the press late, as long as it really lasted
                 pending_ &= ~mask;
-                replay_left_[bit] = age_[bit] + 1;  // age counts the polls after the first
+                replay_left_[bit] = (swallowed & mask) != 0 ? 0u : age_[bit] + 1;  // age counts the polls after the first
                 if (replay_left_[bit] != 0) {
                     replay_ |= mask;
                     --replay_left_[bit];

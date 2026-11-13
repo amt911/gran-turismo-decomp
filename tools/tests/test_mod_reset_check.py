@@ -410,3 +410,23 @@ def test_identity_modes_fail_when_the_route_did_not_finish(tmp_path, capsys):
     (tmp_path / "quiet" / "run.log").write_text("[mod:reset-to-track] t=-1 step=30 wheels=4 up_z=1.000 spd=10.00 pos=0,0,0 yaw=0 rates=0,0,0,0,0 ring=3 restores=0\n")
     assert mr.main(["x", str(tmp_path), "quiet"]) == 1
     assert "script done" in capsys.readouterr().out
+
+
+def host_pad_lines(*events):
+    return "\n".join(f"[padmenu] PADSEL {k} step={s}" + (f" tap={tap}" if tap is not None else "") for k, s, tap in events)
+
+
+def test_host_padsel_lines_are_judged_when_the_mod_writes_none():
+    # API 4: the host holds Select (the cheat device's SELECT@30 binding) and writes the lines
+    assert mr.judge_restore(good_log() + "\n" + host_pad_lines(("down", 5000, None), ("up", 5080, 0)))[0]
+    ok, message = mr.judge_restore(good_log() + "\n" + host_pad_lines(("down", 5000, None), ("up", 5080, 1)))
+    assert not ok and "tap" in message
+    taps = host_pad_lines(("down", 10, None), ("up", 16, 1), ("down", 30, None), ("up", 36, 1), ("down", 50, None), ("up", 56, 1))
+    assert mr.judge_taps(taps, 3)[0]
+    assert not mr.judge_taps(taps.replace("tap=1", "tap=0", 1), 3)[0]
+
+
+def test_the_mods_own_padsel_lines_win_over_the_hosts():
+    # an API-1 mod with the device active (WITH_CHEATS): both write lines; the mod's are the ones about its own gate
+    text = pad_lines(("down", 1851, None), ("up", 1890, 0)) + "\n" + host_pad_lines(("down", 5000, None), ("up", 5080, 1))
+    assert mr.parse_padsel(text) == [("down", 1851, None), ("up", 1890, False)]
