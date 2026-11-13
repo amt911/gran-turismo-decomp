@@ -1,4 +1,4 @@
-/* Gran Turismo PSP decomp - native mod SDK (API versions 1 and 2).
+/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 4).
  *
  * A mod is a shared library that exports `gt_mod_init`. The loader calls it once with the host's function table;
  * the mod registers hooks on guest (PSP) addresses through `api->hook` and reads/writes guest state through the
@@ -25,6 +25,9 @@ extern "C" {
 /* v3 (docs/superpowers/specs/2026-11-10-named-mod-sdk-design.md): named game state, so mods never hard-code guest addresses.
  * The v3 functions refuse a mod that declared api < 3. */
 #define GT_MOD_API_VERSION_3 3
+/* v4 (docs/superpowers/specs/2026-11-11-cheat-device-design.md): actions with hotkeys the player binds, and entries in the
+ * cheat device's categories. The v4 functions refuse a mod that declared api < 4. */
+#define GT_MOD_API_VERSION_4 4
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -62,6 +65,9 @@ typedef void (*GtVblankFn)(GtModCtx *ctx);
  * guest memory or call the game from them. Rows of a mod that is switched off show "<id> mod OFF" and ignore activation. */
 typedef void (*GtMenuLabelFn)(GtMod *self, char *out, uint32_t capacity);
 typedef void (*GtMenuActivateFn)(GtMod *self, int direction);
+/* v4. An action: runs on the vblank tick (call_guest allowed, as in a tick) after its hotkey or its menu entry fired it, at most
+ * once per vblank, never while its mod is switched off. */
+typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
 
 typedef struct GtModApi {
     uint32_t version; /* GT_MOD_API_VERSION the host implements */
@@ -114,6 +120,16 @@ typedef struct GtModApi {
     /* Reads / writes a car's state (0 = ok). Write only from a world-step hook or the vblank tick. */
     int (*car_state)(GtMod *self, GtModCtx *ctx, uint32_t car, GtCarState *out);
     int (*car_set_state)(GtMod *self, GtModCtx *ctx, uint32_t car, const GtCarState *state);
+    /* ---- v4 (appended): the cheat device. Only valid for a mod that declared `api = 4`; during gt_mod_init only. ---- */
+    /* Declares an action `<mod id>.<id>` shown in `category` ("Race", "Car", "Money & garage", "Camera" or "Settings") with its
+     * default hotkeys: `default_key` like "Ctrl+N" / "F6" (SDL key names), `default_pad` like "L+TRIANGLE" or "SELECT@30" (held
+     * 30 vblanks); "" = none. The player rebinds them from Controls (bindings.toml). A default another action already holds is
+     * not an error: the action is declared without that hotkey and the log names the owner. 0 = ok. */
+    int (*add_action)(GtMod *self, const char *id, const char *label, const char *category, GtActionFn fn,
+                      const char *default_key, const char *default_pad);
+    /* A menu row (the v2 add_menu_row contract: label and activate from other threads, atomics only) placed in `category`
+     * instead of the Mods list. 0 = ok. */
+    int (*add_entry)(GtMod *self, const char *category, const char *id, GtMenuLabelFn label, GtMenuActivateFn activate);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */
