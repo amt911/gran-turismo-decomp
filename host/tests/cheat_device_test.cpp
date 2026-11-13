@@ -239,6 +239,7 @@ void test_device() {
     d.set_fire([&](const std::string &id) { fired.push_back(id); });
     d.open();
     View v = d.view(8, 100);
+    check(v.footer == kFooter, "the footer shows the buttons (X OK, O BACK, <> CHANGE)");
     check(v.title == "Cheats > Mods" && v.rows.size() == 2 && v.rows[1] == "Cheats ON", "the first open lands on the Mods list");
     press(d, MenuKey::Down);
     press(d, MenuKey::Right);
@@ -263,6 +264,7 @@ void test_device() {
     press(d, MenuKey::Activate);  // capture (CROSS, still held on the first sample, is not part of the combination)
     d.poll_pad(gt::kPadCross, 100);
     check(d.capturing() && d.view(8, 100).rows[1].find("PRESS BUTTONS") != std::string::npos, "the pad capture waits");
+    check(d.view(8, 100).footer == kCaptureFooter, "the footer says how to cancel while a capture waits");
     d.poll_pad(gt::kPadR, 101);
     d.poll_pad(gt::kPadR | kTriangle, 102);
     d.poll_pad(0, 103);
@@ -289,7 +291,7 @@ void test_device() {
     press(d, MenuKey::Close, 2);
     check(!d.handle_key(MenuKey::Close, 300), "Close at the root closes the device");
     std::string clash;
-    check(d.add_action("other.boost", "Boost", "Race", KeyBinding{"F9", 0}, PadBinding{}, false, clash) &&
+    check(d.add_action("other.boost", "Boost", "Race", KeyBinding{"F7", 0}, PadBinding{}, false, clash) &&
               clash.find("Open the cheat device") != std::string::npos && d.binding_text("other.boost") == "- / -",
           "a default another action holds: declared unbound, the owner named");
 }

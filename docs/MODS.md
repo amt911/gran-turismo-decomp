@@ -38,18 +38,26 @@ sin reiniciar. Los activados se cargan primero (son los eslabones de fuera de ca
 Para verificar sin pulsar teclas: `GT_MOD_MENU_TEST_TOGGLE=<id>@<segundos>` hace que un hilo de `gt_play` llame al mismo `toggle`
 del menú pasado ese tiempo (`[mods] <id> -> OFF`).
 
-## Cheat device (F9 / SELECT+START)
+## Cheat device (SELECT+START / F7)
 
-Desde 2026-11-12 (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`, aprobada) **F9** y **SELECT+START** abren el
-**cheat device**: un menú por categorías (Race, Car, Money & garage, Camera, **Mods**, **Controls**, Settings; las vacías no salen).
-La primera vez se abre en **Mods**, que es la lista de antes (una fila por mod ON/OFF y las filas de API v2), así que las rutas y
-costumbres de la página MODS siguen valiendo. Arriba/Abajo eligen, Izquierda/Derecha/Intro cambian o entran, Escape/Círculo vuelven
-atrás (en la raíz cierran). Se ven 8 filas (parche lcs 0067: página delegada).
+Desde 2026-11-12 (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`, aprobada) **SELECT+START** (mando) y **F7**
+(teclado) abren el **cheat device**: un menú por categorías (Race, Car, Money & garage, Camera, **Mods**, **Controls**, Settings; las
+vacías no salen). La primera vez se abre en **Mods** (la lista de mods ON/OFF y sus filas de API v2). Arriba/Abajo eligen,
+Izquierda/Derecha/Intro (Cruz) cambian o entran, Escape/Retroceso/Círculo vuelven atrás (en la raíz cierran). Se ven 8 filas.
+
+**Panel propio, aparte de F9** (2026-11-13, spec `docs/superpowers/specs/2026-11-13-cheat-device-panel-design.md`, parche lcs 0068):
+el device es un panel del host con su aspecto (marco y cabecera ámbar con la ruta, fila elegida sobre barra azul, pie con
+`X OK   O BACK   <> CHANGE`), dibujado arriba a la derecha por el mismo camino que el overlay (SDL, Vulkan, DX12). **No toca la
+entrada**: el mando real sigue llegando al filtro del host, que se lo oculta al juego; el teclado deja de ir al juego mientras está
+abierto y las flechas/Intro/Escape mueven el panel. Antes era una página del overlay F9, y lcs pone el mando a cero con el overlay
+abierto: con un mando real (Xbox One por BT) el device se abría con SELECT+START pero no se podía mover ni cerrar (las rutas de
+prueba inyectan el mando por debajo de lcs y no lo vieron; docs/FINDINGS.md). **F9** vuelve a ser la página MODS de siempre (mods,
+actualizar, descargar) y **F10** los ajustes del host; abrir uno cierra el panel y viceversa. F8 sigue siendo la traza GE de lcs.
 
 - **Controls**: una página por acción con *Keyboard*, *Pad*, *Clear* y *Reset to default*. Intro en *Keyboard*/*Pad* captura la
   próxima tecla / combinación (la unión de los botones pulsados, hecha al soltarlos; un botón solo mantenido 30 vblanks es "mantener";
   Círculo mantenido 30 vblanks cancela). **Un atajo ya usado se rechaza** y el motivo sale 3 s en la cabecera (nunca "gana el último");
-  un botón de carrera solo, sin otro ni tiempo de mantener, también se rechaza. `device.open` (F9 / SELECT+START) no puede quedarse
+  un botón de carrera solo, sin otro ni tiempo de mantener, también se rechaza. `device.open` (F7 / SELECT+START) no puede quedarse
   sin ninguno.
 - **`bindings.toml`** junto a la carpeta `mods/`: solo los atajos distintos del defecto (`<acción>.key = "Ctrl+N"`,
   `<acción>.pad = "L+TRIANGLE"`, `"SELECT@30"` = mantener 30 vblanks); se escribe atómico (tmp + rename). Las líneas de mods que hoy
@@ -57,8 +65,8 @@ atrás (en la raíz cierran). Se ven 8 filas (parche lcs 0067: página delegada)
 - **Lo que ve el juego**: los botones de cualquier atajo del mando se retienen como los del acorde (hasta 8 vblanks; un atajo de
   mantener, su tiempo): si el atajo se completa el juego no los ve; si no, los recibe tarde con su duración real. Las teclas nunca
   llegan al juego.
-- Sin ningún mod de API ≥ 2 cargado el host no lee el mando ni el teclado (identidad con el juego intacto) y F9 sigue siendo del
-  overlay; entonces la tecla de abrir no se puede reasignar (no hay otra acción con la que chocar).
+- Sin ningún mod de API ≥ 2 cargado el host no lee el mando ni el teclado (identidad con el juego intacto) y no hay panel: los
+  mods se encienden y apagan desde F9 (página MODS).
 
 ### API v4 (acciones y entradas por categoría)
 
@@ -90,7 +98,7 @@ no cambian. Las funciones v2 **rechazan** (devuelven distinto de 0 y dicen por q
   decompilada (su fibra queda suspendida ahí), y el hilo del GE es un hilo real del SO que sigue leyendo memoria del invitado. Por eso: getters, o setters seguros entre dos instrucciones
   cualesquiera del propio código del juego. **Probado en el juego:** el tic de `cheats` llama al lector de la bandera de vuelco (`0x0894CCB8`, solo lee) y la comprobación exige `status 0, v0 0`;
   ningún setter se ha probado todavía (la pieza 2 será la primera).
-- `is_menu_open(self)`: distinto de 0 mientras el overlay F9/F10 del host está abierto (cualquier versión de api). `vblank_index(self)`: el contador de vblanks del juego en el último tic
+- `is_menu_open(self)`: distinto de 0 mientras el cheat device (panel) o el overlay F9/F10 del host está abierto (cualquier versión de api). `vblank_index(self)`: el contador de vblanks del juego en el último tic
   (se actualiza aunque el mod esté apagado): sirve para saber que un estado quedó viejo sin mirar el reloj de pared (que va a otro ritmo que el tiempo virtual del juego).
 
 ## Menú con el mando
@@ -247,6 +255,13 @@ sceCtrlReadBufferPositive, despachado en `--decomp off` y `on`, FACTS): en carre
 0,5 s, se lo devuelve como un toque de 3 lecturas (la vista cambia igual que sin el mod); si se suelta después, se dispara el reset y la vista NO cambia.
 Fuera de carrera (menús, pausa) Select pasa sin tocar. La tecla R no toca el mando.
 
+**Con la API 4 (reset-to-track 0.3.0).** El botón es la acción `reset` del cheat device (categoría Race; por defecto tecla R y Select mantenido 30 vblanks,
+`SELECT@30`, reasignables en Controls). Ya no lo lee el mod: el host retiene Select mientras puede ser el comienzo de esa pulsación larga, se lo devuelve al juego
+como toque tardío con su duración real si se suelta antes, y lanza la acción en el tic de vblank si se completa (el juego no ve ese Select). Con `GT_PAD_LOG=1` el
+host escribe `[padmenu] PADSEL down|up step=<vblank> tap=<0|1>` (tap = el juego vio la pulsación), que la comprobación lee igual que las líneas del mod API 1.
+Los fotogramas de referencia de la comprobación salen con el mismo mod instalado y **desactivado** (el device está activo igual y retiene Select/Start igual),
+no con la carpeta de mods vacía: ver docs/FINDINGS.md.
+
 **Límites conocidos.** (1) Marcha, rpm y la posición previa del coche no se restauran (no se localizaron); el cambio automático relanza bien desde parado
 (la comprobación exige > 15 m/s con el acelerador pisado después del reset). (2) Vueltas y tiempo: el cronómetro y el contador de vueltas siguen su curso
 (no se rebobinan; medido con un reset a mitad de vuelta: HUD 0'24.000 -> 0'27.000 en 3 s de juego, vuelta 1/2 sin cambio); un reset que cruce la línea de meta no se pudo probar (ninguna ruta completa una vuelta) y podría contar la vuelta dos veces: no hay bloqueo.
@@ -267,6 +282,7 @@ tools/mod_reset_check.sh --sabotage-rates     # no pone a cero las velocidades a
 tools/mod_reset_check.sh --sabotage-newest    # restaura la pose más reciente (fuera de pista): debe FALLAR
 tools/mod_reset_check.sh --sabotage-norewind  # sin rebobinado (rewind 0): debe FALLAR
 tools/mod_reset_check.sh --without-mod        # sin mod: debe FALLAR (nada se restaura)
+tools/mod_reset_check.sh --tap --sabotage-notap   # el toque no se devuelve al juego: debe FALLAR (API 1: -DRESET_SABOTAGE=4 en el mod; API 4: recompila gt_play con -DGT_PAD_MENU_SABOTAGE_NO_REPLAY=ON, y lo deja como estaba al salir)
 ```
 
 ## Construir e instalar `rollover`
