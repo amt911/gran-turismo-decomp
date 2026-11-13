@@ -176,6 +176,31 @@ int main() {
             check(!d.open && after == 0u && d.step(0) == 0u && d.step(0) == 0u, "nothing is replayed after the menu closes");
         }
     }
+    {  // the cheat device's other hotkeys (nitro on L+TRIANGLE, reset on SELECT held 30): held back like the chord
+        constexpr std::uint32_t kTri = 0x1000u;
+        Driver d;
+        d.filter.set_hotkeys({{gt::kPadL | kTri, 0}, {gt::kPadSelect, 30}});
+        std::uint32_t seen = 0;
+        for (int i = 0; i < 3; ++i) seen |= d.step(gt::kPadL);
+        check(seen == 0u, "a lone L of a hotkey is held back");
+        check(d.step(gt::kPadL | kTri) == 0u && d.step(gt::kPadL | kTri) == 0u && d.step(0) == 0u,
+              "L+TRIANGLE completes: the game never sees L nor TRIANGLE");
+        std::vector<std::uint32_t> late;
+        for (int i = 0; i < 4; ++i) late.push_back(d.step(i < 2 ? gt::kPadL : 0u));
+        check(late[0] == 0u && late[1] == 0u && late[2] == gt::kPadL && late[3] == gt::kPadL && d.step(0) == 0u,
+              "L tapped for 2 polls, no TRIANGLE: the game gets it late, 2 polls long");
+        seen = 0;
+        for (int i = 0; i < 12; ++i) seen |= d.step(gt::kPadL);
+        check((seen & gt::kPadL) != 0u, "L held past 8 polls goes through (the throttle-like case)");
+        d.step(0);
+        seen = 0;
+        for (int i = 0; i < 40; ++i) seen |= d.step(gt::kPadSelect);
+        check(seen == 0u && d.step(0) == 0u, "SELECT held 40 polls (the reset): the game never sees it, nothing replayed");
+        std::vector<std::uint32_t> tap;
+        for (int i = 0; i < 6; ++i) tap.push_back(d.step(i < 3 ? gt::kPadSelect : 0u));
+        check(tap[0] == 0u && tap[2] == 0u && tap[3] == gt::kPadSelect && tap[5] == gt::kPadSelect,
+              "a short SELECT (3 polls) reaches the game late as a 3-poll tap (the camera button)");
+    }
     if (failures == 0) std::puts("pad_menu tests passed");
     return failures == 0 ? 0 : 1;
 }

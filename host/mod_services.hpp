@@ -7,6 +7,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace psprecomp {
 class Runtime;
@@ -49,6 +51,33 @@ std::uint32_t api_race_cars(GtMod *self, GtModCtx *ctx, std::uint32_t world, GtC
 int api_player_car(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t *car);
 int api_car_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, GtCarState *out);
 int api_car_set_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, const GtCarState *state);
+
+// v4: actions and category entries (the cheat device, host/cheat_device/device.hpp, shows them; gt_play binds the hotkeys).
+struct ActionDecl {
+    GtMod *mod;
+    std::string id;  // "<mod id>.<action id>"
+    std::string label, category;
+    GtActionFn fn;
+    std::string key, pad;  // the defaults as the mod wrote them (parse_key / parse_pad syntax)
+};
+struct EntryDecl {
+    GtMod *mod;
+    std::string category, id;
+    GtMenuLabelFn label;
+    GtMenuActivateFn activate;
+};
+// The categories a mod may use (Mods and Controls are the host's).
+bool mod_category(const std::string &category);
+int api_add_action(GtMod *self, const char *id, const char *label, const char *category, GtActionFn fn, const char *default_key,
+                   const char *default_pad);
+int api_add_entry(GtMod *self, const char *category, const char *id, GtMenuLabelFn label, GtMenuActivateFn activate);
+const std::vector<ActionDecl> &actions();
+const std::vector<EntryDecl> &entries();
+// Entry text / activation, as menu_row_text / menu_row_activate (a switched-off mod's entry reads "<id> mod OFF").
+bool entry_text(std::size_t index, char *out, std::size_t capacity);
+bool entry_activate(std::size_t index, int direction);
+// Any thread: the action runs on the next vblank tick (once, however often it was queued before it), if its mod is on then.
+void queue_action(const std::string &id);
 
 // A failed init: forget this mod's rows and tick.
 void remove_for(const GtMod *mod);
