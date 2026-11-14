@@ -116,5 +116,40 @@ int main() {
         check(impact.box_roof > 0.f && impact.box_floor < 0.f && impact.box_half_length > 0.f && impact.box_half_width > 0.f,
               "impact: the body box is reported");
     }
+    // ---- v5: the car -> view -> model link and the model's blobs ----
+    {
+        constexpr std::uint32_t a0 = 0x09600000u, P = 0x09600100u, entry = 0x09600200u, car = 0x09600300u, body = 0x09600400u, o20 = 0x09600500u,
+                                model = 0x09600600u, parts = 0x09600800u, blob0 = 0x09601000u, blob1 = 0x09602000u;
+        m.store32(a0 + 4u, P);
+        m.store32(P + 0xB04u, entry);
+        m.store32(entry + 0xCu, car);
+        m.store32(car + 8u, body);
+        m.store32(P + 0x20u, o20);
+        m.store32(o20 + 8u, model);
+        m.store32(model, 0x4D444C33u);
+        m.store32(model + 0x14u, 3u);          // three part entries, the middle one not a mesh
+        m.store32(model + 0xA8u, parts);
+        const auto cmd = [](std::uint32_t op, std::uint32_t param) { return (op << 24) | (param & 0xFFFFFFu); };
+        for (const std::uint32_t at : {blob0, blob1}) {
+            m.store32(at, cmd(0x10, ((at + 20u) >> 8) & 0xFF0000u));
+            m.store32(at + 4u, cmd(0x01, (at + 20u) & 0xFFFFFFu));
+            m.store32(at + 8u, cmd(0x12, 0x112));
+            m.store32(at + 12u, cmd(0x04, 0x040003));
+            m.store32(at + 16u, cmd(0x0B, 0));
+        }
+        m.store32(parts, blob0);
+        m.store32(parts + 32u, 0x09609999u);   // not a blob
+        m.store32(parts + 64u, blob1);
+        CarDrawLink link;
+        check(car_draw_link(m, a0, link) && link.car == body && link.model == model, "link: the car's body and model from the draw's a0");
+        std::uint32_t blobs[8];
+        check(model_blobs(m, model, blobs, 8) == 2u && blobs[0] == blob0 && blobs[1] == blob1, "link: the model's parts that are meshes");
+        check(model_blobs(m, model, blobs, 1) == 1u, "link: capacity limits the list");
+        m.store32(model, 0u);
+        check(!car_draw_link(m, a0, link) && model_blobs(m, model, blobs, 8) == 0u, "link: a model without the 3LDM magic is refused");
+        m.store32(model, 0x4D444C33u);
+        m.store32(entry + 0xCu, 0u);
+        check(!car_draw_link(m, a0, link), "link: a null link is refused");
+    }
     return failures == 0 ? 0 : 1;
 }

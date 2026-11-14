@@ -76,7 +76,8 @@ typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
 /* v5. Named hook points: the host maps each to the guest function it researched (docs/MODS.md names the evidence). */
 typedef enum GtHookPoint {
     GT_HOOK_WORLD_STEP = 1, /* the physics step of every car; a0 = the world (what race_cars / player_car take) */
-    GT_HOOK_MESH_DRAW = 2   /* the model draw leaf: draw_mesh_blob(ctx) is the blob about to be drawn */
+    GT_HOOK_MESH_DRAW = 2,  /* the model draw leaf: draw_mesh_blob(ctx) is the blob about to be drawn */
+    GT_HOOK_CAR_DRAW = 3    /* the per-car "view" update that runs once per car per frame: draw_car_model(ctx) names the car and its model */
 } GtHookPoint;
 
 /* v5. What one physics step did to a car, from its velocity change (the game keeps no contact point: docs/FACTS.md). Call car_impact once
@@ -179,6 +180,11 @@ typedef struct GtModApi {
     /* In a GT_HOOK_MESH_DRAW hook: the blob being drawn, and a replacement the game draws instead (call before call_original). */
     uint32_t (*draw_mesh_blob)(GtModCtx *ctx);
     void (*draw_mesh_redirect)(GtModCtx *ctx, uint32_t blob);
+    /* In a GT_HOOK_CAR_DRAW hook: the car (the handle car_state / player_car use) this call is for and its body model, an opaque handle for
+     * model_blobs. 0 = ok; non-zero when the call does not check out (the model's magic is wrong, a null link). */
+    int (*draw_car_model)(GtMod *self, GtModCtx *ctx, uint32_t *car, uint32_t *model);
+    /* The blobs of a model (its parts: shell pieces, glass, lights...), those that parse as meshes; fills up to `capacity` and returns how many. */
+    uint32_t (*model_blobs)(GtMod *self, GtModCtx *ctx, uint32_t model, uint32_t *out, uint32_t capacity);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

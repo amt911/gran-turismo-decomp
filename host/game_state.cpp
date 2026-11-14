@@ -1,5 +1,7 @@
 #include "game_state.hpp"
 
+#include "mesh_blob.hpp"
+
 #include <cmath>
 #include <cstring>
 
@@ -181,6 +183,27 @@ bool car_impact(const psprecomp::GuestMemory &m, std::uint32_t world, std::uint3
         sample->yaw_rate = yaw_rate;
     }
     return true;
+}
+
+bool car_draw_link(const psprecomp::GuestMemory &m, std::uint32_t a0, CarDrawLink &out) {
+    const std::uint32_t view = word_or_0(m, a0 + 4u), entry = word_or_0(m, view + 0xB04u), car = word_or_0(m, entry + 0xCu);
+    const std::uint32_t body = word_or_0(m, car + kBody), model = word_or_0(m, word_or_0(m, view + 0x20u) + 8u);
+    if (view == 0u || entry == 0u || car == 0u || body == 0u || model == 0u || word_or_0(m, model) != kModelMagic) return false;
+    out.car = body;
+    out.model = model;
+    return true;
+}
+
+std::uint32_t model_blobs(const psprecomp::GuestMemory &m, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity) {
+    if (word_or_0(m, model) != kModelMagic) return 0u;
+    const std::uint32_t base = word_or_0(m, model + 0xA8u), count = word_or_0(m, model + 0x14u);
+    std::uint32_t n = 0u;
+    for (std::uint32_t i = 0; i < count && i < 256u && base != 0u && n < capacity; ++i) {
+        const std::uint32_t blob = word_or_0(m, base + 32u * i);
+        gt::mesh::BlobInfo info;
+        if (gt::mesh::parse_blob(m, blob, info)) out[n++] = blob;
+    }
+    return n;
 }
 
 } // namespace gt::game_state

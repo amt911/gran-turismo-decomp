@@ -349,6 +349,18 @@ int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy) {
     if (!v5_mod(self, "mesh_release") || ctx == nullptr || copy == 0u) return 1;
     return api_call_guest(ctx, kGuestFree, &copy, 1u, nullptr);
 }
+int api_draw_car_model(GtMod *self, GtModCtx *ctx, std::uint32_t *car, std::uint32_t *model) {
+    if (!v5_mod(self, "draw_car_model") || ctx == nullptr || ctx->ctx == nullptr || car == nullptr || model == nullptr) return 1;
+    gt::game_state::CarDrawLink link;
+    if (!gt::game_state::car_draw_link(ctx->rt->memory(), ctx->ctx->gpr[4], link)) return 1;
+    *car = link.car;
+    *model = link.model;
+    return 0;
+}
+std::uint32_t api_model_blobs(GtMod *self, GtModCtx *ctx, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity) {
+    if (!v5_mod(self, "model_blobs") || ctx == nullptr || out == nullptr) return 0u;
+    return gt::game_state::model_blobs(ctx->rt->memory(), model, out, capacity);
+}
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx) { return ctx != nullptr && ctx->ctx != nullptr ? ctx->ctx->gpr[4] : 0u; }
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob) {
     if (ctx != nullptr && ctx->ctx != nullptr) ctx->ctx->gpr[4] = blob;

@@ -83,4 +83,22 @@ struct Impact {
 // Fills `out` for the car whose body is `handle` in `world`; false when the body is no slot of the world.
 bool car_impact(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle, ImpactTracker &tracker, Impact &out);
 
+// ---- v5: the link from a car to its model (docs/FACTS.md "Car to model link", measured 2026-11-14 by probes on the rollover race route). ----
+
+struct CarDrawLink {
+    std::uint32_t car = 0;    // the body handle K (what race_cars / player_car return)
+    std::uint32_t model = 0;  // the MDL3 container of the car's parts
+};
+
+constexpr std::uint32_t kCarDrawFunction = 0x0889BAB0u;  // the per-car view update; a0 = the view's inner object
+constexpr std::uint32_t kModelMagic = 0x4D444C33u;       // "3LDM" at +0 of a model container
+
+// From the a0 of the car draw function: P = word(a0 + 4) is the car's view; word(P + 0xB04) its driver entry, whose +0xC is the car object (K =
+// word(car + 8)); the model is word(word(P + 0x20) + 8). False when a link is null or the model's magic is not "3LDM".
+bool car_draw_link(const psprecomp::GuestMemory &memory, std::uint32_t a0, CarDrawLink &out);
+
+// The parts of a model: `count` = word(model + 0x14) entries of 32 bytes from word(model + 0xA8), each starting with a blob pointer. Writes the
+// blobs that parse as meshes (host/mesh_blob.hpp) to `out`; returns how many (at most `capacity`).
+std::uint32_t model_blobs(const psprecomp::GuestMemory &memory, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity);
+
 } // namespace gt::game_state

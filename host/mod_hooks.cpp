@@ -87,6 +87,7 @@ int api_hook_point(GtMod *self, GtHookPoint point, GtHookFn fn) {
     switch (point) {
     case GT_HOOK_WORLD_STEP: return api_hook(self, services::kHookWorldStep, fn);
     case GT_HOOK_MESH_DRAW: return api_hook(self, services::kHookMeshDraw, fn);
+    case GT_HOOK_CAR_DRAW: return api_hook(self, services::kHookCarDraw, fn);
     }
     std::fprintf(stderr, "[mod:%s] hook_point refused: unknown point %d\n", self->id.c_str(), static_cast<int>(point));
     return 1;
@@ -167,7 +168,7 @@ const GtModApi &mod_api(int version) {
                         services::api_add_action, services::api_add_entry,
                         api_hook_point, services::api_car_impact, services::api_mesh_info, services::api_mesh_vertex,
                         services::api_mesh_set_vertex, services::api_mesh_copy, services::api_mesh_release,
-                        services::api_draw_mesh_blob, services::api_draw_mesh_redirect};
+                        services::api_draw_mesh_blob, services::api_draw_mesh_redirect, services::api_draw_car_model, services::api_model_blobs};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
                           v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5);

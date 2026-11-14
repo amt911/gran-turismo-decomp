@@ -272,13 +272,30 @@ int main() {
         check(api5.draw_mesh_blob(&hook5) == blob, "draw_mesh_blob is the leaf's a0");
         api5.draw_mesh_redirect(&hook5, copy);
         check(tick_regs.gpr[4] == copy, "draw_mesh_redirect replaces it");
+        {   // the car -> model link through the API
+            constexpr std::uint32_t a0 = 0x09600000u, P = 0x09600100u, entry = 0x09600200u, car = 0x09600300u, body = 0x09600400u, o20 = 0x09600500u, model = 0x09600600u;
+            r5.memory().store32(a0 + 4u, P); r5.memory().store32(P + 0xB04u, entry); r5.memory().store32(entry + 0xCu, car); r5.memory().store32(car + 8u, body);
+            r5.memory().store32(P + 0x20u, o20); r5.memory().store32(o20 + 8u, model); r5.memory().store32(model, 0x4D444C33u);
+            psprecomp::AllegrexContext regs{};
+            regs.gpr[4] = a0;
+            GtModCtx car_ctx{&r5, &regs, 0x0889BAB0u, 0, false, &v5};
+            std::uint32_t got_car = 0, got_model = 0;
+            check(api5.draw_car_model(&v5, &car_ctx, &got_car, &got_model) == 0 && got_car == body && got_model == model, "v5 draw_car_model names the car and its model");
+            check(api5.draw_car_model(&v4old, &car_ctx, &got_car, &got_model) != 0, "draw_car_model refuses an api-4 mod");
+            regs.gpr[4] = 0x09700000u;
+            check(api5.draw_car_model(&v5, &car_ctx, &got_car, &got_model) != 0, "draw_car_model refuses a view that does not check out");
+            std::uint32_t parts[4];
+            check(api5.model_blobs(&v5, &car_ctx, model, parts, 4) == 0u, "model_blobs: a model with no parts lists none");
+        }
         // named hook points install on the researched addresses
         gt::mods::bind_runtime(r5);
         r5.register_function(0x0894DD9Cu, &guest_sum, "step");
         r5.register_function(0x08B550A8u, &guest_sum, "draw");
         begin_init(&v5);
-        check(api5.hook_point(&v5, GT_HOOK_WORLD_STEP, [](GtModCtx *) {}) == 0 && api5.hook_point(&v5, GT_HOOK_MESH_DRAW, [](GtModCtx *) {}) == 0,
-              "v5 hook_point installs both named points");
+        r5.register_function(0x0889BAB0u, &guest_sum, "cardraw");
+        check(api5.hook_point(&v5, GT_HOOK_WORLD_STEP, [](GtModCtx *) {}) == 0 && api5.hook_point(&v5, GT_HOOK_MESH_DRAW, [](GtModCtx *) {}) == 0 &&
+                  api5.hook_point(&v5, GT_HOOK_CAR_DRAW, [](GtModCtx *) {}) == 0,
+              "v5 hook_point installs the three named points");
         check(api5.hook_point(&v5, static_cast<GtHookPoint>(99), [](GtModCtx *) {}) != 0, "an unknown hook point is refused");
         check(api5.hook_point(&v4old, GT_HOOK_WORLD_STEP, [](GtModCtx *) {}) != 0, "hook_point refuses an api-4 mod");
         end_init();
