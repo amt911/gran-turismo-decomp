@@ -244,6 +244,7 @@ void set_string_field(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u
     const u32 new_length = word(rt, new_data - 0xCu);
     const u32 old_length = word(rt, old_data - 0xCu);
     put(rt, frame.at(8u), new_length);
+    put(rt, frame.at(0xCu), old_length);
     const u32 shorter_slot = old_length < new_length ? frame.at(0xCu) : frame.at(8u);
     ctx.gpr[2] = frame.at(8u);
     const u32 order = call_set(rt, ctx, 0x08B36170u, {new_data, old_data, word(rt, shorter_slot), shorter_slot});
