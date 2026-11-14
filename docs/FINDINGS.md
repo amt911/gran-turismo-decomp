@@ -3309,3 +3309,11 @@ Verdict trees are worktrees of one repository, so they share `refs/remotes/origi
 fetched at the same moment and one failed with `cannot lock ref 'refs/remotes/origin/main'`, printed `no branch …` and stopped
 (verdict 615). `verdict.sh` now retries the fetch (5 tries, `GT_FETCH_RETRY_S`, default 20 s) and stops with `fetch failed` rather
 than verdict a stale `origin/<branch>`.
+
+## A vtable-driven "collision" hook that is not one (2026-11-14)
+
+**Symptom.** The world step `0x0894DD9C` copies every car's position, velocity and angles into a record, calls a virtual `+0x1C` on the object at `world+0x18` and copies the
+result back: it reads exactly like an external collision solver. **It is a 0x24-byte buffer class (vtable `0x08CC2F18`) whose update just advances positions by velocity x time**
+(FACTS "Collision code ... NOT FOUND"). **Check before trusting a "solver" by its call shape:** read the class's slot functions (vtable words in `.data` hold the ELF vaddr; add
+`0x08804000`; the world step is reached through a `j` thunk at `0x088A194C` that loads `a0 = [a0+0x54]`, which is why a plain search for the step's address in `.data` finds nothing) and the
+constructor's size. Also: `Decompile.java` takes its vaddrs as separate arguments, so build the argument list in `bash -c` (zsh does not word-split).
