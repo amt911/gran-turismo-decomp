@@ -2,7 +2,7 @@
 # In-game check of the deformation mod (gt-mods repo), v0.1.0: what exists today is the HIT detection from the velocity change (no mesh is
 # changed yet: docs/FINDINGS.md "The real GE blob layout ... 2026-11-14"). Headless gt_play on the `rollover` route (the race; the car hits the
 # barrier at step ~1830), the mod's log lines and a judge in this file.
-#   tools/mod_deformation_check.sh [--decomp off|on] [--seconds N (default 100)] [--without-mod|--sabotage-threshold0|--others]
+#   tools/mod_deformation_check.sh [--decomp off|on] [--seconds N (default 150)] [--without-mod|--sabotage-threshold0|--others]
 #   (default)  PASS only if no HIT before step 1500 (normal driving) and at least one HIT at the barrier (step >= 1700)
 #   --others   the same with analog-pedals, cheats, draw-distance, orbit-camera, reset-to-track and rollover enabled too (every other mod)
 #   Each of these must FAIL: --without-mod (the mod absent: no HIT at the barrier), --sabotage-threshold0 (threshold = 0: hits in normal driving)
@@ -15,7 +15,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_deformation_check}
-decomp=off seconds=100 without=0 threshold=4.0 others=0
+decomp=off seconds=150 without=0 threshold=4.0 others=0
 while [ $# -gt 0 ]; do
   case $1 in
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;;
@@ -44,7 +44,7 @@ if [ $others -eq 1 ]; then
   done
 fi
 log="$out/run.log"
-env GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/save" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 GT_PAD="$(grep -v '^#' "$route")" \
+env GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/save" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 GT_PAD="$(grep -v '^#' "$route")" GT_PAD_LOG=1 \
   tools/cpu_lock.sh "mod_deformation_check" systemd-run --user --scope --quiet --slice=gt-heavy.slice -p CPUWeight=10000 -- \
   timeout $((seconds + 120)) "$build/gt_play" --max-seconds "$seconds" --decomp "$decomp" > "$log" 2>&1
 rc=$?
