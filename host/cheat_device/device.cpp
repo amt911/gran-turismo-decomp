@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cctype>
 
 namespace gt::cheat_device {
 namespace {
@@ -21,6 +22,12 @@ std::string row_text(const Row &row) {
     if (title.size() > room) title.resize(room);
     title.append(room - title.size(), ' ');
     return title + " " + value;
+}
+
+std::string sentence_case(std::string text) {
+    for (char &c : text) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (!text.empty()) text[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(text[0])));
+    return text;
 }
 
 std::string or_dash(const std::string &text) { return text.empty() ? "-" : text; }
@@ -75,8 +82,9 @@ std::vector<std::string> Device::use_bindings_file(const std::filesystem::path &
     return warnings;
 }
 
-void Device::say_locked(std::string message, std::uint64_t now) {
+void Device::say_locked(std::string message, std::uint64_t now, bool error) {
     message_ = std::move(message);
+    message_error_ = error;
     message_until_ = now + kMessageVblanks;
 }
 
@@ -192,16 +200,75 @@ bool Device::handle_key(MenuKey key, std::uint64_t now) {
     return true;
 }
 
+// One styled row from a navigator row: the kind says how it is drawn.
+ui::Row Device::styled_row_locked(const Row &r) const {
+    ui::Row out;
+    switch (r.kind) {
+    case EntryKind::Toggle:
+    case EntryKind::Number:
+    case EntryKind::Choice: out = ui::from_value(r.title, r.value, true); break;
+    case EntryKind::Submenu:
+        out.kind = ui::RowKind::Submenu;
+        out.label = r.title;
+        break;
+    case EntryKind::Action: {
+        out.label = r.title;
+        std::string chip = r.value;
+        if (chip.empty()) {  // a hotkey action: its pad combination, else its key
+            if (const Action *a = bindings_.find(r.id)) chip = !print_pad(a->pad).empty() ? print_pad(a->pad) : print_key(a->key);
+        }
+        if (chip.empty()) {
+            // a plain action (Clear, Reset): nothing on the right, or the hotkey action's "not bound" below
+            if (bindings_.find(r.id) != nullptr && r.value.empty()) out.value = "\xE2\x80\x94";
+        } else if (chip == "-") {
+            out.value = "\xE2\x80\x94";  // em dash: not bound
+        } else if (chip.rfind("PRESS", 0) == 0) {
+            out.kind = ui::RowKind::Chip;
+            out.value = sentence_case(chip);
+        } else if (!r.value.empty() || bindings_.find(r.id) != nullptr) {
+            out.kind = ui::RowKind::Chip;
+            out.value = ui::pretty_binding(chip);
+        } else {
+            out.value = chip;
+        }
+        break;
+    }
+    case EntryKind::Info:
+        out.label = r.title;
+        out.value = r.value;
+        break;
+    case EntryKind::Row:  // a mod's v4 row: all its text is in the value
+        out = r.title.empty() ? ui::from_text(r.value, true) : ui::from_value(r.title, r.value, true);
+        break;
+    }
+    return out;
+}
+
 View Device::view(std::size_t rows, std::uint64_t now) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!opened_once_) open_locked();  // shown by a path that did not call open() (the overlay's own F9)
     View v;
-    v.title = fit(now < message_until_ ? message_ : nav_.path(), 31);
+    const bool message = now < message_until_;
+    v.title = fit(message ? message_ : nav_.path(), 31);
     v.footer = capture_id_.empty() ? std::string(kFooter) : std::string(kCaptureFooter);
+    v.crumb = nav_.path();
+    if (message) {
+        v.message = message_;
+        v.message_is_error = message_error_;
+    }
+    v.capturing = !capture_id_.empty();
+    const std::size_t entries = nav_.page().children.size();
+    v.count = static_cast<int>(entries);
+    v.position = entries > 0 ? static_cast<int>(nav_.cursor()) + 1 : 0;
+    if (const Action *open = bindings_.find(kOpenAction)) {
+        const std::string pad = ui::upper_binding(print_pad(open->pad)), key = ui::upper_binding(print_key(open->key));
+        v.binding = pad.empty() ? key : key.empty() ? pad : pad + " \xC2\xB7 " + key;
+    }
     for (const Row &r : nav_.rows(rows)) {
         if (r.selected) v.selected = static_cast<int>(v.rows.size());
         // A mod row (Row kind, empty title) carries all its text in the value.
         v.rows.push_back(r.title.empty() ? fit(r.value, kWidth) : row_text(r));
+        v.items.push_back(styled_row_locked(r));
     }
     return v;
 }
@@ -219,7 +286,7 @@ void Device::poll_pad(std::uint32_t raw, std::uint64_t now) {
     if (cancel_held_ >= kCancelHold) {  // CIRCLE held alone: cancel, nothing bound
         capture_id_.clear();
         pad_capture_.reset();
-        say_locked("CANCELLED", now);
+        say_locked("CANCELLED", now, false);
         return;
     }
     if (capture_fresh_) {  // what is down on the first sample started the capture (CROSS): not part of the combination
@@ -233,7 +300,7 @@ void Device::poll_pad(std::uint32_t raw, std::uint64_t now) {
     capture_id_.clear();
     if (state == PadCapture::State::TimedOut) {
         pad_capture_.reset();
-        say_locked("NOTHING PRESSED", now);
+        say_locked("NOTHING PRESSED", now, false);
         return;
     }
     const PadBinding binding = pad_capture_->result();

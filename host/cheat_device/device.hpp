@@ -8,6 +8,7 @@
 #include "cheat_device/bindings.hpp"
 #include "cheat_device/menu.hpp"
 #include "pad_menu.hpp"
+#include "ui_row.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -37,10 +38,20 @@ struct ModRows {
     std::function<bool(std::size_t, int)> adjust;
 };
 
+// What the panel draws. `title` / `rows` / `footer` are the 40-character text form (the 5x7 fallback draws them: the message
+// replaces the title); the rest is the styled form (lcs patch 0069): structured rows, the breadcrumb, "3 / 6", a message box, the
+// open binding for the footer and whether a binding capture waits for input.
 struct View {
     std::string title, footer;
     std::vector<std::string> rows;
     int selected = 0;
+    std::vector<ui::Row> items;
+    std::string crumb;          // "Cheats > Race"
+    int position = 0, count = 0;  // cursor + 1 of the page's entries
+    std::string message;        // a refusal / note, for kMessageVblanks
+    bool message_is_error = false;
+    std::string binding;        // "SELECT + START | F7" (the open action)
+    bool capturing = false;
 };
 
 class Device {
@@ -82,7 +93,8 @@ private:
     void rebuild_locked();
     void open_locked();
     Entry controls_locked();
-    void say_locked(std::string message, std::uint64_t now);
+    ui::Row styled_row_locked(const Row &row) const;
+    void say_locked(std::string message, std::uint64_t now, bool error = true);
     void changed_locked(std::uint64_t now);
     std::string binding_text_locked(const std::string &id) const;
 
@@ -99,6 +111,7 @@ private:
     Navigator nav_{Entry{"root", EntryKind::Submenu, "Cheats", {}, {}, {}}};
     bool opened_once_ = false;
     std::string message_;
+    bool message_error_ = true;
     std::uint64_t message_until_ = 0, now_ = 0;
     // A capture in progress: which action and which kind (keyboard or pad).
     std::string capture_id_;
