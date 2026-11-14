@@ -3343,3 +3343,11 @@ Kept for the path: the copy-on-write redirect on `0x08B550A8` fired but the fram
 also shifts the race against real time versus an empty one from vblank ~3330, and the mod's own work shifts it again after the hit, so the frame check compares
 runs with the same mods dir layout and, after the hit, a zero-strength run of the same mod.
 
+
+### Crash deformation in place: memory dented, screen shows it for ~1 s only (2026-11-14)
+
+With the in-place dent (`model_runs`) 1564 of 5057 vertices in the player's 12 runs stay dented in memory for the whole race (read back every 120 vblanks: all
+still hold what the mod wrote, no restore), but frames show the dent only for the ~6 dumps (about a second) after the hit, and small (<= 300 pixels at 480x272,
+<= 40 px at 1920x1088 GPU x4; cap 0.3, a ~17 m/s hit). The player's model container does not change (no LOD swap: one `PLAYER model=` line). Suspect: a draw or
+display-list cache that is not invalidated by writes from the mod (`host/ge_state_revision.cpp`, lcs-recomp patches 0046/0049 reuse draws on a state-revision hit); not
+verified. Not tried: writing through the guest store path the GE notes, or bumping the revision after a dent.

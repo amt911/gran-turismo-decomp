@@ -75,7 +75,7 @@ hits=$(grep -ao 'HIT step=[0-9]*' "$out/run/run.log" | sed 's/HIT step=//')
 early=$(echo "$hits" | awk 'NF && $1 < 1500' | wc -l)
 late=$(echo "$hits" | awk 'NF && $1 >= 1700' | wc -l)
 echo "mod_deformation_check: decomp=$decomp hits=$(echo "$hits" | awk 'NF' | wc -l) before_step_1500=$early at_barrier=$late"
-grep -a "\[mod:deformation\] \(COPY\|DENT\|REDIRECT\|RELEASE\)" "$out/run/run.log" | head -8
+grep -a "\[mod:deformation\] \(CAPTURE\|DENT\|RESTORE\)" "$out/run/run.log" | head -8
 rc=0
 [ "$early" -eq 0 ] && [ "$late" -ge 1 ] || { echo "mod_deformation_check: FAIL hit detection (want 0 hits before step 1500 and at least 1 at the barrier)"; rc=1; }
 if [ $without -eq 0 ]; then
