@@ -286,6 +286,12 @@ int main() {
             check(api5.draw_car_model(&v5, &car_ctx, &got_car, &got_model) != 0, "draw_car_model refuses a view that does not check out");
             std::uint32_t parts[4];
             check(api5.model_blobs(&v5, &car_ctx, model, parts, 4) == 0u, "model_blobs: a model with no parts lists none");
+            GtVertexRun vr[4];
+            check(api5.blob_runs(&v5, &car_ctx, blob, vr, 4) == 1u && vr[0].blob == blob && vr[0].run == 0u && vr[0].count == 2u, "blob_runs: the runs of any blob");
+            int16_t p3[3];
+            check(api5.run_vertex(&v5, &car_ctx, blob, 0, 0, p3) == 0 && api5.run_vertex(&v5, &car_ctx, blob, 1, 0, p3) != 0 &&
+                      api5.blob_runs(&v4old, &car_ctx, blob, vr, 4) == 0u,
+                  "run_vertex of a blob's run, a missing run and an api-4 mod refused");
         }
         // named hook points install on the researched addresses
         gt::mods::bind_runtime(r5);

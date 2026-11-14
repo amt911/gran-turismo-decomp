@@ -201,6 +201,10 @@ typedef struct GtModApi {
     /* Registers a function that runs once, on the first vblank after the mod is switched off from the menu (a tick context, like on_vblank's),
      * so the mod can undo what it changed in the game's memory. During gt_mod_init only; 0 = ok. */
     int (*on_switch_off)(GtMod *self, GtVblankFn fn);
+    /* The vertex runs of any one blob (for instance the blob a GT_HOOK_MESH_DRAW hook sees: the game also draws copies of a model's parts that it
+     * keeps in video memory (0x04xxxxxx), whose vertices are bytes-for-bytes the container's, FACTS "VRAM copies of the model parts"). Fills
+     * up to `capacity`, returns how many; run_vertex / run_set_vertex take the same (blob, run) pairs. */
+    uint32_t (*blob_runs)(GtMod *self, GtModCtx *ctx, uint32_t blob, GtVertexRun *out, uint32_t capacity);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

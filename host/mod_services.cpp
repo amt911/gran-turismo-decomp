@@ -370,6 +370,14 @@ int api_on_switch_off(GtMod *self, GtVblankFn fn) {
         }
     return 4;  // register the vblank tick first
 }
+std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity) {
+    if (!v5_mod(self, "blob_runs") || ctx == nullptr || out == nullptr) return 0u;
+    std::vector<gt::mesh::Run> runs;
+    if (!gt::mesh::parse_runs(ctx->rt->memory(), blob, runs)) return 0u;
+    std::uint32_t n = 0u;
+    for (std::uint32_t r = 0; r < runs.size() && n < capacity; ++r) out[n++] = GtVertexRun{blob, r, runs[r].count};
+    return n;
+}
 std::uint32_t api_model_runs(GtMod *self, GtModCtx *ctx, std::uint32_t model, GtVertexRun *out, std::uint32_t capacity) {
     if (!v5_mod(self, "model_runs") || ctx == nullptr || out == nullptr) return 0u;
     std::vector<gt::game_state::RunRef> refs(capacity);

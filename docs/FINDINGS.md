@@ -3344,10 +3344,15 @@ also shifts the race against real time versus an empty one from vblank ~3330, an
 runs with the same mods dir layout and, after the hit, a zero-strength run of the same mod.
 
 
-### Crash deformation in place: memory dented, screen shows it for ~1 s only (2026-11-14)
+### Crash deformation in place: the game draws copies of some parts from VRAM (2026-11-15)
 
-With the in-place dent (`model_runs`) 1564 of 5057 vertices in the player's 12 runs stay dented in memory for the whole race (read back every 120 vblanks: all
-still hold what the mod wrote, no restore), but frames show the dent only for the ~6 dumps (about a second) after the hit, and small (<= 300 pixels at 480x272,
-<= 40 px at 1920x1088 GPU x4; cap 0.3, a ~17 m/s hit). The player's model container does not change (no LOD swap: one `PLAYER model=` line). Suspect: a draw or
-display-list cache that is not invalidated by writes from the mod (`host/ge_state_revision.cpp`, lcs-recomp patches 0046/0049 reuse draws on a state-revision hit); not
-verified. Not tried: writing through the guest store path the GE notes, or bumping the revision after a dent.
+Not a cache. Logging every blob the `0x08B550A8` leaf draws after the hit (60 distinct) and the vertex arrays its command list reads: the big body entries of the
+player's container (`0x090EB4D0`, `0x090F3490`, `0x090F1700`) are drawn from RAM, but other entries (`0x090FADD0`, `0x090FB250`, `0x090EFEB0`, `0x090F08B0`,
+`0x090F1700` again, `0x090F2BD0`, `0x090FAC60/0x090FAD10`, `0x090F0C20/0x090F1020`) are ALSO drawn from blobs in VRAM (`0x041xxxxx`) whose vertex arrays are
+bytes-for-bytes the container's (same first vertex, same count, same VTYPE; both the command list and the vertices live in VRAM). A dent written only to the
+container never reaches those draws. The mod now watches the VRAM blobs drawn (`GT_HOOK_MESH_DRAW`), finds the runs that equal a part's original bytes (`blob_runs`) and
+writes the same dented vertices to them (and restores them). Who copies container -> VRAM was not found (not looked for in the guest code: the copies
+exist before the first hit and are recognised by content). The earlier "memory stays dented, screen shows ~1 s" was this plus a dent too small to see.
+Visibility at 1920x1088 (GPU x4), 17 m/s hit, rear quarter: depth 0.02/radius 0.45/cap 0.15: ~0 px; 0.04/0.5/0.3: ~550 px (roof only); 0.05/0.8/0.25: ~5000 px;
+radius 2.0 / cap 0.4: the whole body collapses and the wheels show (proves the vertices drawn are the ones written). The dent lands on the ROOF edge, not the
+rear bumper: each part is normalised in its own frame and the body-frame to model-axis mapping (forward z, right x, up y, signs flipped in the check) is not verified.

@@ -698,3 +698,8 @@ Evidence: probe mods on the `rollover` race route (`--decomp off`, 4 cars), logs
 - **Entries.** The player's container has 30 entries (`0x090E5B70 + 32 * i`, blob = word(entry)). Only some parse with `parse_blob`: the others have **several VADRs** (`V090EB894 T130 P... V090EC528 T130 P...`) or a format change inside a VADR; blob `0x090EB4D0`, `0x090F1700`, `0x090F3490` (the ones drawn but "missing" from the part table) are entries 13, 22 and 24, not nested lists. Their CALLs only point at texture/material blocks (`0x090E4xxx`, `0x090D4xxx`).
 - **Runs.** A run = a VADR (or a VTYPE change inside one) followed by PRIMs that continue it. `gt::mesh::parse_runs` lists the runs of a known format (`0x122`, `0x130`, `0x112`); VTYPE `0x118` (stride unknown) runs are skipped. The player's model has 38 runs, 12 of >= 100 vertices.
 - SDK: `model_runs`, `run_vertex`, `run_set_vertex`, `on_switch_off` (`host/mesh_blob.*`, `host/game_state.*`, `host/mod_services.*`; tests `mesh_blob`, `mod_services`).
+
+### VRAM copies of the model parts (measured 2026-11-15, `rollover` route after the barrier hit)
+
+- The leaf `0x08B550A8` is also called with blobs in VRAM (`0x041BC000`..`0x041FFFFF`, 62 distinct in the first 60 logged, plus a few RAM ones): command list AND vertices there (`V=041C...`). Their vertex arrays equal the container entries' (same count, VTYPE and first vertex) for entries `0x090FADD0`, `0x090FB250`, `0x090EFEB0`, `0x090F08B0`, `0x090F1700`, `0x090F2BD0`, `0x090FAC60`, `0x090FAD10`, `0x090F0C20`, `0x090F1020`; the big body entries `0x090EB4D0`, `0x090F3490` and `0x090F1700` are drawn from RAM.
+- SDK: `blob_runs` (runs of any blob, e.g. a VRAM one the mesh-draw hook sees) and the mod matches them by content. Container -> VRAM copier not identified.

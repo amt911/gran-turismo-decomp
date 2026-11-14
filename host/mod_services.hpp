@@ -102,6 +102,7 @@ std::uint32_t api_model_runs(GtMod *self, GtModCtx *ctx, std::uint32_t model, Gt
 int api_run_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int16_t xyz[3]);
 int api_run_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int16_t xyz[3]);
 int api_on_switch_off(GtMod *self, GtVblankFn fn);
+std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity);
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
 
