@@ -57,6 +57,39 @@ void call_with(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uin
     call_here(rt, ctx, target);
 }
 
+using u32 = std::uint32_t;
+
+// A tail call whose first argument the thunk computes: a0 = `argument`, then a jump to the shared body.
+void tail_with_a0(psprecomp::AllegrexContext &ctx, u32 argument, u32 target) {
+    ctx.gpr[4] = argument;
+    jump(ctx, target);
+}
+
+// 0x08C01DDC / 0x08C249F8 / 0x08C24A18: the distance from a0 to a1 plus one; v0 is written only when they differ (otherwise it keeps what
+// the caller left in it).
+void distance_plus_one(psprecomp::AllegrexContext &ctx) {
+    const u32 from = ctx.gpr[4];
+    const u32 to = ctx.gpr[5];
+    const u32 distance = to - from;
+    ctx.gpr[4] = distance;
+    if (from != to) ctx.gpr[2] = distance + 1u;
+}
+
+// 0x08965BE8 / 0x08965C14: a float setter for the field at a0 + `offset`; a changed value (a NaN counts as changed) is stored and bit 2
+// of the flag word at +0xE4 is raised (v0 = the new flag word; unchanged: v0 is not touched, f0 holds the old value).
+void set_float_and_flag(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 offset) {
+    const u32 object = ctx.gpr[4];
+    const float value = ctx.fpr[12];
+    const float old_value = float_at(rt, object + offset);
+    ctx.fpr[0] = old_value;
+    if (!(old_value == value)) {
+        const u32 flags = word(rt, object + 0xE4u) | 4u;
+        ctx.gpr[2] = flags;
+        put_float(rt, object + offset, value);
+        put(rt, object + 0xE4u, flags);
+    }
+}
+
 } // namespace
 
 #define G ctx.gpr
@@ -65,26 +98,26 @@ void call_with(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uin
 #define store8(address, value) rt.memory().store8((address), static_cast<std::uint8_t>(value))
 #define store16(address, value) rt.memory().store16((address), static_cast<std::uint16_t>(value))
 
-void func_0889367C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[4] = word(rt, G[4]); jump(ctx, 0x08893258u); } }
-void func_08896EE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { G[4] = G[4] + 8u; jump(ctx, 0x08896ED8u); } }
-void func_088B18B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { jump(ctx, 0x088B18B0u); } }
-void func_089260F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[4] = word(rt, G[4] + 0x1E0u); jump(ctx, 0x0892779Cu); } }
-void func_089272F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { G[4] = G[4] + 0x1FD4u; jump(ctx, 0x08925BA4u); } }
-void func_08AC3384(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[4] = word(rt, G[4]); jump(ctx, 0x08AC328Cu); } }
-void func_08B097A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { G[5] = G[5] & 0xFFu; jump(ctx, 0x08B09520u); } }
-void func_08B1BE30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { G[4] = G[5]; jump(ctx, 0x08B1BE28u); } }
-void func_08B2DBE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { G[4] = 6u; jump(ctx, 0x08B2DBD8u); } }
-void func_08C53F8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { G[4] = G[4] + 0x24u; jump(ctx, 0x08B6166Cu); } }
-void func_08B64344(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = 0x08D70000u; G[4] = word(rt, 0x08D721B8u); G[5] = 1u; jump(ctx, 0x08C7AAC0u); } }
-void func_089961CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = 0xFFFFFFFFu; put(rt, G[4] + 0x20u, 0u); } }
-void func_08AC69F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; G[1] = 0x472C4400u; F[0] = std::bit_cast<float>(G[1]); F[12] = F[12] * F[0]; F[1] = std::bit_cast<float>(static_cast<std::uint32_t>(trunc_w_s(F[12]))); put(rt, G[4] + 0x5A4u, std::bit_cast<std::uint32_t>(F[1])); } }
+void func_0889367C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_with_a0(ctx, word(rt, ctx.gpr[4]), 0x08893258u); }
+void func_08896EE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; tail_with_a0(ctx, ctx.gpr[4] + 8u, 0x08896ED8u); }
+void func_088B18B8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; jump(ctx, 0x088B18B0u); }
+void func_089260F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_with_a0(ctx, word(rt, ctx.gpr[4] + 0x1E0u), 0x0892779Cu); }
+void func_089272F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; tail_with_a0(ctx, ctx.gpr[4] + 0x1FD4u, 0x08925BA4u); }
+void func_08AC3384(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tail_with_a0(ctx, word(rt, ctx.gpr[4]), 0x08AC328Cu); }
+void func_08B097A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; ctx.gpr[5] &= 0xFFu; jump(ctx, 0x08B09520u); }
+void func_08B1BE30(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; tail_with_a0(ctx, ctx.gpr[5], 0x08B1BE28u); }
+void func_08B2DBE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; tail_with_a0(ctx, 6u, 0x08B2DBD8u); }
+void func_08C53F8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; tail_with_a0(ctx, ctx.gpr[4] + 0x24u, 0x08B6166Cu); }
+void func_08B64344(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 0x08D70000u; ctx.gpr[5] = 1u; tail_with_a0(ctx, word(rt, 0x08D721B8u), 0x08C7AAC0u); }
+void func_089961CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[2] = 0xFFFFFFFFu; put(rt, ctx.gpr[4] + 0x20u, 0u); }
+void func_08AC69F4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { constexpr u32 kScaleBits = 0x472C4400u; ctx.gpr[1] = kScaleBits; ctx.fpr[0] = std::bit_cast<float>(kScaleBits); ctx.fpr[12] = ctx.fpr[12] * ctx.fpr[0]; const u32 scaled = static_cast<u32>(trunc_w_s(ctx.fpr[12])); ctx.fpr[1] = std::bit_cast<float>(scaled); put(rt, ctx.gpr[4] + 0x5A4u, scaled); } }
 void func_08ACCD54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = G[5]; G[7] = word(rt, G[7]); G[5] = word(rt, G[5] + 0xB8u); G[4] = word(rt, G[2] + 0xB0u); jump(ctx, 0x08C7AD78u); } }
-void func_088E89CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = G[4]; G[3] = 1u; store8(G[4] + 0x14u, 1u); G[4] = G[4] + 0x30u; store8(G[2] + 0x13u, 1u); jump(ctx, 0x088D08B0u); } }
-void func_08C01DDC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { const bool same = G[4] == G[5]; G[4] = G[5] - G[4]; if (!same) G[2] = G[4] + 1u; } }
-void func_08C249F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { const bool same = G[4] == G[5]; G[4] = G[5] - G[4]; if (!same) G[2] = G[4] + 1u; } }
-void func_08C24A18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; { const bool same = G[4] == G[5]; G[4] = G[5] - G[4]; if (!same) G[2] = G[4] + 1u; } }
-void func_08965BE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; F[0] = float_at(rt, G[4] + 0x70u); if (!(F[0] == F[12])) { G[2] = word(rt, G[4] + 0xE4u); put_float(rt, G[4] + 0x70u, F[12]); G[2] = G[2] | 4u; put(rt, G[4] + 0xE4u, G[2]); } } }
-void func_08965C14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; F[0] = float_at(rt, G[4] + 0x74u); if (!(F[0] == F[12])) { G[2] = word(rt, G[4] + 0xE4u); put_float(rt, G[4] + 0x74u, F[12]); G[2] = G[2] | 4u; put(rt, G[4] + 0xE4u, G[2]); } } }
+void func_088E89CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { const u32 object = ctx.gpr[4]; ctx.gpr[2] = object; ctx.gpr[3] = 1u; store8(object + 0x14u, 1u); store8(object + 0x13u, 1u); tail_with_a0(ctx, object + 0x30u, 0x088D08B0u); } }
+void func_08C01DDC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; distance_plus_one(ctx); }
+void func_08C249F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; distance_plus_one(ctx); }
+void func_08C24A18(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; distance_plus_one(ctx); }
+void func_08965BE8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { set_float_and_flag(rt, ctx, 0x70u); }
+void func_08965C14(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { set_float_and_flag(rt, ctx, 0x74u); }
 
 #undef G
 #undef load8
