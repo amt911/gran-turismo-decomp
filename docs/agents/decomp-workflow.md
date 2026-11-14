@@ -177,6 +177,11 @@ never per function. Settings measured and decided by the user on 2026-10-12:
 - **Picking candidates**: hot functions (called on the routes) that are short and whose callees are
   either done or plain guest calls; the gate only checks what the routes call.
   **"Pending" means no `void func_XXXXXXXX(` definition and no registration line (`NAME(0xADDR, …`, commented ones included) in `src/`** — not "the address does not appear in `src/`": that also hides every function a decompiled caller merely calls (FINDINGS, batch 99: 463 reached functions found that way). `tools.decomp_gate probe` over `tools.family_members --write-probe-symbols` finds the reached ones. `.venv/bin/python -m tools.pool recomp/analysis/probe_TAG_*.log [--stubs]` then cuts the reached ones to the readable pool (done = defined or registered in `src/`, commented lines included; stores, VFPU and float counts; import stubs and `jalr` within five calls) — the static walk marks too much, so judge by the stub address (replay-safe lock/interrupt stubs compare, FINDINGS batch 102) and let the first fast gate decide.
+- **Leaves first, bottom-up** (`.venv/bin/python -m tools.next_leaves [--ready] [--skip FILE]`): the emitted functions nothing has taken
+  (no registration line, commented ones included, and no `void func_XXXXXXXX(` definition in `src/`) that call nothing; `--ready` adds the
+  ones whose direct callees (`jal`, and `j` out of the function) are all taken, so a batch goes bottom-up. `jalr` / `jr`-through-a-register
+  functions (virtual calls, jump tables) are left out. `--skip` takes the addresses other agents hold. 2026-11-14: 65 untaken leaves of
+  4..400 instructions, 333 ready functions of 4..400.
 - **Shape clusters** (`.venv/bin/python -m tools.shapes`): pending functions grouped by instruction shape
   (immediates and jump targets masked, branches kept). A cluster with a decompiled member is the cheapest
   batch: turn that member into a template (its constants in a table keyed by address, as `src/core/`
