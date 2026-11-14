@@ -1,0 +1,1192 @@
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index b086a68..3bdca7e 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -319,54 +319,20 @@ void paint_host_panel(SDL_Renderer *renderer) noexcept {
+         owner = renderer;
+         if (texture == nullptr) return;
+         SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
++        SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);  // the 2x rasterization is scaled down smoothly
+     }
+     rasterize_settings_overlay(view, pixels.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
+     SDL_UpdateTexture(texture, nullptr, pixels.data(), static_cast<int>(kSettingsOverlayWidth * 4u));
+     int output_w = 960, output_h = 544;
+     SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
+-    const int panel_w = std::min(static_cast<int>(static_cast<float>(output_w) * 0.46f), static_cast<int>(kSettingsOverlayWidth));
+-    const SDL_Rect destination{output_w - panel_w - 24, 24, panel_w, panel_w / 2};
++    const int panel_w = static_cast<int>(settings_overlay_present_width(static_cast<float>(output_w)));
++    const SDL_Rect destination{output_w - panel_w - 24, 24, panel_w,
++                               static_cast<int>(static_cast<std::int64_t>(panel_w) * kSettingsOverlayHeight / kSettingsOverlayWidth)};
+     SDL_RenderCopy(renderer, texture, nullptr, &destination);
+ }
+ 
+-void paint_host_settings(SDL_Renderer *renderer) noexcept {
+-    if (!host_settings_open()) {
+-        paint_host_panel(renderer);
+-        return;
+-    }
+-    if (renderer == nullptr) return;
+-    int output_w = 960;
+-    int output_h = 544;
+-    SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
+-    const int scale = std::max(2, output_h / 280);
+-    const HostSettingsView view = host_settings_view();
+-    const int panel_w = 42 * 6 * scale;
+-    const int panel_h = std::max(16 * 8, 28 + view.row_count * 12 + 4) * scale;
+-    const int margin = 8 * scale;
+-    const int origin_x = std::max(margin, output_w - panel_w - margin);
+-    const int origin_y = margin;
+-    SDL_SetRenderDrawColor(renderer, 8, 12, 28, 230);
+-    fill_rect(renderer, origin_x, origin_y, panel_w, panel_h);
+-    SDL_SetRenderDrawColor(renderer, 180, 200, 230, 255);
+-    draw_text(renderer, origin_x + 8 * scale, origin_y + 6 * scale, scale, view.title);
+-    draw_text(renderer, origin_x + 8 * scale, origin_y + 16 * scale, scale, view.footer);
+-    for (int row = 0; row < view.row_count; ++row) {
+-        const int y = origin_y + (28 + row * 12) * scale;
+-        if (row == view.selected) {
+-            SDL_SetRenderDrawColor(renderer, 40, 70, 120, 255);
+-            fill_rect(renderer, origin_x + 4 * scale, y - scale, panel_w - 8 * scale, 9 * scale);
+-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+-        } else {
+-            SDL_SetRenderDrawColor(renderer, 170, 190, 220, 255);
+-        }
+-        draw_text(renderer, origin_x + 8 * scale, y, scale, view.rows[row]);
+-    }
+-    if (view.resolution_pending) {
+-        SDL_SetRenderDrawColor(renderer, 220, 180, 80, 255);
+-        draw_text(renderer, origin_x + 8 * scale, origin_y + (28 + 5 * 12) * scale, scale,
+-                  "RESTART TO APPLY");
+-    }
+-}
++// GT patch 0069: F9 / F10 and the host panel share one rasterized look (lcs_host_style.cpp).
++void paint_host_settings(SDL_Renderer *renderer) noexcept { paint_host_panel(renderer); }
+ 
+ SDL_Rect game_texture_destination(std::uint32_t source_width, std::uint32_t source_height) noexcept {
+     int output_w = static_cast<int>(source_width);
+diff --git a/lcs/host/ge_gpu_backend_dx12.cpp b/lcs/host/ge_gpu_backend_dx12.cpp
+index 4a87bb4..6dd10c6 100644
+--- a/lcs/host/ge_gpu_backend_dx12.cpp
++++ b/lcs/host/ge_gpu_backend_dx12.cpp
+@@ -1909,7 +1909,7 @@ void composite_settings_overlay(Dx12GeState &s, const HostSettingsView &view) no
+ 
+     const float swap_w = static_cast<float>(std::max<std::uint32_t>(1u, s.swap_width));
+     const float swap_h = static_cast<float>(std::max<std::uint32_t>(1u, s.swap_height));
+-    const float panel_w = std::min(swap_w * 0.46f, static_cast<float>(kSettingsOverlayWidth));
++    const float panel_w = settings_overlay_present_width(swap_w);
+     const float panel_h = panel_w * (static_cast<float>(kSettingsOverlayHeight) /
+                                       static_cast<float>(kSettingsOverlayWidth));
+     const float x1 = 1.0f - 48.0f / swap_w;
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+index 5ffaa52..b5e266a 100644
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -318,6 +318,7 @@ struct VulkanState {
+     std::array<VkDescriptorSet, 4> present_sets{};
+     VkSampler game_sampler{};
+     VkSampler overlay_sampler{};
++    VkSampler settings_sampler{};  // GT patch 0069: linear, the 2x host UI is scaled to the window
+     bool game_sampler_linear{};
+     VkShaderModule present_vertex_shader{};
+     VkShaderModule present_fragment_shader{};
+@@ -1773,6 +1774,7 @@ void destroy_present_device(VulkanState &s) noexcept {
+     if (s.device != VK_NULL_HANDLE) {
+         if (s.game_sampler != VK_NULL_HANDLE) vkDestroySampler(s.device, s.game_sampler, nullptr);
+         if (s.overlay_sampler != VK_NULL_HANDLE) vkDestroySampler(s.device, s.overlay_sampler, nullptr);
++        if (s.settings_sampler != VK_NULL_HANDLE) vkDestroySampler(s.device, s.settings_sampler, nullptr);
+         if (s.acquire_semaphore != VK_NULL_HANDLE) vkDestroySemaphore(s.device, s.acquire_semaphore, nullptr);
+         destroy_present_semaphores(s);
+         if (s.present_staging_mapped != nullptr) vkUnmapMemory(s.device, s.present_staging_memory);
+@@ -1781,6 +1783,7 @@ void destroy_present_device(VulkanState &s) noexcept {
+     }
+     s.game_sampler = VK_NULL_HANDLE;
+     s.overlay_sampler = VK_NULL_HANDLE;
++    s.settings_sampler = VK_NULL_HANDLE;
+     s.acquire_semaphore = VK_NULL_HANDLE;
+     s.present_semaphores.clear();
+     s.present_staging = VK_NULL_HANDLE;
+@@ -2126,6 +2129,7 @@ bool ensure_present_pipeline(VulkanState &s, VkFormat format, std::string &error
+         return false;
+     }
+     if (s.overlay_sampler == VK_NULL_HANDLE) s.overlay_sampler = make_present_sampler(s, false);
++    if (s.settings_sampler == VK_NULL_HANDLE) s.settings_sampler = make_present_sampler(s, true);
+     if (s.overlay_sampler == VK_NULL_HANDLE) {
+         error = "Vulkan present sampler failed";
+         return false;
+@@ -2496,9 +2500,8 @@ void cmd_present_pass(VulkanState &s, std::uint32_t image_index, VkDescriptorSet
+         draw_present_layer(s, s.present_sets[kPresentFps], 16, 16, panel_w, panel_h, false);
+     }
+     if (draw_settings) {
+-        const std::int32_t panel_w = std::min(static_cast<std::int32_t>(static_cast<float>(s.swap_width) * 0.46f),
+-                                              static_cast<std::int32_t>(kSettingsOverlayWidth));
+-        const std::int32_t panel_h = panel_w / 2;
++        const std::int32_t panel_w = static_cast<std::int32_t>(settings_overlay_present_width(static_cast<float>(s.swap_width)));
++        const std::int32_t panel_h = static_cast<std::int32_t>(static_cast<std::int64_t>(panel_w) * kSettingsOverlayHeight / kSettingsOverlayWidth);
+         draw_present_layer(s, s.present_sets[kPresentSettings],
+                            static_cast<std::int32_t>(s.swap_width) - panel_w - 24, 24, panel_w, panel_h, false);
+     }
+@@ -2593,7 +2596,7 @@ bool record_swapchain_present(VulkanState &s, VkImageView source, std::uint32_t
+         cmd_upload_image(s, s.settings_overlay, settings_offset, kSettingsOverlayWidth, kSettingsOverlayHeight);
+     write_present_set(s, kPresentGame, source, s.game_sampler);
+     if (draw_fps) write_present_set(s, kPresentFps, s.fps_overlay.view, s.overlay_sampler);
+-    if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.overlay_sampler);
++    if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.settings_sampler);
+     cmd_present_pass(s, index, s.present_sets[kPresentGame], source_width, source_height, draw_fps,
+                      draw_settings);
+     s.present_image_index = index;
+@@ -2792,7 +2795,7 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+         cmd_upload_image(s, s.settings_overlay, settings_offset, kSettingsOverlayWidth, kSettingsOverlayHeight);
+     write_present_set(s, kPresentGuest, s.guest_image.view, s.game_sampler);
+     if (draw_fps) write_present_set(s, kPresentFps, s.fps_overlay.view, s.overlay_sampler);
+-    if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.overlay_sampler);
++    if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.settings_sampler);
+     cmd_present_pass(s, index, s.present_sets[kPresentGuest], width, height, draw_fps, draw_settings);
+     if (vkEndCommandBuffer(s.command) != VK_SUCCESS) {
+         vkResetCommandBuffer(s.command, 0u);
+diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index 591fa3e..886171f 100644
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include "display_window.hpp"
+ #include "host_font_5x7.hpp"
++#include "lcs_host_style.hpp"
+ #include "lcs_render_config.hpp"
+ 
+ #include <algorithm>
+@@ -14,6 +15,7 @@
+ #include <cstring>
+ #include <fstream>
+ #include <string>
++#include <vector>
+ 
+ namespace lcs {
+ namespace {
+@@ -508,11 +510,8 @@ void rasterize_panel(const HostSettingsView &view, std::uint8_t *rgba, std::uint
+     overlay_text(rgba, width, height, pad, h - bar + 6, scale, view.footer, 214u, 218u, 230u);
+ }
+ 
+-}  // namespace
+-
+-void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba,
+-                                std::uint32_t width, std::uint32_t height) noexcept {
+-    if (rgba == nullptr || width == 0u || height == 0u) return;
++// The 5x7 look (before patch 0069), kept as the fallback when the UI font is missing.
++void rasterize_basic(const HostSettingsView &view, std::uint8_t *rgba, std::uint32_t width, std::uint32_t height) noexcept {
+     std::memset(rgba, 0, static_cast<std::size_t>(width) * height * 4u);
+     if (view.panel) {
+         rasterize_panel(view, rgba, width, height);
+@@ -540,6 +539,34 @@ void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba
+     }
+ }
+ 
++// The basic look is laid out for 512 x 256; the 2x texture gets it doubled.
++void rasterize_fallback(const HostSettingsView &view_in, std::uint8_t *rgba, std::uint32_t width, std::uint32_t height) noexcept {
++    HostSettingsView view = view_in;
++    if (view.styled && view.panel)  // the old look had the path (or the refusal) as its title
++        std::snprintf(view.title, sizeof view.title, "%.31s", view.message[0] != '\0' ? view.message : view.crumb);
++    constexpr std::uint32_t bw = 512u, bh = 256u;
++    if (width < bw * 2u || height < bh * 2u) {
++        rasterize_basic(view, rgba, width, height);
++        return;
++    }
++    std::vector<std::uint8_t> small(static_cast<std::size_t>(bw) * bh * 4u);
++    rasterize_basic(view, small.data(), bw, bh);
++    std::memset(rgba, 0, static_cast<std::size_t>(width) * height * 4u);
++    for (std::uint32_t y = 0; y < bh * 2u; ++y)
++        for (std::uint32_t x = 0; x < bw * 2u; ++x)
++            std::memcpy(rgba + (static_cast<std::size_t>(y) * width + x) * 4u,
++                        small.data() + (static_cast<std::size_t>(y / 2u) * bw + x / 2u) * 4u, 4u);
++}
++
++}  // namespace
++
++void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba,
++                                std::uint32_t width, std::uint32_t height) noexcept {
++    if (rgba == nullptr || width == 0u || height == 0u) return;
++    if (host_style_rasterize(view, rgba, width, height)) return;
++    rasterize_fallback(view, rgba, width, height);
++}
++
+ void rasterize_fps_overlay(std::uint8_t *rgba, std::uint32_t width,
+                            std::uint32_t height) noexcept {
+     if (rgba == nullptr || width == 0u || height == 0u) return;
+@@ -559,6 +586,7 @@ HostSettingsView host_settings_view() noexcept {
+         view.row_count = std::clamp(view.row_count, 0, kViewRows);
+         return view;
+     }
++    view.tabs = g_extra != nullptr && !g_extra->owns_open_key && g_extra->view == nullptr;  // F9 / F10 tab strip
+     if (g_extra_shown && g_extra != nullptr) {
+         // The extra page shows a window of 5 rows that scrolls with the selection.
+         const int count = extra_count();
+@@ -569,9 +597,19 @@ HostSettingsView host_settings_view() noexcept {
+                 g_extra->row(static_cast<std::size_t>(top + row), view.rows[row], sizeof(view.rows[row]));
+         std::snprintf(view.title, sizeof(view.title), "%s", g_extra->title != nullptr ? g_extra->title : "");
+         std::snprintf(view.footer, sizeof(view.footer), "F9 CLOSE");
++        view.tab = 1;
++        view.position = count > 0 ? g_extra_selected + 1 : 0;
++        view.count = count;
++        view.row_count = std::min(view.row_count, kViewRows);
++        if (g_extra->item != nullptr) {
++            view.styled = true;
++            view.row_count = 0;
++            for (int row = 0; row < kRowCount && top + row < count; ++row, ++view.row_count)
++                g_extra->item(static_cast<std::size_t>(top + row), view.items[row]);
++        }
+         return view;
+     }
+-    std::snprintf(view.title, sizeof(view.title), "HOST SETTINGS");
++    std::snprintf(view.title, sizeof(view.title), "SETTINGS");
+     std::snprintf(view.footer, sizeof(view.footer), "F10 CLOSE");
+     view.selected = g_selected;
+     view.resolution_pending = resolution_pending();
+diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index 40ea77e..37c5ca9 100644
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -20,6 +20,30 @@ inline constexpr int kViewRows = 8;  // rows a view can hold; the main page and
+ 
+ struct HostSettingsView;
+ 
++// GT patch 0069: structured rows. The host UI (cheat device, F9 MODS, F10 settings) is drawn from these when `styled` is set;
++// otherwise the rasterizer derives them from the 48-char `rows` strings ("label   value": ON / OFF become pills). The strings
++// stay filled either way (the 5x7 fallback draws them when the UI font is missing).
++enum class HostRowKind : std::uint8_t {
++    Text,     // value is plain text, right-aligned
++    Toggle,   // an ON / OFF pill (`on`)
++    Choice,   // "< value >" (the arrows light up on the selected row)
++    Percent,  // a bar and `value` ("70%"); `percent` is 0..100
++    Chip,     // a key / pad binding in a rounded outline ("L + Triangle")
++    Submenu,  // a chevron
++    Pill,     // a coloured pill with `value` as its text; `tone` picks the colour
++};
++enum class HostPillTone : std::uint8_t { Grey, Green, Amber, Red };
++
++struct HostViewRow {
++    HostRowKind kind{HostRowKind::Text};
++    HostPillTone tone{HostPillTone::Grey};
++    bool on{false};
++    int percent{0};
++    char label[40]{};
++    char value[32]{};
++    char hint[48]{};  // a small grey line under the label (a mod's version, a reason)
++};
++
+ // An extra page the host program registers (GT: the MODS page). Rows are text; `toggle` flips the row's setting and
+ // returns true if it changed anything. `title` must outlive the registration (a string literal). `adjust`, when set, replaces
+ // `toggle` and tells the keys apart: direction 0 = Enter, -1 = Left, +1 = Right.
+@@ -36,6 +60,8 @@ struct HostExtraPage {
+     bool (*key)(HostSettingsKey key) = nullptr;
+     void (*view)(HostSettingsView &view) = nullptr;
+     bool owns_open_key = false;
++    // GT patch 0069: fills the structured row for `index` (a list page); without it the page's text rows are parsed.
++    void (*item)(std::size_t index, HostViewRow &out) = nullptr;
+ };
+ 
+ struct HostSettingsView {
+@@ -46,6 +72,17 @@ struct HostSettingsView {
+     char title[32]{};   // HOST SETTINGS on the main page, the extra page's title otherwise
+     char footer[48]{};  // F10 CLOSE on the main page, F9 CLOSE on the extra page
+     bool panel{false};  // drawn as the host panel (GT: the cheat device), not as the settings overlay
++    // GT patch 0069: the styled look. `styled` = items[0..row_count) are valid (else derived from rows).
++    bool styled{false};
++    HostViewRow items[kViewRows]{};
++    int position{0}, count{0};  // "3 / 6" at the header's right (count 0 = none)
++    char crumb[48]{};           // "Cheats > Race": the last segment in blue (empty = none)
++    char message[64]{};         // a box under the header (a refusal: red) for a few seconds
++    bool message_is_error{false};
++    char binding[40]{};  // the open binding, right-aligned in the footer ("SELECT + START | F7")
++    bool capturing{false};  // footer: "Press the new combination" and "hold O to cancel"
++    bool tabs{false};       // a tab strip "SETTINGS  MODS" under the title (F9 / F10)
++    int tab{0};             // 0 SETTINGS, 1 MODS
+ };
+ 
+ // GT patch 0068: the host panel, a second overlay the host program opens and drives itself (GT: the cheat device). It is
+@@ -116,14 +153,28 @@ struct Dx12FramePresentDecision {
+ [[nodiscard]] Dx12FramePresentDecision decide_dx12_frame_present(
+     bool direct_presentation_possible) noexcept;
+ 
+-inline constexpr std::uint32_t kSettingsOverlayWidth = 512u;
+-inline constexpr std::uint32_t kSettingsOverlayHeight = 256u;
++// GT patch 0069: the host UI is rasterized at 2x (a 520 x 512 layout) so it stays sharp at 1080p.
++inline constexpr std::uint32_t kSettingsOverlayWidth = 1040u;
++inline constexpr std::uint32_t kSettingsOverlayHeight = 1024u;
++// The width the overlay is presented at, top right: 40 % of the output, but never below the 1x layout (520) and never wider
++// than the texture (1040) or the output.
++[[nodiscard]] inline float settings_overlay_present_width(float output_width) noexcept {
++    const float wanted = output_width * 0.40f;
++    const float width = wanted < 520.0f ? 520.0f : (wanted > 1040.0f ? 1040.0f : wanted);
++    const float room = output_width - 48.0f;
++    return width < room ? width : (room > 64.0f ? room : 64.0f);
++}
+ inline constexpr std::uint32_t kFpsOverlayWidth = 192u;
+ inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
+ 
+ void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba,
+                                 std::uint32_t width, std::uint32_t height) noexcept;
+ 
++// GT patch 0069: the UI font (Barlow, tools/src/fonts, fetched by tools/setup.sh). The directory is, in order: this call, the
++// GT_UI_FONT_DIR environment variable, the build's default. Without the font the UI falls back to the 5x7 font (logged once).
++void host_style_set_font_dir(const char *directory) noexcept;
++[[nodiscard]] bool host_style_font_available() noexcept;
++
+ void host_fps_note_presented_frame() noexcept;
+ void host_fps_format(char *label, std::size_t size) noexcept;
+ void rasterize_fps_overlay(std::uint8_t *rgba, std::uint32_t width,
+diff --git a/lcs/host/lcs_host_style.cpp b/lcs/host/lcs_host_style.cpp
+new file mode 100644
+index 0000000..e8721f3
+--- /dev/null
++++ b/lcs/host/lcs_host_style.cpp
+@@ -0,0 +1,546 @@
++// GT patch 0069: the host UI's look. See lcs_host_style.hpp.
++#include "lcs_host_style.hpp"
++
++#define STB_TRUETYPE_IMPLEMENTATION
++#define STBTT_STATIC
++#include "stb_truetype.h"
++
++#include <algorithm>
++#include <cctype>
++#include <cmath>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <mutex>
++#include <string>
++#include <unordered_map>
++#include <vector>
++
++#ifndef GT_UI_FONT_DIR
++#define GT_UI_FONT_DIR ""
++#endif
++
++namespace lcs {
++
++namespace {
++
++using host_style::Rgb;
++
++enum FontId { kFontBody = 0, kFontMedium, kFontCondSemi, kFontCondBold, kFontCount };
++constexpr const char *kFontFiles[kFontCount] = {"Barlow-Regular.ttf", "Barlow-Medium.ttf", "BarlowCondensed-SemiBold.ttf",
++                                                "BarlowCondensed-Bold.ttf"};
++
++struct Font {
++    std::vector<unsigned char> data;
++    stbtt_fontinfo info{};
++};
++
++struct Glyph {
++    int w = 0, h = 0, xoff = 0, yoff = 0;
++    float advance = 0.0f;
++    std::vector<unsigned char> bitmap;
++};
++
++struct Style {
++    std::mutex mutex;
++    std::string dir_override;
++    bool dir_set = false;
++    bool tried = false, ok = false;
++    Font fonts[kFontCount];
++    std::unordered_map<std::uint64_t, Glyph> glyphs;
++    // The last rasterization: the view as a canonical byte string (fields one by one, strings up to their NUL, so padding and
++    // bytes after a terminator cannot defeat the comparison), the size, and the pixels.
++    std::string cache_key;
++    std::vector<std::uint8_t> cache_pixels;
++    unsigned long rasterized = 0;
++};
++
++Style &style() {
++    static Style s;
++    return s;
++}
++
++std::string font_dir(const Style &s) {
++    if (s.dir_set) return s.dir_override;
++    if (const char *env = std::getenv("GT_UI_FONT_DIR"); env != nullptr && *env != '\0') return env;
++    return GT_UI_FONT_DIR;
++}
++
++bool read_file(const std::string &path, std::vector<unsigned char> &out) {
++    std::FILE *file = std::fopen(path.c_str(), "rb");
++    if (file == nullptr) return false;
++    std::fseek(file, 0, SEEK_END);
++    const long size = std::ftell(file);
++    std::fseek(file, 0, SEEK_SET);
++    bool ok = size > 0;
++    if (ok) {
++        out.resize(static_cast<std::size_t>(size));
++        ok = std::fread(out.data(), 1, out.size(), file) == out.size();
++    }
++    std::fclose(file);
++    return ok;
++}
++
++// Loads the four fonts once (caller holds the mutex). A missing or broken file means no styled UI, logged once.
++bool ensure_fonts(Style &s) {
++    if (s.tried) return s.ok;
++    s.tried = true;
++    const std::string dir = font_dir(s);
++    s.ok = !dir.empty();
++    for (int i = 0; s.ok && i < kFontCount; ++i) {
++        Font &f = s.fonts[i];
++        f = Font{};
++        s.ok = read_file(dir + "/" + kFontFiles[i], f.data) &&
++               stbtt_InitFont(&f.info, f.data.data(), stbtt_GetFontOffsetForIndex(f.data.data(), 0)) != 0;
++    }
++    if (!s.ok) std::fprintf(stderr, "[lcs] host UI font not found in '%s' (tools/setup.sh fetches it); using the 5x7 font\n", dir.c_str());
++    return s.ok;
++}
++
++const Glyph &glyph(Style &s, FontId font, int px, std::uint32_t cp) {
++    const std::uint64_t key = (static_cast<std::uint64_t>(font) << 56) | (static_cast<std::uint64_t>(px) << 32) | cp;
++    auto [it, inserted] = s.glyphs.try_emplace(key);
++    if (!inserted) return it->second;
++    Glyph &g = it->second;
++    const stbtt_fontinfo &info = s.fonts[font].info;
++    int index = stbtt_FindGlyphIndex(&info, static_cast<int>(cp));
++    if (index == 0 && cp != '?') index = stbtt_FindGlyphIndex(&info, '?');
++    const float scale = stbtt_ScaleForMappingEmToPixels(&info, static_cast<float>(px));
++    int advance = 0, bearing = 0;
++    stbtt_GetGlyphHMetrics(&info, index, &advance, &bearing);
++    g.advance = static_cast<float>(advance) * scale;
++    int x0, y0, x1, y1;
++    stbtt_GetGlyphBitmapBox(&info, index, scale, scale, &x0, &y0, &x1, &y1);
++    g.w = x1 - x0;
++    g.h = y1 - y0;
++    g.xoff = x0;
++    g.yoff = y0;
++    if (g.w > 0 && g.h > 0) {
++        g.bitmap.assign(static_cast<std::size_t>(g.w) * g.h, 0);
++        stbtt_MakeGlyphBitmap(&info, g.bitmap.data(), g.w, g.h, g.w, scale, scale, index);
++    }
++    return g;
++}
++
++std::uint32_t next_codepoint(const char *&p) {
++    const unsigned char c = static_cast<unsigned char>(*p++);
++    if (c < 0x80) return c;
++    int extra = c >= 0xF0 ? 3 : c >= 0xE0 ? 2 : 1;
++    std::uint32_t cp = c & (0x3F >> extra);
++    while (extra-- > 0 && (static_cast<unsigned char>(*p) & 0xC0) == 0x80) cp = (cp << 6) | (static_cast<unsigned char>(*p++) & 0x3F);
++    return cp;
++}
++
++// Straight-alpha pixels; every coordinate the drawing functions take is in logical units.
++struct Canvas {
++    std::uint8_t *rgba;
++    int w, h;
++    Style &style;
++
++    void blend(int x, int y, Rgb c, float alpha) const {
++        if (x < 0 || y < 0 || x >= w || y >= h || alpha <= 0.0f) return;
++        alpha = std::min(alpha, 1.0f);
++        std::uint8_t *p = rgba + (static_cast<std::size_t>(y) * w + x) * 4u;
++        const float da = p[3] / 255.0f;
++        const float oa = alpha + da * (1.0f - alpha);
++        const float sr = c.r * alpha + p[0] * da * (1.0f - alpha);
++        const float sg = c.g * alpha + p[1] * da * (1.0f - alpha);
++        const float sb = c.b * alpha + p[2] * da * (1.0f - alpha);
++        p[0] = static_cast<std::uint8_t>(sr / oa + 0.5f);
++        p[1] = static_cast<std::uint8_t>(sg / oa + 0.5f);
++        p[2] = static_cast<std::uint8_t>(sb / oa + 0.5f);
++        p[3] = static_cast<std::uint8_t>(oa * 255.0f + 0.5f);
++    }
++
++    static float box_distance(float px, float py, float cx, float cy, float hx, float hy, float r) {
++        const float qx = std::fabs(px - cx) - (hx - r), qy = std::fabs(py - cy) - (hy - r);
++        return std::hypot(std::max(qx, 0.0f), std::max(qy, 0.0f)) + std::min(std::max(qx, qy), 0.0f) - r;
++    }
++
++    // A rounded rectangle, filled (thickness 0) or as an inner outline of `thickness` logical units.
++    void rrect(float x0, float y0, float x1, float y1, float radius, Rgb c, float alpha, float thickness = 0.0f) const {
++        const float S = host_style::kScale;
++        const float px0 = x0 * S, py0 = y0 * S, px1 = x1 * S, py1 = y1 * S, r = std::min(radius * S, std::min(px1 - px0, py1 - py0) * 0.5f);
++        const float t = thickness * S;
++        const float cx = (px0 + px1) * 0.5f, cy = (py0 + py1) * 0.5f, hx = (px1 - px0) * 0.5f, hy = (py1 - py0) * 0.5f;
++        const int ix0 = std::max(0, static_cast<int>(std::floor(px0))), iy0 = std::max(0, static_cast<int>(std::floor(py0)));
++        const int ix1 = std::min(w, static_cast<int>(std::ceil(px1))), iy1 = std::min(h, static_cast<int>(std::ceil(py1)));
++        for (int y = iy0; y < iy1; ++y) {
++            for (int x = ix0; x < ix1; ++x) {
++                const float fx = x + 0.5f, fy = y + 0.5f;
++                if (t > 0.0f && fx > px0 + t + 1.0f && fx < px1 - t - 1.0f && fy > py0 + t + 1.0f && fy < py1 - t - 1.0f) continue;
++                float cov;
++                if (r <= 0.0f || (fx >= px0 + r && fx < px1 - r) || (fy >= py0 + r && fy < py1 - r)) {
++                    cov = 1.0f;
++                } else {
++                    cov = std::clamp(0.5f - box_distance(fx, fy, cx, cy, hx, hy, r), 0.0f, 1.0f);
++                }
++                if (t > 0.0f) {
++                    const float d = box_distance(fx, fy, cx, cy, hx, hy, r);
++                    cov = std::clamp(0.5f - d, 0.0f, 1.0f) * std::clamp(d + t + 0.5f, 0.0f, 1.0f);
++                }
++                blend(x, y, c, cov * alpha);
++            }
++        }
++    }
++    void rect(float x0, float y0, float x1, float y1, Rgb c, float alpha) const { rrect(x0, y0, x1, y1, 0.0f, c, alpha); }
++
++    // A line segment of `width` logical units with round caps.
++    void line(float x0, float y0, float x1, float y1, float width, Rgb c, float alpha = 1.0f) const {
++        const float S = host_style::kScale;
++        const float ax = x0 * S, ay = y0 * S, bx = x1 * S, by = y1 * S, half = width * S * 0.5f;
++        const int ix0 = std::max(0, static_cast<int>(std::floor(std::min(ax, bx) - half - 1))), ix1 = std::min(w, static_cast<int>(std::ceil(std::max(ax, bx) + half + 1)));
++        const int iy0 = std::max(0, static_cast<int>(std::floor(std::min(ay, by) - half - 1))), iy1 = std::min(h, static_cast<int>(std::ceil(std::max(ay, by) + half + 1)));
++        const float dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
++        for (int y = iy0; y < iy1; ++y)
++            for (int x = ix0; x < ix1; ++x) {
++                const float fx = x + 0.5f - ax, fy = y + 0.5f - ay;
++                const float u = len2 > 0.0f ? std::clamp((fx * dx + fy * dy) / len2, 0.0f, 1.0f) : 0.0f;
++                const float d = std::hypot(fx - u * dx, fy - u * dy) - half;
++                blend(x, y, c, std::clamp(0.5f - d, 0.0f, 1.0f) * alpha);
++            }
++    }
++
++    void circle(float cx, float cy, float radius, Rgb c, float alpha, float ring = 0.0f) const {
++        rrect(cx - radius, cy - radius, cx + radius, cy + radius, radius, c, alpha, ring);
++    }
++
++    float text_width(FontId font, float size, const char *text, float spacing = 0.0f) const {
++        const int px = std::max(1, static_cast<int>(std::lround(size * host_style::kScale)));
++        float width = 0.0f;
++        for (const char *p = text; *p != '\0';) width += glyph(style, font, px, next_codepoint(p)).advance / host_style::kScale + spacing;
++        return width > 0.0f ? width - spacing : 0.0f;
++    }
++
++    // `text` cut (with an ellipsis) to at most `max_width` logical units.
++    std::string fit(FontId font, float size, const char *text, float max_width, float spacing = 0.0f) const {
++        std::string out = text;
++        if (text_width(font, size, text, spacing) <= max_width) return out;
++        while (!out.empty()) {
++            do out.pop_back(); while (!out.empty() && (static_cast<unsigned char>(out.back()) & 0xC0) == 0x80);
++            const std::string cut = out + "\xE2\x80\xA6";
++            if (text_width(font, size, cut.c_str(), spacing) <= max_width) return cut;
++        }
++        return out;
++    }
++
++    // Draws `text` with its baseline at y; returns its width. align: 0 left, 1 right of x, 2 centred on x.
++    float text(FontId font, float size, float x, float y, const char *text, Rgb c, float alpha = 1.0f, float spacing = 0.0f,
++               int align = 0) const {
++        const float width = text_width(font, size, text, spacing);
++        float pen = (align == 1 ? x - width : align == 2 ? x - width * 0.5f : x) * host_style::kScale;
++        const int px = std::max(1, static_cast<int>(std::lround(size * host_style::kScale)));
++        const int baseline = static_cast<int>(std::lround(y * host_style::kScale));
++        for (const char *p = text; *p != '\0';) {
++            const Glyph &g = glyph(style, font, px, next_codepoint(p));
++            const int gx = static_cast<int>(std::lround(pen)) + g.xoff, gy = baseline + g.yoff;
++            for (int row = 0; row < g.h; ++row)
++                for (int col = 0; col < g.w; ++col) {
++                    const unsigned char cov = g.bitmap[static_cast<std::size_t>(row) * g.w + col];
++                    if (cov != 0u) blend(gx + col, gy + row, c, cov / 255.0f * alpha);
++                }
++            pen += g.advance + spacing * host_style::kScale;
++        }
++        return width;
++    }
++};
++
++constexpr Rgb kWhite{255, 255, 255}, kText2{201, 209, 224}, kText3{154, 166, 189};
++
++// ---- rows derived from text (the F10 page and any host page without structured rows) --------------------------------------
++
++bool iequals(const char *a, const char *b) {
++    for (; *a != '\0' && *b != '\0'; ++a, ++b)
++        if (std::tolower(static_cast<unsigned char>(*a)) != std::tolower(static_cast<unsigned char>(*b))) return false;
++    return *a == *b;
++}
++
++void derive_row(const char *text, HostViewRow &out) {
++    out = HostViewRow{};
++    const std::string row = text;
++    std::size_t gap = std::string::npos;
++    const std::size_t first = row.find_first_not_of(' ');
++    for (std::size_t i = first == std::string::npos ? 0 : first; i + 1 < row.size(); ++i)
++        if (row[i] == ' ' && row[i + 1] == ' ') {
++            gap = i;
++            break;
++        }
++    std::string label = gap == std::string::npos ? row : row.substr(0, gap);
++    std::string value = gap == std::string::npos ? "" : row.substr(row.find_first_not_of(' ', gap) == std::string::npos ? row.size() : row.find_first_not_of(' ', gap));
++    while (!value.empty() && value.back() == ' ') value.pop_back();
++    while (!label.empty() && label.back() == ' ') label.pop_back();
++    std::snprintf(out.label, sizeof out.label, "%s", label.c_str());
++    if (iequals(value.c_str(), "ON") || iequals(value.c_str(), "OFF")) {
++        out.kind = HostRowKind::Toggle;
++        out.on = iequals(value.c_str(), "ON");
++    } else if (value.rfind("ERROR", 0) == 0) {
++        out.kind = HostRowKind::Pill;
++        out.tone = HostPillTone::Red;
++        std::snprintf(out.value, sizeof out.value, "ERROR");
++        if (value.size() > 6) std::snprintf(out.hint, sizeof out.hint, "%s", value.c_str() + 6);
++    } else if (!value.empty()) {
++        out.kind = HostRowKind::Choice;
++        std::snprintf(out.value, sizeof out.value, "%s", value.c_str());
++    }
++}
++
++// ---- drawing -------------------------------------------------------------------------------------------------------------
++
++void draw_icon(const Canvas &c, int which, float x, float cy) {  // 18 x 18; 0 cross, 1 circle, 2 left / right
++    const float r = 9.0f;
++    const Rgb tone = which == 0 ? host_style::kBlue : which == 1 ? host_style::kRed : host_style::kGrey;
++    c.circle(x + r, cy, r, tone, 1.0f);
++    const float m = x + r;
++    if (which == 0) {
++        c.line(m - 3.2f, cy - 3.2f, m + 3.2f, cy + 3.2f, 1.7f, kWhite);
++        c.line(m - 3.2f, cy + 3.2f, m + 3.2f, cy - 3.2f, 1.7f, kWhite);
++    } else if (which == 1) {
++        c.circle(m, cy, 3.9f, kWhite, 1.0f, 1.7f);
++    } else {
++        c.line(m - 1.5f, cy - 3.4f, m - 4.6f, cy, 1.6f, kWhite);
++        c.line(m - 4.6f, cy, m - 1.5f, cy + 3.4f, 1.6f, kWhite);
++        c.line(m + 1.5f, cy - 3.4f, m + 4.6f, cy, 1.6f, kWhite);
++        c.line(m + 4.6f, cy, m + 1.5f, cy + 3.4f, 1.6f, kWhite);
++    }
++}
++
++void draw_row_value(const Canvas &c, const HostViewRow &row, float top, bool selected) {
++    using namespace host_style;
++    const float right = kPanelWidth - 26.0f, cy = top + kRowHeight * 0.5f, base = cy + 5.0f;
++    switch (row.kind) {
++    case HostRowKind::Toggle: {
++        const float w = 46.0f, h = 22.0f;
++        c.rrect(right - w, cy - h * 0.5f, right, cy + h * 0.5f, h * 0.5f, row.on ? kGreen : kGrey, 1.0f);
++        c.text(kFontCondBold, 12.5f, right - w * 0.5f, cy + 4.3f, row.on ? "ON" : "OFF", row.on ? kBody : kText2, 1.0f, 0.8f, 2);
++        break;
++    }
++    case HostRowKind::Pill: {
++        const Rgb tone = row.tone == HostPillTone::Green ? kGreen : row.tone == HostPillTone::Amber ? kAmber
++                         : row.tone == HostPillTone::Red ? kRed : kGrey;
++        const float w = c.text_width(kFontCondBold, 12.5f, row.value, 0.8f) + 22.0f, h = 22.0f;
++        c.rrect(right - w, cy - h * 0.5f, right, cy + h * 0.5f, h * 0.5f, tone, 1.0f);
++        c.text(kFontCondBold, 12.5f, right - w * 0.5f, cy + 4.3f, row.value, row.tone == HostPillTone::Red || row.tone == HostPillTone::Grey ? kWhite : kBody, 1.0f, 0.8f, 2);
++        break;
++    }
++    case HostRowKind::Choice: {
++        const Rgb arrow = selected ? kBlue : kGrey;
++        c.text(kFontMedium, 18.0f, right, base + 1.0f, "\xE2\x80\xBA", arrow, 1.0f, 0.0f, 1);
++        const float vr = right - 14.0f;
++        const float vw = c.text(kFontMedium, 16.5f, vr, base, row.value, selected ? kWhite : kText2, 1.0f, 0.0f, 1);
++        c.text(kFontMedium, 18.0f, vr - vw - 8.0f, base + 1.0f, "\xE2\x80\xB9", arrow, 1.0f, 0.0f, 1);
++        break;
++    }
++    case HostRowKind::Percent: {
++        const float tw = c.text(kFontMedium, 16.0f, right, base, row.value, selected ? kWhite : kText2, 1.0f, 0.0f, 1);
++        const float bar_w = 84.0f, bx1 = right - tw - 12.0f, bx0 = bx1 - bar_w;
++        c.rrect(bx0, cy - 3.0f, bx1, cy + 3.0f, 3.0f, kGrey, 1.0f);
++        const float fill = bar_w * std::clamp(row.percent, 0, 100) / 100.0f;
++        if (fill > 0.5f) c.rrect(bx0, cy - 3.0f, bx0 + std::max(fill, 6.0f), cy + 3.0f, 3.0f, kBlue, 1.0f);
++        break;
++    }
++    case HostRowKind::Chip: {
++        const bool capture = std::strncmp(row.value, "Press", 5) == 0 || std::strncmp(row.value, "PRESS", 5) == 0;
++        const float w = c.text_width(kFontCondSemi, 14.0f, row.value, 0.6f) + 22.0f, h = 24.0f;
++        if (capture) c.rrect(right - w, cy - h * 0.5f, right, cy + h * 0.5f, 7.0f, kBlue, 0.28f);
++        else c.rrect(right - w, cy - h * 0.5f, right, cy + h * 0.5f, 7.0f, kWhite, 0.07f);
++        c.rrect(right - w, cy - h * 0.5f, right, cy + h * 0.5f, 7.0f, capture ? kBlue : kText3, capture ? 1.0f : 0.6f, 1.0f);
++        c.text(kFontCondSemi, 14.0f, right - w * 0.5f, cy + 4.8f, row.value, selected || capture ? kWhite : kText2, 1.0f, 0.6f, 2);
++        break;
++    }
++    case HostRowKind::Submenu:
++        c.text(kFontMedium, 22.0f, right, base + 2.0f, "\xE2\x80\xBA", selected ? kBlue : kText3, 1.0f, 0.0f, 1);
++        break;
++    case HostRowKind::Text:
++        c.text(kFontMedium, 16.0f, right, base, row.value, selected ? kWhite : kText3, 1.0f, 0.0f, 1);
++        break;
++    }
++}
++
++}  // namespace
++
++namespace host_style {
++
++Layout layout(const HostSettingsView &view) noexcept {
++    Layout l{};
++    l.header_h = kHeaderHeight;
++    l.message_y = view.message[0] != '\0' ? l.header_h + 8 : 0;
++    l.rows_y = (l.message_y != 0 ? l.message_y + kMessageHeight : l.header_h) + 8;
++    const int rows = std::clamp(view.row_count, 0, kViewRows);
++    l.footer_y = l.rows_y + rows * kRowHeight + 8;
++    l.height = l.footer_y + kFooterHeight;
++    return l;
++}
++
++}  // namespace host_style
++
++void host_style_set_font_dir(const char *directory) noexcept {
++    Style &s = style();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    s.dir_override = directory != nullptr ? directory : "";
++    s.dir_set = directory != nullptr;
++    s.tried = false;
++    s.ok = false;
++    s.glyphs.clear();
++    s.cache_key.clear();
++}
++
++unsigned long host_style_raster_count() noexcept {
++    Style &s = style();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    return s.rasterized;
++}
++
++namespace {
++
++std::string view_key(const HostSettingsView &view, std::uint32_t width, std::uint32_t height) {
++    std::string k;
++    const auto put = [&k](const auto &value) { k.append(reinterpret_cast<const char *>(&value), sizeof value); };
++    const auto str = [&k](const char *text, std::size_t capacity) {
++        k.append(text, strnlen(text, capacity));
++        k.push_back('\0');
++    };
++    put(width);
++    put(height);
++    put(view.selected);
++    put(view.row_count);
++    put(view.resolution_pending);
++    put(view.panel);
++    put(view.styled);
++    put(view.position);
++    put(view.count);
++    put(view.message_is_error);
++    put(view.capturing);
++    put(view.tabs);
++    put(view.tab);
++    str(view.title, sizeof view.title);
++    str(view.footer, sizeof view.footer);
++    str(view.crumb, sizeof view.crumb);
++    str(view.message, sizeof view.message);
++    str(view.binding, sizeof view.binding);
++    for (int i = 0; i < kViewRows; ++i) {
++        str(view.rows[i], sizeof view.rows[i]);
++        const HostViewRow &row = view.items[i];
++        put(row.kind);
++        put(row.tone);
++        put(row.on);
++        put(row.percent);
++        str(row.label, sizeof row.label);
++        str(row.value, sizeof row.value);
++        str(row.hint, sizeof row.hint);
++    }
++    return k;
++}
++
++}  // namespace
++
++bool host_style_font_available() noexcept {
++    Style &s = style();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    return ensure_fonts(s);
++}
++
++bool host_style_rasterize(const HostSettingsView &view, std::uint8_t *rgba, std::uint32_t width, std::uint32_t height) noexcept {
++    using namespace host_style;
++    Style &s = style();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    if (!ensure_fonts(s)) return false;
++    const std::size_t bytes = static_cast<std::size_t>(width) * height * 4u;
++    std::string key = view_key(view, width, height);
++    if (key == s.cache_key && s.cache_pixels.size() == bytes) {  // the same picture as last frame
++        std::memcpy(rgba, s.cache_pixels.data(), bytes);
++        return true;
++    }
++    ++s.rasterized;
++    std::memset(rgba, 0, bytes);
++    const Canvas c{rgba, static_cast<int>(width), static_cast<int>(height), s};
++    const Layout l = layout(view);
++    const float W = kPanelWidth, H = static_cast<float>(l.height);
++
++    // frame
++    c.rrect(0, 0, W, H, 14.0f, kBody, 0.88f);
++    c.rrect(0, 0, W, H, 14.0f, kWhite, 0.16f, 1.0f);
++
++    // header: title, position, breadcrumb or tabs, underline
++    c.text(kFontCondBold, 23.0f, kPad, 30.0f, view.title, kWhite, 1.0f, 2.2f);
++    if (view.count > 0) {
++        char position[24];
++        std::snprintf(position, sizeof position, "%d / %d", view.position, view.count);
++        c.text(kFontMedium, 14.0f, W - kPad, 30.0f, position, kText3, 1.0f, 0.0f, 1);
++    }
++    if (view.tabs) {
++        const char *names[2] = {"SETTINGS", "MODS"};
++        float x = kPad;
++        for (int i = 0; i < 2; ++i)
++            x += c.text(kFontCondSemi, 14.5f, x, 50.0f, names[i], i == view.tab ? kBlue : kText3, 1.0f, 1.6f) + 22.0f;
++    } else if (view.crumb[0] != '\0') {
++        std::string crumb = view.crumb;
++        std::vector<std::string> parts;
++        for (std::size_t at = 0;;) {
++            const std::size_t sep = crumb.find(" > ", at);
++            parts.push_back(crumb.substr(at, sep == std::string::npos ? std::string::npos : sep - at));
++            if (sep == std::string::npos) break;
++            at = sep + 3;
++        }
++        float x = kPad;
++        for (std::size_t i = 0; i < parts.size(); ++i) {
++            const bool last = i + 1 == parts.size();
++            x += c.text(kFontMedium, 14.5f, x, 50.0f, parts[i].c_str(), last ? kBlue : kText3);
++            if (!last) x += 6.0f + c.text(kFontMedium, 14.5f, x + 6.0f, 50.0f, "\xE2\x80\xBA", kText3) + 6.0f;
++        }
++    }
++    c.rect(kPad, static_cast<float>(l.header_h - 2), W - kPad, static_cast<float>(l.header_h), kBlue, 1.0f);
++
++    // message box
++    if (l.message_y != 0) {
++        const Rgb tone = view.message_is_error ? kRed : kBlue;
++        const float y0 = static_cast<float>(l.message_y), y1 = y0 + kMessageHeight;
++        c.rrect(14.0f, y0, W - 14.0f, y1, 9.0f, tone, 0.2f);
++        c.rrect(14.0f, y0, W - 14.0f, y1, 9.0f, tone, 1.0f, 1.0f);
++        c.circle(32.0f, y0 + kMessageHeight * 0.5f, 7.5f, tone, 1.0f);
++        c.text(kFontCondBold, 12.0f, 32.0f, y0 + kMessageHeight * 0.5f + 4.2f, view.message_is_error ? "!" : "i", kWhite, 1.0f, 0.0f, 2);
++        c.text(kFontMedium, 15.0f, 48.0f, y0 + kMessageHeight * 0.5f + 5.2f, c.fit(kFontMedium, 15.0f, view.message, W - 48.0f - 26.0f).c_str(), kWhite);
++    }
++
++    // rows
++    for (int i = 0; i < std::clamp(view.row_count, 0, kViewRows); ++i) {
++        HostViewRow derived;
++        if (!view.styled) derive_row(view.rows[i], derived);
++        const HostViewRow &row = view.styled ? view.items[i] : derived;
++        const float top = static_cast<float>(l.rows_y + i * kRowHeight);
++        const bool selected = i == view.selected;
++        if (selected) {
++            c.rrect(10.0f, top + 2.0f, W - 10.0f, top + kRowHeight - 2.0f, 9.0f, kBlue, 0.22f);
++            c.rrect(10.0f, top + 7.0f, 14.0f, top + kRowHeight - 7.0f, 2.0f, kBlue, 1.0f);
++        }
++        const float cy = top + kRowHeight * 0.5f;
++        const bool hint = row.hint[0] != '\0';
++        c.text(kFontMedium, 17.0f, 28.0f, hint ? cy - 1.5f : cy + 6.0f, c.fit(kFontMedium, 17.0f, row.label, 300.0f).c_str(), selected ? kWhite : kText2);
++        if (hint) c.text(kFontBody, 12.0f, 28.0f, cy + 14.0f, c.fit(kFontBody, 12.0f, row.hint, 300.0f).c_str(), kText3);
++        draw_row_value(c, row, top, selected);
++    }
++
++    // footer
++    const float fy = static_cast<float>(l.footer_y), fc = fy + kFooterHeight * 0.5f;
++    c.rect(kPad, fy, W - kPad, fy + 1.0f, kWhite, 0.10f);
++    if (view.capturing) {
++        c.text(kFontMedium, 15.0f, kPad, fc + 5.0f, "Press the new combination", kWhite);
++        const float tw = c.text(kFontBody, 14.0f, W - kPad, fc + 5.0f, "hold to cancel", kText2, 1.0f, 0.0f, 1);
++        draw_icon(c, 1, W - kPad - tw - 26.0f, fc);
++    } else if (view.panel) {
++        float x = kPad;
++        const char *labels[3] = {"Select", "Back", "Change"};
++        for (int i = 0; i < 3; ++i) {
++            draw_icon(c, i, x, fc);
++            x += 18.0f + 7.0f + c.text(kFontBody, 14.0f, x + 25.0f, fc + 5.0f, labels[i], kText2) + 16.0f;
++        }
++        if (view.binding[0] != '\0') c.text(kFontCondSemi, 13.0f, W - kPad, fc + 4.6f, view.binding, kText3, 1.0f, 0.6f, 1);
++    } else {
++        c.text(kFontCondSemi, 13.0f, kPad, fc + 4.6f, view.footer, kText3, 1.0f, 0.6f);
++        if (view.resolution_pending) c.text(kFontCondSemi, 13.0f, W - kPad, fc + 4.6f, "RESTART TO APPLY", kAmber, 1.0f, 0.6f, 1);
++    }
++    s.cache_pixels.assign(rgba, rgba + bytes);
++    s.cache_key = std::move(key);
++    return true;
++}
++
++}  // namespace lcs
+diff --git a/lcs/host/lcs_host_style.hpp b/lcs/host/lcs_host_style.hpp
+new file mode 100644
+index 0000000..e41614b
+--- /dev/null
++++ b/lcs/host/lcs_host_style.hpp
+@@ -0,0 +1,53 @@
++#pragma once
++
++// GT patch 0069: the host UI's look (cheat device panel, F9 MODS, F10 settings): one frame, one palette, Barlow text drawn with
++// stb_truetype, laid out in 520 x 512 logical units and rasterized at 2x. Used by every present path through
++// rasterize_settings_overlay (lcs_display_menu.hpp).
++
++#include "lcs_display_menu.hpp"
++
++#include <cstdint>
++
++namespace lcs {
++
++namespace host_style {
++
++inline constexpr int kScale = 2;       // texture pixels per logical unit
++inline constexpr int kPanelWidth = 520;  // logical
++inline constexpr int kPad = 20;
++inline constexpr int kHeaderHeight = 62;
++inline constexpr int kRowHeight = 44;
++inline constexpr int kFooterHeight = 44;
++inline constexpr int kMessageHeight = 40;  // the message box, plus 8 of gap
++
++struct Rgb {
++    std::uint8_t r, g, b;
++};
++// The game's blue and red, a green / grey / amber for the pills.
++inline constexpr Rgb kBlue{47, 127, 232};
++inline constexpr Rgb kRed{232, 56, 79};
++inline constexpr Rgb kGreen{46, 179, 113};
++inline constexpr Rgb kGrey{74, 82, 100};
++inline constexpr Rgb kAmber{232, 168, 56};
++inline constexpr Rgb kBody{11, 14, 22};
++
++// Where things are, in logical units (tests and the screenshot dump use these to find them).
++struct Layout {
++    int header_h;     // the header's height; its underline is the last 2 units
++    int message_y;    // top of the message box (0 = none)
++    int rows_y;       // top of the first row
++    int footer_y;     // top of the footer
++    int height;       // the panel's height
++};
++[[nodiscard]] Layout layout(const HostSettingsView &view) noexcept;
++
++}  // namespace host_style
++
++// Draws the styled UI into `rgba` (width x height, straight alpha, cleared first). False when the UI font is not available:
++// the caller falls back to the 5x7 look.
++bool host_style_rasterize(const HostSettingsView &view, std::uint8_t *rgba, std::uint32_t width, std::uint32_t height) noexcept;
++
++// Rasterizations actually done (a frame whose view and size equal the last one's is copied from a cache): test hook.
++[[nodiscard]] unsigned long host_style_raster_count() noexcept;
++
++}  // namespace lcs
+diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
+index 22d8fef..12b2a87 100644
+--- a/tests/lcs_host_menu_test.cpp
++++ b/tests/lcs_host_menu_test.cpp
+@@ -1,7 +1,9 @@
+ #include "lcs_display_menu.hpp"
++#include "lcs_host_style.hpp"
+ #include "lcs_key_bindings.hpp"
+ #include "lcs_render_config.hpp"
+ 
++#include <chrono>
+ #include <cstdint>
+ #include <cstdio>
+ #include <filesystem>
+@@ -282,7 +284,7 @@ int extra_page() {
+     if (host_settings_handle(HostSettingsKey::TogglePage) || host_settings_open()) return fail("F9 without a provider");
+     if (!host_settings_handle(HostSettingsKey::Toggle)) return fail("open main");
+     HostSettingsView main_view = host_settings_view();
+-    if (std::string(main_view.title) != "HOST SETTINGS" || std::string(main_view.footer) != "F10 CLOSE")
++    if (std::string(main_view.title) != "SETTINGS" || std::string(main_view.footer) != "F10 CLOSE")
+         return fail("main page title/footer");
+     if (!host_settings_handle(HostSettingsKey::Activate) || !host_settings_open()) return fail("Enter on the main page");
+     host_settings_handle(HostSettingsKey::Close);
+@@ -317,7 +319,7 @@ int extra_page() {
+     host_settings_handle(HostSettingsKey::Toggle);
+     if (host_settings_open()) return fail("F10 closes the extra page");
+     host_settings_handle(HostSettingsKey::Toggle);
+-    if (std::string(host_settings_view().title) != "HOST SETTINGS") return fail("F10 opens the main page");
++    if (std::string(host_settings_view().title) != "SETTINGS") return fail("F10 opens the main page");
+     host_settings_handle(HostSettingsKey::Close);
+     // The overlay paints the extra page's title.
+     host_settings_handle(HostSettingsKey::TogglePage);
+@@ -422,10 +424,12 @@ int panel() {
+     std::vector<std::uint8_t> rgba(static_cast<std::size_t>(kSettingsOverlayWidth) * kSettingsOverlayHeight * 4u);
+     rasterize_settings_overlay(view, rgba.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
+     const auto pixel = [&](int x, int y) { return &rgba[(static_cast<std::size_t>(y) * kSettingsOverlayWidth + x) * 4u]; };
+-    if (pixel(100, 4)[0] != 236u || pixel(100, 4)[2] != 40u) return fail("amber title bar");
+-    if (pixel(300, 34 + 22 + 16)[2] != 160u) return fail("the selected row (1) on the blue bar");
+-    if (pixel(300, 34 + 16)[2] == 160u) return fail("an unselected row has no bar");
+-    if (pixel(500, kSettingsOverlayHeight - 4)[0] != 30u) return fail("footer bar");
++    const host_style::Layout where = host_style::layout(view);
++    const auto at = [&](float x, float y) { return pixel(static_cast<int>(x * host_style::kScale), static_cast<int>(y * host_style::kScale)); };
++    const auto is_blue = [](const std::uint8_t *p) { return p[0] == 47u && p[1] == 127u && p[2] == 232u && p[3] == 255u; };
++    if (!is_blue(at(100.0f, static_cast<float>(where.header_h) - 1.0f))) return fail("the header underline is blue");
++    if (!is_blue(at(12.0f, static_cast<float>(where.rows_y + host_style::kRowHeight + 22)))) return fail("the selected row (1) has the blue bar");
++    if (is_blue(at(12.0f, static_cast<float>(where.rows_y + 22)))) return fail("an unselected row has no bar");
+     if (host_panel_handle(HostSettingsKey::Down), g_panel_keys != std::vector<int>{static_cast<int>(HostSettingsKey::Down)})
+         return fail("the panel gets its keys");
+     host_settings_handle(HostSettingsKey::Toggle);  // F10 opens the settings overlay: it replaces the panel
+@@ -443,6 +447,188 @@ int panel() {
+     return 0;
+ }
+ 
++// ---- GT patch 0069: the styled look -------------------------------------------------------------------------------------------
++
++lcs::HostViewRow styled_row(lcs::HostRowKind kind, const char *label, const char *value = "", bool on = false, int percent = 0) {
++    lcs::HostViewRow row{};
++    row.kind = kind;
++    row.on = on;
++    row.percent = percent;
++    std::snprintf(row.label, sizeof row.label, "%s", label);
++    std::snprintf(row.value, sizeof row.value, "%s", value);
++    return row;
++}
++
++struct Raster {
++    std::vector<std::uint8_t> rgba = std::vector<std::uint8_t>(static_cast<std::size_t>(lcs::kSettingsOverlayWidth) * lcs::kSettingsOverlayHeight * 4u);
++    explicit Raster(const lcs::HostSettingsView &view) {
++        lcs::rasterize_settings_overlay(view, rgba.data(), lcs::kSettingsOverlayWidth, lcs::kSettingsOverlayHeight);
++    }
++    // A pixel at logical coordinates (the layout is 2x).
++    const std::uint8_t *at(float x, float y) const {
++        return &rgba[(static_cast<std::size_t>(y * lcs::host_style::kScale) * lcs::kSettingsOverlayWidth +
++                      static_cast<std::size_t>(x * lcs::host_style::kScale)) * 4u];
++    }
++    static bool is(const std::uint8_t *p, lcs::host_style::Rgb c) { return p[0] == c.r && p[1] == c.g && p[2] == c.b && p[3] == 255u; }
++};
++
++lcs::HostSettingsView device_like_view() {
++    using namespace lcs;
++    HostSettingsView view{};
++    view.panel = true;
++    view.styled = true;
++    std::snprintf(view.title, sizeof view.title, "CHEAT DEVICE");
++    std::snprintf(view.crumb, sizeof view.crumb, "Cheats > Race");
++    std::snprintf(view.binding, sizeof view.binding, "SELECT + START | F7");
++    view.position = 3;
++    view.count = 6;
++    view.row_count = 4;
++    view.selected = 1;
++    view.items[0] = styled_row(HostRowKind::Toggle, "Slow motion", "", true);
++    view.items[1] = styled_row(HostRowKind::Toggle, "Ghost cars", "", false);
++    view.items[2] = styled_row(HostRowKind::Percent, "Grip", "70%", false, 70);
++    view.items[3] = styled_row(HostRowKind::Choice, "Weather", "Rain");
++    return view;
++}
++
++int styled() {
++    using namespace lcs;
++    // The palette is pinned here as literals (the game's blue, the pill colours): changing a colour in the style must fail this test.
++    constexpr host_style::Rgb kBlue{47, 127, 232}, kGreen{46, 179, 113}, kGrey{74, 82, 100};
++    if (!host_style_font_available()) return fail("the UI font (tools/setup.sh fetches Barlow) is not available");
++    HostSettingsView view = device_like_view();
++    const host_style::Layout where = host_style::layout(view);
++    const auto start = std::chrono::steady_clock::now();
++    Raster r(view);
++    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
++    if (!Raster::is(r.at(100.0f, static_cast<float>(where.header_h) - 1.0f), kBlue)) return fail("header underline is blue");
++    if (!Raster::is(r.at(12.0f, static_cast<float>(where.rows_y + host_style::kRowHeight + 22)), kBlue)) return fail("selected row's left bar is blue");
++    if (Raster::is(r.at(12.0f, static_cast<float>(where.rows_y + 22)), kBlue)) return fail("an unselected row has no bar");
++    const float right = host_style::kPanelWidth - 26.0f;
++    if (!Raster::is(r.at(right - 44.0f, static_cast<float>(where.rows_y + 22)), kGreen)) return fail("ON pill is green");
++    if (!Raster::is(r.at(right - 44.0f, static_cast<float>(where.rows_y + host_style::kRowHeight + 22)), kGrey)) return fail("OFF pill is grey");
++    if (!Raster::is(r.at(right - 100.0f, static_cast<float>(where.rows_y + 2 * host_style::kRowHeight + 22)), kBlue)) return fail("the percentage bar's fill is blue");
++    // The cache: an identical view is copied, not rasterized again; a changed row is.
++    {
++        HostSettingsView same = view;
++        Raster a(same);
++        const unsigned long first = host_style_raster_count();
++        Raster b(same);
++        if (host_style_raster_count() != first) return fail("an identical view was rasterized again");
++        if (a.rgba != b.rgba) return fail("the cached picture differs from the rasterized one");
++        std::vector<std::uint8_t> frame(a.rgba.size());
++        const auto t0 = std::chrono::steady_clock::now();
++        for (int i = 0; i < 50; ++i) rasterize_settings_overlay(same, frame.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
++        const double cached_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / 50.0;
++        if (host_style_raster_count() != first) return fail("identical frames were rasterized again");
++        HostSettingsView flip = same;
++        const auto t1 = std::chrono::steady_clock::now();
++        for (int i = 0; i < 20; ++i) {
++            flip.selected = (i % 2) ? 0 : 2;  // never equal to `same` (1) or to the previous frame
++            rasterize_settings_overlay(flip, frame.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
++        }
++        const double changed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count() / 20.0;
++        if (host_style_raster_count() != first + 20) return fail("changed views were not all rasterized");
++        const unsigned long base = host_style_raster_count();
++        Raster back(same);  // back to the first view: rasterized again (the cache holds one picture), and equal to it
++        if (host_style_raster_count() != base + 1 || back.rgba != a.rgba) return fail("returning to the first view");
++        same.items[0].on = false;  // a changed row
++        Raster c(same);
++        if (host_style_raster_count() != base + 2) return fail("a changed row was not rasterized");
++        if (c.rgba == a.rgba) return fail("the changed row shows");
++        same.items[3].hint[0] = 'h';  // every field is part of the key: a hint alone
++        Raster e(same);
++        if (host_style_raster_count() != base + 3) return fail("a changed hint was not rasterized");
++        same.items[3].hint[0] = '\0';
++        HostSettingsView tail = same;  // bytes after a string's terminator must not matter
++        tail.items[0].label[sizeof tail.items[0].label - 1] = 'x';
++        Raster d(tail);
++        if (host_style_raster_count() != base + 4) return fail("bytes after a terminator defeated the cache");
++        std::cout << "cache: identical view " << cached_ms << " ms/frame, changed view " << changed_ms << " ms/frame\n";
++    }
++    // The breadcrumb's last segment is blue text: some blue-ish pixels on its line, and the position text is not.
++    int blue_text = 0;
++    for (int y = 40; y < 54; ++y)
++        for (int x = 20; x < 200; ++x) {
++            const std::uint8_t *p = r.at(static_cast<float>(x), static_cast<float>(y));
++            if (p[2] > 200u && p[0] < 120u && p[3] == 255u) ++blue_text;
++        }
++    if (blue_text < 30) return fail("breadcrumb's last segment is drawn in blue");
++    // No message: no red anywhere in the box's band; an error message draws the red box.
++    const auto red_pixels = [&](const Raster &raster, int y0, int y1) {
++        int n = 0;
++        for (int y = y0; y < y1; ++y)
++            for (int x = 20; x < 500; ++x) {
++                const std::uint8_t *p = raster.at(static_cast<float>(x), static_cast<float>(y));
++                if (p[0] > 180u && p[1] < 90u && p[3] > 200u) ++n;
++            }
++        return n;
++    };
++    if (red_pixels(r, 0, 120) != 0) return fail("no red without a refusal");
++    view.message_is_error = true;
++    std::snprintf(view.message, sizeof view.message, "Refused: F7 is already bound");
++    const host_style::Layout with_message = host_style::layout(view);
++    if (with_message.message_y == 0 || with_message.rows_y <= where.rows_y) return fail("the message makes room");
++    Raster refused(view);
++    if (red_pixels(refused, with_message.message_y, with_message.message_y + host_style::kMessageHeight) < 200) return fail("an error message is a red box");
++    view.message_is_error = false;
++    Raster info(view);
++    if (red_pixels(info, with_message.message_y, with_message.message_y + host_style::kMessageHeight) != 0) return fail("a plain message is not red");
++    // Capturing: the red Circle icon in the footer.
++    view.message[0] = '\0';
++    view.capturing = true;
++    Raster capture(view);
++    const host_style::Layout cl = host_style::layout(view);
++    if (red_pixels(capture, cl.footer_y, cl.height) < 100) return fail("the capture footer has the red Circle icon");
++    // A classic page (F10): text rows become pills.
++    HostSettingsView classic{};
++    std::snprintf(classic.title, sizeof classic.title, "SETTINGS");
++    std::snprintf(classic.rows[0], sizeof classic.rows[0], "Fullscreen      On");
++    std::snprintf(classic.rows[1], sizeof classic.rows[1], "FPS counter     Off");
++    std::snprintf(classic.rows[2], sizeof classic.rows[2], "Resolution      960x544 ~540p");
++    classic.row_count = 3;
++    classic.tabs = true;
++    const host_style::Layout kl = host_style::layout(classic);
++    Raster plain(classic);
++    if (!Raster::is(plain.at(right - 44.0f, static_cast<float>(kl.rows_y + 22)), kGreen)) return fail("F10 text row 'On' becomes the green pill");
++    if (!Raster::is(plain.at(right - 44.0f, static_cast<float>(kl.rows_y + host_style::kRowHeight + 22)), kGrey)) return fail("F10 text row 'Off' becomes the grey pill");
++    // The extra page asks for structured rows through `item`.
++    static const HostExtraPage page{"MODS", []() -> std::size_t { return 2u; },
++                                    [](std::size_t, char *out, std::size_t cap) { std::snprintf(out, cap, "text"); },
++                                    [](std::size_t) { return false; }, nullptr, nullptr, nullptr, false,
++                                    [](std::size_t index, HostViewRow &out) {
++                                        out = styled_row(HostRowKind::Pill, index == 0 ? "Alpha" : "Beta", "UPDATE");
++                                        out.tone = HostPillTone::Amber;
++                                        std::snprintf(out.hint, sizeof out.hint, "v1.2");
++                                    }};
++    host_settings_set_extra_page(&page);
++    host_settings_handle(HostSettingsKey::TogglePage);
++    const HostSettingsView mods = host_settings_view();
++    if (!mods.styled || !mods.tabs || mods.tab != 1 || mods.count != 2 || mods.position != 1 || mods.row_count != 2 ||
++        std::string(mods.items[1].label) != "Beta" || std::string(mods.items[0].hint) != "v1.2")
++        return fail("the extra page's structured rows, tab and position");
++    host_settings_handle(HostSettingsKey::Close);
++    host_settings_set_extra_page(nullptr);
++    std::cout << "styled=blue underline, blue bar, green/grey pills, red message box, F10 pills; rasterize " << ms << " ms\n";
++    return 0;
++}
++
++int styled_nofont() {
++    using namespace lcs;
++    host_style_set_font_dir("/nonexistent-ui-font-dir");
++    if (host_style_font_available()) return fail("a missing font directory reports the font");
++    const HostSettingsView view = device_like_view();
++    Raster r(view);
++    // Fallback: the 5x7 look doubled: the amber frame of the panel is in the corner, and text pixels are lit.
++    if (r.at(0.0f, 0.0f)[0] != 236u) return fail("the 5x7 panel frame is drawn");
++    std::size_t lit = 0;
++    for (std::size_t i = 0; i + 3u < r.rgba.size(); i += 4u)
++        if (r.rgba[i + 3u] == 255u && r.rgba[i] > 150u && r.rgba[i + 1u] > 150u) ++lit;
++    if (lit < 40u) return fail("the fallback draws text");
++    std::cout << "styled_nofont=5x7 fallback, no crash\n";
++    return 0;
++}
++
+ }  // namespace
+ 
+ int main(int argc, char **argv) {
+@@ -457,5 +643,7 @@ int main(int argc, char **argv) {
+     if (mode == "f9") return f9_key();
+     if (mode == "delegated") return delegated_page();
+     if (mode == "panel") return panel();
++    if (mode == "styled") return styled();
++    if (mode == "styled_nofont") return styled_nofont();
+     return 2;
+ }

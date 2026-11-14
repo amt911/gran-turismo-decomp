@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "mod_loader.hpp"
+#include "ui_row.hpp"
 
 #include <cstddef>
 #include <string>
@@ -23,6 +24,10 @@ std::size_t count();
 // `<name padded> ON|OFF|ERROR`, at most kRowWidth chars; Error rows carry the loader's reason cut to fit; a failed manifest
 // write adds `SAVE FAILED`.
 std::string row(std::size_t index);
+
+// The same row as data for the styled MODS page (lcs patch 0069): a toggle for a mod's switch, a pill with a hint line for an
+// ERROR or a downloadable mod's state; a row a mod added (API v2) may be adjusted, so its value is a choice.
+ui::Row item(std::size_t index);
 
 // Flips mod `index` (Active <-> Inactive) and rewrites its manifest. The flag flips even if the write fails (the row then
 // shows SAVE FAILED). False for an Error row, an out-of-range index or the "no mods" row. Logs `[mods] <id> -> ON|OFF`.

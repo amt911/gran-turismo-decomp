@@ -21,6 +21,7 @@
 #include "mod_loader.hpp"
 #include "mod_services.hpp"
 #include "mod_menu.hpp"
+#include "ui_view.hpp"
 #include "pad_menu.hpp"
 #include "pad_script.hpp"
 
@@ -91,12 +92,7 @@ gt::MenuKey menu_key(lcs::HostSettingsKey key) {
 }
 bool device_page_key(lcs::HostSettingsKey key) { return device().handle_key(menu_key(key), device_now()); }
 void device_page_view(lcs::HostSettingsView &view) {
-    const device_ns::View v = device().view(static_cast<std::size_t>(lcs::kViewRows), device_now());
-    std::snprintf(view.title, sizeof view.title, "%s", v.title.c_str());
-    std::snprintf(view.footer, sizeof view.footer, "%s", v.footer.c_str());
-    view.row_count = static_cast<int>(v.rows.size());
-    view.selected = v.selected;
-    for (std::size_t i = 0; i < v.rows.size(); ++i) std::snprintf(view.rows[i], sizeof view.rows[i], "%s", v.rows[i].c_str());
+    gt::ui::fill_view(view, device().view(static_cast<std::size_t>(lcs::kViewRows), device_now()));
 }
 // The cheat device is the host panel (lcs patch 0068, spec 2026-11-13-cheat-device-panel-design.md): its own overlay, opened by
 // the action `device.open` (SELECT+START / F7), drawn apart from F9 / F10. Unlike the settings overlay it leaves the pad alone, so a
@@ -107,7 +103,9 @@ const lcs::HostPanel kDevicePanel{&device_page_view, &device_panel_key};
 void mods_page_row(std::size_t index, char *out, std::size_t capacity) {
     std::snprintf(out, capacity, "%s", gt::mods::menu::row(index).c_str());
 }
-const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle, &gt::mods::menu::adjust};
+void mods_page_item(std::size_t index, lcs::HostViewRow &out) { gt::ui::fill_item(out, gt::mods::menu::item(index)); }
+const lcs::HostExtraPage kModsPage{"MODS", &gt::mods::menu::count, &mods_page_row, &gt::mods::menu::toggle, &gt::mods::menu::adjust,
+                                   nullptr, nullptr, false, &mods_page_item};
 #ifdef GT_PANEL_SABOTAGE_USE_OVERLAY  // verification only (mod_cheats_check.sh --sabotage-overlay must FAIL): phase 1's overlay page
 const lcs::HostExtraPage kDevicePage{"CHEATS", nullptr, nullptr, nullptr, nullptr, &device_page_key, &device_page_view, true};
 #endif

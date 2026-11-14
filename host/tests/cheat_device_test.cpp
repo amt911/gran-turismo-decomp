@@ -241,6 +241,11 @@ void test_device() {
     View v = d.view(8, 100);
     check(v.footer == kFooter, "the footer shows the buttons (X OK, O BACK, <> CHANGE)");
     check(v.title == "Cheats > Mods" && v.rows.size() == 2 && v.rows[1] == "Cheats ON", "the first open lands on the Mods list");
+    check(v.items.size() == 2 && v.items[0].kind == gt::ui::RowKind::Toggle && v.items[0].on && v.items[0].label == "Analog pedals",
+          "a mod's 'name ON' row is a toggle (kind inferred from the text)");
+    check(v.crumb == "Cheats > Mods" && v.position == 1 && v.count == 2 && v.message.empty() && !v.capturing,
+          "the view carries the breadcrumb, the position and no message");
+    check(v.binding == "SELECT + START \xC2\xB7 F7", "the footer shows the open binding");
     press(d, MenuKey::Down);
     press(d, MenuKey::Right);
     press(d, MenuKey::Activate);
@@ -250,6 +255,8 @@ void test_device() {
     check(v.rows.size() == 3 && v.rows[0].rfind("Race", 0) == 0 && v.rows[1].rfind("Mods", 0) == 0 && v.rows[2].rfind("Controls", 0) == 0,
           "the root lists the non-empty categories in order");
     press(d, MenuKey::Activate);  // Race
+    check(d.view(8, 100).items[0].kind == gt::ui::RowKind::Chip && d.view(8, 100).items[0].value == "L + Triangle",
+          "an action shows its pad binding as a chip");
     press(d, MenuKey::Activate);  // Nitro
     check(fired == std::vector<std::string>{"cheats.nitro"}, "Enter on an action fires it");
     press(d, MenuKey::Close);
@@ -264,11 +271,14 @@ void test_device() {
     press(d, MenuKey::Activate);  // capture (CROSS, still held on the first sample, is not part of the combination)
     d.poll_pad(gt::kPadCross, 100);
     check(d.capturing() && d.view(8, 100).rows[1].find("PRESS BUTTONS") != std::string::npos, "the pad capture waits");
+    check(d.view(8, 100).capturing && d.view(8, 100).items[1].kind == gt::ui::RowKind::Chip && d.view(8, 100).items[1].value == "Press buttons",
+          "the styled view says a capture waits");
     check(d.view(8, 100).footer == kCaptureFooter, "the footer says how to cancel while a capture waits");
     d.poll_pad(gt::kPadR, 101);
     d.poll_pad(gt::kPadR | kTriangle, 102);
     d.poll_pad(0, 103);
     check(!d.capturing() && d.view(8, 103).rows[1].find("R+TRIANGLE") != std::string::npos, "the captured combination is bound");
+    check(d.view(8, 103).items[1].value == "R + Triangle", "the chip shows it prettified");
     check(!logged.empty() && logged.back() == "bound cheats.nitro pad R+TRIANGLE", "a binding is logged");
     press(d, MenuKey::Activate);  // capture again: SELECT+START belongs to the device
     d.poll_pad(0, 104);           // the Enter (CROSS) already released
@@ -277,12 +287,15 @@ void test_device() {
     v = d.view(8, 105);
     check(v.title.find("is already") != std::string::npos && v.rows[1].find("R+TRIANGLE") != std::string::npos,
           "a taken combination is refused, the reason shown, the binding kept");
+    check(v.message_is_error && v.message.find("is already") != std::string::npos && v.items[1].value == "R + Triangle",
+          "the refusal is a separate error message, the rows stay");
     check(logged.back().rfind("refused cheats.nitro pad SELECT+START: ", 0) == 0 && logged.back().find("Open the cheat device") != std::string::npos,
           "a refusal is logged with the owner");
     check(d.view(8, 105 + kMessageVblanks).title == "Cheats > Controls > Nitro", "the reason goes away after 3 s");
     press(d, MenuKey::Activate);
     for (unsigned i = 0; i < kCancelHold; ++i) d.poll_pad(gt::kPadCircle, 200 + i);
     check(!d.capturing() && d.view(8, 230).rows[1].find("R+TRIANGLE") != std::string::npos, "CIRCLE held cancels the capture");
+    check(d.view(8, 230).message == "CANCELLED" && !d.view(8, 230).message_is_error, "a cancel is a note, not an error");
     press(d, MenuKey::Up);        // Keyboard
     press(d, MenuKey::Activate);
     check(d.capture_key(KeyBinding{"F6", kAlt}, 300) && d.action_for_key(KeyBinding{"F6", kAlt}) == std::string("cheats.nitro"),
@@ -294,6 +307,22 @@ void test_device() {
     check(d.add_action("other.boost", "Boost", "Race", KeyBinding{"F7", 0}, PadBinding{}, false, clash) &&
               clash.find("Open the cheat device") != std::string::npos && d.binding_text("other.boost") == "- / -",
           "a default another action holds: declared unbound, the owner named");
+}
+
+// A mod's v4 rows come as finished text: the kind is inferred, and the device keeps the 40-character form for the 5x7 fallback.
+void test_styled_rows() {
+    FakeMods mods;
+    mods.rows = {"Grip                       70%", "Weather            Rain", "Ghost cars                 OFF", "Notes only"};
+    Device d(mods.source());
+    d.open();
+    const View v = d.view(8, 100);
+    check(v.items.size() == 4 && v.rows.size() == 4, "the structured rows go with the text rows");
+    check(v.items[0].kind == gt::ui::RowKind::Percent && v.items[0].percent == 70 && v.items[0].label == "Grip", "NN% is a bar");
+    check(v.items[1].kind == gt::ui::RowKind::Choice && v.items[1].value == "Rain" && v.items[1].label == "Weather",
+          "any other value of a row that can be adjusted is a choice");
+    check(v.items[2].kind == gt::ui::RowKind::Toggle && !v.items[2].on, "OFF is a toggle, off");
+    check(v.items[3].kind == gt::ui::RowKind::Text && v.items[3].label == "Notes only", "a text without a value stays text");
+    check(v.rows[0].find("Grip") != std::string::npos, "the text form is kept");
 }
 
 }  // namespace
@@ -308,6 +337,7 @@ int main() {
     test_file_round_trip();
     test_failed_save_keeps_old_file();
     test_device();
+    test_styled_rows();
     if (failures == 0) std::puts("cheat_device: all tests passed");
     return failures == 0 ? 0 : 1;
 }
