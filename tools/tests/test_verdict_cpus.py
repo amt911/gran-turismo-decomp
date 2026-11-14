@@ -8,7 +8,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 
 
-def run_verdict(tmp_path: Path, env_extra: dict[str, str]) -> list[str]:
+def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0) -> list[str]:
     tree = tmp_path / "tree"
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -22,6 +22,13 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str]) -> list[str]:
         stub = bindir / name
         stub.write_text(f'#!/bin/sh\necho "{name} $*" >> {calls}\n')
         stub.chmod(0o755)
+    if fail_fetches:  # a git that fails its first N fetches, as a concurrent verdict's ref lock does (verdict 615)
+        real_git = subprocess.run(["sh", "-c", "command -v git"], capture_output=True, text=True, check=True).stdout.strip()
+        count = tmp_path / "fetches"
+        git = bindir / "git"
+        git.write_text(f'#!/bin/sh\nif [ "$1" = fetch ]; then n=$(cat {count} 2>/dev/null || echo 0); echo $((n + 1)) > {count}\n'
+                       f'  [ "$n" -lt {fail_fetches} ] && {{ echo "error: cannot lock ref" >&2; exit 1; }}; fi\nexec {real_git} "$@"\n')
+        git.chmod(0o755)
     (tree / "tools").mkdir()
     for name in ("setup.sh", "cpu_lock.sh", "pad_route.sh"):
         stub = tree / "tools" / name
@@ -51,3 +58,12 @@ def test_defaults_split_the_desktop(tmp_path):
 def test_environment_overrides_both_sets(tmp_path):
     lines = run_verdict(tmp_path, {"GT_GATE_CPUS": "0-11", "GT_SYNTH_CPUS": "0-11"})
     assert len(lines) == 3 and all(line.startswith("taskset -c 0-11 ") for line in lines)
+
+
+def test_a_failed_fetch_is_retried(tmp_path):
+    # two verdicts share one object store; a fetch that loses the ref lock must not end the verdict as "no branch"
+    assert len(run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=2)) == 3
+
+
+def test_a_fetch_that_keeps_failing_still_stops(tmp_path):
+    assert run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=9) == []

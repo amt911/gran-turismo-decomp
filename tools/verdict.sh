@@ -13,7 +13,11 @@ branch=$1 tag=$2
 gate_cpus=${GT_GATE_CPUS:-6-11,18-23} synth_cpus=${GT_SYNTH_CPUS:-0-5,12-17}
 tree=${GT_VERIFY_TREE:-$(dirname "$(git rev-parse --show-toplevel)")/gt-verify}
 cd "$tree" || exit 1
-git fetch -q origin && git checkout -q --detach "origin/$branch" || { echo "no branch $branch"; exit 1; }
+# Worktrees share one ref store: two verdicts fetching at once can lose the ref lock ("cannot lock ref", verdict 615) — retry.
+fetched=false
+for try in 1 2 3 4 5; do git fetch -q origin && { fetched=true; break; }; sleep "${GT_FETCH_RETRY_S:-20}"; done
+$fetched || { echo "fetch failed"; exit 1; }  # a stale origin/<branch> would verdict an old head
+git checkout -q --detach "origin/$branch" || { echo "no branch $branch"; exit 1; }
 echo "== head $(git rev-parse --short HEAD)"
 logs=recomp/analysis/verdict_$tag
 mkdir -p "$logs"

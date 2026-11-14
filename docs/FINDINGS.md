@@ -3294,3 +3294,18 @@ own layers with the "over" operator on straight alpha, so a pixel inside the pan
 (`settings_sampler`): the 2x raster is shown at 40 % of the window width, and nearest filtering made the glyphs jagged.
 **Missing font is not an error.** `tools/setup.sh` fetches Barlow and stb_truetype (`config/ui_assets.sha256`); a checkout that never
 ran it draws the old 5x7 look (doubled to fit the 2x texture) and logs `[lcs] host UI font not found` once.
+
+## Synthetic cases miss compares against magic constants; the route gate catches them (2026-11-13)
+
+PR #602's shared helper `register_module_once` registered its module when `a1 == 1`; the asm loads `0xFFFF` into `v0` and branches
+`bne v1, v0` (0x0898DB00, 0x089BE9BC), so the real condition is `a1 == 0xFFFF`. Its synthetic gate passed (random arguments almost
+never equal 0xFFFF), and only the verdict's route gate saw it: both callers mismatched on every route and the boot aborted.
+**Rule:** check every branch condition of a rewrite against `tools.disasm`, above all compares against a register just loaded with
+a constant; a synthetic pass does not cover the rare-value side of a branch.
+
+## Two verdicts at once can lose the git ref lock (2026-11-14)
+
+Verdict trees are worktrees of one repository, so they share `refs/remotes/origin/*`. Two `tools/verdict.sh` starting together
+fetched at the same moment and one failed with `cannot lock ref 'refs/remotes/origin/main'`, printed `no branch …` and stopped
+(verdict 615). `verdict.sh` now retries the fetch (5 tries, `GT_FETCH_RETRY_S`, default 20 s) and stops with `fetch failed` rather
+than verdict a stale `origin/<branch>`.
