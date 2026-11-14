@@ -37,7 +37,7 @@ int main() {
     make_blob(m, blob, 0x122, 3, 14, 8, pos);
     BlobInfo info{};
     check(parse_blob(m, blob, info) && info.vertex_count == 3 && info.stride == 14 && info.position_offset == 8 &&
-              info.vertex_data == blob + 20u && info.byte_size == 20u + 3u * 14u,
+              info.vertex_data == blob + 20u && info.command_bytes == 20u,
           "blob: format 0x122 has stride 14 and the s16 position at +8");
     std::int16_t xyz[3];
     check(read_vertex(m, info, 1, xyz) && xyz[0] == -5 && xyz[1] == 6 && xyz[2] == -7, "blob: vertex read");
@@ -64,24 +64,32 @@ int main() {
     check(write_vertex(m, copied, 0, (const std::int16_t[3]){0, 0, 0}) && read_vertex(m, info, 0, xyz) && xyz[0] == 100,
           "copy: a dent in the copy leaves the original");
     check(m.load32(copy + 0) == m.load32(blob + 0) && m.load32(copy + 16) == m.load32(blob + 16), "copy: the other commands are byte-identical");
-    // The latest world matrix of a list: WORLDN then twelve WORLDD; the translation is the last three.
-    constexpr std::uint32_t list = 0x09400000u;
-    const auto put_matrix = [&](std::uint32_t at, float tx, float ty, float tz) {
-        m.store32(at, cmd(0x3A, 0));
-        const float elements[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, tx, ty, tz};
-        for (int i = 0; i < 12; ++i) {
-            std::uint32_t bits;
-            __builtin_memcpy(&bits, &elements[i], 4);
-            m.store32(at + 4u + 4u * i, cmd(0x3B, bits >> 8));
-        }
-    };
-    put_matrix(list, 1.f, 2.f, 3.f);
-    put_matrix(list + 52u, 10.f, 20.f, 30.f);
-    m.store32(list + 104u, cmd(0x0A, 0x123456));  // a CALL after the matrices
-    float origin[3] = {0, 0, 0};
-    check(last_world_translation(m, list + 108u, 64, origin) && origin[0] == 10.f && origin[1] == 20.f && origin[2] == 30.f,
-          "list: the latest world matrix's translation");
-    check(!last_world_translation(m, list + 108u, 12, origin), "list: nothing found within too few words");
-    check(!last_world_translation(m, 0x09500000u, 64, origin), "list: no matrix in empty memory");
+    // A blob like the real ones (measured 2026-11-14): ATEST, BASE+VADR of the vertices, BASE+CALL of a texture block, then VTYPE and
+    // several PRIMs, RET, a padding word and the vertices.
+    {
+        constexpr std::uint32_t real = 0x09A00000u;
+        const std::uint32_t words[] = {cmd(0x22, 1), cmd(0x17, 0), cmd(0x1E, 1), cmd(0x10, 0x090000), cmd(0x01, 0xA00000u + 15u * 4u + 4u),
+                                       cmd(0x21, 0), cmd(0x10, 0x090000), cmd(0x0A, 0x9CD40C), cmd(0xC8, 0xFA0000), cmd(0x12, 0x112),
+                                       cmd(0x04, 0x040002), cmd(0xC8, 0xF90000), cmd(0x04, 0x040003), cmd(0xC8, 0xF00000), cmd(0x0B, 0)};
+        for (unsigned i = 0; i < 15; ++i) m.store32(real + 4u * i, words[i]);
+        const std::uint32_t vertices = real + 15u * 4u + 4u;  // one padding word after RET
+        for (std::uint32_t v = 0; v < 5; ++v)
+            for (int c = 0; c < 3; ++c) m.store16(vertices + v * 12u + 6u + 2u * c, static_cast<std::uint16_t>(100 * v + c));
+        BlobInfo r{};
+        check(parse_blob(m, real, r) && r.vertex_count == 5 && r.stride == 12 && r.vertex_data == vertices && r.command_bytes == 60u,
+              "real blob: PRIM counts add up, the vertices start at the VADR after a padding word");
+        std::int16_t v[3];
+        check(read_vertex(m, r, 4, v) && v[0] == 400 && v[2] == 402, "real blob: vertex read");
+        constexpr std::uint32_t copy2 = 0x09B00000u;
+        check(copy_blob(m, real, copy2), "real blob: copy");
+        BlobInfo c2{};
+        check(parse_blob(m, copy2, c2) && c2.vertex_data == copy2 + 60u && c2.vertex_count == 5, "real blob: the copy's VADR names its own vertices (padding dropped)");
+        check(m.load32(copy2 + 7u * 4u) == m.load32(real + 7u * 4u) && m.load32(copy2 + 4u * 4u) != m.load32(real + 4u * 4u),
+              "real blob: the texture CALL is copied as is; only the vertex VADR changes");
+        check(read_vertex(m, c2, 4, v) && v[0] == 400, "real blob: the vertices are copied");
+        m.store32(real + 4u * 4u, cmd(0x01, 0xA00123u));  // a second VADR pointing elsewhere is not a blob this code can copy
+        m.store32(real + 5u * 4u, cmd(0x01, 0xA00456u));
+        check(!parse_blob(m, real, r), "real blob: two different VADRs are refused");
+    }
     return failures == 0 ? 0 : 1;
 }

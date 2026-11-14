@@ -334,8 +334,8 @@ int api_mesh_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uin
 int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t *copy) {
     if (!v5_mod(self, "mesh_copy") || ctx == nullptr || copy == nullptr) return 1;
     gt::mesh::BlobInfo info;
-    if (!gt::mesh::parse_blob(ctx->rt->memory(), blob, info) || info.byte_size <= gt::mesh::kBlobHeaderBytes) return 1;
-    const std::uint32_t size = info.byte_size;
+    if (!gt::mesh::parse_blob(ctx->rt->memory(), blob, info)) return 1;
+    const std::uint32_t size = gt::mesh::copy_bytes(info);
     std::uint32_t address = 0u;
     if (api_call_guest(ctx, kGuestAlloc, &size, 1u, &address) != 0 || address == 0u) return 1;
     if (!gt::mesh::copy_blob(ctx->rt->memory(), blob, address)) {
@@ -348,12 +348,6 @@ int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t 
 int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy) {
     if (!v5_mod(self, "mesh_release") || ctx == nullptr || copy == 0u) return 1;
     return api_call_guest(ctx, kGuestFree, &copy, 1u, nullptr);
-}
-int api_draw_mesh_origin(GtMod *self, GtModCtx *ctx, float xyz[3]) {
-    if (!v5_mod(self, "draw_mesh_origin") || ctx == nullptr || xyz == nullptr) return 1;
-    const auto &m = ctx->rt->memory();
-    if (!m.contains(kGraphicsContext + kListCursorOffset, 4u)) return 1;
-    return gt::mesh::last_world_translation(m, m.load32(kGraphicsContext + kListCursorOffset), 4096u, xyz) ? 0 : 1;
 }
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx) { return ctx != nullptr && ctx->ctx != nullptr ? ctx->ctx->gpr[4] : 0u; }
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob) {

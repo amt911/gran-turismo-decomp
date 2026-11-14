@@ -97,7 +97,7 @@ typedef struct GtMeshInfo {
     uint32_t stride;
     uint32_t position_offset;
     uint32_t vertex_data;
-    uint32_t byte_size; /* what mesh_copy copies; the header only when the vertices are elsewhere (not copyable) */
+    uint32_t command_bytes; /* the command list up to its RET; mesh_copy copies it and then the vertex_count * stride bytes of vertices */
 } GtMeshInfo;
 
 typedef struct GtModApi {
@@ -179,10 +179,6 @@ typedef struct GtModApi {
     /* In a GT_HOOK_MESH_DRAW hook: the blob being drawn, and a replacement the game draws instead (call before call_original). */
     uint32_t (*draw_mesh_blob)(GtModCtx *ctx);
     void (*draw_mesh_redirect)(GtModCtx *ctx, uint32_t blob);
-    /* The translation of the latest world matrix in the display list being built (the model position the blob draws at, in the renderer's
-     * Y-up frame; car_state positions are Z-up). Read it AFTER call_original in a GT_HOOK_MESH_DRAW hook: the game flushes its lazy matrix
-     * when it records the draw. 0 = ok, non-zero when no matrix was found. */
-    int (*draw_mesh_origin)(GtMod *self, GtModCtx *ctx, float xyz[3]);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

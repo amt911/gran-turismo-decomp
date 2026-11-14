@@ -96,7 +96,5 @@ int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t 
 int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy);
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
-constexpr std::uint32_t kGraphicsContext = 0x08D6CE00u, kListCursorOffset = 0x5Cu;  // FINDINGS "GE blob census": +0x5C list cursor
-int api_draw_mesh_origin(GtMod *self, GtModCtx *ctx, float xyz[3]);
 
 }  // namespace gt::mods::services

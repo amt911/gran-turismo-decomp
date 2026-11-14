@@ -180,7 +180,6 @@ Un mod que declara `api = 5` usa solo llamadas con nombre (sin direcciones del g
 | `mesh_info`, `mesh_vertex`, `mesh_set_vertex` | blob = BASE, VADR, VTYPE, PRIM, RET + vértices; formatos `0x122` (paso 14, s16 en +8), `0x130` y `0x112` (paso 12, +6) | spec de deformación, hallazgo del spike 2026-11-07 |
 | `mesh_copy`, `mesh_release` | copia el blob en memoria del asignador del juego (`0x08B35DA0` / `0x08B35254`, solo desde el tic) con la VADR reescrita | `host/mesh_blob.cpp`, prueba `mesh_blob` |
 | `draw_mesh_blob`, `draw_mesh_redirect` | el blob que se va a dibujar y su sustituto (a0) | spec |
-| `draw_mesh_origin` | traslación de la última matriz de mundo de la lista (cursor `0x08D6CE5C`; WORLDN + 12 WORLDD) | FINDINGS "GE blob census" (`0x08B59508` vuelca la matriz perezosa) |
 
 `car_impact` compara con la llamada anterior: llámala una vez por paso. Pruebas: `ctest --test-dir build -R "game_state|mesh_blob|mod_services"`.
 

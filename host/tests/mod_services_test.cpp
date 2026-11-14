@@ -272,15 +272,6 @@ int main() {
         check(api5.draw_mesh_blob(&hook5) == blob, "draw_mesh_blob is the leaf's a0");
         api5.draw_mesh_redirect(&hook5, copy);
         check(tick_regs.gpr[4] == copy, "draw_mesh_redirect replaces it");
-        {   // draw_mesh_origin reads the latest world matrix before the list cursor
-            r5.memory().store32(0x08D6CE5Cu, 0x09400000u + 56u);
-            r5.memory().store32(0x09400000u, (0x3Au << 24));
-            for (int i = 0; i < 12; ++i) r5.memory().store32(0x09400004u + 4u * i, (0x3Bu << 24) | (i >= 9 ? 0x3F8000u : 0u));
-            float o[3] = {0, 0, 0};
-            check(api5.draw_mesh_origin(&v5, &c5, o) == 0 && o[0] == 1.f && o[1] == 1.f && o[2] == 1.f, "v5 draw_mesh_origin reads the list's latest matrix");
-            r5.memory().store32(0x08D6CE5Cu, 0x09600000u);
-            check(api5.draw_mesh_origin(&v5, &c5, o) != 0 && api5.draw_mesh_origin(&v4old, &c5, o) != 0, "no matrix / api 4: refused");
-        }
         // named hook points install on the researched addresses
         gt::mods::bind_runtime(r5);
         r5.register_function(0x0894DD9Cu, &guest_sum, "step");

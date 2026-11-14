@@ -3309,3 +3309,29 @@ Verdict trees are worktrees of one repository, so they share `refs/remotes/origi
 fetched at the same moment and one failed with `cannot lock ref 'refs/remotes/origin/main'`, printed `no branch …` and stopped
 (verdict 615). `verdict.sh` now retries the fetch (5 tries, `GT_FETCH_RETRY_S`, default 20 s) and stops with `fetch failed` rather
 than verdict a stale `origin/<branch>`.
+
+## The real GE blob layout, and why a draw hook cannot tell the player's car from the matrix (2026-11-14, deformation SDK probe)
+
+**Blob layout (measured with a probe mod on the `rollover` race route, 5 blobs dumped, 300+ logged).** The spike's "BASE, VADR, VTYPE, PRIM, RET" is the short form. Real blobs
+(`0x08B550A8` argument) look like `ATEST 22000001, 17000000, 1E000001, BASE 10090000, VADR 019CDCCC, 21000000, BASE 10090000, CALL 0A9CD40C (texture block), C8FA0000, VTYPE 12000112, PRIM
+04040012, C8F90000, PRIM 04040012, ... , RET 0B000000`, then one padding word and the vertices at the VADR (absolute through the BASE before it). The vertex count is the **sum of the PRIM counts**
+(strips continue through the same array); vertices are 12 bytes (format `0x112`, s16 position at +6, values normalised to the full s16 range: the scale is in the world matrix). Some blobs begin with
+other commands (`DBFF0006 E7000001 DF00003A ...`). `host/mesh_blob.cpp` parses this; the two-PRIM test blob and a real-shaped one are in `host/tests/mesh_blob_test.cpp`.
+
+**Not solved: which blobs are the player's body.** A hook on `0x08B550A8` fires (3175 draws logged in 70 s, `--decomp off`); the display list's latest WORLDN/WORLDD matrix read after `call_original` does
+*not* behave like a world position of the model (columns do not form a scaled rotation; positions of blobs near the player do not track the player's physics position under any of four axis maps, nor stay
+constant under the chase camera). The matrix is probably composed with the view or flushed later than the call. So "the blobs drawn at the player's position" cannot be found this way; the deformation mod
+needs another link between the car and its model (a pointer search from the car object to blob addresses, or the draw call's caller). Probe: scratch mod, not committed.
+
+## The real GE blob layout, and why a draw hook cannot tell the player's car from the matrix (2026-11-14, deformation SDK probe)
+
+**Blob layout (measured with a probe mod on the `rollover` race route, 12 blobs dumped, 300+ logged).** The spike's "BASE, VADR, VTYPE, PRIM, RET" is the short form. Real blobs
+(the `0x08B550A8` argument) look like `ATEST 22000001, 17000000, 1E000001, BASE 10090000, VADR 019CDCCC, 21000000, BASE 10090000, CALL 0A9CD40C (texture block), C8FA0000, VTYPE 12000112, PRIM
+04040012, C8F90000, PRIM 04040012, ... , RET 0B000000`, then one padding word and the vertices at the VADR (absolute through the BASE before it). The vertex count is the **sum of the PRIM counts**
+(strips continue through the same array); vertices are 12 bytes (format `0x112`, s16 position at +6, values normalised to the full s16 range: the scale is in the world matrix). Some blobs begin with
+other commands (`DBFF0006 E7000001 DF00003A ...`). `host/mesh_blob.cpp` parses this; a short-form and a real-shaped blob are tested in `host/tests/mesh_blob_test.cpp`.
+
+**Not solved: which blobs are the player's body.** A hook on `0x08B550A8` fires (3175 draws in 70 s, `--decomp off`). The latest WORLDN/WORLDD matrix of the display list, read after `call_original`, does
+*not* behave like the model's world position: positions of blobs near the player do not track the player's physics position under any of four axis maps, nor stay constant under the chase camera (the
+matrix is probably composed with the view, or flushed at another point). So the draws at the player's position cannot be found this way; the deformation mod needs another link between the car and its
+model (a pointer search from the car object to blob addresses, or the caller of the draw). The probe was a scratch mod, not committed; the matrix accessor was removed again for that reason.
