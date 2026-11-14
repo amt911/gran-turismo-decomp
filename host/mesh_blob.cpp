@@ -50,6 +50,66 @@ bool parse_blob(const psprecomp::GuestMemory &m, std::uint32_t blob, BlobInfo &o
     return false;
 }
 
+bool parse_runs(const psprecomp::GuestMemory &m, std::uint32_t blob, std::vector<Run> &runs) {
+    runs.clear();
+    if (blob == 0u || !m.contains(blob, 4u)) return false;
+    std::uint32_t base = 0u, vtype = 0u;
+    Run cur;
+    bool open = false;
+    const auto close = [&]() {
+        if (open && cur.count > 0u && cur.stride != 0u && runs.size() < kMaxRuns && m.contains(cur.vertex_data, cur.count * cur.stride)) runs.push_back(cur);
+        open = false;
+        cur = Run{};
+    };
+    const auto start = [&](std::uint32_t address) {
+        close();
+        cur.vertex_data = address;
+        std::uint32_t stride = 0u, offset = 0u;
+        if (format(vtype, stride, offset)) {
+            cur.stride = stride;
+            cur.position_offset = offset;
+        }
+        open = true;
+    };
+    for (std::uint32_t i = 0; i < kMaxCommandWords; ++i) {
+        const std::uint32_t at = blob + 4u * i;
+        if (!m.contains(at, 4u)) return false;
+        const std::uint32_t word = m.load32(at);
+        switch (op(word)) {
+        case kBase: base = param(word); break;
+        case kVadr: start(((base << 8) & 0xFF000000u) | param(word)); break;
+        case kVtype: {
+            const std::uint32_t before_end = cur.vertex_data + cur.count * (cur.stride != 0u ? cur.stride : 0u);
+            const bool continues = open && cur.count > 0u && cur.stride != 0u && param(word) != vtype;
+            vtype = param(word);
+            if (continues) start(before_end);          // the vertices after a format change follow the run before it
+            else if (open && cur.count == 0u) start(cur.vertex_data);  // format of a run that has no PRIM yet
+            break;
+        }
+        case kPrim:
+            if (open) cur.count += param(word) & 0xFFFFu;
+            break;
+        case kRet: close(); return true;
+        default: break;
+        }
+    }
+    return false;
+}
+
+bool read_run_vertex(const psprecomp::GuestMemory &m, const Run &run, std::uint32_t index, std::int16_t xyz[3]) {
+    if (index >= run.count) return false;
+    const std::uint32_t at = run.vertex_data + index * run.stride + run.position_offset;
+    for (int c = 0; c < 3; ++c) xyz[c] = static_cast<std::int16_t>(m.load16(at + 2u * c));
+    return true;
+}
+
+bool write_run_vertex(psprecomp::GuestMemory &m, const Run &run, std::uint32_t index, const std::int16_t xyz[3]) {
+    if (index >= run.count) return false;
+    const std::uint32_t at = run.vertex_data + index * run.stride + run.position_offset;
+    for (int c = 0; c < 3; ++c) m.store16(at + 2u * c, static_cast<std::uint16_t>(xyz[c]));
+    return true;
+}
+
 bool read_vertex(const psprecomp::GuestMemory &m, const BlobInfo &info, std::uint32_t index, std::int16_t xyz[3]) {
     if (index >= info.vertex_count) return false;
     const std::uint32_t at = info.vertex_data + index * info.stride + info.position_offset;

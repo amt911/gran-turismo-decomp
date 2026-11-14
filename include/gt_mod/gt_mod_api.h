@@ -101,6 +101,13 @@ typedef struct GtMeshInfo {
     uint32_t command_bytes; /* the command list up to its RET; mesh_copy copies it and then the vertex_count * stride bytes of vertices */
 } GtMeshInfo;
 
+/* v5. One run of vertices of a model's part: `blob` (opaque, from model_runs) and `run` (its index inside the blob) name it for run_vertex. */
+typedef struct GtVertexRun {
+    uint32_t blob;
+    uint32_t run;
+    uint32_t count;
+} GtVertexRun;
+
 typedef struct GtModApi {
     uint32_t version; /* GT_MOD_API_VERSION the host implements */
     /* Several mods may hook one address: the hooks chain in load order, and call_original runs the next active mod's hook
@@ -185,6 +192,15 @@ typedef struct GtModApi {
     int (*draw_car_model)(GtMod *self, GtModCtx *ctx, uint32_t *car, uint32_t *model);
     /* The blobs of a model (its parts: shell pieces, glass, lights...), those that parse as meshes; fills up to `capacity` and returns how many. */
     uint32_t (*model_blobs)(GtMod *self, GtModCtx *ctx, uint32_t model, uint32_t *out, uint32_t capacity);
+    /* Every run of vertices of every part of a model, including parts whose list has several vertex arrays (model_blobs and mesh_info refuse
+     * those): fills up to `capacity` and returns how many. Read / write a run's s16 position in place with run_vertex / run_set_vertex
+     * (0 = ok; non-zero for a stale blob or a bad index). A model belongs to one car: the mod saves what it overwrites and restores it. */
+    uint32_t (*model_runs)(GtMod *self, GtModCtx *ctx, uint32_t model, GtVertexRun *out, uint32_t capacity);
+    int (*run_vertex)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t run, uint32_t index, int16_t xyz[3]);
+    int (*run_set_vertex)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t run, uint32_t index, const int16_t xyz[3]);
+    /* Registers a function that runs once, on the first vblank after the mod is switched off from the menu (a tick context, like on_vblank's),
+     * so the mod can undo what it changed in the game's memory. During gt_mod_init only; 0 = ok. */
+    int (*on_switch_off)(GtMod *self, GtVblankFn fn);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

@@ -7,6 +7,7 @@
 #include "psprecomp/guest_memory.hpp"
 
 #include <cstdint>
+#include <vector>
 
 namespace gt::mesh {
 
@@ -29,6 +30,21 @@ inline std::uint32_t copy_bytes(const BlobInfo &info) { return info.command_byte
 // with the deformation probe 2026-11-14). False for a second, different VADR, an unknown format or vertices outside guest memory.
 // Known formats (FACTS): 0x122 stride 14 / position +8, 0x130 and 0x112 stride 12 / position +6.
 bool parse_blob(const psprecomp::GuestMemory &memory, std::uint32_t blob, BlobInfo &out);
+
+// One run of vertices a blob draws: a VADR (or a VTYPE change inside one) starts it, each PRIM continues it. Blobs of the player's body have
+// several (docs/FINDINGS.md "Crash deformation: the dent is not visible yet": 0x090EB4D0 has two VADRs, entry 22 two, ...). `parse_blob` refuses
+// them; `parse_runs` lists every run of a known format (runs of another format, e.g. VTYPE 0x118, are skipped) so they can be dented in place.
+struct Run {
+    std::uint32_t vertex_data = 0;
+    std::uint32_t count = 0;
+    std::uint32_t stride = 0;
+    std::uint32_t position_offset = 0;
+};
+constexpr std::uint32_t kMaxRuns = 16u;
+// True when the command list reaches its RET; `runs` then holds the runs (possibly none). Runs whose vertices are not in guest memory are skipped.
+bool parse_runs(const psprecomp::GuestMemory &memory, std::uint32_t blob, std::vector<Run> &runs);
+bool read_run_vertex(const psprecomp::GuestMemory &memory, const Run &run, std::uint32_t index, std::int16_t xyz[3]);
+bool write_run_vertex(psprecomp::GuestMemory &memory, const Run &run, std::uint32_t index, const std::int16_t xyz[3]);
 
 bool read_vertex(const psprecomp::GuestMemory &memory, const BlobInfo &info, std::uint32_t index, std::int16_t xyz[3]);
 bool write_vertex(psprecomp::GuestMemory &memory, const BlobInfo &info, std::uint32_t index, const std::int16_t xyz[3]);

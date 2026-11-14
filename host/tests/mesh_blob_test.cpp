@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <memory>
+#include <vector>
 
 namespace {
 int failures = 0;
@@ -56,6 +57,32 @@ int main() {
     check(!parse_blob(m, bad, info2), "blob: an unknown vertex format is refused");
     m.store32(bad, cmd(0x55, 0));
     check(!parse_blob(m, bad, info2) && !parse_blob(m, 0u, info2), "blob: a wrong header or a null address is refused");
+    // Runs: two VADRs (the player's body parts have them), a format change inside one VADR, and a run of an unknown format that is skipped.
+    {
+        constexpr std::uint32_t multi = 0x09240000u, va = 0x09241000u, vb = 0x09242000u, vc = 0x09243000u;
+        std::uint32_t at = multi;
+        const auto put = [&](std::uint32_t op, std::uint32_t param) { m.store32(at, cmd(op, param)); at += 4u; };
+        put(0x10, (va >> 8) & 0xFF0000u); put(0x01, va & 0xFFFFFFu); put(0x12, 0x130); put(0x04, 3); put(0x04, 2);
+        put(0x12, 0x122); put(0x04, 4);                        // same VADR, the format changes: a second run right after the 5 vertices
+        put(0x01, vb & 0xFFFFFFu); put(0x10, (vb >> 8) & 0xFF0000u); put(0x01, vb & 0xFFFFFFu); put(0x12, 0x118); put(0x04, 2);  // unknown format
+        put(0x10, (vc >> 8) & 0xFF0000u); put(0x01, vc & 0xFFFFFFu); put(0x12, 0x112); put(0x04, 1); put(0x0B, 0);
+        for (int i = 0; i < 5; ++i) for (int c = 0; c < 3; ++c) m.store16(va + 12u * i + 6u + 2u * c, static_cast<std::uint16_t>(100 * i + c));
+        for (int i = 0; i < 4; ++i) for (int c = 0; c < 3; ++c) m.store16(va + 60u + 14u * i + 8u + 2u * c, static_cast<std::uint16_t>(-(100 * i + c)));
+        std::vector<Run> runs;
+        check(parse_runs(m, multi, runs) && runs.size() == 3, "runs: 0x130 x5, 0x122 x4 after them, the 0x118 run skipped, 0x112 x1");
+        check(runs.size() == 3 && runs[0].vertex_data == va && runs[0].count == 5 && runs[0].stride == 12 && runs[1].vertex_data == va + 60u &&
+                  runs[1].count == 4 && runs[1].stride == 14 && runs[1].position_offset == 8 && runs[2].vertex_data == vc && runs[2].count == 1,
+              "runs: addresses, counts and strides");
+        std::int16_t v[3];
+        check(runs.size() == 3 && read_run_vertex(m, runs[0], 4, v) && v[0] == 400 && v[2] == 402 && read_run_vertex(m, runs[1], 3, v) && v[0] == -300,
+              "runs: vertex read of the first and the second run");
+        check(runs.size() == 3 && write_run_vertex(m, runs[1], 3, (const std::int16_t[3]){7, 8, 9}) && read_run_vertex(m, runs[1], 3, v) && v[1] == 8 &&
+                  !write_run_vertex(m, runs[1], 4, v),
+              "runs: vertex write, an index past the count refused");
+        check(!parse_blob(m, multi, info2), "runs: parse_blob still refuses a blob with several VADRs");
+        std::vector<Run> none;
+        check(!parse_runs(m, 0u, none) && none.empty(), "runs: a null blob is refused");
+    }
     // A copy: the VADR must point at the copy's own vertices, and editing the copy leaves the original alone.
     constexpr std::uint32_t copy = 0x09300000u;
     check(copy_blob(m, blob, copy), "copy: copies the blob");

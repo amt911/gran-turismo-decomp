@@ -101,4 +101,13 @@ bool car_draw_link(const psprecomp::GuestMemory &memory, std::uint32_t a0, CarDr
 // blobs that parse as meshes (host/mesh_blob.hpp) to `out`; returns how many (at most `capacity`).
 std::uint32_t model_blobs(const psprecomp::GuestMemory &memory, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity);
 
+// Every vertex run of every part of a model (host/mesh_blob.hpp parse_runs: blobs with several VADRs included, which model_blobs refuses): fills
+// `out` with (blob, run index within the blob, vertex count); returns how many (at most `capacity`).
+struct RunRef {
+    std::uint32_t blob;
+    std::uint32_t run;
+    std::uint32_t count;
+};
+std::uint32_t model_runs(const psprecomp::GuestMemory &memory, std::uint32_t model, RunRef *out, std::uint32_t capacity);
+
 } // namespace gt::game_state

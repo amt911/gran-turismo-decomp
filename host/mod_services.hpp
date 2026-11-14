@@ -98,6 +98,10 @@ int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t 
 int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy);
 int api_draw_car_model(GtMod *self, GtModCtx *ctx, std::uint32_t *car, std::uint32_t *model);
 std::uint32_t api_model_blobs(GtMod *self, GtModCtx *ctx, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity);
+std::uint32_t api_model_runs(GtMod *self, GtModCtx *ctx, std::uint32_t model, GtVertexRun *out, std::uint32_t capacity);
+int api_run_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int16_t xyz[3]);
+int api_run_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int16_t xyz[3]);
+int api_on_switch_off(GtMod *self, GtVblankFn fn);
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
 

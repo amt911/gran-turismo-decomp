@@ -1,5 +1,7 @@
 #include "game_state.hpp"
 
+#include <vector>
+
 #include "mesh_blob.hpp"
 
 #include <cmath>
@@ -202,6 +204,19 @@ std::uint32_t model_blobs(const psprecomp::GuestMemory &m, std::uint32_t model, 
         const std::uint32_t blob = word_or_0(m, base + 32u * i);
         gt::mesh::BlobInfo info;
         if (gt::mesh::parse_blob(m, blob, info)) out[n++] = blob;
+    }
+    return n;
+}
+
+std::uint32_t model_runs(const psprecomp::GuestMemory &m, std::uint32_t model, RunRef *out, std::uint32_t capacity) {
+    if (word_or_0(m, model) != kModelMagic) return 0u;
+    const std::uint32_t base = word_or_0(m, model + 0xA8u), count = word_or_0(m, model + 0x14u);
+    std::uint32_t n = 0u;
+    std::vector<gt::mesh::Run> runs;
+    for (std::uint32_t i = 0; i < count && i < 256u && base != 0u; ++i) {
+        const std::uint32_t blob = word_or_0(m, base + 32u * i);
+        if (!gt::mesh::parse_runs(m, blob, runs)) continue;
+        for (std::uint32_t r = 0; r < runs.size() && n < capacity; ++r) out[n++] = RunRef{blob, r, runs[r].count};
     }
     return n;
 }

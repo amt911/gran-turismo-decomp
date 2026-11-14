@@ -3336,12 +3336,10 @@ other commands (`DBFF0006 E7000001 DF00003A ...`). `host/mesh_blob.cpp` parses t
 matrix is probably composed with the view, or flushed at another point). So the draws at the player's position cannot be found this way; the deformation mod needs another link between the car and its
 model (a pointer search from the car object to blob addresses, or the caller of the draw). The probe was a scratch mod, not committed; the matrix accessor was removed again for that reason.
 
-### Crash deformation: the dent is not visible yet (2026-11-14)
+### Crash deformation: the dent is not visible yet (2026-11-14) — SOLVED the same day, see FACTS "Container per car, parts with several vertex arrays"
 
-`tools/mod_deformation_check.sh` (chase view via `config/pad_routes/deformation.pad`): hit detection, copies (21 of 21 parts with `min_vertices = 1`), dent
-(96-121 vertices) and the mesh-draw redirect (`REDIRECT` line) all happen, but every frame after the hit equals the run of the same mod with a zero-strength
-dent, so the check fails "changed after hit". The two big parts of the player's container (446 and 398 vertices) are never seen by the `0x08B550A8` hook after
-the dent; blobs that are (e.g. `0x090EB4D0`, `0x090F3490`) lie inside the container's memory span but are not entries of its part table (nested call lists?).
-Also measured: a non-empty mods dir (even all disabled) shifts the race against real time versus an empty one from vblank ~3330, so frame checks compare runs with
-the same mods dir layout; and after the hit the mod's own work shifts it again (the check compares with a zero-strength run). Also the barrier hit is on the car's
-front (the chase camera sees the rear): the check flips `forward_sign`.
+Kept for the path: the copy-on-write redirect on `0x08B550A8` fired but the frames did not change, because the visible body parts are entries whose blob has
+**several VADRs** (one run per material/format), which `parse_blob` refused: they were never copied, so never redirected. A non-empty mods dir (even all disabled)
+also shifts the race against real time versus an empty one from vblank ~3330, and the mod's own work shifts it again after the hit, so the frame check compares
+runs with the same mods dir layout and, after the hit, a zero-strength run of the same mod.
+
