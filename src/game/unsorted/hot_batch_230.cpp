@@ -82,6 +82,7 @@ constexpr u32 kEmptyStreamText = 0x08D74FD0u;
 // below. a0 / a1 are left as the original leaves them (the pointer and -1, or the representation and the frame).
 void drop_string_reference(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, GuestFrame &frame, u32 data) {
     const u32 representation = data - 0xCu;
+    ctx.gpr[2] = kEmptyStreamText;
     ctx.gpr[4] = data - 4u;
     ctx.gpr[5] = 0xFFFFFFFFu;
     if (representation == kEmptyStreamText) return;
@@ -150,7 +151,9 @@ void property_accessor(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, 
         if (object == 0u) report_null(rt, ctx, accessor.null_handle_message);
         const u32 member = word(rt, holder);
         if (member == 0u) report_null(rt, ctx, accessor.null_holder_message);
-        const u32 produced = call_set(rt, ctx, word(rt, word(rt, member) + accessor.vcall_offset), {member});
+        ctx.gpr[3] = word(rt, member);
+        ctx.gpr[2] = word(rt, ctx.gpr[3] + accessor.vcall_offset);
+        const u32 produced = call_set(rt, ctx, ctx.gpr[2], {member});
         switch (accessor.set_kind) {
         case StoreKind::Word:
             put(rt, object + accessor.set_param, produced);
@@ -160,12 +163,15 @@ void property_accessor(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, 
             break;
         case StoreKind::Float: {
             const u32 record = object + accessor.set_param;
+            ctx.gpr[3] = record;
+            ctx.gpr[2] = 0xFFFFFFFFu;
             put(rt, record + 0x10u, 0xFFFFFFFFu);
             put_float(rt, record + 0xCu, ctx.fpr[0]);
             break;
         }
         case StoreKind::ByteAndFloat: {
             const u32 record = object + accessor.set_param;
+            ctx.gpr[2] = record;
             rt.memory().store8(record + 0xC4u, static_cast<std::uint8_t>(mode));
             put_float(rt, record + 0xA0u, ctx.fpr[0]);
             break;
@@ -207,7 +213,9 @@ void apply_member_string(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
     if (object == 0u) report_null(rt, ctx, p.null_object_message);
     const u32 member = word(rt, holder);
     if (member == 0u) report_null(rt, ctx, p.null_holder_message);
-    call_set(rt, ctx, word(rt, word(rt, member) + 0xCu), {string_slot, member});
+    ctx.gpr[3] = word(rt, member);
+    ctx.gpr[2] = word(rt, ctx.gpr[3] + 0xCu);
+    call_set(rt, ctx, ctx.gpr[2], {string_slot, member});
     call_set(rt, ctx, p.apply, {target_slot, object, string_slot});
     const u32 produced = word(rt, target_slot);
     ctx.gpr[5] = produced;
@@ -268,24 +276,30 @@ void vector_reserve(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32
     const u32 self = ctx.gpr[4];
     const u32 count = ctx.gpr[5];
     GuestFrame frame(ctx, 0x30u);
+    ctx.gpr[2] = 0x1FFFFFFFu < count ? 1u : 0u;
     if (0x1FFFFFFFu < count) call_set(rt, ctx, 0x08B5ADDCu, {length_message});
     const u32 vector = ctx.gpr[4];
     const u32 begin = word(rt, vector);
     const u32 capacity = static_cast<u32>(static_cast<s32>(word(rt, vector + 8u) - begin) >> 3);
+    ctx.gpr[2] = capacity < count ? 1u : 0u;
     if (!(capacity < count)) return;
     const u32 end = word(rt, vector + 4u);
     const u32 old_count = static_cast<u32>(static_cast<s32>(end - begin) >> 3);
+    ctx.gpr[2] = end - begin;
     u32 bytes = 0u;
     u32 block = 0u;
     if (count != 0u) {
         bytes = count << 3;
         block = call_set(rt, ctx, 0x08B35DA0u, {bytes});
     }
+    ctx.gpr[2] = count != 0u ? block : end - begin;
     call_set(rt, ctx, move_elements, {begin, end, block, frame.at(0u)});
     call_set(rt, ctx, destroy_elements, {word(rt, self), word(rt, self + 4u), frame.at(1u)});
     const u32 old_begin = word(rt, self);
     ctx.gpr[4] = old_begin;
+    ctx.gpr[2] = old_count << 3;
     if (old_begin != 0u) call_set(rt, ctx, 0x08B35254u, {old_begin});
+    ctx.gpr[2] = block + (old_count << 3);
     put(rt, self + 8u, block + bytes);
     put(rt, self + 4u, block + (old_count << 3));
     put(rt, self, block);
