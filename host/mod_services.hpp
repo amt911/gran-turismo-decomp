@@ -84,4 +84,19 @@ void remove_for(const GtMod *mod);
 // Tests: forget everything.
 void clear_for_tests();
 
+// v5: hook points, impact and meshes (include/gt_mod/gt_mod_api.h; host/mesh_blob.hpp, host/game_state.hpp).
+constexpr std::uint32_t kHookWorldStep = 0x0894DD9Cu;  // docs/FACTS.md "Car body state": the physics step of every car
+constexpr std::uint32_t kHookMeshDraw = 0x08B550A8u;   // docs/superpowers/specs/2026-11-07-crash-deformation-design.md: the blob draw leaf
+constexpr std::uint32_t kGuestAlloc = 0x08B35DA0u, kGuestFree = 0x08B35254u;  // the game's allocator (a0 = bytes / pointer), as 0x08B62344 uses it
+int api_car_impact(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarImpact *out);
+int api_mesh_info(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtMeshInfo *out);
+int api_mesh_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, std::int16_t xyz[3]);
+int api_mesh_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, const std::int16_t xyz[3]);
+int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t *copy);
+int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy);
+std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
+void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
+constexpr std::uint32_t kGraphicsContext = 0x08D6CE00u, kListCursorOffset = 0x5Cu;  // FINDINGS "GE blob census": +0x5C list cursor
+int api_draw_mesh_origin(GtMod *self, GtModCtx *ctx, float xyz[3]);
+
 }  // namespace gt::mods::services

@@ -168,6 +168,22 @@ evidencia en `host/game_state.cpp` y FACTS). Un mod que lo usa declara `api = 3`
 
 Siguen (spec, pasos 3-4): puntos de enganche con nombre, cámara.
 
+## API v5: puntos de enganche con nombre, impacto y mallas (spec `docs/superpowers/specs/2026-11-07-crash-deformation-design.md`)
+
+Un mod que declara `api = 5` usa solo llamadas con nombre (sin direcciones del guest). Evidencia junto a cada una:
+
+| Llamada | Qué hace | Evidencia |
+| --- | --- | --- |
+| `hook_point(GT_HOOK_WORLD_STEP)` | paso físico de cada coche (`0x0894DD9C`, a0 = el mundo) | FACTS "Car body state" |
+| `hook_point(GT_HOOK_MESH_DRAW)` | la hoja que dibuja un blob (`0x08B550A8`, a0 = blob) | FINDINGS "GE blob census" |
+| `car_impact(world, car, out)` | cambio de velocidad del paso (`K+0x6CC..`) en ejes del cuerpo (filas `K+0x1C/28/34`), dirección de contacto = -dv, `off_track` si una rueda lee `0x300`, salto de la velocidad de guiñada (`K+0x6F8`), caja del cuerpo | FACTS "Collision code ... NOT FOUND" (aproximación por dv); "Rollover body box" |
+| `mesh_info`, `mesh_vertex`, `mesh_set_vertex` | blob = BASE, VADR, VTYPE, PRIM, RET + vértices; formatos `0x122` (paso 14, s16 en +8), `0x130` y `0x112` (paso 12, +6) | spec de deformación, hallazgo del spike 2026-11-07 |
+| `mesh_copy`, `mesh_release` | copia el blob en memoria del asignador del juego (`0x08B35DA0` / `0x08B35254`, solo desde el tic) con la VADR reescrita | `host/mesh_blob.cpp`, prueba `mesh_blob` |
+| `draw_mesh_blob`, `draw_mesh_redirect` | el blob que se va a dibujar y su sustituto (a0) | spec |
+| `draw_mesh_origin` | traslación de la última matriz de mundo de la lista (cursor `0x08D6CE5C`; WORLDN + 12 WORLDD) | FINDINGS "GE blob census" (`0x08B59508` vuelca la matriz perezosa) |
+
+`car_impact` compara con la llamada anterior: llámala una vez por paso. Pruebas: `ctest --test-dir build -R "game_state|mesh_blob|mod_services"`.
+
 ## `mod.toml`
 
 ```toml

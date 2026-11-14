@@ -56,4 +56,31 @@ struct CarState {
 bool car_state(const psprecomp::GuestMemory &memory, std::uint32_t handle, CarState &out);
 bool car_set_state(psprecomp::GuestMemory &memory, std::uint32_t handle, const CarState &state);
 
+// ---- v5: impact (docs/FACTS.md "Collision code for dent contact points: NOT FOUND": no contact point exists in the state, so the
+// velocity change of one step stands in for it). ----
+
+// The previous step's sample of every car (keyed by body handle): car_impact compares with it, so call it once per world step.
+struct ImpactTracker {
+    struct Sample {
+        std::uint32_t handle = 0;
+        float velocity[3] = {0, 0, 0};
+        float speed = 0, yaw_rate = 0;
+        bool valid = false;
+    };
+    Sample samples[kMaxCars];
+};
+
+struct Impact {
+    float dv_body[3];       // velocity change of the step in the body frame (forward, right, up rows)
+    float dv_magnitude;     // |dv|, m/s; 0 on the first sample of a car
+    float speed_before;     // K+0x6C4 of the previous sample
+    float yaw_rate_jump;    // |K+0x6F8 - previous|
+    bool off_track;         // any wheel record's surface word (+0x2C) is 0x300
+    float contact_dir[3];   // -dv normalised, in the body frame (where on the body the hit landed); 0 when dv is 0
+    float box_half_length, box_half_width, box_floor, box_roof;  // the rollover body box (FACTS "Rollover body box": a heuristic)
+};
+
+// Fills `out` for the car whose body is `handle` in `world`; false when the body is no slot of the world.
+bool car_impact(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle, ImpactTracker &tracker, Impact &out);
+
 } // namespace gt::game_state

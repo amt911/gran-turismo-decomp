@@ -28,6 +28,9 @@ extern "C" {
 /* v4 (docs/superpowers/specs/2026-11-11-cheat-device-design.md): actions with hotkeys the player binds, and entries in the
  * cheat device's categories. The v4 functions refuse a mod that declared api < 4. */
 #define GT_MOD_API_VERSION_4 4
+/* v5 (docs/superpowers/specs/2026-11-07-crash-deformation-design.md): named hook points, impact and mesh access, so the
+ * deformation mod needs no guest address. The v5 functions refuse a mod that declared api < 5. */
+#define GT_MOD_API_VERSION_5 5
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -68,6 +71,34 @@ typedef void (*GtMenuActivateFn)(GtMod *self, int direction);
 /* v4. An action: runs on the vblank tick (call_guest allowed, as in a tick) after its hotkey or its menu entry fired it, at most
  * once per vblank, never while its mod is switched off. */
 typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
+
+
+/* v5. Named hook points: the host maps each to the guest function it researched (docs/MODS.md names the evidence). */
+typedef enum GtHookPoint {
+    GT_HOOK_WORLD_STEP = 1, /* the physics step of every car; a0 = the world (what race_cars / player_car take) */
+    GT_HOOK_MESH_DRAW = 2   /* the model draw leaf: draw_mesh_blob(ctx) is the blob about to be drawn */
+} GtHookPoint;
+
+/* v5. What one physics step did to a car, from its velocity change (the game keeps no contact point: docs/FACTS.md). Call car_impact once
+ * per world step per car: it compares with the previous call. */
+typedef struct GtCarImpact {
+    float dv_body[3];      /* velocity change in the body frame: forward, right, up (m/s) */
+    float dv_magnitude;    /* |dv|; 0 on the first sample of a car */
+    float speed_before;
+    float yaw_rate_jump;
+    int32_t off_track;     /* a wheel reads the off-track surface: a wall or terrain hit rather than a car-car one */
+    float contact_dir[3];  /* -dv normalised in the body frame: where on the body the hit landed; 0 when dv is 0 */
+    float box_half_length, box_half_width, box_floor, box_roof; /* the body box (a heuristic, FACTS "Rollover body box") */
+} GtCarImpact;
+
+/* v5. A model blob (GE command list + its vertices). Positions are s16 in model units. */
+typedef struct GtMeshInfo {
+    uint32_t vertex_count;
+    uint32_t stride;
+    uint32_t position_offset;
+    uint32_t vertex_data;
+    uint32_t byte_size; /* what mesh_copy copies; the header only when the vertices are elsewhere (not copyable) */
+} GtMeshInfo;
 
 typedef struct GtModApi {
     uint32_t version; /* GT_MOD_API_VERSION the host implements */
@@ -130,6 +161,28 @@ typedef struct GtModApi {
     /* A menu row (the v2 add_menu_row contract: label and activate from other threads, atomics only) placed in `category`
      * instead of the Mods list. 0 = ok. */
     int (*add_entry)(GtMod *self, const char *category, const char *id, GtMenuLabelFn label, GtMenuActivateFn activate);
+    /* ---- v5 (appended): hook points, impact and meshes. Only valid for a mod that declared `api = 5`. ---- */
+    /* Hooks a named point (during gt_mod_init only; the hook() contract: chains in load order). 0 = ok. */
+    int (*hook_point)(GtMod *self, GtHookPoint point, GtHookFn fn);
+    /* Impact of the latest step for car `car` of `world` (0 = ok; non-zero when the car is no slot of the world). */
+    int (*car_impact)(GtMod *self, GtModCtx *ctx, uint32_t world, uint32_t car, GtCarImpact *out);
+    /* Parses the blob (0 = ok; non-zero for a header or format that is not a known car model). */
+    int (*mesh_info)(GtMod *self, GtModCtx *ctx, uint32_t blob, GtMeshInfo *out);
+    /* Reads / writes the s16 position of vertex `index` (0 = ok; non-zero when the blob or the index is bad). */
+    int (*mesh_vertex)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t index, int16_t xyz[3]);
+    int (*mesh_set_vertex)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t index, const int16_t xyz[3]);
+    /* A copy of the blob in memory the host allocates (vblank tick only), its vertex address rewritten to the copy: edit the copy, then
+     * redirect draws of the original to it. 0 = ok. mesh_release frees it (tick only); give back what you copied, at the latest when
+     * the race ends. */
+    int (*mesh_copy)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t *copy);
+    int (*mesh_release)(GtMod *self, GtModCtx *ctx, uint32_t copy);
+    /* In a GT_HOOK_MESH_DRAW hook: the blob being drawn, and a replacement the game draws instead (call before call_original). */
+    uint32_t (*draw_mesh_blob)(GtModCtx *ctx);
+    void (*draw_mesh_redirect)(GtModCtx *ctx, uint32_t blob);
+    /* The translation of the latest world matrix in the display list being built (the model position the blob draws at, in the renderer's
+     * Y-up frame; car_state positions are Z-up). Read it AFTER call_original in a GT_HOOK_MESH_DRAW hook: the game flushes its lazy matrix
+     * when it records the draw. 0 = ok, non-zero when no matrix was found. */
+    int (*draw_mesh_origin)(GtMod *self, GtModCtx *ctx, float xyz[3]);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

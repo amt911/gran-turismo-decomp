@@ -1,6 +1,7 @@
 #include "mod_services.hpp"
 
 #include "game_state.hpp"
+#include "mesh_blob.hpp"
 
 #include "guest_call.hpp"
 
@@ -289,6 +290,74 @@ int api_car_set_state(GtMod *self, GtModCtx *ctx, std::uint32_t car, const GtCar
 int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value) {
     if (!v3_mod(self, "money_set") || ctx == nullptr) return 1;
     return gt::game_state::money_set(ctx->rt->memory(), value) ? 0 : 1;
+}
+
+bool v5_mod(GtMod *self, const char *what) {
+    if (self == nullptr) return false;
+    if (self->api_version < GT_MOD_API_VERSION_5) {
+        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 5)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    return true;
+}
+
+namespace {
+gt::game_state::ImpactTracker g_impact;  // the step hook runs on one guest thread at a time (cooperative scheduling)
+}
+static_assert(sizeof(GtMeshInfo) == sizeof(gt::mesh::BlobInfo), "GtMeshInfo mirrors mesh::BlobInfo");
+static_assert(sizeof(GtCarImpact) == sizeof(gt::game_state::Impact), "GtCarImpact mirrors game_state::Impact");
+
+int api_car_impact(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarImpact *out) {
+    if (!v5_mod(self, "car_impact") || ctx == nullptr || out == nullptr) return 1;
+    gt::game_state::Impact impact{};
+    if (!gt::game_state::car_impact(ctx->rt->memory(), world, car, g_impact, impact)) return 1;
+    std::memcpy(out, &impact, sizeof impact);
+    return 0;
+}
+int api_mesh_info(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtMeshInfo *out) {
+    if (!v5_mod(self, "mesh_info") || ctx == nullptr || out == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    if (!gt::mesh::parse_blob(ctx->rt->memory(), blob, info)) return 1;
+    std::memcpy(out, &info, sizeof info);
+    return 0;
+}
+int api_mesh_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, std::int16_t xyz[3]) {
+    if (!v5_mod(self, "mesh_vertex") || ctx == nullptr || xyz == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    return gt::mesh::parse_blob(ctx->rt->memory(), blob, info) && gt::mesh::read_vertex(ctx->rt->memory(), info, index, xyz) ? 0 : 1;
+}
+int api_mesh_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, const std::int16_t xyz[3]) {
+    if (!v5_mod(self, "mesh_set_vertex") || ctx == nullptr || xyz == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    return gt::mesh::parse_blob(ctx->rt->memory(), blob, info) && gt::mesh::write_vertex(ctx->rt->memory(), info, index, xyz) ? 0 : 1;
+}
+int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t *copy) {
+    if (!v5_mod(self, "mesh_copy") || ctx == nullptr || copy == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    if (!gt::mesh::parse_blob(ctx->rt->memory(), blob, info) || info.byte_size <= gt::mesh::kBlobHeaderBytes) return 1;
+    const std::uint32_t size = info.byte_size;
+    std::uint32_t address = 0u;
+    if (api_call_guest(ctx, kGuestAlloc, &size, 1u, &address) != 0 || address == 0u) return 1;
+    if (!gt::mesh::copy_blob(ctx->rt->memory(), blob, address)) {
+        api_call_guest(ctx, kGuestFree, &address, 1u, nullptr);
+        return 1;
+    }
+    *copy = address;
+    return 0;
+}
+int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy) {
+    if (!v5_mod(self, "mesh_release") || ctx == nullptr || copy == 0u) return 1;
+    return api_call_guest(ctx, kGuestFree, &copy, 1u, nullptr);
+}
+int api_draw_mesh_origin(GtMod *self, GtModCtx *ctx, float xyz[3]) {
+    if (!v5_mod(self, "draw_mesh_origin") || ctx == nullptr || xyz == nullptr) return 1;
+    const auto &m = ctx->rt->memory();
+    if (!m.contains(kGraphicsContext + kListCursorOffset, 4u)) return 1;
+    return gt::mesh::last_world_translation(m, m.load32(kGraphicsContext + kListCursorOffset), 4096u, xyz) ? 0 : 1;
+}
+std::uint32_t api_draw_mesh_blob(GtModCtx *ctx) { return ctx != nullptr && ctx->ctx != nullptr ? ctx->ctx->gpr[4] : 0u; }
+void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob) {
+    if (ctx != nullptr && ctx->ctx != nullptr) ctx->ctx->gpr[4] = blob;
 }
 
 void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {

@@ -78,5 +78,43 @@ int main() {
     check(!car_state(m, 0u, back) && !car_set_state(m, 0u, s), "a null handle is refused");
 
     if (failures == 0) std::puts("game_state: all checks passed");
+    // ---- v5: impact from the velocity change (docs/FACTS.md "Collision code ... NOT FOUND": the delta-v fallback). ----
+    {
+        // A world with one slot: the car at slot + 0x2010, its body K at word(car + 8), its wheel records at word(car + 0x10).
+        constexpr std::uint32_t IW = 0x09500000u, islots = 0x09510000u, K = 0x09400000u, wheels = 0x09410000u;
+        m.store32(IW + 4u, islots);
+        m.store32(IW + 8u, 1u);
+        const std::uint32_t icar = islots + 0x2010u;
+        m.store32(icar + 8u, K);
+        m.store32(icar + 0x10u, wheels);
+        const auto setf = [&](std::uint32_t off, float v) { std::uint32_t b; std::memcpy(&b, &v, 4); m.store32(K + off, b); };
+        const float identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        for (int i = 0; i < 9; ++i) setf(0x1Cu + 4u * i, identity[i]);
+        setf(0x6CCu, 10.f); setf(0x6D0u, 0.f); setf(0x6D4u, 0.f); setf(0x6C4u, 10.f); setf(0x6F8u, 0.f);
+        ImpactTracker tracker;
+        Impact impact{};
+        check(!car_impact(m, IW, 0u, tracker, impact), "impact: a null body is refused");
+        check(!car_impact(m, IW, 0x09999000u, tracker, impact), "impact: a body that is no slot of the world is refused");
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude == 0.f, "impact: the first sample has no previous velocity: no impact");
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude == 0.f, "impact: a steady step has dv 0");
+        setf(0x6D0u, 5.f);
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude > 4.99f && impact.dv_magnitude < 5.01f, "impact: |dv| of a 5 m/s sideways change");
+        check(impact.dv_body[1] > 4.99f && impact.dv_body[0] == 0.f, "impact: identity basis keeps world axes (right = +y)");
+        check(impact.contact_dir[1] < -0.99f, "impact: the contact direction is -dv (the hit came from the -y side)");
+        const float turned[9] = {0, 1, 0, -1, 0, 0, 0, 0, 1};  // forward = world +y
+        for (int i = 0; i < 9; ++i) setf(0x1Cu + 4u * i, turned[i]);
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude == 0.f, "impact: no change since the last sample");
+        setf(0x6D0u, 10.f);
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_body[0] > 4.99f && impact.dv_body[0] < 5.01f,
+              "impact: the basis rows rotate dv into the body frame (forward = row 0)");
+        check(impact.speed_before > 9.9f, "impact: speed_before is the previous speed");
+        check(!impact.off_track, "impact: wheels on asphalt are not off track");
+        m.store32(wheels + 0x38u * 2u + 0x2Cu, 0x300u);
+        setf(0x6F8u, 3.f);
+        check(car_impact(m, IW, K, tracker, impact) && impact.off_track && impact.yaw_rate_jump > 2.99f,
+              "impact: the 0x300 surface word of a wheel means off track; the yaw-rate jump is reported");
+        check(impact.box_roof > 0.f && impact.box_floor < 0.f && impact.box_half_length > 0.f && impact.box_half_width > 0.f,
+              "impact: the body box is reported");
+    }
     return failures == 0 ? 0 : 1;
 }

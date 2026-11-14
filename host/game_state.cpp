@@ -1,5 +1,6 @@
 #include "game_state.hpp"
 
+#include <cmath>
 #include <cstring>
 
 namespace gt::game_state {
@@ -116,6 +117,69 @@ bool car_set_state(psprecomp::GuestMemory &m, std::uint32_t h, const CarState &s
     for (int i = 0; i < 3; ++i) store_f(m, h + kEuler + 4u * i, s.euler[i]);
     store_f(m, h + kThrottle, s.throttle);
     store_f(m, h + kBrake, s.brake);
+    return true;
+}
+
+namespace {
+constexpr std::uint32_t kWheelRecords = 0x10u, kWheelStride = 0x38u, kSurface = 0x2Cu, kOffTrack = 0x300u, kCarRecord = 0xCu;
+constexpr std::uint32_t kWheelBase = 0x18u, kTrack = 0x1Cu;
+float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
+} // namespace
+
+bool car_impact(const psprecomp::GuestMemory &m, std::uint32_t world, std::uint32_t handle, ImpactTracker &tracker, Impact &out) {
+    if (!body_ok(m, handle)) return false;
+    const std::uint32_t slots = word_or_0(m, world + 4u), count = word_or_0(m, world + 8u);
+    std::uint32_t car = 0u;
+    for (std::uint32_t i = 0; i < count && i < kMaxCars && slots != 0u; ++i) {
+        const std::uint32_t candidate = slots + i * kSlotSize + kCarInSlot;
+        if (m.contains(candidate, 0x14u) && m.load32(candidate + kBody) == handle) {
+            car = candidate;
+            break;
+        }
+    }
+    if (car == 0u) return false;
+    float v[3], rows[9];
+    for (int i = 0; i < 3; ++i) v[i] = load_f(m, handle + kVelocity + 4u * i);
+    for (int i = 0; i < 9; ++i) rows[i] = load_f(m, handle + kBasis + 4u * i);
+    const float speed = load_f(m, handle + kSpeed), yaw_rate = load_f(m, handle + kRates[4]);
+    ImpactTracker::Sample *sample = nullptr;
+    for (auto &s : tracker.samples)
+        if (s.valid && s.handle == handle) sample = &s;
+    if (sample == nullptr)
+        for (auto &s : tracker.samples)
+            if (!s.valid) {
+                sample = &s;
+                break;
+            }
+    out = Impact{};
+    if (sample != nullptr && sample->valid) {
+        const float dv[3] = {v[0] - sample->velocity[0], v[1] - sample->velocity[1], v[2] - sample->velocity[2]};
+        for (int r = 0; r < 3; ++r) out.dv_body[r] = rows[3 * r] * dv[0] + rows[3 * r + 1] * dv[1] + rows[3 * r + 2] * dv[2];
+        out.dv_magnitude = std::sqrt(dv[0] * dv[0] + dv[1] * dv[1] + dv[2] * dv[2]);
+        out.speed_before = sample->speed;
+        out.yaw_rate_jump = std::fabs(yaw_rate - sample->yaw_rate);
+        if (out.dv_magnitude > 0.f)
+            for (int i = 0; i < 3; ++i) out.contact_dir[i] = -out.dv_body[i] / out.dv_magnitude;
+    } else {
+        out.speed_before = speed;
+    }
+    const std::uint32_t wheels = word_or_0(m, car + kWheelRecords);
+    for (std::uint32_t i = 0; i < 4u && wheels != 0u; ++i)
+        if (m.contains(wheels + i * kWheelStride, kSurface + 4u) && m.load32(wheels + i * kWheelStride + kSurface) == kOffTrack) out.off_track = true;
+    const std::uint32_t record = word_or_0(m, car + kCarRecord);
+    const float wheel_base = record != 0u && m.contains(record, kTrack + 4u) ? load_f(m, record + kWheelBase) : 0.f;
+    const float track = record != 0u && m.contains(record, kTrack + 4u) ? load_f(m, record + kTrack) : 0.f;
+    out.box_half_length = clampf(0.8f * wheel_base, 1.7f, 2.6f);
+    out.box_half_width = clampf(track / 2.f + 0.12f, 0.75f, 1.1f);
+    out.box_floor = -0.03f;
+    out.box_roof = 0.8f;
+    if (sample != nullptr) {
+        sample->handle = handle;
+        sample->valid = true;
+        for (int i = 0; i < 3; ++i) sample->velocity[i] = v[i];
+        sample->speed = speed;
+        sample->yaw_rate = yaw_rate;
+    }
     return true;
 }
 
