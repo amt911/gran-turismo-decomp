@@ -682,3 +682,54 @@ Scratch probe mods (not committed) scanning guest RAM from the vblank tick, `--d
   `0x08931090()` is the number of cars. A guest scratch buffer is needed for `buf`: idea, lower the tick context's `sp` by 1 KiB for the tick and offer the space through the API (not built).
 - **`0x0894DD9C` (world step) and `0x0890E41C` (world draw) run in the garage as well as in races** (the `save_garage` route: both called in two segments, vblanks 15010..16245 and 17030..17646 on that run), so they cannot tell a race from a menu. In a race the step stops being called when the game is paused (`cheats.pad` + START: the last call came ~10 vblanks after the pause).
   "Never mid-race" therefore needs another signal; not found yet.
+
+## Collision code for dent contact points: static search (2026-11-14) — **NOT FOUND: no contact point, normal or impulse located**
+
+Question (crash-deformation spec, open question 3): does the game have a collision routine whose contact point / normal / penetration a
+mod can read? Method: Ghidra 12.1.3 headless (`Decompile.java`, `RefsTo.java`, existing `ghidra/gt.gpr`, no re-import) and `tools.disasm`
+scans of every function of the EBOOT (writers of `K+0x6CC..0x6D4`, relocated references to strings, vtable walks). **No runtime run**
+(a PR verdict gate was using the heavy slice). Runtime addresses. **Result: the Δv approximation stays the only usable signal**; what was
+ruled out is listed so nobody re-reads it. Confidence in each line is marked.
+
+**Observations**
+- **Writers of the body velocity `K+0x6CC/6D0/6D4`** (a scan of all functions with `sw`/`swc1` at those offsets): `0x0893E0FC` (body step: gravity
+  and the wheel forces, `v += dt * F/m`, mass `K+0x5DC`), `0x0894AA7C` (zeroes `0x6C8..0x6D0`, `0x6F8`, and the force accumulators `0x6A4/0x6B4/0x6B8/0x6C0`
+  when the car is nearly stopped, `|0x6C4| < 0.2778 m/s`, and otherwise adds `dt*(0x6B4*row0 + 0x6B8*row1)`), `0x0895A2F8` (only cars with `K+3 == 4`, from
+  `0x08958F20`), `0x0893CBCC`, `0x08940610`, `0x08940BF8` (car reset), and the step `0x0894DD9C` itself (`0x0894E1E8`, `0x0894E248`: the world+0x18 copy-back
+  and the ground clamp below). **None of them is an impulse from a wall or another car**; no function in `0x08930000-0x08970000` computes a contact
+  normal, a penetration depth or an impulse (no function there combines a distance test with a velocity write).
+- **`world+0x18` is not a collision solver.** `0x0894DD9C` copies each car's position `K+0x10..18`, velocity `K+0x6CC..`, angles `+0x6FC/700/704`, rates
+  `+0x6F0/6F4/6F8`, the hint pair `+0x690/694` and dt (`0x0895549C` = `K+0x4F4`) into a record from `world->vtable[0x18]` (object at `world+0x18`), calls its `vtable[0x1C]`,
+  and copies back position, velocity, yaw (`+0x704`) and yaw rate (`+0x6F8`) only. The object is the 0x24-byte class with vtable `0x08CC2F18`
+  (constructor `0x088AFA88`, created at `0x088A2EE0`, stored in `world+0x18` at `0x088A2150`): slot `0x18` = `records + i*0x40` (`0x088AF324`), slot `0x1C`
+  (`0x088AF9F4`) loops `0x088AF3C8(i)`, and the per-car update `0x088AF350` does `rec[0..2] += rec[+0x38] * rec[+0xC..]` (position advanced by a velocity
+  and a time). With `world+0x18 == 0` the step does the plain `pos += dt*vel`, `yaw += dt*yawrate`. *(Inference, medium: a replay / dead-reckoning
+  buffer; its users were not traced. In either reading it only moves cars along their own velocity.)*
+- **The car-pair loop `0x0895F7C0` (called by the step, `0x0894E4D8`) is not contact resolution.** It zeroes `K+0x67C` of every car, then for each pair of live cars
+  (skipping cars where `0x08955774` answers 1; skipping pairs whose byte `+0xC & 0x10` differs) takes the distance of the two origins and skips pairs farther than **200.0**
+  (`0x4348` in `0x0895F95C`), calls `0x0895F4EC(a, b)` both ways (second only when car b's `K+3 != 4`), then clamps `K+0x67C` to 1.0. `0x0895F4EC` reads the
+  5-slot position history ring (`K+0x618 + 0x3C*i`, head `K+0x678`, counter `K+0x679`, tick `K+0x67A` 1..20, filled by `0x0895F3BC`), tests a closest-approach parameter
+  in `[0, 1.1]` against a radius `(car_record+0x8 of both)/2 = 0.5*(1.783+1.783)` and **only stores to `K+0x67C`**. `0x089572C4` copies `K+0x67C` to `K+0x680` and
+  weights the drag coefficients (`car_record+0x1400..1408`, `K+0x37C`) with `1 - K+0x67C`. *(Inference, medium: `K+0x67C` is a slipstream / drafting
+  factor behind another car; the stores and the reader are observed, the name is not. No normal or point is kept.)*
+- **`HIT_WALL`, `HIT_WALL_HARD`, `HIT_CAR`, `HIT_CAR_HARD`, `CRASHCAR`, `CRASHWALL`, `ALONGWALL`, `COURSE_OUT`, `PYLON`, `SPIN_*`** are **Adhoc enum names**, not engine symbols: name/value
+  pairs in `.data` (`CRASHCAR=1, CRASHCAR2=2, CRASHWALL=3, ALONGWALL=4, SHORTCUT=5` at vaddr `0x4d8628`; `COURSE_OUT=1, HIT_WALL_HARD=2, HIT_CAR_HARD=3, HIT_CAR=4,
+  PYLON=5, HIT_WALL=6, SPIN_FULL=7, ...` at `0x4d88c0`; strings at `0x49a648`, `0x49aa34`), reached through the script binder, no code references them directly.
+  They name penalty classes of the Adhoc rules; the code that classifies a hit was not located (the Adhoc side may read a native that is not among those searched).
+- **`disable_collision`** (`0x08C9CD6C`, bound at `0x08848018`, native at `0x0884A7EC`) reads/writes the byte **`word(obj)+0x55`** through `0x088D4DD4` / `0x088D4DE4`;
+  the readers of that byte in the physics code were not found in this pass (`0x088DDB6C` and `0x088E0CB8` only serialise it for the script). So it is a script-visible
+  flag whose effect on the pair loop is **unverified**.
+- Wheel structs are `K + 0x70 + 0x118*i` (`0x08955300(car, i)`; `+0x54` load, `+0xD8/+0xE0` forces); the body integrator `0x0893E0FC` builds the force vector only from them
+  and gravity. A barrier hit (FACTS "Rollovers": -8.3 m/s lateral in one step) therefore has to arrive through these terms, the road/terrain query (`word(word(obj)+8)`, wheel
+  records `word(car+0x10)+0x38*i`) or a virtual call of the step that was not read (`jalr` at `0x0894DE20`, `0x0894DEC0`, `0x0894DEE0`, `0x0894E0CC`, `0x0894E170`, `0x0894E1BC`,
+  `0x0894E548`). **Not established.**
+
+**What a mod can use per step (no contact point exists in the state)**
+- The state at the **next** call of the step hook is the previous step's result (FACTS "Cheats": no post-step read). Keep `v_prev` (`K+0x6CC..6D4`) and `speed_prev` (`K+0x6C4`);
+  `dv = v - v_prev` in world axes, rotate into the body frame with the rows `K+0x1C/0x28/0x34`: forward component = frontal load, lateral component = side load; the wheel records'
+  surface word (`0x300` off track) and the yaw-rate jump (`K+0x6F8`) tell wall from ground, but car-vs-car vs wall needs the other cars' positions (distance below ~`car_record+0x8`).
+  A contact **point** can only be approximated: `-dv` direction in the body frame, at the body surface (box from the wheel records, FACTS "Rollover body box"). Confidence: high that
+  this is all the state offers, medium that the engine has no exact point (the unread virtual calls above could hold one).
+
+**Not done / next if the exact point is wanted**: (1) a `GT_RAM_DUMP` pair of one step before and after the barrier hit, diffed over the 0x2100-byte car slot, to see which fields
+change in that step; (2) read the virtual calls listed above (the controller object `world+0x10`, `0x08946EC0`, `0x0894A15C`, `0x0894F6C8`, `0x0894E9C0`, `0x0894B310`, `0x0895DD80`).
