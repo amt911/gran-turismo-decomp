@@ -3366,3 +3366,11 @@ Roof stripes: SOLVED (2026-11-15). The cause was the assumption that each part i
 frame displaced overlapping layers by different amounts. The dent is now computed in metres in the common frame, the same point moves the same in every part and VRAM copy, and the normals
 are tilted with the surface. Seen from behind, a dent along the car's z (into the rear face) is only a depth change: the demonstration aims the hit at the rear-right flank
 (`tools/mod_deformation_check.sh` sets the mod's forward axis to x and its right axis to z).
+
+## A vtable-driven "collision" hook that is not one (2026-11-14)
+
+**Symptom.** The world step `0x0894DD9C` copies every car's position, velocity and angles into a record, calls a virtual `+0x1C` on the object at `world+0x18` and copies the
+result back: it reads exactly like an external collision solver. **It is a 0x24-byte buffer class (vtable `0x08CC2F18`) whose update just advances positions by velocity x time**
+(FACTS "Collision code ... NOT FOUND"). **Check before trusting a "solver" by its call shape:** read the class's slot functions (vtable words in `.data` hold the ELF vaddr; add
+`0x08804000`; the world step is reached through a `j` thunk at `0x088A194C` that loads `a0 = [a0+0x54]`, which is why a plain search for the step's address in `.data` finds nothing) and the
+constructor's size. Also: `Decompile.java` takes its vaddrs as separate arguments, so build the argument list in `bash -c` (zsh does not word-split).
