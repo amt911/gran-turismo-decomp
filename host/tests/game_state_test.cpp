@@ -78,5 +78,78 @@ int main() {
     check(!car_state(m, 0u, back) && !car_set_state(m, 0u, s), "a null handle is refused");
 
     if (failures == 0) std::puts("game_state: all checks passed");
+    // ---- v5: impact from the velocity change (docs/FACTS.md "Collision code ... NOT FOUND": the delta-v fallback). ----
+    {
+        // A world with one slot: the car at slot + 0x2010, its body K at word(car + 8), its wheel records at word(car + 0x10).
+        constexpr std::uint32_t IW = 0x09500000u, islots = 0x09510000u, K = 0x09400000u, wheels = 0x09410000u;
+        m.store32(IW + 4u, islots);
+        m.store32(IW + 8u, 1u);
+        const std::uint32_t icar = islots + 0x2010u;
+        m.store32(icar + 8u, K);
+        m.store32(icar + 0x10u, wheels);
+        const auto setf = [&](std::uint32_t off, float v) { std::uint32_t b; std::memcpy(&b, &v, 4); m.store32(K + off, b); };
+        const float identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        for (int i = 0; i < 9; ++i) setf(0x1Cu + 4u * i, identity[i]);
+        setf(0x6CCu, 10.f); setf(0x6D0u, 0.f); setf(0x6D4u, 0.f); setf(0x6C4u, 10.f); setf(0x6F8u, 0.f);
+        ImpactTracker tracker;
+        Impact impact{};
+        check(!car_impact(m, IW, 0u, tracker, impact), "impact: a null body is refused");
+        check(!car_impact(m, IW, 0x09999000u, tracker, impact), "impact: a body that is no slot of the world is refused");
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude == 0.f, "impact: the first sample has no previous velocity: no impact");
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude == 0.f, "impact: a steady step has dv 0");
+        setf(0x6D0u, 5.f);
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude > 4.99f && impact.dv_magnitude < 5.01f, "impact: |dv| of a 5 m/s sideways change");
+        check(impact.dv_body[1] > 4.99f && impact.dv_body[0] == 0.f, "impact: identity basis keeps world axes (right = +y)");
+        check(impact.contact_dir[1] < -0.99f, "impact: the contact direction is -dv (the hit came from the -y side)");
+        const float turned[9] = {0, 1, 0, -1, 0, 0, 0, 0, 1};  // forward = world +y
+        for (int i = 0; i < 9; ++i) setf(0x1Cu + 4u * i, turned[i]);
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_magnitude == 0.f, "impact: no change since the last sample");
+        setf(0x6D0u, 10.f);
+        check(car_impact(m, IW, K, tracker, impact) && impact.dv_body[0] > 4.99f && impact.dv_body[0] < 5.01f,
+              "impact: the basis rows rotate dv into the body frame (forward = row 0)");
+        check(impact.speed_before > 9.9f, "impact: speed_before is the previous speed");
+        check(!impact.off_track, "impact: wheels on asphalt are not off track");
+        m.store32(wheels + 0x38u * 2u + 0x2Cu, 0x300u);
+        setf(0x6F8u, 3.f);
+        check(car_impact(m, IW, K, tracker, impact) && impact.off_track && impact.yaw_rate_jump > 2.99f,
+              "impact: the 0x300 surface word of a wheel means off track; the yaw-rate jump is reported");
+        check(impact.box_roof > 0.f && impact.box_floor < 0.f && impact.box_half_length > 0.f && impact.box_half_width > 0.f,
+              "impact: the body box is reported");
+    }
+    // ---- v5: the car -> view -> model link and the model's blobs ----
+    {
+        constexpr std::uint32_t a0 = 0x09600000u, P = 0x09600100u, entry = 0x09600200u, car = 0x09600300u, body = 0x09600400u, o20 = 0x09600500u,
+                                model = 0x09600600u, parts = 0x09600800u, blob0 = 0x09601000u, blob1 = 0x09602000u;
+        m.store32(a0 + 4u, P);
+        m.store32(P + 0xB04u, entry);
+        m.store32(entry + 0xCu, car);
+        m.store32(car + 8u, body);
+        m.store32(P + 0x20u, o20);
+        m.store32(o20 + 8u, model);
+        m.store32(model, 0x4D444C33u);
+        m.store32(model + 0x14u, 3u);          // three part entries, the middle one not a mesh
+        m.store32(model + 0xA8u, parts);
+        const auto cmd = [](std::uint32_t op, std::uint32_t param) { return (op << 24) | (param & 0xFFFFFFu); };
+        for (const std::uint32_t at : {blob0, blob1}) {
+            m.store32(at, cmd(0x10, ((at + 20u) >> 8) & 0xFF0000u));
+            m.store32(at + 4u, cmd(0x01, (at + 20u) & 0xFFFFFFu));
+            m.store32(at + 8u, cmd(0x12, 0x112));
+            m.store32(at + 12u, cmd(0x04, 0x040003));
+            m.store32(at + 16u, cmd(0x0B, 0));
+        }
+        m.store32(parts, blob0);
+        m.store32(parts + 32u, 0x09609999u);   // not a blob
+        m.store32(parts + 64u, blob1);
+        CarDrawLink link;
+        check(car_draw_link(m, a0, link) && link.car == body && link.model == model, "link: the car's body and model from the draw's a0");
+        std::uint32_t blobs[8];
+        check(model_blobs(m, model, blobs, 8) == 2u && blobs[0] == blob0 && blobs[1] == blob1, "link: the model's parts that are meshes");
+        check(model_blobs(m, model, blobs, 1) == 1u, "link: capacity limits the list");
+        m.store32(model, 0u);
+        check(!car_draw_link(m, a0, link) && model_blobs(m, model, blobs, 8) == 0u, "link: a model without the 3LDM magic is refused");
+        m.store32(model, 0x4D444C33u);
+        m.store32(entry + 0xCu, 0u);
+        check(!car_draw_link(m, a0, link), "link: a null link is refused");
+    }
     return failures == 0 ? 0 : 1;
 }

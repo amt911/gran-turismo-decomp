@@ -1,0 +1,16 @@
+# Route deformation — the rollover route (the race, the car hits the barrier ~step 1830) with three SELECT presses early in the race (cycle to the outer chase view),
+# so the player car's body is on screen for tools/mod_deformation_check.sh (the default hood view shows almost none of it).
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,1500:CROSS:1450,2000:SELECT,2300:SELECT,2600:SELECT,3070:CROSS:360,3840:CROSS:840,4700:SQUARE:300
