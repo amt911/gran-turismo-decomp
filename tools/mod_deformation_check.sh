@@ -17,6 +17,7 @@ cd "$repo" || exit 2
 mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_deformation_check}
+case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
 decomp=off seconds=150 without=0 threshold=4.0 others=0 every=30 sabotage=""
 while [ $# -gt 0 ]; do
   case $1 in
