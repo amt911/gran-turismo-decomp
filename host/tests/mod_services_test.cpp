@@ -221,6 +221,98 @@ int main() {
         clear_for_tests();
     }
 
+
+    {  // v5: named hook points, impact, meshes (include/gt_mod/gt_mod_api.h)
+        GtMod v5, v4old;
+        v5.id = "v5";
+        v5.api_version = 5;
+        v4old.id = "v4old";
+        v4old.api_version = 4;
+        const GtModApi &api5 = mod_api(5);
+        check(api5.version == 5 && mod_api(4).version == 4, "api 5 is its own table");
+        psprecomp::Runtime r5;
+        const auto cmd = [](std::uint32_t op, std::uint32_t param) { return (op << 24) | (param & 0xFFFFFFu); };
+        constexpr std::uint32_t blob = 0x09200000u;
+        r5.memory().store32(blob, cmd(0x10, ((blob + 20u) >> 8) & 0xFF0000u));
+        r5.memory().store32(blob + 4u, cmd(0x01, (blob + 20u) & 0xFFFFFFu));
+        r5.memory().store32(blob + 8u, cmd(0x12, 0x130));
+        r5.memory().store32(blob + 12u, cmd(0x04, (3u << 16) | 2u));
+        r5.memory().store32(blob + 16u, cmd(0x0B, 0));
+        for (int c = 0; c < 3; ++c) r5.memory().store16(blob + 20u + 6u + 2u * c, static_cast<std::uint16_t>(10 * (c + 1)));
+        GtModCtx c5{&r5, nullptr, 0u, 0u};
+        GtMeshInfo info{};
+        check(api5.mesh_info(&v5, &c5, blob, &info) == 0 && info.vertex_count == 2 && info.stride == 12 && info.position_offset == 6, "v5 mesh_info");
+        int16_t xyz[3] = {0, 0, 0};
+        check(api5.mesh_vertex(&v5, &c5, blob, 0, xyz) == 0 && xyz[0] == 10 && xyz[2] == 30, "v5 mesh_vertex reads the s16 position");
+        const int16_t dent[3] = {1, 2, 3};
+        check(api5.mesh_set_vertex(&v5, &c5, blob, 0, dent) == 0 && r5.memory().load16(blob + 26u) == 1, "v5 mesh_set_vertex writes it");
+        check(api5.mesh_vertex(&v5, &c5, blob, 2, xyz) != 0 && api5.mesh_info(&v5, &c5, blob + 4u, &info) != 0, "v5 refuses a bad index and a bad blob");
+        check(api5.mesh_info(&v4old, &c5, blob, &info) != 0 && api5.mesh_vertex(&v4old, &c5, blob, 0, xyz) != 0, "v5 functions refuse an api-4 mod");
+        // mesh_copy allocates through the game's allocator from a tick, copies and rewrites the VADR; mesh_release frees.
+        static int frees = 0;
+        r5.register_function(gt::mods::services::kGuestAlloc, [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            ctx.gpr[2] = 0x09300000u;
+            ctx.pc = ctx.gpr[31];
+        }, "alloc");
+        r5.register_function(gt::mods::services::kGuestFree, [](psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+            ++frees;
+            ctx.pc = ctx.gpr[31];
+        }, "free");
+        psprecomp::AllegrexContext tick_regs{};
+        GtModCtx tick5{&r5, &tick_regs, 0, 0, true, &v5};
+        std::uint32_t copy = 0u;
+        check(api5.mesh_copy(&v5, &tick5, blob, &copy) == 0 && copy == 0x09300000u, "v5 mesh_copy from a tick");
+        check((r5.memory().load32(copy + 4u) & 0xFFFFFFu) == ((copy + 20u) & 0xFFFFFFu) && r5.memory().load16(copy + 26u) == 1,
+              "the copy has its own vertex address and the vertices");
+        GtModCtx hook5{&r5, &tick_regs, 0x08B550A8u, 0, false, &v5};
+        std::uint32_t again = 0u;
+        check(api5.mesh_copy(&v5, &hook5, blob, &again) != 0, "mesh_copy refuses outside a tick (call_guest rule)");
+        check(api5.mesh_release(&v5, &tick5, copy) == 0 && frees == 1, "v5 mesh_release frees through the game's allocator");
+        tick_regs.gpr[4] = blob;
+        check(api5.draw_mesh_blob(&hook5) == blob, "draw_mesh_blob is the leaf's a0");
+        api5.draw_mesh_redirect(&hook5, copy);
+        check(tick_regs.gpr[4] == copy, "draw_mesh_redirect replaces it");
+        {   // the car -> model link through the API
+            constexpr std::uint32_t a0 = 0x09600000u, P = 0x09600100u, entry = 0x09600200u, car = 0x09600300u, body = 0x09600400u, o20 = 0x09600500u, model = 0x09600600u;
+            r5.memory().store32(a0 + 4u, P); r5.memory().store32(P + 0xB04u, entry); r5.memory().store32(entry + 0xCu, car); r5.memory().store32(car + 8u, body);
+            r5.memory().store32(P + 0x20u, o20); r5.memory().store32(o20 + 8u, model); r5.memory().store32(model, 0x4D444C33u);
+            psprecomp::AllegrexContext regs{};
+            regs.gpr[4] = a0;
+            GtModCtx car_ctx{&r5, &regs, 0x0889BAB0u, 0, false, &v5};
+            std::uint32_t got_car = 0, got_model = 0;
+            check(api5.draw_car_model(&v5, &car_ctx, &got_car, &got_model) == 0 && got_car == body && got_model == model, "v5 draw_car_model names the car and its model");
+            check(api5.draw_car_model(&v4old, &car_ctx, &got_car, &got_model) != 0, "draw_car_model refuses an api-4 mod");
+            regs.gpr[4] = 0x09700000u;
+            check(api5.draw_car_model(&v5, &car_ctx, &got_car, &got_model) != 0, "draw_car_model refuses a view that does not check out");
+            std::uint32_t parts[4];
+            check(api5.model_blobs(&v5, &car_ctx, model, parts, 4) == 0u, "model_blobs: a model with no parts lists none");
+            GtVertexRun vr[4];
+            check(api5.blob_runs(&v5, &car_ctx, blob, vr, 4) == 1u && vr[0].blob == blob && vr[0].run == 0u && vr[0].count == 2u, "blob_runs: the runs of any blob");
+            int8_t n3[3] = {0, 0, 0};
+            r5.memory().store8(blob + 20u + 2u, 5); r5.memory().store8(blob + 20u + 3u, 6); r5.memory().store8(blob + 20u + 4u, 7);
+            check(api5.run_normal(&v5, &car_ctx, blob, 0, 0, n3) == 0 && n3[0] == 5 && n3[2] == 7 && api5.run_set_normal(&v5, &car_ctx, blob, 0, 0, (const int8_t[3]){1, 2, 3}) == 0 &&
+                      api5.run_normal(&v5, &car_ctx, blob, 0, 0, n3) == 0 && n3[1] == 2 && api5.run_normal(&v4old, &car_ctx, blob, 0, 0, n3) != 0,
+                  "run_normal / run_set_normal on a 0x130 run; an api-4 mod is refused");
+            int16_t p3[3];
+            check(api5.run_vertex(&v5, &car_ctx, blob, 0, 0, p3) == 0 && api5.run_vertex(&v5, &car_ctx, blob, 1, 0, p3) != 0 &&
+                      api5.blob_runs(&v4old, &car_ctx, blob, vr, 4) == 0u,
+                  "run_vertex of a blob's run, a missing run and an api-4 mod refused");
+        }
+        // named hook points install on the researched addresses
+        gt::mods::bind_runtime(r5);
+        r5.register_function(0x0894DD9Cu, &guest_sum, "step");
+        r5.register_function(0x08B550A8u, &guest_sum, "draw");
+        begin_init(&v5);
+        r5.register_function(0x0889BAB0u, &guest_sum, "cardraw");
+        check(api5.hook_point(&v5, GT_HOOK_WORLD_STEP, [](GtModCtx *) {}) == 0 && api5.hook_point(&v5, GT_HOOK_MESH_DRAW, [](GtModCtx *) {}) == 0 &&
+                  api5.hook_point(&v5, GT_HOOK_CAR_DRAW, [](GtModCtx *) {}) == 0,
+              "v5 hook_point installs the three named points");
+        check(api5.hook_point(&v5, static_cast<GtHookPoint>(99), [](GtModCtx *) {}) != 0, "an unknown hook point is refused");
+        check(api5.hook_point(&v4old, GT_HOOK_WORLD_STEP, [](GtModCtx *) {}) != 0, "hook_point refuses an api-4 mod");
+        end_init();
+        clear_hooks_for_tests();
+    }
+
     if (failures == 0) std::puts("mod_services tests passed");
     return failures == 0 ? 0 : 1;
 }
