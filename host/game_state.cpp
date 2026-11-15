@@ -221,4 +221,21 @@ std::uint32_t model_runs(const psprecomp::GuestMemory &m, std::uint32_t model, R
     return n;
 }
 
+bool list_world_matrix(const psprecomp::GuestMemory &m, float out[12], std::uint32_t max_bytes) {
+    const std::uint32_t cursor = word_or_0(m, kListState + 0x5Cu);
+    if (cursor < 8u + max_bytes || !m.contains(cursor - 4u, 4u)) return false;
+    for (std::uint32_t at = cursor - 4u; at + max_bytes > cursor && at >= 4u; at -= 4u) {
+        if ((word_or_0(m, at) >> 24) != 0x3Au) continue;  // WORLDN
+        bool block = true;
+        for (std::uint32_t i = 1; i <= 12u && block; ++i) block = at + 4u * i < cursor && (word_or_0(m, at + 4u * i) >> 24) == 0x3Bu;
+        if (!block) continue;
+        for (std::uint32_t i = 0; i < 12u; ++i) {
+            const std::uint32_t bits = (word_or_0(m, at + 4u * (i + 1u)) & 0xFFFFFFu) << 8;
+            std::memcpy(&out[i], &bits, 4);
+        }
+        return true;
+    }
+    return false;
+}
+
 } // namespace gt::game_state

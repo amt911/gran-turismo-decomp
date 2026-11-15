@@ -110,4 +110,10 @@ struct RunRef {
 };
 std::uint32_t model_runs(const psprecomp::GuestMemory &memory, std::uint32_t model, RunRef *out, std::uint32_t capacity);
 
+// The matrix the display list being built has uploaded last: the list cursor is word(kListState + 0x5C) (kListState = 0x08D6CE00, the state the leaf
+// 0x08B550A8 appends BASE + CALL with); looking back from it for WORLDN (0x3A) followed by 12 WORLDD (0x3B), each carrying a float's top 24 bits.
+// True and `out` filled (12 floats in upload order) when found within `max_bytes` of list.
+constexpr std::uint32_t kListState = 0x08D6CE00u;
+bool list_world_matrix(const psprecomp::GuestMemory &memory, float out[12], std::uint32_t max_bytes = 0x10000u);
+
 } // namespace gt::game_state

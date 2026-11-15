@@ -84,6 +84,13 @@ int main() {
         check(runs.size() == 3 && write_run_vertex(m, runs[1], 3, (const std::int16_t[3]){7, 8, 9}) && read_run_vertex(m, runs[1], 3, v) && v[1] == 8 &&
                   !write_run_vertex(m, runs[1], 4, v),
               "runs: vertex write, an index past the count refused");
+        check(runs.size() == 3 && runs[0].normal_offset == 2 && runs[1].normal_offset == 4 && runs[2].normal_offset == 0, "runs: normal offsets (0x130: +2, 0x122: +4, 0x112: none)");
+        std::int8_t nrm[3];
+        m.store8(va + 2u, 10); m.store8(va + 3u, 0xF6); m.store8(va + 4u, 127);   // vertex 0 of the 0x130 run: (10, -10, 127)
+        check(runs.size() == 3 && read_run_normal(m, runs[0], 0, nrm) && nrm[0] == 10 && nrm[1] == -10 && nrm[2] == 127, "runs: normal read");
+        check(runs.size() == 3 && write_run_normal(m, runs[0], 0, (const std::int8_t[3]){1, -2, 3}) && read_run_normal(m, runs[0], 0, nrm) && nrm[1] == -2 &&
+                  !read_run_normal(m, runs[2], 0, nrm) && !write_run_normal(m, runs[0], 5, nrm),
+              "runs: normal write; a run without normals and an index past the count are refused");
         check(!parse_blob(m, multi, info2), "runs: parse_blob still refuses a blob with several VADRs");
         std::vector<Run> none;
         check(!parse_runs(m, 0u, none) && none.empty(), "runs: a null blob is refused");

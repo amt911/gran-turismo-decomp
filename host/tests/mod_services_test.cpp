@@ -288,6 +288,11 @@ int main() {
             check(api5.model_blobs(&v5, &car_ctx, model, parts, 4) == 0u, "model_blobs: a model with no parts lists none");
             GtVertexRun vr[4];
             check(api5.blob_runs(&v5, &car_ctx, blob, vr, 4) == 1u && vr[0].blob == blob && vr[0].run == 0u && vr[0].count == 2u, "blob_runs: the runs of any blob");
+            int8_t n3[3] = {0, 0, 0};
+            r5.memory().store8(blob + 20u + 2u, 5); r5.memory().store8(blob + 20u + 3u, 6); r5.memory().store8(blob + 20u + 4u, 7);
+            check(api5.run_normal(&v5, &car_ctx, blob, 0, 0, n3) == 0 && n3[0] == 5 && n3[2] == 7 && api5.run_set_normal(&v5, &car_ctx, blob, 0, 0, (const int8_t[3]){1, 2, 3}) == 0 &&
+                      api5.run_normal(&v5, &car_ctx, blob, 0, 0, n3) == 0 && n3[1] == 2 && api5.run_normal(&v4old, &car_ctx, blob, 0, 0, n3) != 0,
+                  "run_normal / run_set_normal on a 0x130 run; an api-4 mod is refused");
             int16_t p3[3];
             check(api5.run_vertex(&v5, &car_ctx, blob, 0, 0, p3) == 0 && api5.run_vertex(&v5, &car_ctx, blob, 1, 0, p3) != 0 &&
                       api5.blob_runs(&v4old, &car_ctx, blob, vr, 4) == 0u,

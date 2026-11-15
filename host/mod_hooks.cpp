@@ -169,7 +169,8 @@ const GtModApi &mod_api(int version) {
                         api_hook_point, services::api_car_impact, services::api_mesh_info, services::api_mesh_vertex,
                         services::api_mesh_set_vertex, services::api_mesh_copy, services::api_mesh_release,
                         services::api_draw_mesh_blob, services::api_draw_mesh_redirect, services::api_draw_car_model, services::api_model_blobs,
-                        services::api_model_runs, services::api_run_vertex, services::api_run_set_vertex, services::api_on_switch_off, services::api_blob_runs};
+                        services::api_model_runs, services::api_run_vertex, services::api_run_set_vertex, services::api_on_switch_off, services::api_blob_runs, services::api_draw_matrix,
+                        services::api_run_normal, services::api_run_set_normal};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
                           v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5);

@@ -3361,3 +3361,8 @@ Roof stripes (2026-11-15, open): the dented roof shows streaky, saw-toothed shad
 (5116 vs 5138 differing pixels), the VRAM copies get the same displacement as their container run, and normals are not recomputed. Likely cause (not proven): overlapping layers
 that are each dented in their OWN normalised frame (different displacement for the same world point). A displacement from world position needs each part's transform,
 which is not in the entry (FACTS "Part entries of the model container"; the `.data` pointer at `+0x10` is unread).
+
+Roof stripes: SOLVED (2026-11-15). The cause was the assumption that each part is normalised in its own frame: all parts share the car's box (FACTS "Car draw matrix"), so a per-part
+frame displaced overlapping layers by different amounts. The dent is now computed in metres in the common frame, the same point moves the same in every part and VRAM copy, and the normals
+are tilted with the surface. Seen from behind, a dent along the car's z (into the rear face) is only a depth change: the demonstration aims the hit at the rear-right flank
+(`tools/mod_deformation_check.sh` sets the mod's forward axis to x and its right axis to z).

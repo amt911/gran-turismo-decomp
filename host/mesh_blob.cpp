@@ -70,6 +70,7 @@ bool parse_runs(const psprecomp::GuestMemory &m, std::uint32_t blob, std::vector
         if (format(vtype, stride, offset)) {
             cur.stride = stride;
             cur.position_offset = offset;
+            cur.normal_offset = vtype == 0x122u ? 4u : vtype == 0x130u ? 2u : 0u;  // uv(4) + normal | color(2) + normal, then the aligned position
         }
         open = true;
     };
@@ -109,6 +110,20 @@ bool write_run_vertex(psprecomp::GuestMemory &m, const Run &run, std::uint32_t i
     if (index >= run.count) return false;
     const std::uint32_t at = run.vertex_data + index * run.stride + run.position_offset;
     for (int c = 0; c < 3; ++c) m.store16(at + 2u * c, static_cast<std::uint16_t>(xyz[c]));
+    return true;
+}
+
+bool read_run_normal(const psprecomp::GuestMemory &m, const Run &run, std::uint32_t index, std::int8_t xyz[3]) {
+    if (index >= run.count || run.normal_offset == 0u) return false;
+    const std::uint32_t at = run.vertex_data + index * run.stride + run.normal_offset;
+    for (int c = 0; c < 3; ++c) xyz[c] = static_cast<std::int8_t>(m.load8(at + c));
+    return true;
+}
+
+bool write_run_normal(psprecomp::GuestMemory &m, const Run &run, std::uint32_t index, const std::int8_t xyz[3]) {
+    if (index >= run.count || run.normal_offset == 0u) return false;
+    const std::uint32_t at = run.vertex_data + index * run.stride + run.normal_offset;
+    for (int c = 0; c < 3; ++c) m.store8(at + c, static_cast<std::uint8_t>(xyz[c]));
     return true;
 }
 

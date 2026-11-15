@@ -205,6 +205,14 @@ typedef struct GtModApi {
      * keeps in video memory (0x04xxxxxx), whose vertices are bytes-for-bytes the container's, FACTS "VRAM copies of the model parts"). Fills
      * up to `capacity`, returns how many; run_vertex / run_set_vertex take the same (blob, run) pairs. */
     uint32_t (*blob_runs)(GtMod *self, GtModCtx *ctx, uint32_t blob, GtVertexRun *out, uint32_t capacity);
+    /* In a GT_HOOK_MESH_DRAW hook (before call_original): the 4x3 matrix the display list under construction has uploaded last (WORLDN + 12 WORLDD
+     * commands in front of the list cursor), as 12 floats in upload order. Whatever the game composed into it (view included) is in it: use it
+     * relative to the matrix of another part of the same car in the same frame. 0 = found, non-zero = none in the last 64 KB of the list. */
+    int (*draw_matrix)(GtMod *self, GtModCtx *ctx, float out[12]);
+    /* The s8 normal (x, y, z, in 1/127) of vertex `index` of a run, for the runs whose format has one (0 = ok; non-zero for a run without normals,
+     * a stale blob or a bad index). Same (blob, run) pairs as run_vertex. */
+    int (*run_normal)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t run, uint32_t index, int8_t xyz[3]);
+    int (*run_set_normal)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t run, uint32_t index, const int8_t xyz[3]);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

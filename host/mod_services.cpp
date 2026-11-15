@@ -370,6 +370,20 @@ int api_on_switch_off(GtMod *self, GtVblankFn fn) {
         }
     return 4;  // register the vblank tick first
 }
+int api_run_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int8_t xyz[3]) {
+    if (!v5_mod(self, "run_normal") || ctx == nullptr || xyz == nullptr) return 1;
+    std::vector<gt::mesh::Run> runs;
+    return gt::mesh::parse_runs(ctx->rt->memory(), blob, runs) && run < runs.size() && gt::mesh::read_run_normal(ctx->rt->memory(), runs[run], index, xyz) ? 0 : 1;
+}
+int api_run_set_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int8_t xyz[3]) {
+    if (!v5_mod(self, "run_set_normal") || ctx == nullptr || xyz == nullptr) return 1;
+    std::vector<gt::mesh::Run> runs;
+    return gt::mesh::parse_runs(ctx->rt->memory(), blob, runs) && run < runs.size() && gt::mesh::write_run_normal(ctx->rt->memory(), runs[run], index, xyz) ? 0 : 1;
+}
+int api_draw_matrix(GtMod *self, GtModCtx *ctx, float out[12]) {
+    if (!v5_mod(self, "draw_matrix") || ctx == nullptr || out == nullptr) return 1;
+    return gt::game_state::list_world_matrix(ctx->rt->memory(), out) ? 0 : 1;
+}
 std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity) {
     if (!v5_mod(self, "blob_runs") || ctx == nullptr || out == nullptr) return 0u;
     std::vector<gt::mesh::Run> runs;

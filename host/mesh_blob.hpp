@@ -40,12 +40,16 @@ struct Run {
     std::uint32_t count = 0;
     std::uint32_t stride = 0;
     std::uint32_t position_offset = 0;
+    std::uint32_t normal_offset = 0;  // 3 x s8 normal at this offset inside a vertex (formats 0x122 and 0x130); 0 = the format has none
 };
 constexpr std::uint32_t kMaxRuns = 16u;
 // True when the command list reaches its RET; `runs` then holds the runs (possibly none). Runs whose vertices are not in guest memory are skipped.
 bool parse_runs(const psprecomp::GuestMemory &memory, std::uint32_t blob, std::vector<Run> &runs);
 bool read_run_vertex(const psprecomp::GuestMemory &memory, const Run &run, std::uint32_t index, std::int16_t xyz[3]);
 bool write_run_vertex(psprecomp::GuestMemory &memory, const Run &run, std::uint32_t index, const std::int16_t xyz[3]);
+// The s8 normal of a vertex of a run that has one (false for a run without, or an index past the count).
+bool read_run_normal(const psprecomp::GuestMemory &memory, const Run &run, std::uint32_t index, std::int8_t xyz[3]);
+bool write_run_normal(psprecomp::GuestMemory &memory, const Run &run, std::uint32_t index, const std::int8_t xyz[3]);
 
 bool read_vertex(const psprecomp::GuestMemory &memory, const BlobInfo &info, std::uint32_t index, std::int16_t xyz[3]);
 bool write_vertex(psprecomp::GuestMemory &memory, const BlobInfo &info, std::uint32_t index, const std::int16_t xyz[3]);

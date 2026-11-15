@@ -183,6 +183,7 @@ Un mod que declara `api = 5` usa solo llamadas con nombre (sin direcciones del g
 | `draw_car_model`, `model_blobs` | coche -> contenedor del modelo (uno por coche) y sus partes que son mallas simples | FACTS "Car to model link" |
 | `model_runs`, `run_vertex`, `run_set_vertex` | todas las tiradas de vértices del modelo (también las partes con varias VADR), leer / escribir un vértice en sitio | FACTS "Container per car, parts with several vertex arrays" |
 | `on_switch_off` | una función que corre una vez, en el primer tic tras apagar el mod desde el menú (para deshacer lo escrito) | `host/mod_services.cpp` |
+| `blob_runs`, `draw_matrix`, `run_normal`, `run_set_normal` | las tiradas de un blob cualquiera (también las copias en VRAM que ve el gancho de dibujo), la última matriz `WORLDN/WORLDD` de la lista (en el gancho `GT_HOOK_MESH_DRAW`: es la misma para todas las partes del coche: su caja) y las normales s8 | FACTS "VRAM copies of the model parts", "Car draw matrix" |
 
 `car_impact` compara con la llamada anterior: llámala una vez por paso. Pruebas: `ctest --test-dir build -R "game_state|mesh_blob|mod_services"`.
 
