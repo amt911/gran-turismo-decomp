@@ -40,9 +40,9 @@ if [ $without -eq 0 ]; then
   install_mod deformation libdeformation.so || exit 2
   sed -i "s/^threshold *=.*/threshold = $threshold/" "$mdir/deformation/mod.toml"
   # The barrier hit is on the car's front-right and the chase camera looks at its rear: a dent on the front, or into the rear face, is behind the car or a
-  # change of depth only. The check aims the same hit at the rear-right FLANK instead (the forward component pushes along the model's x, the right one along -z),
-  # which moves the silhouette seen from behind.
-  sed -i 's/^forward_axis *=.*/forward_axis = "x"/; s/^forward_sign *=.*/forward_sign = -1/; s/^right_axis *=.*/right_axis = "z"/; s/^right_sign *=.*/right_sign = -1/' "$mdir/deformation/mod.toml"
+  # change of depth only. The check aims the same hit at the rear-right FLANK instead (the forward component pushes along the model's x = the car's right,
+  # the right one along -z = the rear), which moves the silhouette seen from behind.
+  sed -i 's/^forward_axis *=.*/forward_axis = "x"/; s/^forward_sign *=.*/forward_sign = 1/; s/^right_axis *=.*/right_axis = "z"/; s/^right_sign *=.*/right_sign = -1/' "$mdir/deformation/mod.toml"
   [ "$sabotage" = zero ] && sed -i 's/^depth_per_ms *=.*/depth_per_ms = 0.0/' "$mdir/deformation/mod.toml"
 fi
 if [ $others -eq 1 ]; then
