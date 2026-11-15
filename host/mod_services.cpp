@@ -1,6 +1,7 @@
 #include "mod_services.hpp"
 
 #include "game_state.hpp"
+#include "mesh_blob.hpp"
 
 #include "guest_call.hpp"
 
@@ -26,6 +27,8 @@ struct Row {
 struct Tick {
     GtMod *mod;
     GtVblankFn fn;
+    GtVblankFn off_fn = nullptr;  // on_switch_off: runs once on the first tick after the mod was on and is now off
+    bool was_on = false;
 };
 
 std::vector<Row> g_rows;
@@ -112,7 +115,7 @@ int api_on_vblank(GtMod *self, GtVblankFn fn) {
             std::fprintf(stderr, "[mod:%s] on_vblank refused: this mod already has a tick\n", self->id.c_str());
             return 4;
         }
-    g_ticks.push_back(Tick{self, fn});
+    g_ticks.push_back(Tick{self, fn, nullptr, false});
     return 0;
 }
 
@@ -291,10 +294,142 @@ int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value) {
     return gt::game_state::money_set(ctx->rt->memory(), value) ? 0 : 1;
 }
 
+bool v5_mod(GtMod *self, const char *what) {
+    if (self == nullptr) return false;
+    if (self->api_version < GT_MOD_API_VERSION_5) {
+        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 5)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    return true;
+}
+
+namespace {
+gt::game_state::ImpactTracker g_impact;  // the step hook runs on one guest thread at a time (cooperative scheduling)
+}
+static_assert(sizeof(GtMeshInfo) == sizeof(gt::mesh::BlobInfo), "GtMeshInfo mirrors mesh::BlobInfo");
+static_assert(sizeof(GtCarImpact) == sizeof(gt::game_state::Impact), "GtCarImpact mirrors game_state::Impact");
+
+int api_car_impact(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarImpact *out) {
+    if (!v5_mod(self, "car_impact") || ctx == nullptr || out == nullptr) return 1;
+    gt::game_state::Impact impact{};
+    if (!gt::game_state::car_impact(ctx->rt->memory(), world, car, g_impact, impact)) return 1;
+    std::memcpy(out, &impact, sizeof impact);
+    return 0;
+}
+int api_mesh_info(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtMeshInfo *out) {
+    if (!v5_mod(self, "mesh_info") || ctx == nullptr || out == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    if (!gt::mesh::parse_blob(ctx->rt->memory(), blob, info)) return 1;
+    std::memcpy(out, &info, sizeof info);
+    return 0;
+}
+int api_mesh_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, std::int16_t xyz[3]) {
+    if (!v5_mod(self, "mesh_vertex") || ctx == nullptr || xyz == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    return gt::mesh::parse_blob(ctx->rt->memory(), blob, info) && gt::mesh::read_vertex(ctx->rt->memory(), info, index, xyz) ? 0 : 1;
+}
+int api_mesh_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, const std::int16_t xyz[3]) {
+    if (!v5_mod(self, "mesh_set_vertex") || ctx == nullptr || xyz == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    return gt::mesh::parse_blob(ctx->rt->memory(), blob, info) && gt::mesh::write_vertex(ctx->rt->memory(), info, index, xyz) ? 0 : 1;
+}
+int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t *copy) {
+    if (!v5_mod(self, "mesh_copy") || ctx == nullptr || copy == nullptr) return 1;
+    gt::mesh::BlobInfo info;
+    if (!gt::mesh::parse_blob(ctx->rt->memory(), blob, info)) return 1;
+    const std::uint32_t size = gt::mesh::copy_bytes(info);
+    std::uint32_t address = 0u;
+    if (api_call_guest(ctx, kGuestAlloc, &size, 1u, &address) != 0 || address == 0u) return 1;
+    if (!gt::mesh::copy_blob(ctx->rt->memory(), blob, address)) {
+        api_call_guest(ctx, kGuestFree, &address, 1u, nullptr);
+        return 1;
+    }
+    *copy = address;
+    return 0;
+}
+int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy) {
+    if (!v5_mod(self, "mesh_release") || ctx == nullptr || copy == 0u) return 1;
+    return api_call_guest(ctx, kGuestFree, &copy, 1u, nullptr);
+}
+int api_draw_car_model(GtMod *self, GtModCtx *ctx, std::uint32_t *car, std::uint32_t *model) {
+    if (!v5_mod(self, "draw_car_model") || ctx == nullptr || ctx->ctx == nullptr || car == nullptr || model == nullptr) return 1;
+    gt::game_state::CarDrawLink link;
+    if (!gt::game_state::car_draw_link(ctx->rt->memory(), ctx->ctx->gpr[4], link)) return 1;
+    *car = link.car;
+    *model = link.model;
+    return 0;
+}
+int api_on_switch_off(GtMod *self, GtVblankFn fn) {
+    if (!v5_mod(self, "on_switch_off")) return 1;
+    if (g_initializing != self) return 2;
+    if (fn == nullptr) return 3;
+    for (Tick &t : g_ticks)
+        if (t.mod == self) {
+            t.off_fn = fn;
+            return 0;
+        }
+    return 4;  // register the vblank tick first
+}
+int api_run_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int8_t xyz[3]) {
+    if (!v5_mod(self, "run_normal") || ctx == nullptr || xyz == nullptr) return 1;
+    std::vector<gt::mesh::Run> runs;
+    return gt::mesh::parse_runs(ctx->rt->memory(), blob, runs) && run < runs.size() && gt::mesh::read_run_normal(ctx->rt->memory(), runs[run], index, xyz) ? 0 : 1;
+}
+int api_run_set_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int8_t xyz[3]) {
+    if (!v5_mod(self, "run_set_normal") || ctx == nullptr || xyz == nullptr) return 1;
+    std::vector<gt::mesh::Run> runs;
+    return gt::mesh::parse_runs(ctx->rt->memory(), blob, runs) && run < runs.size() && gt::mesh::write_run_normal(ctx->rt->memory(), runs[run], index, xyz) ? 0 : 1;
+}
+int api_draw_matrix(GtMod *self, GtModCtx *ctx, float out[12]) {
+    if (!v5_mod(self, "draw_matrix") || ctx == nullptr || out == nullptr) return 1;
+    return gt::game_state::list_world_matrix(ctx->rt->memory(), out) ? 0 : 1;
+}
+std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity) {
+    if (!v5_mod(self, "blob_runs") || ctx == nullptr || out == nullptr) return 0u;
+    std::vector<gt::mesh::Run> runs;
+    if (!gt::mesh::parse_runs(ctx->rt->memory(), blob, runs)) return 0u;
+    std::uint32_t n = 0u;
+    for (std::uint32_t r = 0; r < runs.size() && n < capacity; ++r) out[n++] = GtVertexRun{blob, r, runs[r].count};
+    return n;
+}
+std::uint32_t api_model_runs(GtMod *self, GtModCtx *ctx, std::uint32_t model, GtVertexRun *out, std::uint32_t capacity) {
+    if (!v5_mod(self, "model_runs") || ctx == nullptr || out == nullptr) return 0u;
+    std::vector<gt::game_state::RunRef> refs(capacity);
+    const std::uint32_t n = gt::game_state::model_runs(ctx->rt->memory(), model, refs.data(), capacity);
+    for (std::uint32_t i = 0; i < n; ++i) out[i] = GtVertexRun{refs[i].blob, refs[i].run, refs[i].count};
+    return n;
+}
+int api_run_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int16_t xyz[3]) {
+    if (!v5_mod(self, "run_vertex") || ctx == nullptr || xyz == nullptr) return 1;
+    std::vector<gt::mesh::Run> runs;
+    return gt::mesh::parse_runs(ctx->rt->memory(), blob, runs) && run < runs.size() && gt::mesh::read_run_vertex(ctx->rt->memory(), runs[run], index, xyz) ? 0 : 1;
+}
+int api_run_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int16_t xyz[3]) {
+    if (!v5_mod(self, "run_set_vertex") || ctx == nullptr || xyz == nullptr) return 1;
+    std::vector<gt::mesh::Run> runs;
+    return gt::mesh::parse_runs(ctx->rt->memory(), blob, runs) && run < runs.size() && gt::mesh::write_run_vertex(ctx->rt->memory(), runs[run], index, xyz) ? 0 : 1;
+}
+std::uint32_t api_model_blobs(GtMod *self, GtModCtx *ctx, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity) {
+    if (!v5_mod(self, "model_blobs") || ctx == nullptr || out == nullptr) return 0u;
+    return gt::game_state::model_blobs(ctx->rt->memory(), model, out, capacity);
+}
+std::uint32_t api_draw_mesh_blob(GtModCtx *ctx) { return ctx != nullptr && ctx->ctx != nullptr ? ctx->ctx->gpr[4] : 0u; }
+void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob) {
+    if (ctx != nullptr && ctx->ctx != nullptr) ctx->ctx->gpr[4] = blob;
+}
+
 void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {
     g_vblank.store(vblank, std::memory_order_release);
-    for (const Tick &t : g_ticks) {
-        if (!is_on(t.mod)) continue;
+    for (Tick &t : g_ticks) {
+        if (!is_on(t.mod)) {
+            if (t.was_on && t.off_fn != nullptr) {
+                GtModCtx off_ctx{&rt, &ctx, 0u, 0u, true, t.mod};
+                t.off_fn(&off_ctx);
+            }
+            t.was_on = false;
+            continue;
+        }
+        t.was_on = true;
         GtModCtx tick_ctx{&rt, &ctx, 0u, 0u, true, t.mod};
         t.fn(&tick_ctx);
     }
