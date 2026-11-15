@@ -703,3 +703,7 @@ Evidence: probe mods on the `rollover` race route (`--decomp off`, 4 cars), logs
 
 - The leaf `0x08B550A8` is also called with blobs in VRAM (`0x041BC000`..`0x041FFFFF`, 62 distinct in the first 60 logged, plus a few RAM ones): command list AND vertices there (`V=041C...`). Their vertex arrays equal the container entries' (same count, VTYPE and first vertex) for entries `0x090FADD0`, `0x090FB250`, `0x090EFEB0`, `0x090F08B0`, `0x090F1700`, `0x090F2BD0`, `0x090FAC60`, `0x090FAD10`, `0x090F0C20`, `0x090F1020`; the big body entries `0x090EB4D0`, `0x090F3490` and `0x090F1700` are drawn from RAM.
 - SDK: `blob_runs` (runs of any blob, e.g. a VRAM one the mesh-draw hook sees) and the mod matches them by content. Container -> VRAM copier not identified.
+
+### Part entries of the model container (measured 2026-11-15)
+
+Entry `i` of the player's container = 32 bytes at `word(model + 0xA8) + 32 * i`: `+0` blob, `+4` its end/first vertex array, `+8` size in bytes, `+0xC` = (vertex count << 16) | primitive count, `+0x10` a pointer into `.data` (`0x08D697DC`, `0x08D69BCC`, `0x08D69C74`...) or 0, `+0x14` (counts), `+0x18` `0x481` / `0x49F` (flags), `+0x1C` `0xCC` or 0. **No bounding box, scale or translation** in the entry: each part is normalised to the full s16 range in its own frame, and the part -> body transform is not in the entry (maybe behind the `.data` pointer, not read). The container header (`+0`): `"3LDM"`, `0x0002A580` (size), `0x090D1000` (itself), `0x80000002`, 6, `0x1E` (entries).

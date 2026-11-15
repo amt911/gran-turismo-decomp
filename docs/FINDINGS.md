@@ -3356,3 +3356,8 @@ exist before the first hit and are recognised by content). The earlier "memory s
 Visibility at 1920x1088 (GPU x4), 17 m/s hit, rear quarter: depth 0.02/radius 0.45/cap 0.15: ~0 px; 0.04/0.5/0.3: ~550 px (roof only); 0.05/0.8/0.25: ~5000 px;
 radius 2.0 / cap 0.4: the whole body collapses and the wheels show (proves the vertices drawn are the ones written). The dent lands on the ROOF edge, not the
 rear bumper: each part is normalised in its own frame and the body-frame to model-axis mapping (forward z, right x, up y, signs flipped in the check) is not verified.
+
+Roof stripes (2026-11-15, open): the dented roof shows streaky, saw-toothed shading at 1920x1088 (`dent_hires_r6_*`). Denting the 0x118 / 0x11A runs too (formats added) did not change it
+(5116 vs 5138 differing pixels), the VRAM copies get the same displacement as their container run, and normals are not recomputed. Likely cause (not proven): overlapping layers
+that are each dented in their OWN normalised frame (different displacement for the same world point). A displacement from world position needs each part's transform,
+which is not in the entry (FACTS "Part entries of the model container"; the `.data` pointer at `+0x10` is unread).
