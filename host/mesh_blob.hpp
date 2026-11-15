@@ -28,12 +28,13 @@ inline std::uint32_t copy_bytes(const BlobInfo &info) { return info.command_byte
 // known car format and at least one PRIM 0x04; other commands (ATEST, CALLs of texture blocks, ...) are skipped. The real blobs look like
 // `ATEST ... BASE VADR ... BASE CALL(texture) 0xC8 VTYPE(0x112) PRIM 0xC8 PRIM ... RET` (docs/FINDINGS.md "GE blob census", measured
 // with the deformation probe 2026-11-14). False for a second, different VADR, an unknown format or vertices outside guest memory.
-// Known formats (FACTS): 0x122 stride 14 / position +8, 0x130 and 0x112 stride 12 / position +6.
+// Known formats (FACTS): 0x122 stride 14 / position +8, 0x130, 0x112 and 0x11A stride 12 / position +6, 0x118 stride 8 / position +2 (GE vertex type:
+// uv, color, normal, position, each aligned to its size; a morphing type such as 0x40112 stays unknown).
 bool parse_blob(const psprecomp::GuestMemory &memory, std::uint32_t blob, BlobInfo &out);
 
 // One run of vertices a blob draws: a VADR (or a VTYPE change inside one) starts it, each PRIM continues it. Blobs of the player's body have
 // several (docs/FINDINGS.md "Crash deformation: the dent is not visible yet": 0x090EB4D0 has two VADRs, entry 22 two, ...). `parse_blob` refuses
-// them; `parse_runs` lists every run of a known format (runs of another format, e.g. VTYPE 0x118, are skipped) so they can be dented in place.
+// them; `parse_runs` lists every run of a known format (runs of another format, e.g. a morphing VTYPE, are skipped) so they can be dented in place.
 struct Run {
     std::uint32_t vertex_data = 0;
     std::uint32_t count = 0;

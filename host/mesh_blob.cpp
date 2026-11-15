@@ -9,6 +9,8 @@ std::uint32_t param(std::uint32_t word) { return word & 0xFFFFFFu; }
 bool format(std::uint32_t vtype, std::uint32_t &stride, std::uint32_t &position_offset) {
     switch (vtype) {
     case 0x122u: stride = 14u; position_offset = 8u; return true;
+    case 0x118u: stride = 8u; position_offset = 2u; return true;   // color 4444 (2) + s16 position
+    case 0x11Au: stride = 12u; position_offset = 6u; return true;  // u16 uv (4) + color 4444 (2) + s16 position
     case 0x130u:
     case 0x112u: stride = 12u; position_offset = 6u; return true;
     default: return false;

@@ -52,6 +52,11 @@ int main() {
     constexpr std::uint32_t blob3 = 0x09220000u;
     make_blob(m, blob3, 0x112, 3, 12, 6, pos);
     check(parse_blob(m, blob3, info2) && info2.stride == 12 && info2.position_offset == 6, "blob: format 0x112 has stride 12 and position at +6");
+    constexpr std::uint32_t blob4 = 0x09250000u, blob5 = 0x09260000u;
+    make_blob(m, blob4, 0x118, 3, 8, 2, pos);
+    make_blob(m, blob5, 0x11A, 3, 12, 6, pos);
+    check(parse_blob(m, blob4, info2) && info2.stride == 8 && info2.position_offset == 2 && parse_blob(m, blob5, info2) && info2.stride == 12 && info2.position_offset == 6,
+          "blob: formats 0x118 (stride 8, +2) and 0x11A (stride 12, +6)");
     constexpr std::uint32_t bad = 0x09230000u;
     make_blob(m, bad, 0x7FF, 3, 12, 6, pos);
     check(!parse_blob(m, bad, info2), "blob: an unknown vertex format is refused");
@@ -64,12 +69,12 @@ int main() {
         const auto put = [&](std::uint32_t op, std::uint32_t param) { m.store32(at, cmd(op, param)); at += 4u; };
         put(0x10, (va >> 8) & 0xFF0000u); put(0x01, va & 0xFFFFFFu); put(0x12, 0x130); put(0x04, 3); put(0x04, 2);
         put(0x12, 0x122); put(0x04, 4);                        // same VADR, the format changes: a second run right after the 5 vertices
-        put(0x01, vb & 0xFFFFFFu); put(0x10, (vb >> 8) & 0xFF0000u); put(0x01, vb & 0xFFFFFFu); put(0x12, 0x118); put(0x04, 2);  // unknown format
+        put(0x01, vb & 0xFFFFFFu); put(0x10, (vb >> 8) & 0xFF0000u); put(0x01, vb & 0xFFFFFFu); put(0x12, 0x40112); put(0x04, 2);  // unknown (morphing) format
         put(0x10, (vc >> 8) & 0xFF0000u); put(0x01, vc & 0xFFFFFFu); put(0x12, 0x112); put(0x04, 1); put(0x0B, 0);
         for (int i = 0; i < 5; ++i) for (int c = 0; c < 3; ++c) m.store16(va + 12u * i + 6u + 2u * c, static_cast<std::uint16_t>(100 * i + c));
         for (int i = 0; i < 4; ++i) for (int c = 0; c < 3; ++c) m.store16(va + 60u + 14u * i + 8u + 2u * c, static_cast<std::uint16_t>(-(100 * i + c)));
         std::vector<Run> runs;
-        check(parse_runs(m, multi, runs) && runs.size() == 3, "runs: 0x130 x5, 0x122 x4 after them, the 0x118 run skipped, 0x112 x1");
+        check(parse_runs(m, multi, runs) && runs.size() == 3, "runs: 0x130 x5, 0x122 x4 after them, the morphing run skipped, 0x112 x1");
         check(runs.size() == 3 && runs[0].vertex_data == va && runs[0].count == 5 && runs[0].stride == 12 && runs[1].vertex_data == va + 60u &&
                   runs[1].count == 4 && runs[1].stride == 14 && runs[1].position_offset == 8 && runs[2].vertex_data == vc && runs[2].count == 1,
               "runs: addresses, counts and strides");
