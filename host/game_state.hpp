@@ -56,4 +56,64 @@ struct CarState {
 bool car_state(const psprecomp::GuestMemory &memory, std::uint32_t handle, CarState &out);
 bool car_set_state(psprecomp::GuestMemory &memory, std::uint32_t handle, const CarState &state);
 
+// ---- v5: impact (docs/FACTS.md "Collision code for dent contact points: NOT FOUND": no contact point exists in the state, so the
+// velocity change of one step stands in for it). ----
+
+// The previous step's sample of every car (keyed by body handle): car_impact compares with it, so call it once per world step.
+struct ImpactTracker {
+    struct Sample {
+        std::uint32_t handle = 0;
+        float velocity[3] = {0, 0, 0};
+        float speed = 0, yaw_rate = 0;
+        bool valid = false;
+    };
+    Sample samples[kMaxCars];
+};
+
+struct Impact {
+    float dv_body[3];       // velocity change of the step in the body frame (forward, right, up rows)
+    float dv_magnitude;     // |dv|, m/s; 0 on the first sample of a car
+    float speed_before;     // K+0x6C4 of the previous sample
+    float yaw_rate_jump;    // |K+0x6F8 - previous|
+    bool off_track;         // any wheel record's surface word (+0x2C) is 0x300
+    float contact_dir[3];   // -dv normalised, in the body frame (where on the body the hit landed); 0 when dv is 0
+    float box_half_length, box_half_width, box_floor, box_roof;  // the rollover body box (FACTS "Rollover body box": a heuristic)
+};
+
+// Fills `out` for the car whose body is `handle` in `world`; false when the body is no slot of the world.
+bool car_impact(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle, ImpactTracker &tracker, Impact &out);
+
+// ---- v5: the link from a car to its model (docs/FACTS.md "Car to model link", measured 2026-11-14 by probes on the rollover race route). ----
+
+struct CarDrawLink {
+    std::uint32_t car = 0;    // the body handle K (what race_cars / player_car return)
+    std::uint32_t model = 0;  // the MDL3 container of the car's parts
+};
+
+constexpr std::uint32_t kCarDrawFunction = 0x0889BAB0u;  // the per-car view update; a0 = the view's inner object
+constexpr std::uint32_t kModelMagic = 0x4D444C33u;       // "3LDM" at +0 of a model container
+
+// From the a0 of the car draw function: P = word(a0 + 4) is the car's view; word(P + 0xB04) its driver entry, whose +0xC is the car object (K =
+// word(car + 8)); the model is word(word(P + 0x20) + 8). False when a link is null or the model's magic is not "3LDM".
+bool car_draw_link(const psprecomp::GuestMemory &memory, std::uint32_t a0, CarDrawLink &out);
+
+// The parts of a model: `count` = word(model + 0x14) entries of 32 bytes from word(model + 0xA8), each starting with a blob pointer. Writes the
+// blobs that parse as meshes (host/mesh_blob.hpp) to `out`; returns how many (at most `capacity`).
+std::uint32_t model_blobs(const psprecomp::GuestMemory &memory, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity);
+
+// Every vertex run of every part of a model (host/mesh_blob.hpp parse_runs: blobs with several VADRs included, which model_blobs refuses): fills
+// `out` with (blob, run index within the blob, vertex count); returns how many (at most `capacity`).
+struct RunRef {
+    std::uint32_t blob;
+    std::uint32_t run;
+    std::uint32_t count;
+};
+std::uint32_t model_runs(const psprecomp::GuestMemory &memory, std::uint32_t model, RunRef *out, std::uint32_t capacity);
+
+// The matrix the display list being built has uploaded last: the list cursor is word(kListState + 0x5C) (kListState = 0x08D6CE00, the state the leaf
+// 0x08B550A8 appends BASE + CALL with); looking back from it for WORLDN (0x3A) followed by 12 WORLDD (0x3B), each carrying a float's top 24 bits.
+// True and `out` filled (12 floats in upload order) when found within `max_bytes` of list.
+constexpr std::uint32_t kListState = 0x08D6CE00u;
+bool list_world_matrix(const psprecomp::GuestMemory &memory, float out[12], std::uint32_t max_bytes = 0x10000u);
+
 } // namespace gt::game_state
