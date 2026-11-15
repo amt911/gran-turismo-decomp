@@ -3383,3 +3383,16 @@ Batch 341 declared `using psprecomp::Runtime; using psprecomp::AllegrexContext;`
 **Now:** the signature may omit `psprecomp::`, and a requested address whose body cannot be found or patched (including a template
 body the tool cannot resolve) makes the run refuse before building, naming each function (`unsabotageable_message`). **Rule:** a
 sabotage count below the number of functions is never "the others are fine": read the lines above it.
+
+## Two main functions mismatch in the synthetic gate once more functions are registered (2026-11-15)
+
+- **Seen:** the verdicts of #641, #642, #643 and #644 (new decompilation batches 341–344, disjoint function sets, 15 more
+  registrations each) all show `@0x088A657C` and `@0x08C70D64` in the first synthetic route group. Every verdict of a tree
+  with main's 16,854 registrations before them did not. Neither function is in those batches, and neither is a direct
+  caller or callee of any of them; both are on main (`func_088A657C`: open since 2026-10-27, "stale stack words";
+  `func_08C70D64`: hot_batch_336, emitter body).
+- **Hypothesis, not measured:** synthetic inputs are deterministic per (function, index, seed) (`host/synth_case.cpp`),
+  but the runs start from route state, which shifts when the registration set changes. These two functions have latent
+  state-dependent mismatches that the new state exposes. To test it: run `tools.decomp_gate synth` for just these two on
+  main and on a tree with batch 342, from the same route snapshot.
+- **What was done:** #642–#644 were merged with this written in their verdict comments; the two functions stay open.
