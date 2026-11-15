@@ -3,6 +3,7 @@
 // registries are read-only, so the window thread (menu rendering) and the guest threads read them without a lock.
 #pragma once
 
+#include "game_state.hpp"
 #include "mod_hooks.hpp"
 
 #include <cstddef>
@@ -83,5 +84,29 @@ void queue_action(const std::string &id);
 void remove_for(const GtMod *mod);
 // Tests: forget everything.
 void clear_for_tests();
+
+// v5: hook points, impact and meshes (include/gt_mod/gt_mod_api.h; host/mesh_blob.hpp, host/game_state.hpp).
+constexpr std::uint32_t kHookWorldStep = 0x0894DD9Cu;  // docs/FACTS.md "Car body state": the physics step of every car
+constexpr std::uint32_t kHookMeshDraw = 0x08B550A8u;   // docs/superpowers/specs/2026-11-07-crash-deformation-design.md: the blob draw leaf
+constexpr std::uint32_t kHookCarDraw = gt::game_state::kCarDrawFunction;
+constexpr std::uint32_t kGuestAlloc = 0x08B35DA0u, kGuestFree = 0x08B35254u;  // the game's allocator (a0 = bytes / pointer), as 0x08B62344 uses it
+int api_car_impact(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarImpact *out);
+int api_mesh_info(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtMeshInfo *out);
+int api_mesh_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, std::int16_t xyz[3]);
+int api_mesh_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t index, const std::int16_t xyz[3]);
+int api_mesh_copy(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t *copy);
+int api_mesh_release(GtMod *self, GtModCtx *ctx, std::uint32_t copy);
+int api_draw_car_model(GtMod *self, GtModCtx *ctx, std::uint32_t *car, std::uint32_t *model);
+std::uint32_t api_model_blobs(GtMod *self, GtModCtx *ctx, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity);
+std::uint32_t api_model_runs(GtMod *self, GtModCtx *ctx, std::uint32_t model, GtVertexRun *out, std::uint32_t capacity);
+int api_run_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int16_t xyz[3]);
+int api_run_set_vertex(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int16_t xyz[3]);
+int api_on_switch_off(GtMod *self, GtVblankFn fn);
+int api_run_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int8_t xyz[3]);
+int api_run_set_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int8_t xyz[3]);
+int api_draw_matrix(GtMod *self, GtModCtx *ctx, float out[12]);
+std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity);
+std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
+void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
 
 }  // namespace gt::mods::services
