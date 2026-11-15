@@ -87,6 +87,37 @@ def test_sabotage_reports_names_it_cannot_find():
     assert missing == ["nope"] and out == SOURCE
 
 
+ALIASED_SOURCE = """\
+using psprecomp::Runtime;
+using psprecomp::AllegrexContext;
+void func_08B563E0(Runtime &rt, AllegrexContext &ctx) {
+    ctx.gpr[2] = 1u;
+}
+void func_08B564C8(Runtime &, AllegrexContext &) { }
+void func_08B56300(psprecomp::Runtime &rt, AllegrexContext &ctx) { }
+"""
+
+
+def test_sabotage_accepts_short_type_aliases_in_the_signature():
+    # batch 341 spelled `Runtime &rt, AllegrexContext &ctx`; the tool skipped those bodies and reported 1/15 detected
+    out, missing = gate.sabotage(ALIASED_SOURCE, ["func_08B563E0", "func_08B564C8", "func_08B56300"])
+    assert missing == []
+    assert out.count("ctx.gpr[16] += 1u;") == 3
+    assert "void func_08B563E0(Runtime &rt, AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(" in out
+    assert "void func_08B564C8(Runtime &sabotage_rt, AllegrexContext &ctx) { ctx.gpr[16] += 1u; sabotage_rt.memory()" in out
+
+
+def test_unsabotageable_targets_message_names_each_function_and_the_file():
+    message = gate.unsabotageable_message(Path("src/a.cpp"), ["func_A", "func_B"], [0x08B56B70])
+    assert message is not None
+    assert "src/a.cpp" in message and "func_A" in message and "func_B" in message and "0x08B56B70" in message
+    assert "refusing" in message
+
+
+def test_nothing_to_report_when_every_target_has_a_patchable_body():
+    assert gate.unsabotageable_message(Path("src/a.cpp"), [], []) is None
+
+
 def test_registered_names_maps_addresses_to_function_names():
     source = (
         "GT_DECOMP(0x088D4C9Cu, gt::game::func_088D4C9C, gt::ReturnKind::Word);\n"

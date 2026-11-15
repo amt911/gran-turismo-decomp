@@ -3374,3 +3374,12 @@ result back: it reads exactly like an external collision solver. **It is a 0x24-
 (FACTS "Collision code ... NOT FOUND"). **Check before trusting a "solver" by its call shape:** read the class's slot functions (vtable words in `.data` hold the ELF vaddr; add
 `0x08804000`; the world step is reached through a `j` thunk at `0x088A194C` that loads `a0 = [a0+0x54]`, which is why a plain search for the step's address in `.data` finds nothing) and the
 constructor's size. Also: `Decompile.java` takes its vaddrs as separate arguments, so build the argument list in `bash -c` (zsh does not word-split).
+
+## `sabotage --synth` silently skipped functions spelled with type aliases (2026-11-15)
+
+Batch 341 declared `using psprecomp::Runtime; using psprecomp::AllegrexContext;` and defined `void func_X(Runtime &rt, AllegrexContext &ctx)`.
+`tools.decomp_gate sabotage` only patched `void NAME(psprecomp::Runtime &…, psprecomp::AllegrexContext &…) {`; it printed one
+`not found in …` line, ran the whole sabotaged gate (about an hour) and reported `1/15 detected`, the one body that happened to match.
+**Now:** the signature may omit `psprecomp::`, and a requested address whose body cannot be found or patched (including a template
+body the tool cannot resolve) makes the run refuse before building, naming each function (`unsabotageable_message`). **Rule:** a
+sabotage count below the number of functions is never "the others are fine": read the lines above it.
