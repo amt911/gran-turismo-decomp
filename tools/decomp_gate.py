@@ -332,8 +332,9 @@ def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
     s0 erases the bump (measured 2026-10-13); a RAM word survives it."""
     missing = []
     for name in names:
+        # the parameter types may be spelled with or without `psprecomp::` (batch 341 used `using` aliases)
         pattern = re.compile(r"^(void " + re.escape(name) +
-                             r"\(psprecomp::Runtime &)(\w*)(, psprecomp::AllegrexContext &)(\w*)(\) \{)", re.MULTILINE)
+                             r"\((?:psprecomp::)?Runtime &)(\w*)(, (?:psprecomp::)?AllegrexContext &)(\w*)(\) \{)", re.MULTILINE)
 
         def bump(match: re.Match) -> str:
             rt = match[2] or "sabotage_rt"
@@ -345,6 +346,18 @@ def sabotage(source: str, names: Sequence[str]) -> tuple[str, list[str]]:
         if count == 0:
             missing.append(name)
     return source, missing
+
+
+def unsabotageable_message(file: Path, missing: Sequence[str], unresolved: Sequence[int]) -> str | None:
+    """The refusal text when a requested function has no body the sabotage can patch (None when every one has):
+    a run that skips them still takes an hour and then reports them "undetected" without saying why (batch 341)."""
+    if not missing and not unresolved:
+        return None
+    lines = [f"sabotage: refusing to run, {file} has functions it cannot instrument:"]
+    lines += [f"  definition not found or not `void NAME(Runtime &, AllegrexContext &) {{` (aliases allowed): {name}" for name in missing]
+    lines += [f"  no body to sabotage (a C++ template function or a macro defined in a header): 0x{a:08X}" for a in unresolved]
+    lines.append("  fix the definition, or leave these addresses out of --only")
+    return "\n".join(lines)
 
 
 def registered_names(source: str) -> dict[int, str]:
@@ -716,12 +729,11 @@ def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int],  #
     body), or None when the sabotaged build didn't run."""
     original = file.read_text()
     names, affected, unresolved = sabotage_targets(original, targets)
-    if unresolved:
-        print("no body to sabotage in", file, "for:", ", ".join(f"0x{a:08X}" for a in unresolved),
-              "(bump it by hand: a C++ template function, or a macro defined in a header)")
     sabotaged, missing = sabotage(original, names)
-    if missing:
-        print("not found in", file, ":", ", ".join(missing))
+    refusal = unsabotageable_message(file, missing, unresolved)
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return None
     try:
         pending_restore(file, original)
         file.write_text(sabotaged)
@@ -746,7 +758,7 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
         result = _sabotage_round(f"{tag}s{round_number}", file, installed, targets, kind)
         if result is None:
-            print("sabotage: the sabotaged build did not run")
+            print("sabotage: the sabotaged build did not run (see above: a refusal, or the build failed)")
             return 2
         cases, affected = result
         # only this round's cases (they hold only this round's sabotage); every sabotaged registration counts as
