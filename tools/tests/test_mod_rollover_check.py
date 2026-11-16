@@ -414,3 +414,55 @@ def test_main_replay_mode(tmp_path, capsys):
     (tmp_path / "replay" / "run.log").write_text(replay_log(with_marker=False))
     assert mr.main(["x", str(tmp_path), "replay"]) == 1
     assert "FAIL replay" in capsys.readouterr().out
+
+
+def pstate(st, pitch=0.0, fwdz=0.0, pclamp=0, up=(0.0, 0.0, 1.0), imp=0):
+    return (f"[mod:rollover] st={st} imp={imp} since=-1 pos=-300.000,250.000,2.000 vel=-30.000,0.000,0.000 fwd=-1.000,0.000,{fwdz:.3f} lat=0.000,1.000,0.000 "
+            f"up={up[0]:.3f},{up[1]:.3f},{up[2]:.3f} tilt={pitch:.3f},0.000 rate=0.00 flag=00/0 held=0(0.00) body_calls=9 pclamp={pclamp} prate=0.00,0.00 yrate=0.00")
+
+
+def pitch_log(peak=0.611, nose=0.574, clamps=40):
+    lines = [pstate(900 + i * 30) for i in range(8)]
+    lines.append("[mod:rollover] FAKEPITCH st=1150 rate=1.50 steps=60")
+    for i, p in enumerate((0.2, 0.4, peak, peak, 0.5, 0.2, 0.0, 0.0)):
+        lines.append(pstate(1150 + i * 30, pitch=p, fwdz=nose * p / max(peak, 1e-6), pclamp=clamps if i > 2 else 0))
+    return "\n".join(lines)
+
+
+def test_pitch_judge_passes_when_the_limit_holds_the_nose():
+    ok, message = mr.judge_pitch(pitch_log())
+    assert ok, message
+
+
+def test_pitch_judge_fails_when_the_nose_stands_up():  # the sabotage: no pitch limit, the pitch rate drives the nose to vertical
+    ok, message = mr.judge_pitch(pitch_log(peak=1.45, nose=0.99, clamps=0))
+    assert not ok and "the nose went up" in message
+
+
+def test_pitch_judge_needs_the_kick_and_the_limit_to_have_acted():
+    assert not mr.judge_pitch(pitch_log().replace("FAKEPITCH", "NOKICK"))[0]
+    ok, message = mr.judge_pitch(pitch_log(clamps=0))  # the kick never pushed the pitch past the limit: a vacuous pass is refused
+    assert not ok and "proves nothing" in message
+    assert not mr.judge_pitch("garbage")[0]
+
+
+def test_parse_states_reads_the_pitch_fields_and_old_lines_without_them():
+    s = mr.parse_states(pstate(5, pitch=0.3, pclamp=7))[0]
+    assert s["pclamp"] == 7 and s["yrate"] == 0.0
+    assert mr.parse_states(state(1))[0]["pclamp"] is None
+
+
+def test_realistic_judge_wants_a_lean_not_a_flip():
+    lean = good_log(held=2.1, end_up=1.0)
+    # good_log tips through 3.0 rad: build the lean by hand instead
+    lines = [state(750 + i * 15) for i in range(70)] + [impulse(held=2.1)]
+    for i, ang in enumerate((0.1, 0.3, 0.5, 0.4, 0.2, 0.05)):
+        lines.append(state(1864 + i * 3, up=(0.0, math.sin(ang), math.cos(ang)), tilt=(0.0, ang), imp=1))
+    lines.append(state(1864 + 450, up=(0.0, 0.0, 1.0), imp=1))
+    ok, message = mr.judge_realistic("\n".join(lines))
+    assert ok, message
+    assert not mr.judge_realistic(lean)[0]                                   # 12 rad/s and a tumble past upside down: the old behaviour
+    ok, message = mr.judge_realistic(lean.replace("held=12.00", "held=3.50"))  # a mild rate but the car still goes over
+    assert not ok and "went over" in message
+    assert not mr.judge_realistic("garbage")[0]
+    assert not mr.judge_realistic("\n".join(lines[:70]))[0]                  # no hit detected: nothing to judge
