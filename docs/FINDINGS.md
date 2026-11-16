@@ -3396,3 +3396,14 @@ sabotage count below the number of functions is never "the others are fine": rea
   state-dependent mismatches that the new state exposes. To test it: run `tools.decomp_gate synth` for just these two on
   main and on a tree with batch 342, from the same route snapshot.
 - **What was done:** #642–#644 were merged with this written in their verdict comments; the two functions stay open.
+
+## The styled host menu stalled the game on every cursor move (2026-11-16)
+
+The user reported the cheat device "va lento al moverse por las opciones". The styled UI (lcs patch 0069) rasterized its whole
+1040 x 1024 picture **on the thread that presents** (the one running the GE lists) whenever the view changed: 11-13 ms per move
+on the desktop at -O2 (more on the laptop), 98 % of it in `Canvas::rrect` / `Canvas::blend` (callgrind) — and even an unchanged
+view cost a 4 MB copy and a 4 MB GPU upload every frame. Patch 0070: the picture comes from a worker thread (newest request wins),
+is uploaded only when its version changes, is rasterized at the size it is shown at, and the blend has exact fast paths (opaque
+source, transparent or opaque destination, fully covered rows): 6 ms, pixel-identical (hash of 20 frames). Measure with a
+standalone bench linking `lcs_host_style.cpp` (perf was not usable here; valgrind/callgrind was).
+

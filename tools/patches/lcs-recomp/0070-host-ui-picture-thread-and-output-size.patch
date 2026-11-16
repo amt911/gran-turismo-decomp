@@ -1,0 +1,559 @@
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index 3bdca7e..8e713cd 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -311,23 +311,39 @@ void paint_host_panel(SDL_Renderer *renderer) noexcept {
+     if (renderer == nullptr || !host_overlay_view(view)) return;
+     static SDL_Renderer *owner = nullptr;
+     static SDL_Texture *texture = nullptr;
+-    static std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kSettingsOverlayWidth) * kSettingsOverlayHeight * 4u);
+-    if (owner != renderer || texture == nullptr) {
++    static std::uint32_t texture_w = 0u, texture_h = 0u;
++    static std::uint64_t shown = 0u;  // GT patch 0070: the picture in `texture` (rasterized on the UI thread, uploaded once)
++    static std::vector<std::uint8_t> pixels;
++    int output_w = 960, output_h = 544;
++    SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
++    const SettingsOverlaySize size = settings_overlay_present_size(static_cast<float>(output_w), static_cast<float>(output_h));
++    const SettingsOverlayPicture picture = settings_overlay_request(view, size);
++    if (picture.version == 0u) return;
++    if (owner != renderer || texture == nullptr || texture_w != picture.width || texture_h != picture.height) {
+         if (texture != nullptr && owner == renderer) SDL_DestroyTexture(texture);
+         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
+-                                    static_cast<int>(kSettingsOverlayWidth), static_cast<int>(kSettingsOverlayHeight));
++                                    static_cast<int>(picture.width), static_cast<int>(picture.height));
+         owner = renderer;
++        shown = 0u;
++        texture_w = picture.width;
++        texture_h = picture.height;
+         if (texture == nullptr) return;
+         SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+-        SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);  // the 2x rasterization is scaled down smoothly
++        SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);
+     }
+-    rasterize_settings_overlay(view, pixels.data(), kSettingsOverlayWidth, kSettingsOverlayHeight);
+-    SDL_UpdateTexture(texture, nullptr, pixels.data(), static_cast<int>(kSettingsOverlayWidth * 4u));
+-    int output_w = 960, output_h = 544;
+-    SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
+-    const int panel_w = static_cast<int>(settings_overlay_present_width(static_cast<float>(output_w)));
+-    const SDL_Rect destination{output_w - panel_w - 24, 24, panel_w,
+-                               static_cast<int>(static_cast<std::int64_t>(panel_w) * kSettingsOverlayHeight / kSettingsOverlayWidth)};
++    if (picture.version != shown) {
++        pixels.resize(static_cast<std::size_t>(picture.width) * picture.height * 4u);
++        if (settings_overlay_copy(picture.version, pixels.data(), pixels.size())) {
++            SDL_UpdateTexture(texture, nullptr, pixels.data(), static_cast<int>(picture.width * 4u));
++            shown = picture.version;
++        }
++    }
++    if (shown == 0u) return;
++    const bool fallback = texture_w == kSettingsOverlayWidth && texture_h == kSettingsOverlayHeight;
++    const int panel_w = static_cast<int>(size.width);
++    const int panel_h = fallback ? static_cast<int>(static_cast<std::int64_t>(panel_w) * kSettingsOverlayHeight / kSettingsOverlayWidth)
++                                 : static_cast<int>(size.height);
++    const SDL_Rect destination{output_w - panel_w - 24, 24, panel_w, panel_h};
+     SDL_RenderCopy(renderer, texture, nullptr, &destination);
+ }
+ 
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+index b5e266a..43c6be4 100644
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -327,6 +327,7 @@ struct VulkanState {
+     std::vector<VkSemaphore> present_semaphores;
+     GpuImage fps_overlay{};
+     GpuImage settings_overlay{};
++    std::uint64_t settings_overlay_version = 0;  // GT patch 0070: the UI picture in settings_overlay (uploaded once per change)
+     GpuImage guest_image{};
+     VkBuffer present_staging{};
+     VkDeviceMemory present_staging_memory{};
+@@ -2500,8 +2501,12 @@ void cmd_present_pass(VulkanState &s, std::uint32_t image_index, VkDescriptorSet
+         draw_present_layer(s, s.present_sets[kPresentFps], 16, 16, panel_w, panel_h, false);
+     }
+     if (draw_settings) {
+-        const std::int32_t panel_w = static_cast<std::int32_t>(settings_overlay_present_width(static_cast<float>(s.swap_width)));
+-        const std::int32_t panel_h = static_cast<std::int32_t>(static_cast<std::int64_t>(panel_w) * kSettingsOverlayHeight / kSettingsOverlayWidth);
++        // GT patch 0070: shown at the size it was rasterized for (an older picture of another size is scaled to it)
++        const SettingsOverlaySize size = settings_overlay_present_size(static_cast<float>(s.swap_width), static_cast<float>(s.swap_height));
++        const std::int32_t panel_w = static_cast<std::int32_t>(size.width);
++        const std::int32_t panel_h = s.settings_overlay.width == kSettingsOverlayWidth && s.settings_overlay.height == kSettingsOverlayHeight
++                                         ? static_cast<std::int32_t>(static_cast<std::int64_t>(panel_w) * kSettingsOverlayHeight / kSettingsOverlayWidth)
++                                         : static_cast<std::int32_t>(size.height);
+         draw_present_layer(s, s.present_sets[kPresentSettings],
+                            static_cast<std::int32_t>(s.swap_width) - panel_w - 24, 24, panel_w, panel_h, false);
+     }
+@@ -2551,9 +2556,15 @@ void retire_acquired_present(VulkanState &s) noexcept {
+     ensure_swapchain(s, ignored);
+ }
+ 
++struct SettingsPlan {  // GT patch 0070
++    std::uint64_t version = 0;
++    std::uint32_t width = 0, height = 0;
++    bool upload = false;
++};
++
+ bool prepare_overlay_uploads(VulkanState &s, const Dx12FramePresentDecision &decision,
+-                             VkDeviceSize fps_offset, VkDeviceSize settings_offset, bool &draw_fps,
+-                             bool &draw_settings, std::string &error) {
++                             VkDeviceSize fps_offset, VkDeviceSize settings_offset, const SettingsPlan &settings,
++                             bool &draw_fps, bool &draw_settings, bool &upload_settings, std::string &error) {
+     draw_fps = false;
+     draw_settings = false;
+     auto *mapped = static_cast<std::uint8_t *>(s.present_staging_mapped);
+@@ -2563,37 +2574,63 @@ bool prepare_overlay_uploads(VulkanState &s, const Dx12FramePresentDecision &dec
+         rasterize_fps_overlay(mapped + fps_offset, kFpsOverlayWidth, kFpsOverlayHeight);
+         draw_fps = true;
+     }
+-    if (decision.composite_settings &&
+-        ensure_overlay_image(s, s.settings_overlay, kSettingsOverlayWidth, kSettingsOverlayHeight, error)) {
+-        rasterize_settings_overlay(decision.settings, mapped + settings_offset, kSettingsOverlayWidth,
+-                                   kSettingsOverlayHeight);
+-        draw_settings = true;
++    upload_settings = false;
++    if (settings.version != 0u) {
++        if (settings.upload) {
++            if (ensure_overlay_image(s, s.settings_overlay, settings.width, settings.height, error) &&
++                settings_overlay_copy(settings.version, mapped + settings_offset,
++                                      static_cast<std::size_t>(settings.width) * settings.height * 4u)) {
++                upload_settings = true;
++            } else {
++                s.settings_overlay_version = 0u;  // a newer picture replaced it (or no image): ask again next frame
++            }
++        }
++        draw_settings = s.settings_overlay.image != VK_NULL_HANDLE && (upload_settings || s.settings_overlay_version != 0u);
+     }
+     return true;
+ }
+ 
++// GT patch 0070: the UI picture for this frame: the worker's newest one, uploaded only when it changed.
++SettingsPlan plan_settings_overlay(VulkanState &s, const Dx12FramePresentDecision &decision) {
++    SettingsPlan plan;
++    if (!decision.composite_settings) return plan;
++    const SettingsOverlayPicture picture = settings_overlay_request(
++        decision.settings, settings_overlay_present_size(static_cast<float>(s.swap_width), static_cast<float>(s.swap_height)));
++    if (picture.version == 0u) return plan;
++    plan.version = picture.version;
++    plan.width = picture.width;
++    plan.height = picture.height;
++    plan.upload = picture.version != s.settings_overlay_version || s.settings_overlay.image == VK_NULL_HANDLE ||
++                  s.settings_overlay.width != picture.width || s.settings_overlay.height != picture.height;
++    return plan;
++}
++
+ bool record_swapchain_present(VulkanState &s, VkImageView source, std::uint32_t source_width,
+                               std::uint32_t source_height, std::string &error) {
+     if (source == VK_NULL_HANDLE || s.present_lost) return false;
+     if (!ensure_swapchain(s, error) || !ensure_game_sampler(s, error)) return false;
+     const Dx12FramePresentDecision decision = decide_dx12_frame_present(true);
+     const VkDeviceSize fps_bytes = static_cast<VkDeviceSize>(kFpsOverlayWidth) * kFpsOverlayHeight * 4u;
+-    const VkDeviceSize settings_bytes =
+-        static_cast<VkDeviceSize>(kSettingsOverlayWidth) * kSettingsOverlayHeight * 4u;
++    const SettingsPlan settings = plan_settings_overlay(s, decision);
++    const VkDeviceSize settings_bytes = settings.upload ? static_cast<VkDeviceSize>(settings.width) * settings.height * 4u : 0u;
+     const VkDeviceSize fps_offset = 0u;
+     const VkDeviceSize settings_offset = align_upload(fps_bytes);
+     if (!ensure_present_staging(s, settings_offset + settings_bytes, error)) return false;
+     host_fps_note_presented_frame();
+     bool draw_fps = false;
+     bool draw_settings = false;
+-    if (!prepare_overlay_uploads(s, decision, fps_offset, settings_offset, draw_fps, draw_settings, error))
++    bool upload_settings = false;
++    if (!prepare_overlay_uploads(s, decision, fps_offset, settings_offset, settings, draw_fps, draw_settings, upload_settings,
++                                 error))
+         return false;
+     std::uint32_t index = 0u;
+     if (!acquire_swap_image(s, index, error)) return false;
+     if (draw_fps)
+         cmd_upload_image(s, s.fps_overlay, fps_offset, kFpsOverlayWidth, kFpsOverlayHeight);
+-    if (draw_settings)
+-        cmd_upload_image(s, s.settings_overlay, settings_offset, kSettingsOverlayWidth, kSettingsOverlayHeight);
++    if (upload_settings) {
++        cmd_upload_image(s, s.settings_overlay, settings_offset, settings.width, settings.height);
++        s.settings_overlay_version = settings.version;
++    }
+     write_present_set(s, kPresentGame, source, s.game_sampler);
+     if (draw_fps) write_present_set(s, kPresentFps, s.fps_overlay.view, s.overlay_sampler);
+     if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.settings_sampler);
+@@ -2767,8 +2804,8 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+     if (!ensure_overlay_image(s, s.guest_image, width, height, error)) return false;
+     const Dx12FramePresentDecision decision = decide_dx12_frame_present(true);
+     const VkDeviceSize fps_bytes = static_cast<VkDeviceSize>(kFpsOverlayWidth) * kFpsOverlayHeight * 4u;
+-    const VkDeviceSize settings_bytes =
+-        static_cast<VkDeviceSize>(kSettingsOverlayWidth) * kSettingsOverlayHeight * 4u;
++    const SettingsPlan settings = plan_settings_overlay(s, decision);
++    const VkDeviceSize settings_bytes = settings.upload ? static_cast<VkDeviceSize>(settings.width) * settings.height * 4u : 0u;
+     const VkDeviceSize fps_offset = align_upload(static_cast<VkDeviceSize>(guest_bytes));
+     const VkDeviceSize settings_offset = align_upload(fps_offset + fps_bytes);
+     if (!ensure_present_staging(s, settings_offset + settings_bytes, error)) return false;
+@@ -2776,7 +2813,9 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+     host_fps_note_presented_frame();
+     bool draw_fps = false;
+     bool draw_settings = false;
+-    if (!prepare_overlay_uploads(s, decision, fps_offset, settings_offset, draw_fps, draw_settings, error))
++    bool upload_settings = false;
++    if (!prepare_overlay_uploads(s, decision, fps_offset, settings_offset, settings, draw_fps, draw_settings, upload_settings,
++                                 error))
+         return false;
+     std::uint32_t index = 0u;
+     if (!acquire_swap_image(s, index, error)) return false;
+@@ -2791,8 +2830,10 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+     }
+     cmd_upload_image(s, s.guest_image, 0u, width, height);
+     if (draw_fps) cmd_upload_image(s, s.fps_overlay, fps_offset, kFpsOverlayWidth, kFpsOverlayHeight);
+-    if (draw_settings)
+-        cmd_upload_image(s, s.settings_overlay, settings_offset, kSettingsOverlayWidth, kSettingsOverlayHeight);
++    if (upload_settings) {
++        cmd_upload_image(s, s.settings_overlay, settings_offset, settings.width, settings.height);
++        s.settings_overlay_version = settings.version;
++    }
+     write_present_set(s, kPresentGuest, s.guest_image.view, s.game_sampler);
+     if (draw_fps) write_present_set(s, kPresentFps, s.fps_overlay.view, s.overlay_sampler);
+     if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.settings_sampler);
+diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index 886171f..ea92082 100644
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -9,12 +9,15 @@
+ #include <atomic>
+ #include <cctype>
+ #include <chrono>
++#include <condition_variable>
+ #include <cmath>
+ #include <cstdint>
+ #include <cstdio>
+ #include <cstring>
+ #include <fstream>
++#include <mutex>
+ #include <string>
++#include <thread>
+ #include <vector>
+ 
+ namespace lcs {
+@@ -567,6 +570,107 @@ void rasterize_settings_overlay(const HostSettingsView &view, std::uint8_t *rgba
+     rasterize_fallback(view, rgba, width, height);
+ }
+ 
++namespace {
++
++// GT patch 0070: the UI picture worker. One request slot (the newest view wins: a cursor moving faster than the worker skips
++// the pictures in between), one finished picture. The worker thread is started on the first request and lives until exit.
++struct OverlayWorker {
++    std::mutex mutex;
++    std::condition_variable wake;
++    bool synchronous = false;
++    bool started = false;
++    bool pending = false;        // `wanted` not rasterized yet
++    HostSettingsView wanted{};
++    SettingsOverlaySize wanted_size{};
++    bool have_last = false;      // the last request taken (to skip an identical one)
++    HostSettingsView last{};
++    SettingsOverlaySize last_size{};
++    std::vector<std::uint8_t> picture;  // finished
++    SettingsOverlayPicture info{};
++    std::uint64_t versions = 0;
++};
++
++OverlayWorker &overlay_worker() {
++    static OverlayWorker *worker = new OverlayWorker();  // never destroyed: the detached thread may still hold it at exit
++    return *worker;
++}
++
++bool same_view(const HostSettingsView &a, const HostSettingsView &b) { return std::memcmp(&a, &b, sizeof a) == 0; }
++
++SettingsOverlaySize raster_size(SettingsOverlaySize size) {
++    if (!host_style_font_available() || size.width == 0u || size.height == 0u) return {kSettingsOverlayWidth, kSettingsOverlayHeight};
++    return size;
++}
++
++// Rasterizes `view` (outside the lock) and publishes it.
++void overlay_rasterize(OverlayWorker &w, const HostSettingsView &view, SettingsOverlaySize size, std::unique_lock<std::mutex> &lock) {
++    lock.unlock();
++    const SettingsOverlaySize real = raster_size(size);
++    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(real.width) * real.height * 4u);
++    rasterize_settings_overlay(view, pixels.data(), real.width, real.height);
++    lock.lock();
++    w.picture.swap(pixels);
++    w.info = SettingsOverlayPicture{real.width, real.height, ++w.versions};
++}
++
++void overlay_thread() {
++    OverlayWorker &w = overlay_worker();
++    std::unique_lock<std::mutex> lock(w.mutex);
++    for (;;) {
++        w.wake.wait(lock, [&w] { return w.pending; });
++        const HostSettingsView view = w.wanted;
++        const SettingsOverlaySize size = w.wanted_size;
++        w.pending = false;
++        overlay_rasterize(w, view, size, lock);
++    }
++}
++
++}  // namespace
++
++SettingsOverlayPicture settings_overlay_request(const HostSettingsView &view, SettingsOverlaySize size) noexcept {
++    OverlayWorker &w = overlay_worker();
++    std::unique_lock<std::mutex> lock(w.mutex);
++    const bool repeat = w.have_last && w.last_size.width == size.width && w.last_size.height == size.height && same_view(w.last, view);
++    if (!repeat) {
++        w.have_last = true;
++        w.last = view;
++        w.last_size = size;
++        if (w.synchronous) {
++            overlay_rasterize(w, view, size, lock);
++        } else {
++            w.wanted = view;
++            w.wanted_size = size;
++            w.pending = true;
++            if (!w.started) {
++                w.started = true;
++                try {
++                    std::thread(overlay_thread).detach();
++                } catch (...) {  // no thread: rasterize here, as before
++                    w.synchronous = true;
++                    w.pending = false;
++                    overlay_rasterize(w, view, size, lock);
++                }
++            }
++            w.wake.notify_one();
++        }
++    }
++    return w.info;
++}
++
++bool settings_overlay_copy(std::uint64_t version, std::uint8_t *rgba, std::size_t capacity) noexcept {
++    OverlayWorker &w = overlay_worker();
++    std::lock_guard<std::mutex> lock(w.mutex);
++    if (version == 0u || w.info.version != version || rgba == nullptr || capacity < w.picture.size()) return false;
++    std::memcpy(rgba, w.picture.data(), w.picture.size());
++    return true;
++}
++
++void settings_overlay_set_synchronous(bool synchronous) noexcept {
++    OverlayWorker &w = overlay_worker();
++    std::lock_guard<std::mutex> lock(w.mutex);
++    w.synchronous = synchronous;
++}
++
+ void rasterize_fps_overlay(std::uint8_t *rgba, std::uint32_t width,
+                            std::uint32_t height) noexcept {
+     if (rgba == nullptr || width == 0u || height == 0u) return;
+diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index 37c5ca9..4d4a8e4 100644
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -164,6 +164,38 @@ inline constexpr std::uint32_t kSettingsOverlayHeight = 1024u;
+     const float room = output_width - 48.0f;
+     return width < room ? width : (room > 64.0f ? room : 64.0f);
+ }
++// GT patch 0070: the host UI is rasterized at the size it is shown at, so it scales with the output resolution: 40 % of the
++// output width, at most 80 % of its height (the 520 x 512 layout keeps its shape), never below 360 px wide nor wider than the
++// output less the 24 px margins. Without the UI font the old fixed 1040 x 1024 texture is used (the 5x7 fallback look).
++struct SettingsOverlaySize {
++    std::uint32_t width{0}, height{0};
++};
++[[nodiscard]] inline SettingsOverlaySize settings_overlay_present_size(float output_width, float output_height) noexcept {
++    constexpr float kLayoutW = 520.0f, kLayoutH = 512.0f;
++    float width = output_width * 0.40f;
++    const float by_height = output_height * 0.80f * kLayoutW / kLayoutH;
++    if (width > by_height) width = by_height;
++    if (width < 360.0f) width = 360.0f;
++    const float room = output_width - 48.0f;
++    if (width > room) width = room > 64.0f ? room : 64.0f;
++    const auto w = static_cast<std::uint32_t>(width + 0.5f);
++    return {w, static_cast<std::uint32_t>(static_cast<float>(w) * kLayoutH / kLayoutW + 0.5f)};
++}
++
++// GT patch 0070: the host UI picture is rasterized on its own thread, never on the thread that presents (a full redraw costs
++// milliseconds; on that thread every cursor move stalled the game). settings_overlay_request posts the view and the size wanted
++// and returns the newest finished picture, which may be an older request (version 0: none yet); the same view and size twice
++// rasterize once. settings_overlay_copy copies that picture out if it is still the newest one (false: a newer one replaced it,
++// ask again next frame). Presenters upload only when the version changes.
++struct SettingsOverlayPicture {
++    std::uint32_t width{0}, height{0};
++    std::uint64_t version{0};
++};
++SettingsOverlayPicture settings_overlay_request(const HostSettingsView &view, SettingsOverlaySize size) noexcept;
++bool settings_overlay_copy(std::uint64_t version, std::uint8_t *rgba, std::size_t capacity) noexcept;
++// Tests: rasterize on the calling thread instead (the request then returns the picture of this very view).
++void settings_overlay_set_synchronous(bool synchronous) noexcept;
++
+ inline constexpr std::uint32_t kFpsOverlayWidth = 192u;
+ inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
+ 
+diff --git a/lcs/host/lcs_host_style.cpp b/lcs/host/lcs_host_style.cpp
+index e8721f3..6ba5498 100644
+--- a/lcs/host/lcs_host_style.cpp
++++ b/lcs/host/lcs_host_style.cpp
+@@ -136,11 +136,26 @@ struct Canvas {
+     std::uint8_t *rgba;
+     int w, h;
+     Style &style;
++    float S;  // texture pixels per logical unit: the picture is rasterized at the size it is shown at (GT patch 0070)
+ 
+-    void blend(int x, int y, Rgb c, float alpha) const {
++    [[gnu::always_inline]] inline void blend(int x, int y, Rgb c, float alpha) const {
+         if (x < 0 || y < 0 || x >= w || y >= h || alpha <= 0.0f) return;
+         alpha = std::min(alpha, 1.0f);
+         std::uint8_t *p = rgba + (static_cast<std::size_t>(y) * w + x) * 4u;
++        if (alpha >= 1.0f) {  // GT patch 0070: fast paths (an opaque source, an opaque destination) — same result, no division
++            p[0] = c.r, p[1] = c.g, p[2] = c.b, p[3] = 255u;
++            return;
++        }
++        if (p[3] == 0u) {
++            p[0] = c.r, p[1] = c.g, p[2] = c.b, p[3] = static_cast<std::uint8_t>(alpha * 255.0f + 0.5f);
++            return;
++        }
++        if (p[3] == 255u) {
++            p[0] = static_cast<std::uint8_t>(c.r * alpha + p[0] * (1.0f - alpha) + 0.5f);
++            p[1] = static_cast<std::uint8_t>(c.g * alpha + p[1] * (1.0f - alpha) + 0.5f);
++            p[2] = static_cast<std::uint8_t>(c.b * alpha + p[2] * (1.0f - alpha) + 0.5f);
++            return;
++        }
+         const float da = p[3] / 255.0f;
+         const float oa = alpha + da * (1.0f - alpha);
+         const float sr = c.r * alpha + p[0] * da * (1.0f - alpha);
+@@ -159,16 +174,24 @@ struct Canvas {
+ 
+     // A rounded rectangle, filled (thickness 0) or as an inner outline of `thickness` logical units.
+     void rrect(float x0, float y0, float x1, float y1, float radius, Rgb c, float alpha, float thickness = 0.0f) const {
+-        const float S = host_style::kScale;
+         const float px0 = x0 * S, py0 = y0 * S, px1 = x1 * S, py1 = y1 * S, r = std::min(radius * S, std::min(px1 - px0, py1 - py0) * 0.5f);
+         const float t = thickness * S;
+         const float cx = (px0 + px1) * 0.5f, cy = (py0 + py1) * 0.5f, hx = (px1 - px0) * 0.5f, hy = (py1 - py0) * 0.5f;
+         const int ix0 = std::max(0, static_cast<int>(std::floor(px0))), iy0 = std::max(0, static_cast<int>(std::floor(py0)));
+         const int ix1 = std::min(w, static_cast<int>(std::ceil(px1))), iy1 = std::min(h, static_cast<int>(std::ceil(py1)));
+         for (int y = iy0; y < iy1; ++y) {
++            const float fy_row = y + 0.5f;
++            const bool hollow_row = t > 0.0f && fy_row > py0 + t + 1.0f && fy_row < py1 - t - 1.0f;
++            if (t <= 0.0f && (r <= 0.0f || (fy_row >= py0 + r && fy_row < py1 - r))) {  // GT patch 0070: a row fully covered
++                for (int x = ix0; x < ix1; ++x) blend(x, y, c, alpha);
++                continue;
++            }
+             for (int x = ix0; x < ix1; ++x) {
+-                const float fx = x + 0.5f, fy = y + 0.5f;
+-                if (t > 0.0f && fx > px0 + t + 1.0f && fx < px1 - t - 1.0f && fy > py0 + t + 1.0f && fy < py1 - t - 1.0f) continue;
++                const float fx = x + 0.5f, fy = fy_row;
++                if (hollow_row && fx > px0 + t + 1.0f && fx < px1 - t - 1.0f) {  // GT patch 0070: jump over the outline's inside
++                    x = std::max(x, static_cast<int>(std::ceil(px1 - t - 1.0f - 0.5f)) - 1);
++                    continue;
++                }
+                 float cov;
+                 if (r <= 0.0f || (fx >= px0 + r && fx < px1 - r) || (fy >= py0 + r && fy < py1 - r)) {
+                     cov = 1.0f;
+@@ -187,7 +210,6 @@ struct Canvas {
+ 
+     // A line segment of `width` logical units with round caps.
+     void line(float x0, float y0, float x1, float y1, float width, Rgb c, float alpha = 1.0f) const {
+-        const float S = host_style::kScale;
+         const float ax = x0 * S, ay = y0 * S, bx = x1 * S, by = y1 * S, half = width * S * 0.5f;
+         const int ix0 = std::max(0, static_cast<int>(std::floor(std::min(ax, bx) - half - 1))), ix1 = std::min(w, static_cast<int>(std::ceil(std::max(ax, bx) + half + 1)));
+         const int iy0 = std::max(0, static_cast<int>(std::floor(std::min(ay, by) - half - 1))), iy1 = std::min(h, static_cast<int>(std::ceil(std::max(ay, by) + half + 1)));
+@@ -206,9 +228,9 @@ struct Canvas {
+     }
+ 
+     float text_width(FontId font, float size, const char *text, float spacing = 0.0f) const {
+-        const int px = std::max(1, static_cast<int>(std::lround(size * host_style::kScale)));
++        const int px = std::max(1, static_cast<int>(std::lround(size * S)));
+         float width = 0.0f;
+-        for (const char *p = text; *p != '\0';) width += glyph(style, font, px, next_codepoint(p)).advance / host_style::kScale + spacing;
++        for (const char *p = text; *p != '\0';) width += glyph(style, font, px, next_codepoint(p)).advance / S + spacing;
+         return width > 0.0f ? width - spacing : 0.0f;
+     }
+ 
+@@ -228,9 +250,9 @@ struct Canvas {
+     float text(FontId font, float size, float x, float y, const char *text, Rgb c, float alpha = 1.0f, float spacing = 0.0f,
+                int align = 0) const {
+         const float width = text_width(font, size, text, spacing);
+-        float pen = (align == 1 ? x - width : align == 2 ? x - width * 0.5f : x) * host_style::kScale;
+-        const int px = std::max(1, static_cast<int>(std::lround(size * host_style::kScale)));
+-        const int baseline = static_cast<int>(std::lround(y * host_style::kScale));
++        float pen = (align == 1 ? x - width : align == 2 ? x - width * 0.5f : x) * S;
++        const int px = std::max(1, static_cast<int>(std::lround(size * S)));
++        const int baseline = static_cast<int>(std::lround(y * S));
+         for (const char *p = text; *p != '\0';) {
+             const Glyph &g = glyph(style, font, px, next_codepoint(p));
+             const int gx = static_cast<int>(std::lround(pen)) + g.xoff, gy = baseline + g.yoff;
+@@ -239,7 +261,7 @@ struct Canvas {
+                     const unsigned char cov = g.bitmap[static_cast<std::size_t>(row) * g.w + col];
+                     if (cov != 0u) blend(gx + col, gy + row, c, cov / 255.0f * alpha);
+                 }
+-            pen += g.advance + spacing * host_style::kScale;
++            pen += g.advance + spacing * S;
+         }
+         return width;
+     }
+@@ -452,7 +474,7 @@ bool host_style_rasterize(const HostSettingsView &view, std::uint8_t *rgba, std:
+     }
+     ++s.rasterized;
+     std::memset(rgba, 0, bytes);
+-    const Canvas c{rgba, static_cast<int>(width), static_cast<int>(height), s};
++    const Canvas c{rgba, static_cast<int>(width), static_cast<int>(height), s, static_cast<float>(width) / static_cast<float>(kPanelWidth)};
+     const Layout l = layout(view);
+     const float W = kPanelWidth, H = static_cast<float>(l.height);
+ 
+diff --git a/tests/lcs_host_menu_test.cpp b/tests/lcs_host_menu_test.cpp
+index 12b2a87..71c6891 100644
+--- a/tests/lcs_host_menu_test.cpp
++++ b/tests/lcs_host_menu_test.cpp
+@@ -10,6 +10,7 @@
+ #include <fstream>
+ #include <iostream>
+ #include <string>
++#include <thread>
+ #include <vector>
+ 
+ namespace lcs {
+@@ -629,6 +630,48 @@ int styled_nofont() {
+     return 0;
+ }
+ 
++// GT patch 0070: the UI picture comes from its own thread, equals a direct rasterization, is not redone for the same view, and
++// is sized from the output resolution.
++int async_picture() {
++    using namespace lcs;
++    const SettingsOverlaySize fhd = settings_overlay_present_size(1920.0f, 1080.0f);
++    if (fhd.width != 768u || fhd.height != 756u) return fail("1080p: 40 % of the width, the layout's shape");
++    const SettingsOverlaySize uhd = settings_overlay_present_size(3840.0f, 2160.0f);
++    if (uhd.width != 1536u) return fail("4K: the picture grows with the output (sharp, not a 1040 px texture stretched)");
++    const SettingsOverlaySize wide = settings_overlay_present_size(3440.0f, 1000.0f);
++    if (static_cast<float>(wide.height) > 1000.0f * 0.80f + 1.0f) return fail("a wide output: the height caps it");
++    if (settings_overlay_present_size(320.0f, 240.0f).width > 320u - 48u) return fail("a small output: inside the margins");
++    if (!host_style_font_available()) return fail("the UI font (tools/setup.sh fetches Barlow) is not available");
++    HostSettingsView view = device_like_view();
++    const SettingsOverlaySize size{600u, 591u};
++    const auto wait_for = [&](std::uint64_t newer_than) {
++        SettingsOverlayPicture p{};
++        for (int i = 0; i < 400 && p.version <= newer_than; ++i) {
++            p = settings_overlay_request(view, size);
++            if (p.version <= newer_than) std::this_thread::sleep_for(std::chrono::milliseconds(5));
++        }
++        return p;
++    };
++    const unsigned long before = host_style_raster_count();
++    const SettingsOverlayPicture first = wait_for(0u);
++    if (first.version == 0u || first.width != 600u || first.height != 591u) return fail("the worker finishes a picture of the size asked");
++    std::vector<std::uint8_t> got(static_cast<std::size_t>(600u) * 591u * 4u), direct(got.size());
++    if (!settings_overlay_copy(first.version, got.data(), got.size())) return fail("the newest picture can be copied");
++    if (settings_overlay_copy(first.version + 1u, got.data(), got.size())) return fail("a version that is not the newest is refused");
++    rasterize_settings_overlay(view, direct.data(), 600u, 591u);
++    if (got != direct) return fail("the worker's picture equals a direct rasterization");
++    const unsigned long settled = host_style_raster_count();
++    for (int i = 0; i < 5; ++i) settings_overlay_request(view, size);
++    std::this_thread::sleep_for(std::chrono::milliseconds(50));
++    if (settings_overlay_request(view, size).version != first.version) return fail("the same view is not rasterized again");
++    if (host_style_raster_count() != settled || settled <= before) return fail("the worker rasterized once; repeats do nothing");
++    view.selected = 2;
++    const SettingsOverlayPicture moved = wait_for(first.version);
++    if (moved.version <= first.version) return fail("a cursor move gives a new picture");
++    std::cout << "async_picture=worker thread, same as direct, cached, sized from the output\n";
++    return 0;
++}
++
+ }  // namespace
+ 
+ int main(int argc, char **argv) {
+@@ -645,5 +688,6 @@ int main(int argc, char **argv) {
+     if (mode == "panel") return panel();
+     if (mode == "styled") return styled();
+     if (mode == "styled_nofont") return styled_nofont();
++    if (mode == "async_picture") return async_picture();
+     return 2;
+ }

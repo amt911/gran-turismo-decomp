@@ -42,7 +42,7 @@ del menú pasado ese tiempo (`[mods] <id> -> OFF`).
 
 Desde 2026-11-12 (spec `docs/superpowers/specs/2026-11-11-cheat-device-design.md`, aprobada) **SELECT+START** (mando) y **F7**
 (teclado) abren el **cheat device**: un menú por categorías (Race, Car, Money & garage, Camera, **Mods**, **Controls**, Settings; las
-vacías no salen). La primera vez se abre en **Mods** (la lista de mods ON/OFF y sus filas de API v2). Arriba/Abajo eligen,
+vacías no salen). Se abre en la **lista de categorías**, con el cursor en Race (desde 2026-11-16; antes la primera vez caía en **Mods**, la lista de mods ON/OFF y sus filas de API v2, y los trucos de **Race** no se veían); luego vuelve a la página y fila del último cierre. Arriba/Abajo eligen,
 Izquierda/Derecha/Intro (Cruz) cambian o entran, Escape/Retroceso/Círculo vuelven atrás (en la raíz cierran). Se ven 8 filas.
 
 **Panel propio, aparte de F9** (2026-11-13, spec `docs/superpowers/specs/2026-11-13-cheat-device-panel-design.md`, parche lcs 0068):
@@ -53,6 +53,11 @@ abierto y las flechas/Intro/Escape mueven el panel. Antes era una página del ov
 abierto: con un mando real (Xbox One por BT) el device se abría con SELECT+START pero no se podía mover ni cerrar (las rutas de
 prueba inyectan el mando por debajo de lcs y no lo vieron; docs/FINDINGS.md). **F9** vuelve a ser la página MODS de siempre (mods,
 actualizar, descargar) y **F10** los ajustes del host; abrir uno cierra el panel y viceversa. F8 sigue siendo la traza GE de lcs.
+
+**Fluidez y tamaño** (2026-11-16, parche lcs 0070): la imagen del menú se dibuja en **su propio hilo**, nunca en el que presenta
+(redibujarla entera costaba ~13 ms en el sobremesa y paraba el juego en cada pulsación: "va lento al moverse por las opciones");
+se sube a la GPU **solo cuando cambia** (antes, 4 MB por fotograma con el menú abierto); y se dibuja **al tamaño de la pantalla**
+(40 % del ancho, como mucho el 80 % del alto: nítido en 1080p y en 4K). El dibujo es además ~2x más rápido, píxel a píxel igual.
 
 **Aspecto nuevo** (2026-11-13, parche lcs 0069): el panel, **F9 (MODS)** y **F10 (ajustes)** comparten marco, colores y letra:
 cuerpo azul marino casi negro con borde fino y esquinas redondeadas, **azul** del juego (subrayado de la cabecera, última parte de
