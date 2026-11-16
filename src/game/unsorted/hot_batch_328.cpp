@@ -765,7 +765,7 @@ void convert_with_handle(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx
 // (+0x40 with the index); both must exist. The holder's virtual +0x18 fills three floats on the frame; with a table the first limit (+0x58, or +0x5C for
 // an index of 2 and up) when nonzero lowers the second float to limit - the part's virtual +0x2C if that is smaller. The three floats go to 0x08B56364;
 // then the holder's virtuals +0x14 and +0x10 (times 57.2958) feed 0x08B5606C and 0x08B55FB0 (the second one signed by the index parity), the part's virtual
-// +0x28 (times 0.5, signed likewise) feeds 0x08B56364 again with two zeros. v0 = the last call's (the part's, when either object is missing).
+// +0x28 (on the part, times 0.5, signed likewise) feeds 0x08B56364 again with two zeros. v0 = the last call's (the part's, when either object is missing).
 void aim_through_virtuals(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 object = ctx.gpr[4];
     const u32 index = ctx.gpr[5];
@@ -793,7 +793,7 @@ void aim_through_virtuals(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
     call_float(rt, ctx, 0x08B5606Cu, {}, {psp_mul(first_angle, degrees)});
     const float second_angle = psp_mul(call_indirect(rt, ctx, word(rt, word(rt, holder) + 0x10u), {holder}, {}).f0, degrees);
     call_float(rt, ctx, 0x08B55FB0u, {}, {psp_mul(odd ? -1.0f : 1.0f, second_angle)});
-    const float spin = call_indirect(rt, ctx, word(rt, word(rt, object) + 0x28u), {object}, {}).f0;
+    const float spin = call_indirect(rt, ctx, word(rt, word(rt, part) + 0x28u), {part}, {}).f0;
     call_float(rt, ctx, 0x08B56364u, {}, {psp_mul(odd ? 0.5f : -0.5f, spin), 0.0f, 0.0f});
 }
 
