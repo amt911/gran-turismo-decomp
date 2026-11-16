@@ -3310,6 +3310,63 @@ fetched at the same moment and one failed with `cannot lock ref 'refs/remotes/or
 (verdict 615). `verdict.sh` now retries the fetch (5 tries, `GT_FETCH_RETRY_S`, default 20 s) and stops with `fetch failed` rather
 than verdict a stale `origin/<branch>`.
 
+## The real GE blob layout, and why a draw hook cannot tell the player's car from the matrix (2026-11-14, deformation SDK probe)
+
+**Blob layout (measured with a probe mod on the `rollover` race route, 5 blobs dumped, 300+ logged).** The spike's "BASE, VADR, VTYPE, PRIM, RET" is the short form. Real blobs
+(`0x08B550A8` argument) look like `ATEST 22000001, 17000000, 1E000001, BASE 10090000, VADR 019CDCCC, 21000000, BASE 10090000, CALL 0A9CD40C (texture block), C8FA0000, VTYPE 12000112, PRIM
+04040012, C8F90000, PRIM 04040012, ... , RET 0B000000`, then one padding word and the vertices at the VADR (absolute through the BASE before it). The vertex count is the **sum of the PRIM counts**
+(strips continue through the same array); vertices are 12 bytes (format `0x112`, s16 position at +6, values normalised to the full s16 range: the scale is in the world matrix). Some blobs begin with
+other commands (`DBFF0006 E7000001 DF00003A ...`). `host/mesh_blob.cpp` parses this; the two-PRIM test blob and a real-shaped one are in `host/tests/mesh_blob_test.cpp`.
+
+**Not solved: which blobs are the player's body.** A hook on `0x08B550A8` fires (3175 draws logged in 70 s, `--decomp off`); the display list's latest WORLDN/WORLDD matrix read after `call_original` does
+*not* behave like a world position of the model (columns do not form a scaled rotation; positions of blobs near the player do not track the player's physics position under any of four axis maps, nor stay
+constant under the chase camera). The matrix is probably composed with the view or flushed later than the call. So "the blobs drawn at the player's position" cannot be found this way; the deformation mod
+needs another link between the car and its model (a pointer search from the car object to blob addresses, or the draw call's caller). Probe: scratch mod, not committed.
+
+## The real GE blob layout, and why a draw hook cannot tell the player's car from the matrix (2026-11-14, deformation SDK probe)
+
+**Blob layout (measured with a probe mod on the `rollover` race route, 12 blobs dumped, 300+ logged).** The spike's "BASE, VADR, VTYPE, PRIM, RET" is the short form. Real blobs
+(the `0x08B550A8` argument) look like `ATEST 22000001, 17000000, 1E000001, BASE 10090000, VADR 019CDCCC, 21000000, BASE 10090000, CALL 0A9CD40C (texture block), C8FA0000, VTYPE 12000112, PRIM
+04040012, C8F90000, PRIM 04040012, ... , RET 0B000000`, then one padding word and the vertices at the VADR (absolute through the BASE before it). The vertex count is the **sum of the PRIM counts**
+(strips continue through the same array); vertices are 12 bytes (format `0x112`, s16 position at +6, values normalised to the full s16 range: the scale is in the world matrix). Some blobs begin with
+other commands (`DBFF0006 E7000001 DF00003A ...`). `host/mesh_blob.cpp` parses this; a short-form and a real-shaped blob are tested in `host/tests/mesh_blob_test.cpp`.
+
+**Not solved: which blobs are the player's body.** A hook on `0x08B550A8` fires (3175 draws in 70 s, `--decomp off`). The latest WORLDN/WORLDD matrix of the display list, read after `call_original`, does
+*not* behave like the model's world position: positions of blobs near the player do not track the player's physics position under any of four axis maps, nor stay constant under the chase camera (the
+matrix is probably composed with the view, or flushed at another point). So the draws at the player's position cannot be found this way; the deformation mod needs another link between the car and its
+model (a pointer search from the car object to blob addresses, or the caller of the draw). The probe was a scratch mod, not committed; the matrix accessor was removed again for that reason.
+
+### Crash deformation: the dent is not visible yet (2026-11-14) — SOLVED the same day, see FACTS "Container per car, parts with several vertex arrays"
+
+Kept for the path: the copy-on-write redirect on `0x08B550A8` fired but the frames did not change, because the visible body parts are entries whose blob has
+**several VADRs** (one run per material/format), which `parse_blob` refused: they were never copied, so never redirected. A non-empty mods dir (even all disabled)
+also shifts the race against real time versus an empty one from vblank ~3330, and the mod's own work shifts it again after the hit, so the frame check compares
+runs with the same mods dir layout and, after the hit, a zero-strength run of the same mod.
+
+
+### Crash deformation in place: the game draws copies of some parts from VRAM (2026-11-15)
+
+Not a cache. Logging every blob the `0x08B550A8` leaf draws after the hit (60 distinct) and the vertex arrays its command list reads: the big body entries of the
+player's container (`0x090EB4D0`, `0x090F3490`, `0x090F1700`) are drawn from RAM, but other entries (`0x090FADD0`, `0x090FB250`, `0x090EFEB0`, `0x090F08B0`,
+`0x090F1700` again, `0x090F2BD0`, `0x090FAC60/0x090FAD10`, `0x090F0C20/0x090F1020`) are ALSO drawn from blobs in VRAM (`0x041xxxxx`) whose vertex arrays are
+bytes-for-bytes the container's (same first vertex, same count, same VTYPE; both the command list and the vertices live in VRAM). A dent written only to the
+container never reaches those draws. The mod now watches the VRAM blobs drawn (`GT_HOOK_MESH_DRAW`), finds the runs that equal a part's original bytes (`blob_runs`) and
+writes the same dented vertices to them (and restores them). Who copies container -> VRAM was not found (not looked for in the guest code: the copies
+exist before the first hit and are recognised by content). The earlier "memory stays dented, screen shows ~1 s" was this plus a dent too small to see.
+Visibility at 1920x1088 (GPU x4), 17 m/s hit, rear quarter: depth 0.02/radius 0.45/cap 0.15: ~0 px; 0.04/0.5/0.3: ~550 px (roof only); 0.05/0.8/0.25: ~5000 px;
+radius 2.0 / cap 0.4: the whole body collapses and the wheels show (proves the vertices drawn are the ones written). The dent lands on the ROOF edge, not the
+rear bumper: each part is normalised in its own frame and the body-frame to model-axis mapping (forward z, right x, up y, signs flipped in the check) is not verified.
+
+Roof stripes (2026-11-15, open): the dented roof shows streaky, saw-toothed shading at 1920x1088 (`dent_hires_r6_*`). Denting the 0x118 / 0x11A runs too (formats added) did not change it
+(5116 vs 5138 differing pixels), the VRAM copies get the same displacement as their container run, and normals are not recomputed. Likely cause (not proven): overlapping layers
+that are each dented in their OWN normalised frame (different displacement for the same world point). A displacement from world position needs each part's transform,
+which is not in the entry (FACTS "Part entries of the model container"; the `.data` pointer at `+0x10` is unread).
+
+Roof stripes: SOLVED (2026-11-15). The cause was the assumption that each part is normalised in its own frame: all parts share the car's box (FACTS "Car draw matrix"), so a per-part
+frame displaced overlapping layers by different amounts. The dent is now computed in metres in the common frame, the same point moves the same in every part and VRAM copy, and the normals
+are tilted with the surface. Seen from behind, a dent along the car's z (into the rear face) is only a depth change: the demonstration aims the hit at the rear-right flank
+(`tools/mod_deformation_check.sh` sets the mod's forward axis to x and its right axis to z).
+
 ## A vtable-driven "collision" hook that is not one (2026-11-14)
 
 **Symptom.** The world step `0x0894DD9C` copies every car's position, velocity and angles into a record, calls a virtual `+0x1C` on the object at `world+0x18` and copies the
@@ -3317,3 +3374,25 @@ result back: it reads exactly like an external collision solver. **It is a 0x24-
 (FACTS "Collision code ... NOT FOUND"). **Check before trusting a "solver" by its call shape:** read the class's slot functions (vtable words in `.data` hold the ELF vaddr; add
 `0x08804000`; the world step is reached through a `j` thunk at `0x088A194C` that loads `a0 = [a0+0x54]`, which is why a plain search for the step's address in `.data` finds nothing) and the
 constructor's size. Also: `Decompile.java` takes its vaddrs as separate arguments, so build the argument list in `bash -c` (zsh does not word-split).
+
+## `sabotage --synth` silently skipped functions spelled with type aliases (2026-11-15)
+
+Batch 341 declared `using psprecomp::Runtime; using psprecomp::AllegrexContext;` and defined `void func_X(Runtime &rt, AllegrexContext &ctx)`.
+`tools.decomp_gate sabotage` only patched `void NAME(psprecomp::Runtime &…, psprecomp::AllegrexContext &…) {`; it printed one
+`not found in …` line, ran the whole sabotaged gate (about an hour) and reported `1/15 detected`, the one body that happened to match.
+**Now:** the signature may omit `psprecomp::`, and a requested address whose body cannot be found or patched (including a template
+body the tool cannot resolve) makes the run refuse before building, naming each function (`unsabotageable_message`). **Rule:** a
+sabotage count below the number of functions is never "the others are fine": read the lines above it.
+
+## Two main functions mismatch in the synthetic gate once more functions are registered (2026-11-15)
+
+- **Seen:** the verdicts of #641, #642, #643 and #644 (new decompilation batches 341–344, disjoint function sets, 15 more
+  registrations each) all show `@0x088A657C` and `@0x08C70D64` in the first synthetic route group. Every verdict of a tree
+  with main's 16,854 registrations before them did not. Neither function is in those batches, and neither is a direct
+  caller or callee of any of them; both are on main (`func_088A657C`: open since 2026-10-27, "stale stack words";
+  `func_08C70D64`: hot_batch_336, emitter body).
+- **Hypothesis, not measured:** synthetic inputs are deterministic per (function, index, seed) (`host/synth_case.cpp`),
+  but the runs start from route state, which shifts when the registration set changes. These two functions have latent
+  state-dependent mismatches that the new state exposes. To test it: run `tools.decomp_gate synth` for just these two on
+  main and on a tree with batch 342, from the same route snapshot.
+- **What was done:** #642–#644 were merged with this written in their verdict comments; the two functions stay open.

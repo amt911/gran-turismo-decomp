@@ -1,5 +1,10 @@
 #include "game_state.hpp"
 
+#include <vector>
+
+#include "mesh_blob.hpp"
+
+#include <cmath>
 #include <cstring>
 
 namespace gt::game_state {
@@ -117,6 +122,120 @@ bool car_set_state(psprecomp::GuestMemory &m, std::uint32_t h, const CarState &s
     store_f(m, h + kThrottle, s.throttle);
     store_f(m, h + kBrake, s.brake);
     return true;
+}
+
+namespace {
+constexpr std::uint32_t kWheelRecords = 0x10u, kWheelStride = 0x38u, kSurface = 0x2Cu, kOffTrack = 0x300u, kCarRecord = 0xCu;
+constexpr std::uint32_t kWheelBase = 0x18u, kTrack = 0x1Cu;
+float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
+} // namespace
+
+bool car_impact(const psprecomp::GuestMemory &m, std::uint32_t world, std::uint32_t handle, ImpactTracker &tracker, Impact &out) {
+    if (!body_ok(m, handle)) return false;
+    const std::uint32_t slots = word_or_0(m, world + 4u), count = word_or_0(m, world + 8u);
+    std::uint32_t car = 0u;
+    for (std::uint32_t i = 0; i < count && i < kMaxCars && slots != 0u; ++i) {
+        const std::uint32_t candidate = slots + i * kSlotSize + kCarInSlot;
+        if (m.contains(candidate, 0x14u) && m.load32(candidate + kBody) == handle) {
+            car = candidate;
+            break;
+        }
+    }
+    if (car == 0u) return false;
+    float v[3], rows[9];
+    for (int i = 0; i < 3; ++i) v[i] = load_f(m, handle + kVelocity + 4u * i);
+    for (int i = 0; i < 9; ++i) rows[i] = load_f(m, handle + kBasis + 4u * i);
+    const float speed = load_f(m, handle + kSpeed), yaw_rate = load_f(m, handle + kRates[4]);
+    ImpactTracker::Sample *sample = nullptr;
+    for (auto &s : tracker.samples)
+        if (s.valid && s.handle == handle) sample = &s;
+    if (sample == nullptr)
+        for (auto &s : tracker.samples)
+            if (!s.valid) {
+                sample = &s;
+                break;
+            }
+    out = Impact{};
+    if (sample != nullptr && sample->valid) {
+        const float dv[3] = {v[0] - sample->velocity[0], v[1] - sample->velocity[1], v[2] - sample->velocity[2]};
+        for (int r = 0; r < 3; ++r) out.dv_body[r] = rows[3 * r] * dv[0] + rows[3 * r + 1] * dv[1] + rows[3 * r + 2] * dv[2];
+        out.dv_magnitude = std::sqrt(dv[0] * dv[0] + dv[1] * dv[1] + dv[2] * dv[2]);
+        out.speed_before = sample->speed;
+        out.yaw_rate_jump = std::fabs(yaw_rate - sample->yaw_rate);
+        if (out.dv_magnitude > 0.f)
+            for (int i = 0; i < 3; ++i) out.contact_dir[i] = -out.dv_body[i] / out.dv_magnitude;
+    } else {
+        out.speed_before = speed;
+    }
+    const std::uint32_t wheels = word_or_0(m, car + kWheelRecords);
+    for (std::uint32_t i = 0; i < 4u && wheels != 0u; ++i)
+        if (m.contains(wheels + i * kWheelStride, kSurface + 4u) && m.load32(wheels + i * kWheelStride + kSurface) == kOffTrack) out.off_track = true;
+    const std::uint32_t record = word_or_0(m, car + kCarRecord);
+    const float wheel_base = record != 0u && m.contains(record, kTrack + 4u) ? load_f(m, record + kWheelBase) : 0.f;
+    const float track = record != 0u && m.contains(record, kTrack + 4u) ? load_f(m, record + kTrack) : 0.f;
+    out.box_half_length = clampf(0.8f * wheel_base, 1.7f, 2.6f);
+    out.box_half_width = clampf(track / 2.f + 0.12f, 0.75f, 1.1f);
+    out.box_floor = -0.03f;
+    out.box_roof = 0.8f;
+    if (sample != nullptr) {
+        sample->handle = handle;
+        sample->valid = true;
+        for (int i = 0; i < 3; ++i) sample->velocity[i] = v[i];
+        sample->speed = speed;
+        sample->yaw_rate = yaw_rate;
+    }
+    return true;
+}
+
+bool car_draw_link(const psprecomp::GuestMemory &m, std::uint32_t a0, CarDrawLink &out) {
+    const std::uint32_t view = word_or_0(m, a0 + 4u), entry = word_or_0(m, view + 0xB04u), car = word_or_0(m, entry + 0xCu);
+    const std::uint32_t body = word_or_0(m, car + kBody), model = word_or_0(m, word_or_0(m, view + 0x20u) + 8u);
+    if (view == 0u || entry == 0u || car == 0u || body == 0u || model == 0u || word_or_0(m, model) != kModelMagic) return false;
+    out.car = body;
+    out.model = model;
+    return true;
+}
+
+std::uint32_t model_blobs(const psprecomp::GuestMemory &m, std::uint32_t model, std::uint32_t *out, std::uint32_t capacity) {
+    if (word_or_0(m, model) != kModelMagic) return 0u;
+    const std::uint32_t base = word_or_0(m, model + 0xA8u), count = word_or_0(m, model + 0x14u);
+    std::uint32_t n = 0u;
+    for (std::uint32_t i = 0; i < count && i < 256u && base != 0u && n < capacity; ++i) {
+        const std::uint32_t blob = word_or_0(m, base + 32u * i);
+        gt::mesh::BlobInfo info;
+        if (gt::mesh::parse_blob(m, blob, info)) out[n++] = blob;
+    }
+    return n;
+}
+
+std::uint32_t model_runs(const psprecomp::GuestMemory &m, std::uint32_t model, RunRef *out, std::uint32_t capacity) {
+    if (word_or_0(m, model) != kModelMagic) return 0u;
+    const std::uint32_t base = word_or_0(m, model + 0xA8u), count = word_or_0(m, model + 0x14u);
+    std::uint32_t n = 0u;
+    std::vector<gt::mesh::Run> runs;
+    for (std::uint32_t i = 0; i < count && i < 256u && base != 0u; ++i) {
+        const std::uint32_t blob = word_or_0(m, base + 32u * i);
+        if (!gt::mesh::parse_runs(m, blob, runs)) continue;
+        for (std::uint32_t r = 0; r < runs.size() && n < capacity; ++r) out[n++] = RunRef{blob, r, runs[r].count};
+    }
+    return n;
+}
+
+bool list_world_matrix(const psprecomp::GuestMemory &m, float out[12], std::uint32_t max_bytes) {
+    const std::uint32_t cursor = word_or_0(m, kListState + 0x5Cu);
+    if (cursor < 8u + max_bytes || !m.contains(cursor - 4u, 4u)) return false;
+    for (std::uint32_t at = cursor - 4u; at + max_bytes > cursor && at >= 4u; at -= 4u) {
+        if ((word_or_0(m, at) >> 24) != 0x3Au) continue;  // WORLDN
+        bool block = true;
+        for (std::uint32_t i = 1; i <= 12u && block; ++i) block = at + 4u * i < cursor && (word_or_0(m, at + 4u * i) >> 24) == 0x3Bu;
+        if (!block) continue;
+        for (std::uint32_t i = 0; i < 12u; ++i) {
+            const std::uint32_t bits = (word_or_0(m, at + 4u * (i + 1u)) & 0xFFFFFFu) << 8;
+            std::memcpy(&out[i], &bits, 4);
+        }
+        return true;
+    }
+    return false;
 }
 
 } // namespace gt::game_state

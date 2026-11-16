@@ -168,6 +168,31 @@ evidencia en `host/game_state.cpp` y FACTS). Un mod que lo usa declara `api = 3`
 
 Siguen (spec, pasos 3-4): puntos de enganche con nombre, cámara.
 
+## API v5: puntos de enganche con nombre, impacto y mallas (spec `docs/superpowers/specs/2026-11-07-crash-deformation-design.md`)
+
+Un mod que declara `api = 5` usa solo llamadas con nombre (sin direcciones del guest). Evidencia junto a cada una:
+
+| Llamada | Qué hace | Evidencia |
+| --- | --- | --- |
+| `hook_point(GT_HOOK_WORLD_STEP)` | paso físico de cada coche (`0x0894DD9C`, a0 = el mundo) | FACTS "Car body state" |
+| `hook_point(GT_HOOK_MESH_DRAW)` | la hoja que dibuja un blob (`0x08B550A8`, a0 = blob) | FINDINGS "GE blob census" |
+| `car_impact(world, car, out)` | cambio de velocidad del paso (`K+0x6CC..`) en ejes del cuerpo (filas `K+0x1C/28/34`), dirección de contacto = -dv, `off_track` si una rueda lee `0x300`, salto de la velocidad de guiñada (`K+0x6F8`), caja del cuerpo | FACTS "Collision code ... NOT FOUND" (aproximación por dv); "Rollover body box" |
+| `mesh_info`, `mesh_vertex`, `mesh_set_vertex` | blob = BASE, VADR, VTYPE, PRIM, RET + vértices; formatos `0x122` (paso 14, s16 en +8), `0x130` y `0x112` (paso 12, +6) | spec de deformación, hallazgo del spike 2026-11-07 |
+| `mesh_copy`, `mesh_release` | copia el blob en memoria del asignador del juego (`0x08B35DA0` / `0x08B35254`, solo desde el tic) con la VADR reescrita | `host/mesh_blob.cpp`, prueba `mesh_blob` |
+| `draw_mesh_blob`, `draw_mesh_redirect` | el blob que se va a dibujar y su sustituto (a0) | spec |
+| `draw_car_model`, `model_blobs` | coche -> contenedor del modelo (uno por coche) y sus partes que son mallas simples | FACTS "Car to model link" |
+| `model_runs`, `run_vertex`, `run_set_vertex` | todas las tiradas de vértices del modelo (también las partes con varias VADR), leer / escribir un vértice en sitio | FACTS "Container per car, parts with several vertex arrays" |
+| `on_switch_off` | una función que corre una vez, en el primer tic tras apagar el mod desde el menú (para deshacer lo escrito) | `host/mod_services.cpp` |
+| `blob_runs`, `draw_matrix`, `run_normal`, `run_set_normal` | las tiradas de un blob cualquiera (también las copias en VRAM que ve el gancho de dibujo), la última matriz `WORLDN/WORLDD` de la lista (en el gancho `GT_HOOK_MESH_DRAW`: es la misma para todas las partes del coche: su caja) y las normales s8 | FACTS "VRAM copies of the model parts", "Car draw matrix" |
+
+`car_impact` compara con la llamada anterior: llámala una vez por paso. Pruebas: `ctest --test-dir build -R "game_state|mesh_blob|mod_services"`.
+
+### Comprobar `deformation` (`tools/mod_deformation_check.sh`)
+
+Ruta `config/pad_routes/deformation.pad` (la de `rollover` más tres pulsaciones de SELECT: vista de persecución), renderizador por software, `--decomp off|on`, `--others` (con los otros seis mods activos). Cuatro ejecuciones: línea base (mod instalado y apagado), con el mod, con el mod y un abollado de fuerza cero (`depth_per_ms = 0`) y el mod apagado otra vez. Pasa solo si: un golpe en el muro y ninguno antes del paso 1500; los fotogramas antes del golpe son idénticos byte a byte a los de la ejecución de fuerza cero; después del golpe alguno difiere de ella en >= 200 píxeles; y el mod apagado da todos los fotogramas idénticos byte a byte a la línea base. Deben FALLAR: `--without-mod` (sin golpe), `--sabotage-zero` ("changed after hit") y `--sabotage-threshold0` (golpes en conducción normal).
+
+**Por qué los fotogramas previos al golpe se juzgan contra la ejecución de fuerza cero y no contra una sin mod (medido 2026-11-15):** con el mod ENCENDIDO (incluso con abollado cero) 122 de 584 fotogramas anteriores al golpe (desde el vblank 13890; con `--decomp on`, 121 de 555 desde el 13050) difieren de una ejecución sin mod en 3 a 77 píxeles, creciendo despacio (la carrera se desplaza respecto al tiempo real). La causa son los ganchos del mod (dibujo del coche, paso del mundo, tic), no el abollado: contra la ejecución de fuerza cero son 0 de 584; con el mod apagado todos son idénticos a la línea base (la ejecución `identity`); con los otros seis mods encendidos el desplazamiento es 0 de 584. La comprobación imprime el desplazamiento como línea `info:`.
+
 ## `mod.toml`
 
 ```toml
