@@ -31,6 +31,7 @@ struct GuestResult {
     std::uint32_t v0;
     float f0;
     std::uint32_t v1;  // high word of a 64-bit result
+    std::uint32_t a1 = 0;  // $a1 as the callee left it (caller-saved, but a caller's next call can read it)
 };
 GuestResult call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &caller, std::uint32_t address,
                        std::initializer_list<std::uint32_t> arguments, std::initializer_list<float> float_arguments);

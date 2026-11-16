@@ -60,7 +60,7 @@ GuestResult call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &calle
     // compared the VFPU).
     caller.vfpu = ctx.vfpu;
     caller.vfpu_ctrl = ctx.vfpu_ctrl;
-    return GuestResult{ctx.gpr[2], ctx.fpr[0], ctx.gpr[3]};
+    return GuestResult{ctx.gpr[2], ctx.fpr[0], ctx.gpr[3], ctx.gpr[5]};
 }
 
 std::uint32_t call_guest(psprecomp::Runtime &rt, psprecomp::AllegrexContext &caller, std::uint32_t address,
