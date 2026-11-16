@@ -437,7 +437,7 @@ add_executable(lcs_host_menu_tests tools/src/lcs-recomp/tests/lcs_host_menu_test
     "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_host_style.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
 target_include_directories(lcs_host_menu_tests PRIVATE "${GT_LCS_HOST_DIR}")
 target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2)
-foreach(mode menu present f10 f9 extra fps delegated panel styled styled_nofont)
+foreach(mode menu present f10 f9 extra fps delegated panel styled styled_nofont async_picture)
     add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
 endforeach()
 # The host UI as PNGs (cheat device Race / Controls capture / F9 MODS / F10): built from the real Device and mod menu code, only

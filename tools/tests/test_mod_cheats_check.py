@@ -110,7 +110,7 @@ def test_freeze_passes_and_fails():
     assert mc.judge_freeze("", "")[0] is False
 
 
-def pad_log(acc_inside=0.0, rows=True, keys=("chord", "close", "right", "right", "down", "right", "chord"), states=("opened", "closed"), frozen_after=True):
+def pad_log(acc_inside=0.0, rows=True, keys=("chord", "right", "right", "down", "right", "chord"), states=("opened", "closed"), frozen_after=True):
     out = []
     out.append(log(steps=range(800, 900, 2), acc=1.0))
     out.append(f"[padmenu] {keys[0]} at vblank 100")
