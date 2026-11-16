@@ -136,7 +136,7 @@ void func_08B56F34(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // 0x08B56300: transforms (f12, f13, f14, 1) by the current matrix's transpose (vhtfm4 C010, E100, C000) and stores it as the
-// matrix's fourth column (+0x30); merges the pending words.
+// matrix's fourth column (+0x30); merges the pending words; v0 ends as the bits of f14, v1 as the merged high word.
 void func_08B56300(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 block = ctx.gpr[4];
     const u32 matrix = current_matrix(rt, block);
@@ -145,6 +145,7 @@ void func_08B56300(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     v::move_to(ctx, std::bit_cast<u32>(ctx.fpr[13]), 0x20u);
     v::move_to(ctx, std::bit_cast<u32>(ctx.fpr[14]), 0x40u);
     merge_pending(rt, ctx, block);
+    ctx.gpr[2] = std::bit_cast<u32>(ctx.fpr[14]);   // mfc1 v0, f14 after the merge: v0 ends as the third float's bits
     v::transform(ctx, 1u, 0x24u, 0u, 4u, 3u);
     v::store_quad(rt, ctx, 1u, matrix + 0x30u);
 }
