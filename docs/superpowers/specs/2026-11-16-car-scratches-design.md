@@ -1,6 +1,6 @@
 # Car scratches (paint damage) — design
 
-**Status:** draft, waiting for the user's approval. The user asked for it on 2026-11-16 ("Quiero también pintar arañazos si
+**Status:** approved by the user on 2026-11-16 ("me parece bien"). The user asked for it on 2026-11-16 ("Quiero también pintar arañazos si
 puede ser, ya lo probaré yo") and skipped the design questions ("Saltatelas porfa"), so every decision below marked
 *(Claude)* is Claude's call. The user will test it in game.
 
