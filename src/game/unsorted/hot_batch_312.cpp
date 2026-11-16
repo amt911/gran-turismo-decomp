@@ -616,6 +616,169 @@ void read_property_pair(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx)
     call_set(rt, ctx, 0x08A5B9ECu, {result_slot});
 }
 
+// Where the prologue of a function stores a callee-saved register: `reg` 0-31 is a general register, 32-63 a floating one (32 + its number).
+struct SavedSlot {
+    unsigned reg;
+    u32 offset;
+};
+
+// The callee-saved registers (s0-s7, fp, f20-f31) a function keeps values in, and the stores of its prologue: the rewrite stores them where the asm
+// does (a callee can read the stack below its caller's frame), sets the registers as the asm does because callees can read them too, and gives
+// the caller's values back when it returns.
+class SlotRegisters {
+public:
+    SlotRegisters(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, GuestFrame &frame, std::initializer_list<SavedSlot> slots) : ctx_(ctx) {
+        for (unsigned i = 0; i < 8; ++i) gpr_[i] = ctx.gpr[16 + i];
+        fp_ = ctx.gpr[30];
+        for (unsigned i = 0; i < 12; ++i) fpr_[i] = ctx.fpr[20 + i];
+        for (const SavedSlot &slot : slots) {
+            if (slot.reg < 32u) put(rt, frame.at(slot.offset), ctx.gpr[slot.reg]);
+            else put_float(rt, frame.at(slot.offset), ctx.fpr[slot.reg - 32u]);
+        }
+    }
+    ~SlotRegisters() {
+        for (unsigned i = 0; i < 8; ++i) ctx_.gpr[16 + i] = gpr_[i];
+        ctx_.gpr[30] = fp_;
+        for (unsigned i = 0; i < 12; ++i) ctx_.fpr[20 + i] = fpr_[i];
+    }
+    SlotRegisters(const SlotRegisters &) = delete;
+    SlotRegisters &operator=(const SlotRegisters &) = delete;
+
+private:
+    psprecomp::AllegrexContext &ctx_;
+    u32 gpr_[8];
+    u32 fp_;
+    float fpr_[12];
+};
+
+// Constructor-time registration of a script object (a0 = the object) in a frame of `frame_bytes`: the constructor builds the string `text` into the
+// slot at sp + 4 (0x08B85EB8), has the object's virtual +0x108 take it, drops it, asks `handle_source` for a handle (released 0x08A5BA08 when set) and
+// replaces the handle kept at +0x38 (the old one released by 0x08A5B930); `call` then runs one registration, `target(object, ...)`, after the other.
+// `saves` are the stores of the original's prologue.
+// The destructor gives the frame and the callee-saved registers back; v0 is the last call's.
+class ScriptRegistrationWithSource {
+public:
+    ScriptRegistrationWithSource(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 frame_bytes, u32 text, u32 handle_source,
+                       std::initializer_list<SavedSlot> saves)
+        : rt_(rt), ctx_(ctx), self_(ctx.gpr[4]), frame_(ctx, frame_bytes), saved_(rt, ctx, frame_, saves) {
+        const u32 slot = frame_.at(4u);
+        ctx_.gpr[18] = self_;
+        ctx_.gpr[16] = slot;
+        ctx_.gpr[2] = word(rt_, self_);
+        ctx_.gpr[17] = word(rt_, ctx_.gpr[2] + 0x108u);
+        call_set(rt_, ctx_, 0x08B85EB8u, {slot, text, frame_.at(1u)});
+        call_set(rt_, ctx_, ctx_.gpr[17], {self_, slot});
+        drop_string_reference(rt_, ctx_, frame_, word(rt_, slot));
+        const u32 handle = call_set(rt_, ctx_, handle_source, {});
+        ctx_.gpr[16] = handle;
+        if (handle != 0u) call_set(rt_, ctx_, 0x08A5BA08u, {handle});
+        const u32 previous = word(rt_, self_ + 0x38u);
+        ctx_.gpr[2] = previous;
+        ctx_.gpr[4] = previous;
+        if (previous != 0u) call_set(rt_, ctx_, 0x08A5B930u, {previous});
+        put(rt_, self_ + 0x38u, handle);
+    }
+
+    u32 object() const { return self_; }
+    u32 slot(u32 offset) { return frame_.at(offset); }
+
+    // One call `target(object, arguments...)`; the registers a0-a3 and t0-t3 hold the arguments afterwards as the callee left a copy of them.
+    u32 call(u32 target, std::initializer_list<u32> arguments) {
+        unsigned reg = 4u;
+        ctx_.gpr[reg++] = self_;
+        for (const u32 argument : arguments) {
+            if (reg <= 11u) ctx_.gpr[reg++] = argument;
+        }
+        const GuestResult result = call_guest(rt_, ctx_, target, {}, {});
+        ctx_.gpr[2] = result.v0;
+        ctx_.gpr[3] = result.v1;
+        ctx_.fpr[0] = result.f0;
+        return result.v0;
+    }
+
+private:
+    psprecomp::Runtime &rt_;
+    psprecomp::AllegrexContext &ctx_;
+    u32 self_;
+    GuestFrame frame_;
+    SlotRegisters saved_;
+};
+
+// 0x08990190: script-object registration like the others of this file, but its handle source is 0x08994F90.
+void register_08990190(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ScriptRegistrationWithSource registration(rt, ctx, 0x20u, 0x08CA3CB8u, 0x08994F90u, {{31u, 0x1Cu}, {18u, 0x18u}, {16u, 0x10u}, {17u, 0x14u}});
+    registration.call(0x08B8850Cu, {0x08CF6F14u, 0x089910CCu});
+    registration.call(0x08B87108u, {0x08CA3D1Cu, 0x08990144u});
+    registration.call(0x08B87108u, {0x08CA3D24u, 0x0898E358u});
+    registration.call(0x08B878E8u, {0x08CA3D2Cu, 0x0898E41Cu, 0x0898E2F4u});
+    registration.call(0x08B878E8u, {0x08CA3D34u, 0x0898E480u, 0x0898E480u});
+    registration.call(0x08B878E8u, {0x08CA3D3Cu, 0x0898E594u, 0x0898E594u});
+    registration.call(0x08B878E8u, {0x08CA3D44u, 0x089905CCu, 0x089905CCu});
+    registration.call(0x08B878E8u, {0x08CA3D4Cu, 0x0898E6A4u, 0x0898E6A4u});
+    registration.call(0x08B878E8u, {0x08CA3D5Cu, 0x0898E7B0u, 0x0898E7B0u});
+    registration.call(0x08B878E8u, {0x08CA3D70u, 0x0898E8B8u, 0x0898E8B8u});
+    registration.call(0x08B878E8u, {0x08CA3D84u, 0x0898E9C0u, 0x0898E9C0u});
+    registration.call(0x08B878E8u, {0x08CA3D90u, 0x0898EAC8u, 0x0898EAC8u});
+    registration.call(0x08B878E8u, {0x08CA3D9Cu, 0x0898EBD0u, 0x0898EBD0u});
+    registration.call(0x08B878E8u, {0x08CA3DA8u, 0x0898ECCCu, 0x0898ECCCu});
+    registration.call(0x08B878E8u, {0x08CA3DB0u, 0x0898EDC8u, 0x0898EDC8u});
+    registration.call(0x08B878E8u, {0x08CA3DB8u, 0x0898EF54u, 0x0898EF54u});
+    registration.call(0x08B878E8u, {0x08CA3DC0u, 0x0898F064u, 0x0898F064u});
+    registration.call(0x08B878E8u, {0x08CA3DD4u, 0x0898F168u, 0x0898F168u});
+    registration.call(0x08B878E8u, {0x08CA3DE8u, 0x0898F26Cu, 0x0898F26Cu});
+    registration.call(0x08B878E8u, {0x08CA3DF8u, 0x0898F360u, 0x0898F360u});
+    registration.call(0x08B878E8u, {0x08CA3E08u, 0x0898F454u, 0x0898F454u});
+    registration.call(0x08B878E8u, {0x08CA3E10u, 0x0898F54Cu, 0x0898F54Cu});
+    registration.call(0x08B878E8u, {0x08CA3E18u, 0x0898F644u, 0x0898F644u});
+    registration.call(0x08B878E8u, {0x08CA3E28u, 0x0898F738u, 0x0898F738u});
+    registration.call(0x08B878E8u, {0x08CA3E38u, 0x0898F85Cu, 0x0898F85Cu});
+    registration.call(0x08B878E8u, {0x08CA3E48u, 0x0898F95Cu, 0x0898F95Cu});
+    registration.call(0x08B878E8u, {0x08CA3E58u, 0x0898FA50u, 0x0898FA50u});
+    registration.call(0x08B878E8u, {0x08CA3E68u, 0x0898FB74u, 0x0898FB74u});
+    registration.call(0x08B878E8u, {0x08CA3E78u, 0x0898FC74u, 0x0898FC74u});
+    registration.call(0x08B878E8u, {0x08CA3E84u, 0x0898FD68u, 0x0898FD68u});
+    registration.call(0x08B878E8u, {0x08CA3E94u, 0x0898FE70u, 0x0898FE70u});
+    registration.call(0x08B87108u, {0x08CA3EA0u, 0x0898E210u});
+}
+
+// 0x089C09AC: script-object registration like the others of this file, but its handle source is 0x089DF9E4.
+void register_089C09AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    ScriptRegistrationWithSource registration(rt, ctx, 0x20u, 0x08CA5EB4u, 0x089DF9E4u, {{31u, 0x1Cu}, {18u, 0x18u}, {16u, 0x10u}, {17u, 0x14u}});
+    registration.call(0x08B8850Cu, {0x08CF6F14u, 0x089BFEB0u});
+    registration.call(0x08B86FB0u, {0x08CA5F24u, 0x089BE834u});
+    registration.call(0x08B86FB0u, {0x08CA5F30u, 0x089BE83Cu});
+    registration.call(0x08B86FB0u, {0x08CA5F3Cu, 0x089BE844u});
+    registration.call(0x08B86FB0u, {0x08CA5F44u, 0x089BE84Cu});
+    registration.call(0x08B86FB0u, {0x08CA5F50u, 0x089BE854u});
+    registration.call(0x08B86FB0u, {0x08CA5F5Cu, 0x089BE85Cu});
+    registration.call(0x08B86FB0u, {0x08CA5F68u, 0x089BE864u});
+    registration.call(0x08B878E8u, {0x08CA5F74u, 0x089C0EA8u, 0x089C1368u});
+    registration.call(0x08B87108u, {0x08CA5F80u, 0x089C121Cu});
+    registration.call(0x08B87108u, {0x08CA5F8Cu, 0x089C0DA8u});
+    registration.call(0x08B87108u, {0x08CA5F9Cu, 0x089BEE8Cu});
+    registration.call(0x08B87108u, {0x08CA5FA8u, 0x089BFCA8u});
+    registration.call(0x08B87108u, {0x08CA5FB4u, 0x089C151Cu});
+    registration.call(0x08B87108u, {0x08CA5FBCu, 0x089C11D0u});
+    registration.call(0x08B87108u, {0x08CA5FC4u, 0x089BFEF0u});
+    registration.call(0x08B87108u, {0x08CA5FD0u, 0x089BFF7Cu});
+    registration.call(0x08B87108u, {0x08CA5FDCu, 0x089C0008u});
+    registration.call(0x08B87108u, {0x08CA5FECu, 0x089C0094u});
+    registration.call(0x08B87108u, {0x08CA5FF8u, 0x089BF400u});
+    registration.call(0x08B87108u, {0x08CA6000u, 0x089C0160u});
+    registration.call(0x08B87108u, {0x08CA6008u, 0x089C01E8u});
+    registration.call(0x08B878E8u, {0x08CA6010u, 0x089C0270u, 0x089C0270u});
+    registration.call(0x08B878E8u, {0x08CA6014u, 0x089C0360u, 0x089C0360u});
+    registration.call(0x08B878E8u, {0x08CA6020u, 0x089C0450u, 0x089C0450u});
+    registration.call(0x08B87108u, {0x08CA602Cu, 0x089BF634u});
+    registration.call(0x08B87108u, {0x08CA603Cu, 0x089BF978u});
+    registration.call(0x08B87108u, {0x08CA604Cu, 0x089BF86Cu});
+    registration.call(0x08B87108u, {0x08CA6054u, 0x089BF92Cu});
+    registration.call(0x08B87108u, {0x08CA6060u, 0x089BFA78u});
+    registration.call(0x08B87108u, {0x08CA6070u, 0x089BF78Cu});
+    registration.call(0x08B87108u, {0x08CA6080u, 0x089C0538u});
+    registration.call(0x08B878E8u, {0x08CA608Cu, 0x08BFFCB0u, 0x08BFFBCCu});
+}
+
 } // namespace
 
 #define G ctx.gpr
@@ -645,8 +808,8 @@ void func_089C7710(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { re
 void func_08A3B5CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x14u), G[17]); G[5] = 0x08CAD544u; G[6] = frame.at(1u); G[18] = G[4]; G[16] = frame.at(4u); G[2] = word(rt, G[4]); G[4] = G[16]; G[17] = word(rt, G[2] + 0x108u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[18]; call_here(rt, ctx, G[17]); G[2] = 0x08D74FD0u; G[3] = word(rt, frame.at(0x4u)); G[5] = 0xFFFFFFFFu; G[16] = G[3] - 0xCu; G[4] = G[3] - 4u; if (G[16] != G[2]) { call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; G[5] = frame.at(0x0u); if (static_cast<std::int32_t>(G[2]) <= 0) call_here(rt, ctx, 0x08B8542Cu); } call_here(rt, ctx, 0x08A76A94u); G[16] = G[2]; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5BA08u); G[2] = word(rt, G[18] + 0x38u); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5B930u); put(rt, G[18] + 0x38u, G[16]); G[4] = G[18]; G[5] = 0x08CF6F14u; G[6] = 0x08A3B1E0u; call_here(rt, ctx, 0x08B8850Cu); G[4] = G[18]; G[5] = 0x08CAD590u; G[6] = 0x08A3BD88u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD598u; G[6] = 0x08A3ABF4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5A0u; G[6] = 0x08A3BCB4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5A8u; G[6] = 0x08A3C6B8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5B0u; G[6] = 0x08A3C930u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5BCu; G[6] = 0x08A3BBE0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5C4u; G[6] = 0x08A3BB0Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5D0u; G[6] = 0x08A3AC40u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5D8u; G[6] = 0x08A3ACDCu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5E0u; G[6] = 0x08A3B9E8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5E8u; G[6] = 0x08A3B8C4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD5F8u; G[6] = 0x08A3AD70u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD600u; G[6] = 0x08A3B220u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD60Cu; G[6] = 0x08A3B2A8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD618u; G[6] = 0x08A3C544u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD624u; G[6] = 0x08A3BE8Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD630u; G[6] = 0x08A3B4B4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAD644u; G[6] = 0x08A3B0D8u; G[7] = 0x08A3AF3Cu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CAD64Cu; G[6] = 0x08A3B050u; G[7] = 0x08A3B540u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CAD654u; G[6] = 0x08A3AFC8u; G[7] = 0x08A3B428u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CAD65Cu; G[6] = 0x08A3B160u; G[7] = 0x08A3AB70u; call_here(rt, ctx, 0x08B878E8u);  G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); G[17] = word(rt, frame.at(0x14u)); }  } }
 void func_088429A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_script_object(rt, ctx, 0x20u, 0x08C9C584u, kSteps_088429A0, std::size(kSteps_088429A0)); }
 void func_0884E9D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_script_object(rt, ctx, 0x20u, 0x08C9D198u, kSteps_0884E9D4, std::size(kSteps_0884E9D4)); }
-void func_089C09AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x14u), G[17]); G[5] = 0x08CA5EB4u; G[6] = frame.at(1u); G[18] = G[4]; G[16] = frame.at(4u); G[2] = word(rt, G[4]); G[4] = G[16]; G[17] = word(rt, G[2] + 0x108u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[18]; call_here(rt, ctx, G[17]); G[2] = 0x08D74FD0u; G[3] = word(rt, frame.at(0x4u)); G[5] = 0xFFFFFFFFu; G[16] = G[3] - 0xCu; G[4] = G[3] - 4u; if (G[16] != G[2]) { call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; G[5] = frame.at(0x0u); if (static_cast<std::int32_t>(G[2]) <= 0) call_here(rt, ctx, 0x08B8542Cu); } call_here(rt, ctx, 0x089DF9E4u); G[16] = G[2]; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5BA08u); G[2] = word(rt, G[18] + 0x38u); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5B930u); put(rt, G[18] + 0x38u, G[16]); G[4] = G[18]; G[5] = 0x08CF6F14u; G[6] = 0x089BFEB0u; call_here(rt, ctx, 0x08B8850Cu); G[4] = G[18]; G[5] = 0x08CA5F24u; G[6] = 0x089BE834u; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F30u; G[6] = 0x089BE83Cu; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F3Cu; G[6] = 0x089BE844u; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F44u; G[6] = 0x089BE84Cu; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F50u; G[6] = 0x089BE854u; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F5Cu; G[6] = 0x089BE85Cu; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F68u; G[6] = 0x089BE864u; call_here(rt, ctx, 0x08B86FB0u); G[4] = G[18]; G[5] = 0x08CA5F74u; G[6] = 0x089C0EA8u; G[7] = 0x089C1368u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA5F80u; G[6] = 0x089C121Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5F8Cu; G[6] = 0x089C0DA8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5F9Cu; G[6] = 0x089BEE8Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FA8u; G[6] = 0x089BFCA8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FB4u; G[6] = 0x089C151Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FBCu; G[6] = 0x089C11D0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FC4u; G[6] = 0x089BFEF0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FD0u; G[6] = 0x089BFF7Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FDCu; G[6] = 0x089C0008u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FECu; G[6] = 0x089C0094u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA5FF8u; G[6] = 0x089BF400u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6000u; G[6] = 0x089C0160u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6008u; G[6] = 0x089C01E8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6010u; G[6] = 0x089C0270u; G[7] = 0x089C0270u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA6014u; G[6] = 0x089C0360u; G[7] = 0x089C0360u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA6020u; G[6] = 0x089C0450u; G[7] = 0x089C0450u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA602Cu; G[6] = 0x089BF634u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA603Cu; G[6] = 0x089BF978u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA604Cu; G[6] = 0x089BF86Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6054u; G[6] = 0x089BF92Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6060u; G[6] = 0x089BFA78u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6070u; G[6] = 0x089BF78Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA6080u; G[6] = 0x089C0538u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA608Cu; G[6] = 0x08BFFCB0u; G[7] = 0x08BFFBCCu; call_here(rt, ctx, 0x08B878E8u);  G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); G[17] = word(rt, frame.at(0x14u)); }  } }
-void func_08990190(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x14u), G[17]); G[5] = 0x08CA3CB8u; G[6] = frame.at(1u); G[18] = G[4]; G[16] = frame.at(4u); G[2] = word(rt, G[4]); G[4] = G[16]; G[17] = word(rt, G[2] + 0x108u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[18]; call_here(rt, ctx, G[17]); G[2] = 0x08D74FD0u; G[3] = word(rt, frame.at(0x4u)); G[5] = 0xFFFFFFFFu; G[16] = G[3] - 0xCu; G[4] = G[3] - 4u; if (G[16] != G[2]) { call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; G[5] = frame.at(0x0u); if (static_cast<std::int32_t>(G[2]) <= 0) call_here(rt, ctx, 0x08B8542Cu); } call_here(rt, ctx, 0x08994F90u); G[16] = G[2]; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5BA08u); G[2] = word(rt, G[18] + 0x38u); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5B930u); put(rt, G[18] + 0x38u, G[16]); G[4] = G[18]; G[5] = 0x08CF6F14u; G[6] = 0x089910CCu; call_here(rt, ctx, 0x08B8850Cu); G[4] = G[18]; G[5] = 0x08CA3D1Cu; G[6] = 0x08990144u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA3D24u; G[6] = 0x0898E358u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CA3D2Cu; G[6] = 0x0898E41Cu; G[7] = 0x0898E2F4u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D34u; G[6] = 0x0898E480u; G[7] = 0x0898E480u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D3Cu; G[6] = 0x0898E594u; G[7] = 0x0898E594u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D44u; G[6] = 0x089905CCu; G[7] = 0x089905CCu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D4Cu; G[6] = 0x0898E6A4u; G[7] = 0x0898E6A4u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D5Cu; G[6] = 0x0898E7B0u; G[7] = 0x0898E7B0u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D70u; G[6] = 0x0898E8B8u; G[7] = 0x0898E8B8u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D84u; G[6] = 0x0898E9C0u; G[7] = 0x0898E9C0u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D90u; G[6] = 0x0898EAC8u; G[7] = 0x0898EAC8u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3D9Cu; G[6] = 0x0898EBD0u; G[7] = 0x0898EBD0u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DA8u; G[6] = 0x0898ECCCu; G[7] = 0x0898ECCCu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DB0u; G[6] = 0x0898EDC8u; G[7] = 0x0898EDC8u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DB8u; G[6] = 0x0898EF54u; G[7] = 0x0898EF54u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DC0u; G[6] = 0x0898F064u; G[7] = 0x0898F064u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DD4u; G[6] = 0x0898F168u; G[7] = 0x0898F168u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DE8u; G[6] = 0x0898F26Cu; G[7] = 0x0898F26Cu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3DF8u; G[6] = 0x0898F360u; G[7] = 0x0898F360u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E08u; G[6] = 0x0898F454u; G[7] = 0x0898F454u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E10u; G[6] = 0x0898F54Cu; G[7] = 0x0898F54Cu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E18u; G[6] = 0x0898F644u; G[7] = 0x0898F644u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E28u; G[6] = 0x0898F738u; G[7] = 0x0898F738u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E38u; G[6] = 0x0898F85Cu; G[7] = 0x0898F85Cu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E48u; G[6] = 0x0898F95Cu; G[7] = 0x0898F95Cu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E58u; G[6] = 0x0898FA50u; G[7] = 0x0898FA50u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E68u; G[6] = 0x0898FB74u; G[7] = 0x0898FB74u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E78u; G[6] = 0x0898FC74u; G[7] = 0x0898FC74u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E84u; G[6] = 0x0898FD68u; G[7] = 0x0898FD68u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3E94u; G[6] = 0x0898FE70u; G[7] = 0x0898FE70u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08CA3EA0u; G[6] = 0x0898E210u; call_here(rt, ctx, 0x08B87108u);  G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); G[17] = word(rt, frame.at(0x14u)); }  } }
+void func_089C09AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_089C09AC(rt, ctx); }
+void func_08990190(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { register_08990190(rt, ctx); }
 void func_0881C3E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x14u), G[17]); G[5] = 0x08C98F48u; G[6] = frame.at(1u); G[18] = G[4]; G[16] = frame.at(4u); G[2] = word(rt, G[4]); G[4] = G[16]; G[17] = word(rt, G[2] + 0x108u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[18]; call_here(rt, ctx, G[17]); G[2] = 0x08D74FD0u; G[3] = word(rt, frame.at(0x4u)); G[5] = 0xFFFFFFFFu; G[16] = G[3] - 0xCu; G[4] = G[3] - 4u; if (G[16] != G[2]) { call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; G[5] = frame.at(0x0u); if (static_cast<std::int32_t>(G[2]) <= 0) call_here(rt, ctx, 0x08B8542Cu); } call_here(rt, ctx, 0x08A76A94u); G[16] = G[2]; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5BA08u); G[2] = word(rt, G[18] + 0x38u); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5B930u); put(rt, G[18] + 0x38u, G[16]); G[4] = G[18]; G[5] = 0x08CF6F14u; G[6] = 0x0881CD84u; call_here(rt, ctx, 0x08B8850Cu); G[4] = G[18]; G[5] = 0x08CF6F24u; G[6] = 0x0881BE7Cu; call_here(rt, ctx, 0x08B8A004u); G[4] = G[18]; G[5] = 0x08C98F94u; G[6] = 0x0881CDC4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98F9Cu; G[6] = 0x0881CEF4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FA8u; G[6] = 0x0881D004u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FB0u; G[6] = 0x0881D18Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FB8u; G[6] = 0x0881D2ECu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FC0u; G[6] = 0x0881D450u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FD0u; G[6] = 0x0881D538u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FD8u; G[6] = 0x0881D674u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FE4u; G[6] = 0x0881DF14u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C98FF8u; G[6] = 0x0881D7ACu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99008u; G[6] = 0x0881D7F0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C9901Cu; G[6] = 0x0881D87Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99030u; G[6] = 0x0881D908u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99044u; G[6] = 0x0881DAD8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99058u; G[6] = 0x0881DCA8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C9906Cu; G[6] = 0x0881E0ACu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C9907Cu; G[6] = 0x0881E35Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99084u; G[6] = 0x0881E458u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99090u; G[6] = 0x0881F9E4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99098u; G[6] = 0x0881F8A8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C990A8u; G[6] = 0x0881E5B0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C990B8u; G[6] = 0x0881E6C0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C990C4u; G[6] = 0x0881E7D0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C990D0u; G[6] = 0x0881E8E4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C990E4u; G[6] = 0x0881E9C4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C990F8u; G[6] = 0x0881EAD0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99108u; G[6] = 0x0881EBE0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99118u; G[6] = 0x0881ECECu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99128u; G[6] = 0x0881ED80u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C9913Cu; G[6] = 0x0881EE14u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99154u; G[6] = 0x0881EF0Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C99170u; G[6] = 0x0881BDD8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C9918Cu; G[6] = 0x0881EFB8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C991A8u; G[6] = 0x0881F048u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08C991C0u; G[6] = 0x0881F0D8u; G[7] = 0x0881F0D8u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08C991C8u; G[6] = 0x0881F1DCu; G[7] = 0x0881F1DCu; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08C991D0u; G[6] = 0x0881F2D8u; G[7] = 0x0881F2D8u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08C991E0u; G[6] = 0x0881F3D4u; G[7] = 0x0881F3D4u; call_here(rt, ctx, 0x08B878E8u); G[4] = G[18]; G[5] = 0x08C991F0u; G[6] = 0x0881F4D0u; G[7] = 0x0881F4D0u; call_here(rt, ctx, 0x08B878E8u);  G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); G[17] = word(rt, frame.at(0x14u)); }  } }
 void func_08A2E8CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x14u), G[17]); G[5] = 0x08CAC3BCu; G[6] = frame.at(1u); G[18] = G[4]; G[16] = frame.at(4u); G[2] = word(rt, G[4]); G[4] = G[16]; G[17] = word(rt, G[2] + 0x108u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[18]; call_here(rt, ctx, G[17]); G[2] = 0x08D74FD0u; G[3] = word(rt, frame.at(0x4u)); G[5] = 0xFFFFFFFFu; G[16] = G[3] - 0xCu; G[4] = G[3] - 4u; if (G[16] != G[2]) { call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; G[5] = frame.at(0x0u); if (static_cast<std::int32_t>(G[2]) <= 0) call_here(rt, ctx, 0x08B8542Cu); } call_here(rt, ctx, 0x08A76A94u); G[16] = G[2]; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5BA08u); G[2] = word(rt, G[18] + 0x38u); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5B930u); put(rt, G[18] + 0x38u, G[16]); G[4] = G[18]; G[5] = 0x08CF6F14u; G[6] = 0x08C1AA40u; call_here(rt, ctx, 0x08B8850Cu); G[4] = G[18]; G[5] = 0x08CAC3C8u; G[6] = 0x08A2E410u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC3DCu; G[6] = 0x08A2EDE4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC3E8u; G[6] = 0x08A2DFCCu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC3F4u; G[6] = 0x08A2EEDCu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC40Cu; G[6] = 0x08A2E39Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC424u; G[6] = 0x08A2F1C8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC440u; G[6] = 0x08A2E328u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC45Cu; G[6] = 0x08A2DFD8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC468u; G[6] = 0x08A2DFE4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC474u; G[6] = 0x08A2F29Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC484u; G[6] = 0x08A2F34Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC494u; G[6] = 0x08A2F3FCu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC49Cu; G[6] = 0x08A2F494u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC4ACu; G[6] = 0x08A2E264u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC4C0u; G[6] = 0x08A2E128u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC4D0u; G[6] = 0x08A2F4E8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC4E0u; G[6] = 0x08A2F530u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC4F0u; G[6] = 0x08A2DFF8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC504u; G[6] = 0x08A2E000u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC518u; G[6] = 0x08A2DFF0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC524u; G[6] = 0x08A2F5B0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC530u; G[6] = 0x08A2F628u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC544u; G[6] = 0x08A2F6A0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC550u; G[6] = 0x08A2F750u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC560u; G[6] = 0x08A2E008u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC570u; G[6] = 0x08A2E014u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC580u; G[6] = 0x08A2E660u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC58Cu; G[6] = 0x08A2E6D4u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC5A8u; G[6] = 0x08A2E0A8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC5B4u; G[6] = 0x08A2F800u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC5BCu; G[6] = 0x08A2F858u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC5C8u; G[6] = 0x08A2F8A8u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC5DCu; G[6] = 0x08A2DF3Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC5F0u; G[6] = 0x08A2FB84u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC608u; G[6] = 0x08A2FE90u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC624u; G[6] = 0x08A3013Cu; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC640u; G[6] = 0x08A30418u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC658u; G[6] = 0x08A30468u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC678u; G[6] = 0x08A30594u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC698u; G[6] = 0x08A30870u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC6ACu; G[6] = 0x08A308C0u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC6C4u; G[6] = 0x08A30918u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC6E0u; G[6] = 0x08A2DF60u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC6F8u; G[6] = 0x08A2DF84u; call_here(rt, ctx, 0x08B87108u); G[4] = G[18]; G[5] = 0x08CAC710u; G[6] = 0x08A2DFA8u; call_here(rt, ctx, 0x08B87108u);  G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); G[17] = word(rt, frame.at(0x14u)); }  } }
 
