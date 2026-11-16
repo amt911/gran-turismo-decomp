@@ -437,7 +437,7 @@ void func_089B5E70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // compared. The same owner: the signed words at +0x28, then the unsigned words at +0. Different owners: the bounds of the owners (0x08969B98 into top / left pairs) are
 // compared top first (frame +4 against +0xC), then left (+0 against +8); a tie there repeats the comparison with the bounds of the entries themselves and ends on the
 // unsigned words at +0. Equal floats (or NaN) fall to the next key.
-void func_08A15BA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
+void func_08A15BA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 first = ctx.gpr[5];
     const u32 second = ctx.gpr[6];
     GuestFrame frame(ctx, 0x30u);
@@ -698,7 +698,7 @@ void func_0882E624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // at +0x44A0 / +0x44DC / +0x44BC, the 0x088FC1B4 value, zeros and the scale at +0x24) is put through 0x08889D90 / 0x08889E74; with a pending request word +0x3F98 (none: end) its
 // owner +0x3F9C (when set) gets 0x0890FDA4 with the scale. The record's object is asked virtual +8 (the area): when it holds, virtual +0xC (area, 0, 0) gives a second object whose
 // virtual +8 decides whether its virtual +0xC(0) result (else 0) goes as the last argument of 0x0888A058(list, frame, 0x45D4 area, result).
-void func_08866DF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { ctx.gpr[16] += 1u; rt.memory().store32(0x08000F00u, rt.memory().load32(0x08000F00u) + 1u);
+void func_08866DF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 object = ctx.gpr[4];
     GuestFrame frame(ctx, 0x60u);
     SavedRegisters saved(rt, ctx, frame, {{17u, 0x34u}, {52u, 0x50u}, {31u, 0x48u}, {21u, 0x44u}, {20u, 0x40u}, {19u, 0x3Cu}, {18u, 0x38u}, {16u, 0x30u}});
