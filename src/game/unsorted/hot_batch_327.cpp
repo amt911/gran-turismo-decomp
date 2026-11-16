@@ -344,6 +344,7 @@ void replace_entry_by_key(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
                     call_set(rt, ctx, 0x08A4FC60u, {value, tree + 4u});
                     call_set(rt, ctx, 0x08B64654u, {value});
                 }
+                put(rt, frame.at(4u), node);  // the asm stores the node in the delay slot of the 0x08B5F444 call
                 const u32 removed = call_set(rt, ctx, 0x08B5F444u, {node, tree + 4u});
                 call_set(rt, ctx, 0x08B35254u, {removed});
                 put(rt, tree + 0x14u, word(rt, tree + 0x14u) - 1u);
@@ -357,6 +358,7 @@ void replace_entry_by_key(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
     ctx.gpr[16] = entry;
     call_set(rt, ctx, 0x08A4FD08u, {entry, key});
     bool accepted = false;
+    put(rt, frame.at(0u), entry);  // the asm keeps the new entry in sp + 0, which 0x08A4FA18 and the insert read back
     if (call_set(rt, ctx, 0x08A4FB80u, {entry, word(rt, self), context}) != 0u) {
         accepted = call_set(rt, ctx, 0x08A4FA18u, {word(rt, frame.at(0u)), word(rt, self), context}) != 0u;
     }
