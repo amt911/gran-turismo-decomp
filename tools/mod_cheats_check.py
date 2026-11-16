@@ -221,9 +221,9 @@ def judge_pad(text: str):
     """The pad run: chord, navigation, values, hiding of the throttle, effects after closing."""
     keys = [(m.group(1), int(m.group(2))) for m in PADMENU.finditer(text) if m.group(1) not in ("menu",)]
     names = [k for k, _ in keys]
-    # The cheat device (2026-11-12): it opens on Mods; Close goes up to the categories (cursor on Race), Right opens Race (CROSS is the
-    # held throttle), Right sets slow motion, Down, Right sets freeze AI. Another mod installed changes nothing (its rows are in Mods).
-    want = ["chord", "close", "right", "right", "down", "right", "chord"]
+    # The cheat device (2026-11-16): it opens on the categories, cursor on Race; Right opens Race (CROSS is the held throttle),
+    # Right sets slow motion, Down, Right sets freeze AI. Another mod installed changes nothing (its rows are in Mods).
+    want = ["chord", "right", "right", "down", "right", "chord"]
     if names != want:
         return False, f"pad menu keys {names}, expected {want} (the chord may not have fired, or a key was lost)"
     states = [(m.group(1), m.start()) for m in PADMENU_STATE.finditer(text)]
@@ -258,7 +258,7 @@ def judge_pad(text: str):
     ai_count = min((len(c.ai) for c in frozen), default=0)
     if ai_count == 0 or any(max_drift(frozen, i) > AI_STILL for i in range(ai_count)):
         return False, "an AI car moved after Freeze AI was switched on in the menu"
-    return True, (f"chord opened the device, Circle/Right reached Race, Right/Down/Right set slow motion 0.5x and Freeze AI on, chord closed it; accelerator {max(c.acc for c in inside):.2f} while "
+    return True, (f"chord opened the device, Right reached Race, Right/Down/Right set slow motion 0.5x and Freeze AI on, chord closed it; accelerator {max(c.acc for c in inside):.2f} while "
                   f"open ({len(inside)} lines), {min(c.acc for c in before):.2f}+ before and {max(c.acc for c in after):.2f} after; {ai_count} AI cars still")
 
 

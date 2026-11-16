@@ -239,8 +239,14 @@ void test_device() {
     d.set_fire([&](const std::string &id) { fired.push_back(id); });
     d.open();
     View v = d.view(8, 100);
+    check(v.title == "Cheats" && v.rows.size() == 3 && v.rows[0].rfind("Race", 0) == 0 && v.rows[1].rfind("Mods", 0) == 0 &&
+              v.position == 1,
+          "the first open lands on the categories, the cursor on Race (where the cheats are)");
+    press(d, MenuKey::Down);
+    press(d, MenuKey::Activate);  // Mods
+    v = d.view(8, 100);
     check(v.footer == kFooter, "the footer shows the buttons (X OK, O BACK, <> CHANGE)");
-    check(v.title == "Cheats > Mods" && v.rows.size() == 2 && v.rows[1] == "Cheats ON", "the first open lands on the Mods list");
+    check(v.title == "Cheats > Mods" && v.rows.size() == 2 && v.rows[1] == "Cheats ON", "Mods lists the mods");
     check(v.items.size() == 2 && v.items[0].kind == gt::ui::RowKind::Toggle && v.items[0].on && v.items[0].label == "Analog pedals",
           "a mod's 'name ON' row is a toggle (kind inferred from the text)");
     check(v.crumb == "Cheats > Mods" && v.position == 1 && v.count == 2 && v.message.empty() && !v.capturing,
@@ -254,6 +260,7 @@ void test_device() {
     v = d.view(8, 100);
     check(v.rows.size() == 3 && v.rows[0].rfind("Race", 0) == 0 && v.rows[1].rfind("Mods", 0) == 0 && v.rows[2].rfind("Controls", 0) == 0,
           "the root lists the non-empty categories in order");
+    press(d, MenuKey::Up);        // the root's cursor stayed on Mods
     press(d, MenuKey::Activate);  // Race
     check(d.view(8, 100).items[0].kind == gt::ui::RowKind::Chip && d.view(8, 100).items[0].value == "L + Triangle",
           "an action shows its pad binding as a chip");
@@ -315,6 +322,7 @@ void test_styled_rows() {
     mods.rows = {"Grip                       70%", "Weather            Rain", "Ghost cars                 OFF", "Notes only"};
     Device d(mods.source());
     d.open();
+    press(d, MenuKey::Activate);  // the categories: Mods is the first non-empty one here
     const View v = d.view(8, 100);
     check(v.items.size() == 4 && v.rows.size() == 4, "the structured rows go with the text rows");
     check(v.items[0].kind == gt::ui::RowKind::Percent && v.items[0].percent == 70 && v.items[0].label == "Grip", "NN% is a bar");

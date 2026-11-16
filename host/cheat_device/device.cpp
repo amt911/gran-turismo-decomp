@@ -172,10 +172,9 @@ void Device::open() {
 
 void Device::open_locked() {
     rebuild_locked();
-    if (!opened_once_) {
-        opened_once_ = true;
-        nav_.go_to("Mods");
-    }
+    // The first open shows the categories, the cursor on the first (Race): opening inside Mods hid where the cheats are (the
+    // user looked for them there, 2026-11-16). Later opens keep the page and cursor of the last close.
+    opened_once_ = true;
 }
 
 bool Device::handle_key(MenuKey key, std::uint64_t now) {
