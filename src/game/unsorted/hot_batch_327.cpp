@@ -434,10 +434,12 @@ void reduce_overlapping_flags(psprecomp::Runtime &rt, psprecomp::AllegrexContext
         return;
     }
     ctx.gpr[6] = static_cast<u32>(depth);
-    call_set(rt, ctx, 0x088FB2D0u, {ctx.gpr[4], ctx.gpr[5], static_cast<u32>(depth)});
+    const u32 first_result = call_set(rt, ctx, 0x088FB2D0u, {ctx.gpr[4], ctx.gpr[5], static_cast<u32>(depth)});
+    put(rt, frame.at(0u), first_result);  // the asm stores each result in its slot word (sp, sp + 4) before reading them back
     const u32 answer = call_set(rt, ctx, 0x088FB2D0u, {object, second, static_cast<u32>(depth)});
     ctx.gpr[3] = answer;
     u32 low = word(rt, frame.at(0u));
+    put(rt, frame.at(4u), answer);
     ctx.gpr[4] = low;
     ctx.gpr[2] = answer & low;
     if (ctx.gpr[2] != 0u) {
