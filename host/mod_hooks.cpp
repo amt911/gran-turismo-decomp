@@ -64,6 +64,7 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     const std::uint32_t address = ctx.pc;
     const std::uint32_t return_address = ctx.gpr[31];
+    if (address == services::kHookWorldStep) services::note_world_step();  // a race is on (services::racing)
     run_chain(rt, ctx, it->second, address, 0);
     ctx.gpr[0] = 0u;
     // A registered function ends with ctx.pc = ra; a hook that never called the original (or left pc on the entry) gets it here.
@@ -170,16 +171,17 @@ const GtModApi &mod_api(int version) {
                         services::api_mesh_set_vertex, services::api_mesh_copy, services::api_mesh_release,
                         services::api_draw_mesh_blob, services::api_draw_mesh_redirect, services::api_draw_car_model, services::api_model_blobs,
                         services::api_model_runs, services::api_run_vertex, services::api_run_set_vertex, services::api_on_switch_off, services::api_blob_runs, services::api_draw_matrix,
-                        services::api_run_normal, services::api_run_set_normal};
+                        services::api_run_normal, services::api_run_set_normal, services::api_action_held};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
-                          v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5);
+                          v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5), v6 = table(GT_MOD_API_VERSION_6);
     switch (version) {
     case GT_MOD_API_VERSION: return v1;
     case GT_MOD_API_VERSION_2: return v2;
     case GT_MOD_API_VERSION_3: return v3;
     case GT_MOD_API_VERSION_4: return v4;
-    default: return v5;
+    case GT_MOD_API_VERSION_5: return v5;
+    default: return v6;
     }
 }
 

@@ -44,6 +44,13 @@ void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
 bool any_registered();
 // Behind GtModApi::is_menu_open / vblank_index. The host sets the query (gt_play: lcs::host_settings_open); null = never open.
 void set_menu_open_query(bool (*query)());
+// v6 action_held: the host answers for the full action id ("mod.id"); null = never held.
+void set_action_held_query(bool (*query)(const std::string &full_id));
+int api_action_held(GtMod *self, const char *id);
+// A race is on: the world step (kHookWorldStep) ran within the last `window` vblanks. The trampoline notes each call. The pad hotkeys act only then:
+// in the menus their buttons go to the game untouched (user, 2026-11-16: Up/Down bound to cheats made the menus slow).
+void note_world_step();
+bool racing(std::uint64_t window = 30);
 int api_is_menu_open(GtMod *self);
 std::uint64_t api_vblank_index(GtMod *self);
 int api_money_get(GtMod *self, GtModCtx *ctx, std::uint32_t *value);  // v3: host/game_state.hpp

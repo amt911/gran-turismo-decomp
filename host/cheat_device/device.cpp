@@ -368,6 +368,23 @@ PadBinding Device::pad_binding(const std::string &id) const {
     return a != nullptr ? a->pad : PadBinding{};
 }
 
+KeyBinding Device::key_binding(const std::string &id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const Action *a = bindings_.find(id);
+    return a != nullptr ? a->key : KeyBinding{};
+}
+
+void Device::set_pad_sample(std::uint32_t raw) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    pad_sample_ = raw;
+}
+
+bool Device::pad_held(const std::string &id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const Action *a = bindings_.find(id);
+    return a != nullptr && a->pad.buttons != 0 && (pad_sample_ & a->pad.buttons) == a->pad.buttons;
+}
+
 std::string Device::binding_text_locked(const std::string &id) const {
     const Action *a = bindings_.find(id);
     if (a == nullptr) return "";

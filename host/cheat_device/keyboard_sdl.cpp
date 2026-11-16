@@ -31,4 +31,20 @@ std::vector<KeyBinding> keys_pressed_since_last_poll() {
     return pressed;
 }
 
+bool key_held(const KeyBinding &binding) {
+    if (binding.key.empty()) return false;
+    const SDL_Keycode code = SDL_GetKeyFromName(binding.key.c_str());
+    if (code == SDLK_UNKNOWN) return false;
+    const SDL_Scancode scancode = SDL_GetScancodeFromKey(code);
+    int count = 0;
+    const Uint8 *state = SDL_GetKeyboardState(&count);
+    if (state == nullptr || scancode <= SDL_SCANCODE_UNKNOWN || scancode >= count || state[scancode] == 0) return false;
+    const SDL_Keymod held = SDL_GetModState();
+    unsigned mods = 0;
+    if (held & KMOD_CTRL) mods |= kCtrl;
+    if (held & KMOD_SHIFT) mods |= kShift;
+    if (held & KMOD_ALT) mods |= kAlt;
+    return (mods & binding.mods) == binding.mods;
+}
+
 }  // namespace gt::cheat_device

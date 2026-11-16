@@ -242,7 +242,9 @@ void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t 
         polled = vblank;
         if (std::getenv("GT_PAD_MENU_CHORD") == nullptr) filter.set_chord(device().pad_binding(device_ns::kOpenAction).buttons);
         static std::vector<gt::PadHotkeyMask> hotkeys;  // the other bindings' buttons are held back like the chord's
-        if (std::vector<gt::PadHotkeyMask> now = device().pad_hotkeys(); now != hotkeys) {
+        // Only in a race: in the menus the hotkeys' buttons go to the game as they are (Up/Down bound to cheats made the menus slow, user 2026-11-16).
+        const bool racing = gt::mods::services::racing();
+        if (std::vector<gt::PadHotkeyMask> now = racing ? device().pad_hotkeys() : std::vector<gt::PadHotkeyMask>{}; now != hotkeys) {
             hotkeys = now;
             filter.set_hotkeys(std::move(now));
         }
@@ -260,11 +262,12 @@ void pad_menu_filter(std::uint64_t vblank, std::uint32_t &buttons, std::uint8_t 
         }
         poll_device_keyboard(vblank);
         if (!any_overlay_open())
-            for (const std::string &id : device().poll_pad_hotkeys(buttons))
+            for (const std::string &id : racing ? device().poll_pad_hotkeys(buttons) : std::vector<std::string>{})
                 if (id != device_ns::kOpenAction) fire_action(id);  // the chord above opens the device
         if (const bool open = any_overlay_open(); open != was_open)
             std::cerr << "[padmenu] menu " << (open ? "opened" : "closed") << " at vblank " << vblank
                       << (open ? (lcs::host_panel_open() ? " panel" : " overlay") : "") << "\n";
+        device().set_pad_sample(racing && !any_overlay_open() ? buttons : 0u);  // v6 action_held
         log_select_press(filter, buttons, vblank);
     }
     const bool open = any_overlay_open();
@@ -317,6 +320,9 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
     }
 #endif
     gt::mods::services::set_menu_open_query(&overlay_open);
+    gt::mods::services::set_action_held_query([](const std::string &id) {
+        return device().pad_held(id) || (!any_overlay_open() && device_ns::key_held(device().key_binding(id)));
+    });
     // Only when a loaded mod registered menu rows or a tick (API v2; a switched-off one counts: the pad chord is how it is switched on):
     // with no such mod (none installed, GT_NO_MODS, only API-1 mods) the pad and the vblank are the game's, untouched.
     if (gt::mods::services::any_registered()) {

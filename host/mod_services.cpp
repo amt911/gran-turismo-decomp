@@ -249,6 +249,31 @@ void queue_action(const std::string &id) {
     if (std::find(g_queue.begin(), g_queue.end(), id) == g_queue.end()) g_queue.push_back(id);
 }
 void set_menu_open_query(bool (*query)()) { g_menu_open.store(query, std::memory_order_release); }
+
+namespace {
+std::atomic<bool (*)(const std::string &)> g_action_held{nullptr};
+std::atomic<std::uint64_t> g_world_step_vblank{0};
+std::atomic<bool> g_world_step_seen{false};
+}  // namespace
+
+void set_action_held_query(bool (*query)(const std::string &)) { g_action_held.store(query, std::memory_order_release); }
+
+int api_action_held(GtMod *self, const char *id) {
+    if (self == nullptr || id == nullptr || self->api_version < GT_MOD_API_VERSION_6) return 0;
+    const auto query = g_action_held.load(std::memory_order_acquire);
+    return query != nullptr && is_on(self) && query(self->id + "." + id) ? 1 : 0;
+}
+
+void note_world_step() {
+    g_world_step_vblank.store(g_vblank.load(std::memory_order_acquire), std::memory_order_release);
+    g_world_step_seen.store(true, std::memory_order_release);
+}
+
+bool racing(std::uint64_t window) {
+    if (!g_world_step_seen.load(std::memory_order_acquire)) return false;
+    const std::uint64_t now = g_vblank.load(std::memory_order_acquire), at = g_world_step_vblank.load(std::memory_order_acquire);
+    return now < at + window;
+}
 int api_is_menu_open(GtMod *) {
     const auto query = g_menu_open.load(std::memory_order_acquire);
     return query != nullptr && query() ? 1 : 0;
@@ -464,6 +489,8 @@ void clear_for_tests() {
     }
     g_initializing = nullptr;
     g_vblank.store(0);
+    g_world_step_seen.store(false);
+    g_action_held.store(nullptr);
     g_menu_open.store(nullptr);
 }
 

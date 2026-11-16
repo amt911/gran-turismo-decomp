@@ -11,5 +11,7 @@
 namespace gt::cheat_device {
 
 std::vector<KeyBinding> keys_pressed_since_last_poll();
+// The key of `binding` is down now with at least its modifiers (v6 action_held). False for an empty or unknown key name.
+bool key_held(const KeyBinding &binding);
 
 }  // namespace gt::cheat_device

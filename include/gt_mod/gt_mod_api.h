@@ -31,6 +31,8 @@ extern "C" {
 /* v5 (docs/superpowers/specs/2026-11-07-crash-deformation-design.md): named hook points, impact and mesh access, so the
  * deformation mod needs no guest address. The v5 functions refuse a mod that declared api < 5. */
 #define GT_MOD_API_VERSION_5 5
+/* v6 (2026-11-16): action_held, so a cheat can last while its button is held (nitro). */
+#define GT_MOD_API_VERSION_6 6
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -213,6 +215,9 @@ typedef struct GtModApi {
      * a stale blob or a bad index). Same (blob, run) pairs as run_vertex. */
     int (*run_normal)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t run, uint32_t index, int8_t xyz[3]);
     int (*run_set_normal)(GtMod *self, GtModCtx *ctx, uint32_t blob, uint32_t run, uint32_t index, const int8_t xyz[3]);
+    /* v6. 1 while the binding of this mod's action `id` (as given to add_action) is held down right now: all its pad buttons, or its key with its
+     * modifiers. Pad bindings count only in a race (the host passes those buttons to the game in the menus); 0 for an unknown id or no binding. */
+    int (*action_held)(GtMod *self, const char *id);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

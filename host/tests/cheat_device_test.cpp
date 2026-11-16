@@ -266,6 +266,11 @@ void test_device() {
           "an action shows its pad binding as a chip");
     press(d, MenuKey::Activate);  // Nitro
     check(fired == std::vector<std::string>{"cheats.nitro"}, "Enter on an action fires it");
+    d.set_pad_sample(gt::kPadL | kTriangle | gt::kPadUp);
+    check(d.pad_held("cheats.nitro"), "action held: every button of its pad binding is in the sample");
+    d.set_pad_sample(gt::kPadL);
+    check(!d.pad_held("cheats.nitro") && !d.pad_held("nope"), "a partial combination or an unknown id is not held");
+    check(d.key_binding("cheats.nitro") == (KeyBinding{"N", kCtrl}), "key_binding returns the action's key");
     press(d, MenuKey::Close);
     press(d, MenuKey::Down, 2);   // Controls
     press(d, MenuKey::Activate);
