@@ -359,9 +359,17 @@ void replace_entry_by_key(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
     call_set(rt, ctx, 0x08A4FD08u, {entry, key});
     bool accepted = false;
     put(rt, frame.at(0u), entry);  // the asm keeps the new entry in sp + 0, which 0x08A4FA18 and the insert read back
-    if (call_set(rt, ctx, 0x08A4FB80u, {entry, word(rt, self), context}) != 0u) {
-        accepted = call_set(rt, ctx, 0x08A4FA18u, {word(rt, frame.at(0u)), word(rt, self), context}) != 0u;
+    // The reject path calls 0x08A4FC60 with the $a1 the last callee left, so the two calls keep it.
+    GuestResult last = call_guest(rt, ctx, 0x08A4FB80u, {entry, word(rt, self), context}, {});
+    ctx.gpr[2] = last.v0;
+    ctx.gpr[3] = last.v1;
+    if (last.v0 != 0u) {
+        last = call_guest(rt, ctx, 0x08A4FA18u, {word(rt, frame.at(0u)), word(rt, self), context}, {});
+        ctx.gpr[2] = last.v0;
+        ctx.gpr[3] = last.v1;
+        accepted = last.v0 != 0u;
     }
+    ctx.gpr[5] = last.a1;
     if (accepted) {
         const u32 position = call_set(rt, ctx, 0x08C1CFD0u, {tree, frame.at(0u)});
         const u32 second = ctx.gpr[3];
@@ -376,7 +384,7 @@ void replace_entry_by_key(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
     }
     ctx.gpr[4] = 0u;
     if (entry != 0u) {
-        call_set(rt, ctx, 0x08A4FC60u, {entry, word(rt, self)});
+        call_set(rt, ctx, 0x08A4FC60u, {entry, ctx.gpr[5]});
         call_set(rt, ctx, 0x08B64654u, {entry});
         ctx.gpr[4] = 0u;
     }
