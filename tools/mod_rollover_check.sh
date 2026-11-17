@@ -72,7 +72,7 @@ if true; then
   cp "$out/mods/rollover/mod.toml" "$out/mods_recover/rollover/mod.toml"
   # the shipped defaults (style realistic): the `realistic` and `pitch` runs. Every other run asks for the old easy flip: style arcade (threshold 3, gain 1.35, cap 8 rad/s)
   cp "$mbuild/rollover/librollover.so" "$out/mods_real/rollover/" && sed 's/^enabled = false/enabled = true/' "$mods_repo/rollover/mod.toml" > "$out/mods_real/rollover/mod.toml"
-  for d in mods mods_recover; do sed -i 's/^style *=.*/style = "arcade"/' "$out/$d/rollover/mod.toml"; done
+  for d in mods mods_recover; do sed -i 's/^style *=.*/style = "arcade"/; s/^threshold *=.*/threshold = 3.0/; s/^gain *=.*/gain = 2.5/; s/^cap *=.*/cap = 12.0/' "$out/$d/rollover/mod.toml"; done  # the box runs need a full tumble: the 0.3.0 rates (0.4.0 defaults barely tip the car)
   cp "$mbuild/rollover/librollover.so" "$out/mods_nobox/rollover/" && sed 's/^body_box *=.*/body_box = false/' "$out/mods/rollover/mod.toml" > "$out/mods_nobox/rollover/mod.toml"
   # rewind_ms 4500 as the reset check does: the restored pose is ~130 m before the barrier
   sed 's/^enabled = false/enabled = true/; s/^rewind_ms *=.*/rewind_ms = 4500/' "$mods_repo/reset-to-track/mod.toml" > "$out/mods_recover/reset-to-track/mod.toml"
