@@ -88,6 +88,10 @@ public:
     std::vector<PadHotkeyMask> pad_hotkeys() const;  // every pad binding but the open combination (the filter's chord)  // union of every pad binding (the host holds them back from the game)
     std::string binding_text(const std::string &id) const;  // "F9 / SELECT+START" (keyboard / pad; "-" for none)
     PadBinding pad_binding(const std::string &id) const;    // {} for an unknown id
+    KeyBinding key_binding(const std::string &id) const;    // {} for an unknown id
+    // v6 action_held: the pad buttons of the last pad sample (set_pad_sample, once per vblank) hold all of the action's pad binding.
+    void set_pad_sample(std::uint32_t raw);
+    bool pad_held(const std::string &id) const;
 
 private:
     void rebuild_locked();
@@ -101,6 +105,7 @@ private:
     mutable std::mutex mutex_;
     ModRows mods_;
     BindingTable bindings_;
+    std::uint32_t pad_sample_ = 0;
     PadHotkeys hotkeys_;
     std::vector<std::pair<std::string, Entry>> entries_;  // category, entry
     std::vector<std::pair<std::string, std::string>> action_category_;  // action id, category

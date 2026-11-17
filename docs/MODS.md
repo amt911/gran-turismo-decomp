@@ -89,6 +89,7 @@ Se rasteriza al doble (1040x1024) y se presenta arriba a la derecha al 40 % del 
 
 Un mod que declara `api = 4` en su `mod.toml` tiene además, solo durante `gt_mod_init`:
 
+- **API 6** (2026-11-16) `action_held(self, id)`: 1 mientras la combinación de la acción `id` del mod está pulsada (todos sus botones del mando, o su tecla con sus modificadores); el nitro de `cheats` 0.6.0 dura lo que el botón. **Los atajos del mando solo actúan en carrera** (un paso del mundo en los últimos 30 vblanks): en los menús sus botones llegan al juego tal cual (con Arriba/Abajo asignados, los menús iban lentos).
 - `add_action(self, id, label, category, fn, default_key, default_pad)`: una acción `<mod>.<id>` en `category` (`Race`, `Car`,
   `Money & garage`, `Camera`, `Settings`), con atajos por defecto en la sintaxis de `bindings.toml` (`""` = ninguno). Intro en el menú
   o su atajo la ponen en cola y `fn(self, ctx)` corre en el siguiente tic de vblank (como un tic: `call_guest` permitido), una vez por

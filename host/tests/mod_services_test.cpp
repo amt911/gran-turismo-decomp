@@ -313,6 +313,35 @@ int main() {
         clear_hooks_for_tests();
     }
 
+    // v6 action_held and the racing gate (2026-11-16)
+    {
+        clear_for_tests();
+        GtMod v6m;
+        v6m.id = "cheats";
+        v6m.api_version = GT_MOD_API_VERSION_6;
+        GtMod v5m;
+        v5m.id = "cheats";
+        v5m.api_version = GT_MOD_API_VERSION_5;
+        const GtModApi &api6 = gt::mods::mod_api(GT_MOD_API_VERSION_6);
+        check(api6.version == GT_MOD_API_VERSION_6 && api6.action_held != nullptr, "the v6 table has action_held");
+        check(api6.action_held(&v6m, "nitro") == 0, "no query: never held");
+        static std::string asked;
+        set_action_held_query([](const std::string &id) { asked = id; return id == "cheats.nitro"; });
+        check(api6.action_held(&v6m, "nitro") == 1 && asked == "cheats.nitro", "held: the query gets the full id");
+        check(api6.action_held(&v6m, "jump") == 0, "another action: not held");
+        check(api6.action_held(&v5m, "nitro") == 0, "an api-5 mod gets 0");
+        check(!racing(), "no world step yet: no race");
+        run_vblank_tick(rt2, ctx, 100);
+        note_world_step();
+        check(racing(), "a world step this vblank: racing");
+        run_vblank_tick(rt2, ctx, 129);
+        check(racing(), "29 vblanks later: still racing");
+        run_vblank_tick(rt2, ctx, 130);
+        check(!racing(), "30 vblanks without a step (a menu, a pause): not racing");
+        clear_for_tests();
+        check(!racing() && api6.action_held(&v6m, "nitro") == 0, "clear_for_tests forgets the step and the query");
+    }
+
     if (failures == 0) std::puts("mod_services tests passed");
     return failures == 0 ? 0 : 1;
 }

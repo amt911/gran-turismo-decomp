@@ -267,7 +267,7 @@ DEVICE_REFUSED = re.compile(r"\[device\] refused cheats\.nitro pad (\S+): (.*) a
 DEVICE_ACTION = re.compile(r"\[device\] action cheats\.nitro at vblank \d+")
 
 
-NITRO_ON = re.compile(r"\[mod:cheats\] ROW nitro -> ON")
+NITRO_ON = re.compile(r"\[mod:cheats\] NITRO held -> ON")  # cheats 0.6.0: nitro lasts while its button is held
 
 
 def judge_hotkey(text: str):
@@ -284,8 +284,8 @@ def judge_hotkey(text: str):
         return False, f"one press fired nitro {len(fired)} times"
     switched = [m.start() for m in NITRO_ON.finditer(text) if m.start() > fired[0]]
     if not switched:
-        return False, "the action fired but the mod never switched nitro on (`ROW nitro -> ON` after it)"
-    return True, "capture bound nitro to R+SQUARE; R+SQUARE in the race fired the action once and the mod switched nitro on"
+        return False, "the action fired but the mod never saw the nitro button held (`NITRO held -> ON` after it)"
+    return True, "capture bound nitro to R+SQUARE; R+SQUARE in the race fired the action once and the mod saw it held (nitro on while held)"
 
 
 def judge_conflict(text: str):
