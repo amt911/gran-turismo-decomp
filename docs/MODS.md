@@ -388,6 +388,10 @@ tools/mod_rollover_check.sh --without-mod         # física original, el mod sol
 ```
 
 
+### Comprobar `rollover` 0.5.0 (estilo `realistic`, `tools/mod_rollover_check.sh --sim|--drop|--sim-replay`, juez `tools/mod_rollover_sim_check.py`)
+
+Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
+
 ## Descargador de mods (en construcción)
 
 Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):

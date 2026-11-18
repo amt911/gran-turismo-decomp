@@ -73,7 +73,7 @@ def drop_log(rebound=0.04, e_drop=2.0, handback=True, gain=12.0, upz_after=1.0):
         z += vz / 60
         lines.append(sim(100 + n, n, lowest=z, vel=(4.0, 0, vz), bottom=0, contacts=0))
         n += 1
-    lines.append(sim(100 + n, n, lowest=0.0, vel=(3.9, 0, 0.9), bottom=4, contacts=4)); n += 1
+    lines.append(sim(100 + n, n, lowest=0.0, vel=(3.9, 0, math.sqrt(2 * 9.81 * rebound)), bottom=4, contacts=4)); n += 1
     lines.append(sim(100 + n, n, lowest=rebound, vel=(3.8, 0, 0.5), bottom=0, contacts=0)); n += 1
     lines.append(sim(100 + n, n, lowest=rebound, vel=(3.8, 0, -0.2), bottom=0, contacts=0)); n += 1
     for k in range(120):
@@ -117,7 +117,7 @@ def test_pose_reaches_the_game():
     good = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(step, 0.001)) for n in range(1, 40))
     ok, why = sc.judge_pose(sc.parse_sim(good))
     assert ok, why
-    bad = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(step * 1.5 + 0.3 + 0.1 * n, 0.0)) for n in range(1, 40))  # the simulation runs away from the car: the pose never arrives
+    bad = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(step * 1.5 + 0.3 + 0.3 * n, 0.0)) for n in range(1, 40))  # the simulation runs away from the car: the pose never arrives
     ok, why = sc.judge_pose(sc.parse_sim(bad))
     assert not ok and "does not reach the game" in why
     twisted = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(step, 0.4)) for n in range(1, 40))

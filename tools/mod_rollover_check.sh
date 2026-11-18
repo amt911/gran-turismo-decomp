@@ -29,7 +29,7 @@
 #   --sabotage-nocap (=8: box_kick_cap 20: the rise judge must fail), --sabotage-liveonly (=10: the mod skips the replay: --replay must fail)
 #   --sim        (rollover 0.5.0, style "realistic": the rigid-body simulation) the `rollover` route, the barrier hit: no takeover before the crash, one at the crash because of the hit, the energy budget (the
 #                total energy never above the one right after the hit impulse: no hopping, no spinning top), no hull point > 0.05 m under the ground, rest or handback; and the pose the game
-#                draws is the simulation's pose within one step of motion (kd). `--seconds 300` is needed on this desktop (powersave): the default 150 s does not reach the barrier
+#                draws is the simulation's pose within one step of motion (kd). the sim modes default to `--seconds 480` on this desktop (powersave): 300 s reached vblank ~13300 of the route's 17980
 #   --drop       the same route with a fake drop of 2 m (GT_MOD_ROLLOVER_DROP=m100:2.0): the first rebound <= 1.2 e^2 h, the car slides to rest (friction), is handed back, driving resumes
 #   --sim-replay the `circuit` route with a fake hit (GT_MOD_ROLLOVER_FAKE=m30:9): the same takeover live and in the replay, simulated poses within 0.5 m at the same step after it
 #   --others     with --sim: deformation, reset-to-track, cheats, analog-pedals, draw-distance and orbit-camera enabled too (the run must still pass)
@@ -111,7 +111,7 @@ run_one() {
 mdir="$out/mods"
 py=.venv/bin/python
 if [ -n "$simmode" ]; then  # the rigid-body style (rollover 0.5.0): its own judge (tools/mod_rollover_sim_check.py)
-  [ "$seconds" = 150 ] && seconds=300   # this desktop runs powersave: 150 s of wall clock does not reach the barrier
+  [ "$seconds" = 150 ] && seconds=480   # this desktop runs powersave: the route (ends at vblank ~17980) needs ~410 s of wall clock; 300 reaches vblank ~13300
   sroute=$route; [ "$simmode" = replay ] && sroute=${ROUTE:-config/pad_routes/circuit.pad}
   [ -f "$sroute" ] || { echo "mod_rollover_check: no pad route $sroute" >&2; exit 2; }
   smods="$out/mods_$simmode"; rm -rf "$smods"; mkdir -p "$smods/rollover" || exit 2
@@ -128,7 +128,7 @@ if [ -n "$simmode" ]; then  # the rigid-body style (rollover 0.5.0): its own jud
     drop) extra_env=(GT_MOD_ROLLOVER_DROP=m100:2.0);;
     replay) extra_env=(GT_MOD_ROLLOVER_FAKE=m30:9);;
   esac
-  [ "$simmode" = replay ] && [ "$seconds" = 300 ] && seconds=330
+  [ "$simmode" = replay ] && [ "$seconds" = 480 ] && seconds=420
   run_one "$simmode" "$smods" - 0 "$sroute" || exit 2
   $py -I tools/mod_rollover_sim_check.py "$out" "$([ $others -eq 1 ] && [ "$simmode" = sim ] && echo others || echo "$simmode")"
   exit $?

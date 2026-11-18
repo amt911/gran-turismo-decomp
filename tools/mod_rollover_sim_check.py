@@ -41,7 +41,7 @@ ENERGY_SLACK = 1500.0
 MAX_YAW_RATE = 15.0         # rad/s: the world-vertical angular velocity while the car is on its side or roof (a spinning top at 40+)
 LOW_UP_Z = 0.3
 MAX_REST_SPEED = 0.6
-MAX_KD = 0.03               # m beyond one step of motion (POSE_STEP_MARGIN x |v|/60)
+MAX_KD = 0.8                # m beyond one step of motion (POSE_STEP_MARGIN x |v|/60): the game's own collision pushes a car out of the barrier by ~0.3 m per step (measured 2026-11-18 at rest against it); a pose never sent drifts by metres
 MAX_KUP = 0.06              # up-vector units (~3.5 degrees)
 POSE_STEP_MARGIN = 1.5
 KD_MIN_SPEED = 2.0          # m/s: slower than this the game's own step barely moves the pose and kd proves nothing
@@ -50,6 +50,8 @@ MIN_BOUNCE_FACTOR = 0.5     # the first rebound must exist: without a bounce at 
 MIN_RESUME_GAIN = 3.0       # m/s the car must gain in ROLL_FORWARD steps after the handback (throttle held by the route)
 RESUME_STEPS = 400
 MAX_REPLAY_DRIFT = 0.5
+G = 9.81
+REBOUND_STEPS = 10         # steps after the first contact in which the rebound speed is read
 RESTITUTION = 0.15          # the shipped default (mod.toml)
 
 
@@ -150,23 +152,17 @@ def judge_drop(text, restitution=RESTITUTION, drop=2.0):
     h0 = first["lowest"]  # the hull's lowest point over the ground when the drop starts (falling, not yet in contact)
     if h0 < drop * 0.7:
         return False, f"the drop started {h0:.2f} m over the ground, not ~{drop} m"
-    # the first impact: the first step where the lowest point is at or under the contact tolerance; the rebound apex is the highest lowest-point after it
+    # the first impact: the first step where the lowest point is at the contact tolerance; the rebound is read from the vertical speed (the lowest point is no measure once
+    # the landing rocks the car: one end stays down while the other lifts): the fastest upward speed in the next REBOUND_STEPS steps, as the height it would reach
     hit = next((i for i, s in enumerate(sims) if s["lowest"] <= 0.02), None)
     if hit is None:
         return False, "the car never reached the ground"
-    after = sims[hit:]
-    # the rebound: from the first contact, follow while the lowest point goes up; the apex is the first local maximum above 1 cm
-    apex, rising = 0.0, False
-    for a, b in zip(after, after[1:]):
-        if b["vel"][2] > 0.05:
-            rising = True
-        if rising:
-            apex = max(apex, b["lowest"])
-            if b["vel"][2] < -0.05:
-                break
+    v_imp = -min(s["vel"][2] for s in sims[:hit + 1])
+    v_up = max(s["vel"][2] for s in sims[hit:hit + REBOUND_STEPS])
+    apex = v_up * v_up / (2 * G)
     limit = BOUNCE_FACTOR * restitution * restitution * h0
     if apex > limit:
-        return False, f"the first rebound reaches {apex:.3f} m over the ground, above {BOUNCE_FACTOR} e^2 h = {limit:.3f} m (e {restitution}, drop {h0:.2f} m)"
+        return False, f"the first rebound reaches {apex:.3f} m, above {BOUNCE_FACTOR} e^2 h = {limit:.3f} m (e {restitution}, drop {h0:.2f} m, impact {v_imp:.1f} m/s)"
     if apex < MIN_BOUNCE_FACTOR * restitution * restitution * h0:
         return False, f"the rebound {apex:.3f} m is under {MIN_BOUNCE_FACTOR} e^2 h = {MIN_BOUNCE_FACTOR * restitution * restitution * h0:.3f} m: it did not bounce like a body of restitution {restitution}"
     handed = [e for e in ends if e["kind"] == "HANDBACK"]
