@@ -45,10 +45,10 @@ index 4d4a8e4..4c6b917 100644
  inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
  
 diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
-index ea92082..933064d 100644
+index ea92082..a45db51 100644
 --- a/lcs/host/lcs_display_menu.cpp
 +++ b/lcs/host/lcs_display_menu.cpp
-@@ -671,6 +671,133 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {
+@@ -671,6 +671,139 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {
      w.synchronous = synchronous;
  }
  
@@ -64,6 +64,7 @@ index ea92082..933064d 100644
 +    std::vector<HostDrawCmd> list;        // the list submitted
 +    std::uint64_t list_generation = 0;    // bumped by each submit
 +    std::vector<HostDrawCmd> wanted;
++    std::uint64_t wanted_generation = 0;  // the list generation `wanted` was copied at
 +    SettingsOverlaySize wanted_size{};
 +    bool have_last = false;               // the (generation, size) last taken, to skip an identical request
 +    std::uint64_t last_generation = 0;
@@ -78,11 +79,14 @@ index ea92082..933064d 100644
 +    return *worker;
 +}
 +
-+void draw_rasterize(DrawWorker &w, const std::vector<HostDrawCmd> &list, SettingsOverlaySize size, std::unique_lock<std::mutex> &lock) {
++// `generation` is the list's generation when the request was taken: a result for a list that was replaced (or cleared) meanwhile is dropped, so a stale
++// picture never becomes the newest one.
++void draw_rasterize(DrawWorker &w, const std::vector<HostDrawCmd> &list, SettingsOverlaySize size, std::uint64_t generation, std::unique_lock<std::mutex> &lock) {
 +    lock.unlock();
 +    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(size.width) * size.height * 4u);
 +    host_style_rasterize_draw(list.data(), list.size(), pixels.data(), size.width, size.height);
 +    lock.lock();
++    if (generation != w.list_generation || w.list.empty()) return;
 +    w.picture.swap(pixels);
 +    w.info = SettingsOverlayPicture{size.width, size.height, ++w.versions};
 +}
@@ -94,14 +98,15 @@ index ea92082..933064d 100644
 +        w.wake.wait(lock, [&w] { return w.pending; });
 +        const std::vector<HostDrawCmd> list = w.wanted;
 +        const SettingsOverlaySize size = w.wanted_size;
++        const std::uint64_t generation = w.wanted_generation;
 +        w.pending = false;
-+        draw_rasterize(w, list, size, lock);
++        draw_rasterize(w, list, size, generation, lock);
 +    }
 +}
 +
 +}  // namespace
 +
-+bool same_commands(const HostDrawCmd &a, const HostDrawCmd &b) {
++static bool same_commands(const HostDrawCmd &a, const HostDrawCmd &b) {
 +    return a.kind == b.kind && a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d && a.e == b.e && std::memcmp(a.rgba, b.rgba, sizeof a.rgba) == 0 &&
 +           std::strncmp(a.text, b.text, kDrawTextCapacity) == 0;
 +}
@@ -138,9 +143,10 @@ index ea92082..933064d 100644
 +        w.last_size = size;
 +        if (w.synchronous) {
 +            const std::vector<HostDrawCmd> list = w.list;
-+            draw_rasterize(w, list, size, lock);
++            draw_rasterize(w, list, size, w.list_generation, lock);
 +        } else {
 +            w.wanted = w.list;
++            w.wanted_generation = w.list_generation;
 +            w.wanted_size = size;
 +            w.pending = true;
 +            if (!w.started) {
@@ -151,7 +157,7 @@ index ea92082..933064d 100644
 +                    w.synchronous = true;
 +                    w.pending = false;
 +                    const std::vector<HostDrawCmd> list = w.list;
-+                    draw_rasterize(w, list, size, lock);
++                    draw_rasterize(w, list, size, w.list_generation, lock);
 +                }
 +            }
 +            w.wake.notify_one();

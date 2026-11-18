@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -43,7 +44,9 @@ struct Overlay {
 std::vector<Overlay> g_overlays;
 std::vector<DrawCommand> g_draw;          // the pass in progress (the vblank tick thread only)
 const GtMod *g_draw_owner = nullptr;      // the mod whose overlay callback is running
+thread_local bool t_in_overlay = false;   // true only on the thread running an overlay callback: draw calls from any other thread are rejected
 bool g_draw_submitted_any = false;        // the last submit was non-empty
+std::vector<DrawCommand> g_draw_last;     // what the sink got last
 std::atomic<DrawSink> g_draw_sink{nullptr};
 struct ModGrade {
     const GtMod *mod;
@@ -188,7 +191,13 @@ bool menu_row_activate(std::size_t index, int direction) {
 
 const std::string &menu_row_mod_id(std::size_t index) { return index < g_rows.size() ? g_rows[index].mod->id : kEmpty; }
 
-bool any_registered() { return !g_rows.empty() || !g_ticks.empty() || !g_actions.empty() || !g_entries.empty() || !g_overlays.empty(); }
+bool any_registered() {
+    {
+        std::lock_guard<std::mutex> lock(g_grade_mutex);
+        if (!g_grades.empty()) return true;  // a grade-only mod still needs the tick: it publishes the grade
+    }
+    return !g_rows.empty() || !g_ticks.empty() || !g_actions.empty() || !g_entries.empty() || !g_overlays.empty();
+}
 
 bool mod_category(const std::string &category) {
     return category == "Race" || category == "Car" || category == "Money & garage" || category == "Camera" || category == "Settings";
@@ -476,6 +485,9 @@ SceneGrade combined_grade() {
         out.r *= m.grade.r, out.g *= m.grade.g, out.b *= m.grade.b;
         out.brightness *= m.grade.brightness, out.saturation *= m.grade.saturation;
     }
+    // Products of values a mod meant as 1 (0.5 * 2, 1.00001) must not turn the grade on: snap to neutral when every field is within 1e-4 of 1.
+    const auto near_one = [](float v) { return std::fabs(v - 1.0f) < 1.0e-4f; };
+    if (near_one(out.r) && near_one(out.g) && near_one(out.b) && near_one(out.brightness) && near_one(out.saturation)) return SceneGrade{};
     return out;
 }
 
@@ -486,6 +498,14 @@ void publish_scene_grade() {
     if (const GradeSink sink = g_grade_sink.load(std::memory_order_acquire)) sink(now);
 }
 
+bool same_command(const DrawCommand &a, const DrawCommand &b) {
+    return a.kind == b.kind && a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d && a.e == b.e && std::memcmp(a.rgba, b.rgba, sizeof a.rgba) == 0 &&
+           std::strncmp(a.text, b.text, kDrawTextCapacity) == 0;
+}
+bool same_list(const std::vector<DrawCommand> &a, const std::vector<DrawCommand> &b) {
+    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), same_command);
+}
+
 // v8: every active mod's overlay callback, one list for all of them (the mods draw in load order), handed to the sink.
 void run_overlays(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (g_overlays.empty()) return;
@@ -494,12 +514,18 @@ void run_overlays(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (!is_on(o.mod)) continue;
         GtModCtx overlay_ctx{&rt, &ctx, 0u, 0u, true, o.mod};
         g_draw_owner = o.mod;
+        t_in_overlay = true;
         o.fn(o.mod, &overlay_ctx);
+        t_in_overlay = false;
         g_draw_owner = nullptr;
     }
     if (g_draw.empty() && !g_draw_submitted_any) return;
+    if (!g_draw.empty() && same_list(g_draw, g_draw_last)) return;  // an unchanged overlay (a static label): no copy, no submit
+    const DrawSink sink = g_draw_sink.load(std::memory_order_acquire);
+    if (sink == nullptr) return;
     g_draw_submitted_any = !g_draw.empty();
-    if (const DrawSink sink = g_draw_sink.load(std::memory_order_acquire)) sink(g_draw.data(), g_draw.size());
+    g_draw_last = g_draw;
+    sink(g_draw.data(), g_draw.size());
 }
 
 }  // namespace
@@ -555,6 +581,7 @@ void clear_for_tests() {
     g_draw.clear();
     g_draw_owner = nullptr;
     g_draw_submitted_any = false;
+    g_draw_last.clear();
     g_draw_sink.store(nullptr);
     {
         std::lock_guard<std::mutex> lock(g_grade_mutex);
@@ -579,30 +606,46 @@ void set_draw_sink(DrawSink sink) { g_draw_sink.store(sink, std::memory_order_re
 
 namespace {
 
+// One log line per mod and kind of refusal (a mod calling a refused function every frame must not flood stderr).
+void warn_once(const GtMod *self, int kind, const std::string &text) {
+    static std::mutex mutex;
+    static std::vector<std::pair<const GtMod *, int>> warned;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (std::find(warned.begin(), warned.end(), std::make_pair(self, kind)) != warned.end()) return;
+        warned.emplace_back(self, kind);
+    }
+    std::fprintf(stderr, "[mod:%s] %s\n", self->id.c_str(), text.c_str());
+}
+
 bool v8_mod(GtMod *self, const char *what) {
     if (self == nullptr) return false;
     if (self->api_version < GT_MOD_API_VERSION_8) {
-        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 8)\n", self->id.c_str(), what, self->api_version);
+        warn_once(self, 1, std::string(what) + " refused: the mod declared api " + std::to_string(self->api_version) + " (needs api = 8)");
         return false;
     }
     return true;
 }
 
-// Where a draw call lands: only the running overlay callback of that very mod (the tick thread), else the call is dropped (logged once per mod).
+// Where a draw call lands: only the running overlay callback of that very mod, on the thread that runs it (the tick thread), else the call is
+// dropped (logged once per mod).
 bool draw_allowed(GtMod *self, const char *what) {
     if (!v8_mod(self, what)) return false;
-    if (g_draw_owner != self) {
-        static std::vector<const GtMod *> warned;
-        if (std::find(warned.begin(), warned.end(), self) == warned.end()) {
-            warned.push_back(self);
-            std::fprintf(stderr, "[mod:%s] %s ignored: drawing is valid only inside the on_overlay callback\n", self->id.c_str(), what);
-        }
+    if (!t_in_overlay || g_draw_owner != self) {
+        warn_once(self, 2, std::string(what) + " ignored: drawing is valid only inside the on_overlay callback, on its thread");
         return false;
     }
     return g_draw.size() < kMaxDrawCommands;
 }
 
 bool finite(float v) { return std::isfinite(v) && std::fabs(v) < 1.0e7f; }
+
+constexpr float kMaxTextSize = 300.0f, kMaxLineWidth = 300.0f;  // logical units: the screen is 480 x 272
+constexpr float kScreenW = 480.0f, kScreenH = 272.0f;
+// True when the box [x0, x1] x [y0, y1] is wholly outside the screen (nothing to draw: the command is dropped).
+bool off_screen(float x0, float y0, float x1, float y1) {
+    return std::max(x0, x1) <= 0.0f || std::max(y0, y1) <= 0.0f || std::min(x0, x1) >= kScreenW || std::min(y0, y1) >= kScreenH;
+}
 
 void set_color(DrawCommand &cmd, std::uint32_t rgba) {
     cmd.rgba[0] = static_cast<std::uint8_t>(rgba >> 24);
@@ -631,6 +674,8 @@ int api_on_overlay(GtMod *self, GtOverlayFn fn) {
 
 void api_draw_text(GtMod *self, float x, float y, float size, std::uint32_t rgba, const char *text) {
     if (!draw_allowed(self, "draw_text") || text == nullptr || *text == '\0' || !finite(x) || !finite(y) || !finite(size) || size <= 0.0f) return;
+    size = std::min(size, kMaxTextSize);
+    if (off_screen(x, y, x + size * static_cast<float>(strnlen(text, kDrawTextCapacity - 1)), y + size)) return;  // generous width: one em per character
     DrawCommand cmd;
     cmd.kind = DrawKind::Text;
     cmd.a = x, cmd.b = y, cmd.c = size;
@@ -643,7 +688,7 @@ void api_draw_text(GtMod *self, float x, float y, float size, std::uint32_t rgba
 }
 
 void api_draw_rect(GtMod *self, float x, float y, float w, float h, std::uint32_t rgba) {
-    if (!draw_allowed(self, "draw_rect") || !finite(x) || !finite(y) || !finite(w) || !finite(h)) return;
+    if (!draw_allowed(self, "draw_rect") || !finite(x) || !finite(y) || !finite(w) || !finite(h) || off_screen(x, y, x + w, y + h)) return;
     DrawCommand cmd;
     cmd.kind = DrawKind::Rect;
     cmd.a = x, cmd.b = y, cmd.c = w, cmd.d = h;
@@ -653,6 +698,9 @@ void api_draw_rect(GtMod *self, float x, float y, float w, float h, std::uint32_
 
 void api_draw_line(GtMod *self, float x0, float y0, float x1, float y1, float width, std::uint32_t rgba) {
     if (!draw_allowed(self, "draw_line") || !finite(x0) || !finite(y0) || !finite(x1) || !finite(y1) || !finite(width) || width <= 0.0f) return;
+    width = std::min(width, kMaxLineWidth);
+    const float half = width * 0.5f;
+    if (off_screen(std::min(x0, x1) - half, std::min(y0, y1) - half, std::max(x0, x1) + half, std::max(y0, y1) + half)) return;
     DrawCommand cmd;
     cmd.kind = DrawKind::Line;
     cmd.a = x0, cmd.b = y0, cmd.c = x1, cmd.d = y1, cmd.e = width;

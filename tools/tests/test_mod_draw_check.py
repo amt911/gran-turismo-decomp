@@ -38,7 +38,7 @@ def frame(shapes=True, text=True, red=(255, 0, 0), game=GAME):
 
 def write_run(tmp_path, label, frames, log):
     directory = tmp_path / label / "frames"
-    directory.mkdir(parents=True)
+    directory.mkdir(parents=True, exist_ok=True)
     for index, data in frames.items():
         (directory / f"frame_{index:06d}.ppm").write_bytes(data)
     (tmp_path / label / "run.log").write_text(log)
@@ -118,9 +118,12 @@ def test_main_verdict_and_exit_code(tmp_path, capsys):
     write_run(tmp_path, "baseline", {i: timed(frame(shapes=False, text=False), i + 1) for i in indices}, log)
     write_run(tmp_path, "idle", {i: timed(frame(shapes=False, text=False), i + 1) for i in indices}, log)
     write_run(tmp_path, "draw", {i: timed(frame(), i + 1) for i in indices}, log)
-    assert mdc.main(["x", str(tmp_path), "idle", "draw"]) == 0
+    write_run(tmp_path, "neutral", {i: timed(frame(shapes=False, text=False), i + 1) for i in indices}, log)
+    assert mdc.main(["x", str(tmp_path), "idle", "neutral", "draw"]) == 0
     out = capsys.readouterr().out
-    assert "PASS idle" in out and "PASS draw" in out
+    assert "PASS idle" in out and "PASS neutral" in out and "PASS draw" in out
+    write_run(tmp_path, "neutral", {i: timed(frame(shapes=False, text=False, game=(99, 120, 140)), i + 1) for i in indices}, log)  # a "neutral" grade that changed a pixel
+    assert mdc.main(["x", str(tmp_path), "neutral"]) == 1
     write_run(tmp_path, "bogus", {}, log)
     assert mdc.main(["x", str(tmp_path), "bogus"]) == 1
     assert "FAIL bogus: unknown label" in capsys.readouterr().out

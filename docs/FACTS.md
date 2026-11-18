@@ -768,7 +768,7 @@ change in that step; (2) read the virtual calls listed above (the controller obj
 
 ## Mod draw API: Step 0 research (2026-11-18, spec `2026-11-18-mod-draw-api-design.md`; runtime addresses)
 
-Probes: `tools/mod_draw_probe/` (`hud_split_probe.cpp`, `car_replay_probe.cpp`, `probe.cpp`), runs of the `chase` route (`--decomp off`, vblank 18500 = chase view,
+Probes (research-only, raw guest addresses, deleted after use: not kept in the repo as mod examples; see git history of PR 667); `tools/mod_draw_probe/probe.cpp` is the API probe, runs of the `chase` route (`--decomp off`, vblank 18500 = chase view,
 frames dumped every 30 vblanks, GE trace `GT_GE_LOG=18500`). The machine ran at load average 40-70 during all of it: times below are upper bounds.
 
 **1. Overlay cost, ~200 primitives** (`build/mod_draw_raster_tests bench`: 60 text lines of 14 characters, 100 rects, 40 lines, 30 passes after a warm-up):
@@ -798,7 +798,7 @@ draw fewer text lines or let the host rasterize at a capped size (not done).
   first orthographic projection of a frame arrives (a render-pass split in `ge_gpu_backend_vulkan.cpp`) and the software renderer to grade its framebuffer at the same GE command. The marker is known;
   the work is the backend split.
 
-**3. Car draw replay: WORKS** (`car_replay_probe.cpp`, API 5 only, `chase` route, frames compared with a run without the probe, GE trace at vblank 18500):
+**3. Car draw replay: WORKS** (a throwaway probe, API 5 only, `chase` route, frames compared with a run without the probe, GE trace at vblank 18500):
 - In a `GT_HOOK_MESH_DRAW` hook, for a part whose `draw_matrix` looks like the car's box (three orthogonal rows 0.892 / 0.719 / 1.914 long = half extents of the player's Peugeot, translation (0, 0.70, -4.60) in view space in the
   chase view): `call_original`; append `WORLDN (0x3A000000)` + 12 `WORLDD (0x3B000000 | float_bits >> 8)` at the list cursor `word(0x08D6CE00 + 0x5C)` with the translation row shifted by +2.5 m in
   VIEW space, advance the cursor by 52; restore a0 (the blob); `call_original` again; append the original matrix again; set v0 = the cursor. Result: a second, correctly lit and textured copy of the

@@ -3410,7 +3410,7 @@ standalone bench linking `lcs_host_style.cpp` (perf was not usable here; valgrin
 
 ## A hook that draws a part twice must give the leaf its blob back (2026-11-18)
 
-Re-issuing a car part's draw (the Step 0 probe of the mod draw API, `tools/mod_draw_probe/car_replay_probe.cpp`) in a `GT_HOOK_MESH_DRAW` hook: `call_original` runs the leaf `0x08B550A8` (14
+Re-issuing a car part's draw (the Step 0 probe of the mod draw API, the Step 0 car-replay probe (removed after use)) in a `GT_HOOK_MESH_DRAW` hook: `call_original` runs the leaf `0x08B550A8` (14
 instructions: it writes `BASE` + `CALL blob` at the list cursor `word(0x08D6CE00 + 0x5C)` and advances the cursor by 8) **with the context the hook holds, and leaves that context changed**: a0 ends holding the
 new cursor (the leaf returns it in v0 as well). A second `call_original` in the same hook therefore drew a "blob" that was the old list cursor: the `CALL` went into the list itself and the rest of the
 frame's list was never executed (a race frame with no cars, no HUD; the GE trace stopped after the first replayed part). Fix: save a0 before the first call and restore it before the second, and hand the

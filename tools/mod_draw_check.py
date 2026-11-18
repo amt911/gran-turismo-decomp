@@ -2,6 +2,7 @@
 with the probe installed but switched off (same pad route, so the same game state at the same frame number).
 
 Labels (one run each):
+  neutral  as idle, with an explicit scene_grade(1, 1, 1, 1, 1): the neutral grade must change no pixel;
   idle   the probe on, drawing nothing, no grade: every frame on the same game frame (lap timer) byte-identical to the baseline
          (the new API linked and unused changes no pixel);
   draw   the probe's overlay on: on the race frames the red rect is exactly red over its whole area, the line's centre is exactly green,
@@ -129,7 +130,7 @@ def main(argv):
     for label in argv[2:]:
         run_log = read_log(os.path.join(out, label, "run.log"))
         mod = cam.keyed_frames(os.path.join(out, label, "frames"), run_log)
-        if label == "idle":
+        if label in ("idle", "neutral"):
             ok, message = cam.judge_identity(base, mod)
         elif label == "draw":
             ok, message = judge_draw(base, mod, indices)

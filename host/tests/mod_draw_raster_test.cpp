@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace lcs {
@@ -157,6 +158,27 @@ int main(int argc, char **argv) {
         lcs::host_draw_submit(nullptr, 0);
         check(!lcs::host_draw_active() && lcs::host_draw_request(size).version == 0u, "an empty submit removes the layer");
         lcs::host_draw_set_synchronous(false);
+    }
+    {  // a picture of a list that was replaced while it was being rasterized must not become the newest one (worker, asynchronous)
+        lcs::host_draw_set_synchronous(false);
+        std::vector<lcs::HostDrawCmd> slow;  // list A: red, slow at 4K
+        for (int i = 0; i < 30; ++i) slow.push_back(rect(0, 0, 480, 272, 0xFF0000FFu));
+        const std::vector<lcs::HostDrawCmd> fast{rect(0, 0, 480, 272, 0x0000FFFFu)};
+        const lcs::SettingsOverlaySize size = lcs::host_draw_size(3840.0f);
+        lcs::host_draw_submit(slow.data(), slow.size());
+        (void)lcs::host_draw_request(size);          // the worker starts on A ...
+        std::this_thread::sleep_for(std::chrono::milliseconds(60));  // ... and has taken it (the rasterization takes longer than this)
+        lcs::host_draw_submit(nullptr, 0);           // A is cleared ...
+        lcs::host_draw_submit(fast.data(), fast.size());  // ... and replaced by B
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));  // A finishes (and, before the fix, became the newest picture)
+        const lcs::SettingsOverlayPicture p = lcs::host_draw_request(size);
+        bool stale = false;
+        if (p.version != 0u) {
+            std::vector<std::uint8_t> px(static_cast<std::size_t>(p.width) * p.height * 4u);
+            stale = lcs::host_draw_copy(p.version, px.data(), px.size()) && px[0] == 0xFF && px[2] == 0x00;  // red = list A
+        }
+        check(!stale, "a stale picture of a replaced list is never returned");
+        lcs::host_draw_submit(nullptr, 0);
     }
     {  // the CPU composite the frame dumps use
         std::vector<std::uint8_t> rgb{100, 100, 100, 10, 20, 30, 200, 200, 200};

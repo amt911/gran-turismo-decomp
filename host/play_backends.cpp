@@ -27,6 +27,7 @@
 #include "pad_menu.hpp"
 #include "pad_script.hpp"
 
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -49,7 +50,11 @@ namespace {
 
 // The mod draw layer (API v8): the command list of each pass goes to lcs' worker (lcs patch 0071) and, for the frame dumps, is kept to be
 // rasterized at the dump's size (the dump has no GPU present to composite it).
-static_assert(sizeof(gt::mods::services::DrawCommand) == sizeof(lcs::HostDrawCmd), "DrawCommand mirrors lcs::HostDrawCmd (lcs patch 0071)");
+using DC = gt::mods::services::DrawCommand;
+static_assert(sizeof(DC) == sizeof(lcs::HostDrawCmd) && offsetof(DC, kind) == offsetof(lcs::HostDrawCmd, kind) && offsetof(DC, a) == offsetof(lcs::HostDrawCmd, a) &&
+              offsetof(DC, b) == offsetof(lcs::HostDrawCmd, b) && offsetof(DC, c) == offsetof(lcs::HostDrawCmd, c) && offsetof(DC, d) == offsetof(lcs::HostDrawCmd, d) &&
+              offsetof(DC, e) == offsetof(lcs::HostDrawCmd, e) && offsetof(DC, rgba) == offsetof(lcs::HostDrawCmd, rgba) && offsetof(DC, text) == offsetof(lcs::HostDrawCmd, text) &&
+              sizeof(DC::text) == sizeof(lcs::HostDrawCmd::text), "DrawCommand mirrors lcs::HostDrawCmd field by field (lcs patch 0071); the copy below is per field anyway");
 std::mutex g_draw_mutex;
 std::vector<lcs::HostDrawCmd> g_draw_last;
 

@@ -239,8 +239,11 @@ typedef struct GtModApi {
     /* A colour grade of the whole game picture (not of the draw_* layer or the host's menus): per channel, c' = clamp(mix(luma(c * (r, g, b)), c * (r, g, b),
      * saturation) * brightness) with c in 0..1 and luma = Rec.709. (1, 1, 1, 1, 1) is neutral: no grade at all, frames byte-identical to a run without it.
      * r, g, b, brightness and saturation must be finite and are clamped to 0..4. It stays until the mod sets another one or is switched off in the menu;
-     * several mods' grades multiply. Callable from hooks, ticks and the overlay. 0 = ok, non-zero for a non-finite value. The GPU window applies all of it; the
-     * SDL software window only the tint * brightness (clamped to 1); frame dumps (GT_FRAME_DUMP) apply all of it. The picture shown includes the game's own HUD:
+     * several mods' grades multiply (a product within 1e-4 of neutral counts as neutral). To clear its grade a mod calls scene_grade(1, 1, 1, 1, 1); it is also dropped
+     * when the mod is switched off or unloaded. Call it during gt_mod_init or from a tick / overlay (a mod that only sets a grade must still be loaded active: the host
+     * publishes grades on the vblank tick, installed whenever any mod registered something or set a grade in init). Callable from hooks, ticks and the overlay.
+     * 0 = ok, non-zero for a non-finite value. Only tint * brightness (clamped to 1) is guaranteed on every backend: the GPU window applies all five numbers,
+     * the SDL software window has no saturation and cannot brighten past 1; frame dumps (GT_FRAME_DUMP) apply all of it. Do not rely on saturation or brightness > 1 being visible everywhere. The picture shown includes the game's own HUD:
      * the grade cannot tell the HUD from the 3D scene yet (docs/FACTS.md "Scene grade"). */
     int (*scene_grade)(GtMod *self, float r, float g, float b, float brightness, float saturation);
 } GtModApi;

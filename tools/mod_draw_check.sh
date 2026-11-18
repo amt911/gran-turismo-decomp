@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # In-game check of the mod draw API (API 8: on_overlay, draw_text / draw_rect / draw_line, scene_grade): headless gt_play on the `chase` pad route
 # with the probe mod tools/mod_draw_probe, frames dumped to disk (they carry the layer and the grade: host/play_backends.cpp frame_composer).
-# Runs: baseline (probe installed, switched off), idle (on, drawing nothing: byte-identical), draw (shapes), grade (scene_grade 0.5). tools/mod_draw_check.py judges.
-#   tools/mod_draw_check.sh [--sabotage-flush|--sabotage-grade] [--decomp off|on] [--seconds N] [--every N] [--only "idle draw grade"] [--keep-baseline]
+# Runs: baseline (probe installed, switched off), idle (on, drawing nothing: byte-identical), neutral (scene_grade(1,1,1,1,1) called: byte-identical), draw (shapes), grade (scene_grade 0.5). tools/mod_draw_check.py judges.
+#   tools/mod_draw_check.sh [--sabotage-flush|--sabotage-grade] [--decomp off|on] [--seconds N] [--every N] [--only "idle neutral draw grade"] [--keep-baseline]
 #   --sabotage-flush  rebuilds gt_play with -DGT_DRAW_SABOTAGE_NO_FLUSH=ON (the lists are dropped): the draw run must FAIL
 #   --sabotage-grade  rebuilds gt_play with -DGT_GRADE_SABOTAGE_IGNORE=ON (the grade is dropped): the grade run must FAIL
 # Env: MOD_CHECK_NO_LOCK=1, BUILD (default build), OUT (default recomp/analysis/mod_draw_check, gitignored). Exit: 0 pass, 1 check failed, 2 setup/run problem.
@@ -14,7 +14,7 @@ build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_draw_check}
 case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac
 orig_args=("$@")
-decomp=off seconds=420 every=30 sab="" only="idle draw grade" keep=0
+decomp=off seconds=420 every=30 sab="" only="idle neutral draw grade" keep=0
 while [ $# -gt 0 ]; do
   case $1 in
     --sabotage-flush) sab=flush; only="draw";; --sabotage-grade) sab=grade; only="grade";; --keep-baseline) keep=1;;
@@ -36,7 +36,7 @@ make_mods() {  # LABEL ENABLED DRAW GRADE
 }
 if [ -z "${MOD_CHECK_ONLY:-}" ]; then
   clang++ -std=c++20 -shared -fPIC -O1 -Wall -Wextra -I include tools/mod_draw_probe/probe.cpp -o "$out/libdraw_probe.so" || { echo "mod_draw_check: probe build failed" >&2; exit 2; }
-  make_mods baseline false 1 "" && make_mods idle true 0 "" && make_mods draw true 1 "" && make_mods grade true 0 "0.5 0.5 0.5 1 1" || exit 2
+  make_mods baseline false 1 "" && make_mods idle true 0 "" && make_mods neutral true 0 "1 1 1 1 1" && make_mods draw true 1 "" && make_mods grade true 0 "0.5 0.5 0.5 1 1" || exit 2
 fi
 run_one() {  # LABEL
   local label=$1 mdir="$out/mods_$1"
