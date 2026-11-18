@@ -567,6 +567,7 @@ void func_0898DDB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
             call_set(rt, ctx, 0x0898DB58u, {self, index});
             index = next(1u);
         }
+        ctx.gpr[2] = word(rt, self + 0x224u);  // v0: the end it compared with
         return;
     }
     const u32 newest_end = word(rt, self + 0x224u);
@@ -579,6 +580,7 @@ void func_0898DDB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (static_cast<s32>(stop) < 0) stop = start + 0x7Fu;
     ctx.gpr[17] = stop;
     ctx.gpr[19] = at;
+    ctx.gpr[2] = at + self;  // v0 when the ring is empty
     if (stop == at) return;
     u32 used = signed_byte(rt, at + self + 0x428u);
     ctx.gpr[18] = used;
@@ -593,6 +595,7 @@ void func_0898DDB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         used += signed_byte(rt, at + self + 0x428u);
         ctx.gpr[18] = used;
     }
+    ctx.gpr[2] = 0x08CF0000u;  // v0 when nothing fits
     if (static_cast<s32>(used) <= 0) return;
     const u32 global = word(rt, 0x08CF68E8u);
     const u32 left = word(rt, self + 0x4ACu) - used;
