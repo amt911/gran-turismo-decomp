@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace {
 int failures = 0;
@@ -33,6 +34,26 @@ void label_long(GtMod *, char *out, std::uint32_t capacity) { std::snprintf(out,
 int g_dir = 99;
 void act(GtMod *, int direction) { g_dir = direction; }
 void tick_noop(GtModCtx *) {}
+
+// v8 draw layer: what the sink got, and the overlay callbacks the tests register.
+std::vector<gt::mods::services::DrawCommand> g_sunk;
+int g_sink_calls = 0;
+void sink(const gt::mods::services::DrawCommand *commands, std::size_t count) {
+    ++g_sink_calls;
+    g_sunk.assign(commands, commands + count);
+}
+bool g_draw_now = true;
+const GtModApi *g_api8 = nullptr;
+void overlay_a(GtMod *self, GtModCtx *) {
+    if (!g_draw_now) return;
+    g_api8->draw_rect(self, 10.0f, 20.0f, 30.0f, 40.0f, 0xFF8040C0u);
+    g_api8->draw_text(self, 5.0f, 6.0f, 12.0f, 0x11223344u, "hello");
+}
+void overlay_b(GtMod *self, GtModCtx *) { g_api8->draw_line(self, 0.0f, 0.0f, 480.0f, 272.0f, 2.0f, 0xFFFFFFFFu); }
+void overlay_flood(GtMod *self, GtModCtx *) {
+    for (int i = 0; i < 5000; ++i) g_api8->draw_rect(self, 0.0f, 0.0f, 1.0f, 1.0f, 0xFFFFFFFFu);
+    g_api8->draw_text(self, 0.0f / 0.0f, 0.0f, 12.0f, 0xFFFFFFFFu, "nan");  // dropped: non-finite
+}
 
 }  // namespace
 
@@ -340,6 +361,70 @@ int main() {
         check(!racing(), "30 vblanks without a step (a menu, a pause): not racing");
         clear_for_tests();
         check(!racing() && api6.action_held(&v6m, "nitro") == 0, "clear_for_tests forgets the step and the query");
+    }
+
+    {  // v8: the draw layer (on_overlay, draw_text / draw_rect / draw_line)
+        clear_for_tests();
+        clear_hooks_for_tests();
+        GtMod m8a, m8b, m7;
+        m8a.id = "a8", m8a.api_version = GT_MOD_API_VERSION_8;
+        m8b.id = "b8", m8b.api_version = GT_MOD_API_VERSION_8;
+        m7.id = "m6", m7.api_version = GT_MOD_API_VERSION_6;
+        const GtModApi &api8 = gt::mods::mod_api(GT_MOD_API_VERSION_8);
+        g_api8 = &api8;
+        check(api8.version == GT_MOD_API_VERSION_8 && api8.on_overlay != nullptr && api8.draw_text != nullptr, "the v8 table has the draw functions");
+        check(gt::mods::mod_api(GT_MOD_API_VERSION_6).version == GT_MOD_API_VERSION_6, "the v6 table is unchanged");
+        check(api8.on_overlay(&m8a, overlay_a) != 0, "on_overlay refused outside gt_mod_init");
+        begin_init(&m7);
+        check(api8.on_overlay(&m7, overlay_a) != 0, "on_overlay refused to an api-6 mod");
+        end_init();
+        begin_init(&m8a);
+        check(api8.on_overlay(&m8a, overlay_a) == 0, "on_overlay accepted during init");
+        check(api8.on_overlay(&m8a, overlay_a) != 0, "one overlay per mod");
+        check(api8.on_overlay(&m8a, nullptr) != 0, "a null overlay is refused");
+        end_init();
+        begin_init(&m8b);
+        check(api8.on_overlay(&m8b, overlay_b) == 0, "the second mod registers too");
+        end_init();
+        check(any_registered(), "an overlay counts as registered (the host installs the tick)");
+        psprecomp::AllegrexContext regs{};
+        api8.draw_rect(&m8a, 0, 0, 1, 1, 0xFFFFFFFFu);  // outside the callback: ignored
+        g_sink_calls = 0;
+        run_vblank_tick(rt, regs, 1);
+        check(g_sink_calls == 0, "no sink: nothing is submitted (and nothing crashes)");
+        set_draw_sink(&sink);
+        run_vblank_tick(rt, regs, 2);
+        check(g_sink_calls == 1 && g_sunk.size() == 3u, "one submit per pass with every mod's commands (rect, text, line)");
+        if (g_sunk.size() == 3u) {
+            const auto &r = g_sunk[0];
+            check(r.kind == DrawKind::Rect && r.a == 10.0f && r.b == 20.0f && r.c == 30.0f && r.d == 40.0f, "rect geometry");
+            check(r.rgba[0] == 0xFF && r.rgba[1] == 0x80 && r.rgba[2] == 0x40 && r.rgba[3] == 0xC0, "0xRRGGBBAA is unpacked");
+            const auto &t = g_sunk[1];
+            check(t.kind == DrawKind::Text && std::strcmp(t.text, "hello") == 0 && t.c == 12.0f && t.rgba[3] == 0x44, "text command");
+            check(g_sunk[2].kind == DrawKind::Line && g_sunk[2].e == 2.0f, "line command, in load order");
+        }
+        m8a.active.store(false);
+        run_vblank_tick(rt, regs, 3);
+        check(g_sunk.size() == 1u && g_sunk[0].kind == DrawKind::Line, "a switched-off mod's drawing disappears");
+        m8a.active.store(true);
+        g_draw_now = false;
+        m8b.active.store(false);
+        g_sink_calls = 0;
+        run_vblank_tick(rt, regs, 4);
+        check(g_sink_calls == 1 && g_sunk.empty(), "a pass that draws nothing after one that did submits the empty list");
+        run_vblank_tick(rt, regs, 5);
+        check(g_sink_calls == 1, "and then nothing more is submitted while nothing is drawn");
+        g_draw_now = true;
+        m8b.active.store(true);
+        remove_for(&m8b);
+        clear_for_tests();
+        begin_init(&m8a);
+        check(api8.on_overlay(&m8a, overlay_flood) == 0, "flood overlay");
+        end_init();
+        set_draw_sink(&sink);
+        run_vblank_tick(rt, regs, 6);
+        check(g_sunk.size() == kMaxDrawCommands, "at most 4096 commands per pass; a non-finite coordinate is dropped");
+        clear_for_tests();
     }
 
     if (failures == 0) std::puts("mod_services tests passed");

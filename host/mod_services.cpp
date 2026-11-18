@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -35,6 +36,15 @@ std::vector<Row> g_rows;
 std::vector<Tick> g_ticks;
 std::vector<ActionDecl> g_actions;
 std::vector<EntryDecl> g_entries;
+struct Overlay {
+    GtMod *mod;
+    GtOverlayFn fn;
+};
+std::vector<Overlay> g_overlays;
+std::vector<DrawCommand> g_draw;          // the pass in progress (the vblank tick thread only)
+const GtMod *g_draw_owner = nullptr;      // the mod whose overlay callback is running
+bool g_draw_submitted_any = false;        // the last submit was non-empty
+std::atomic<DrawSink> g_draw_sink{nullptr};
 std::mutex g_queue_mutex;
 std::vector<std::string> g_queue;  // actions to run on the next tick (hotkeys: the pad/keyboard poll; the menu: the window thread)
 GtMod *g_initializing = nullptr;
@@ -170,7 +180,7 @@ bool menu_row_activate(std::size_t index, int direction) {
 
 const std::string &menu_row_mod_id(std::size_t index) { return index < g_rows.size() ? g_rows[index].mod->id : kEmpty; }
 
-bool any_registered() { return !g_rows.empty() || !g_ticks.empty() || !g_actions.empty() || !g_entries.empty(); }
+bool any_registered() { return !g_rows.empty() || !g_ticks.empty() || !g_actions.empty() || !g_entries.empty() || !g_overlays.empty(); }
 
 bool mod_category(const std::string &category) {
     return category == "Race" || category == "Car" || category == "Money & garage" || category == "Camera" || category == "Settings";
@@ -443,6 +453,26 @@ void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob) {
     if (ctx != nullptr && ctx->ctx != nullptr) ctx->ctx->gpr[4] = blob;
 }
 
+namespace {
+
+// v8: every active mod's overlay callback, one list for all of them (the mods draw in load order), handed to the sink.
+void run_overlays(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    if (g_overlays.empty()) return;
+    g_draw.clear();
+    for (const Overlay &o : g_overlays) {
+        if (!is_on(o.mod)) continue;
+        GtModCtx overlay_ctx{&rt, &ctx, 0u, 0u, true, o.mod};
+        g_draw_owner = o.mod;
+        o.fn(o.mod, &overlay_ctx);
+        g_draw_owner = nullptr;
+    }
+    if (g_draw.empty() && !g_draw_submitted_any) return;
+    g_draw_submitted_any = !g_draw.empty();
+    if (const DrawSink sink = g_draw_sink.load(std::memory_order_acquire)) sink(g_draw.data(), g_draw.size());
+}
+
+}  // namespace
+
 void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uint64_t vblank) {
     g_vblank.store(vblank, std::memory_order_release);
     for (Tick &t : g_ticks) {
@@ -469,9 +499,11 @@ void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
                 GtModCtx action_ctx{&rt, &ctx, 0u, 0u, true, a.mod};
                 a.fn(a.mod, &action_ctx);
             }
+    run_overlays(rt, ctx);
 }
 
 void remove_for(const GtMod *mod) {
+    g_overlays.erase(std::remove_if(g_overlays.begin(), g_overlays.end(), [mod](const Overlay &o) { return o.mod == mod; }), g_overlays.end());
     g_rows.erase(std::remove_if(g_rows.begin(), g_rows.end(), [mod](const Row &r) { return r.mod == mod; }), g_rows.end());
     g_ticks.erase(std::remove_if(g_ticks.begin(), g_ticks.end(), [mod](const Tick &t) { return t.mod == mod; }), g_ticks.end());
     g_actions.erase(std::remove_if(g_actions.begin(), g_actions.end(), [mod](const ActionDecl &a) { return a.mod == mod; }), g_actions.end());
@@ -483,6 +515,11 @@ void clear_for_tests() {
     g_ticks.clear();
     g_actions.clear();
     g_entries.clear();
+    g_overlays.clear();
+    g_draw.clear();
+    g_draw_owner = nullptr;
+    g_draw_submitted_any = false;
+    g_draw_sink.store(nullptr);
     {
         std::lock_guard<std::mutex> lock(g_queue_mutex);
         g_queue.clear();
@@ -492,6 +529,93 @@ void clear_for_tests() {
     g_world_step_seen.store(false);
     g_action_held.store(nullptr);
     g_menu_open.store(nullptr);
+}
+
+// ---- v8: the draw layer ----
+
+void set_draw_sink(DrawSink sink) { g_draw_sink.store(sink, std::memory_order_release); }
+
+namespace {
+
+bool v8_mod(GtMod *self, const char *what) {
+    if (self == nullptr) return false;
+    if (self->api_version < GT_MOD_API_VERSION_8) {
+        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 8)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    return true;
+}
+
+// Where a draw call lands: only the running overlay callback of that very mod (the tick thread), else the call is dropped (logged once per mod).
+bool draw_allowed(GtMod *self, const char *what) {
+    if (!v8_mod(self, what)) return false;
+    if (g_draw_owner != self) {
+        static std::vector<const GtMod *> warned;
+        if (std::find(warned.begin(), warned.end(), self) == warned.end()) {
+            warned.push_back(self);
+            std::fprintf(stderr, "[mod:%s] %s ignored: drawing is valid only inside the on_overlay callback\n", self->id.c_str(), what);
+        }
+        return false;
+    }
+    return g_draw.size() < kMaxDrawCommands;
+}
+
+bool finite(float v) { return std::isfinite(v) && std::fabs(v) < 1.0e7f; }
+
+void set_color(DrawCommand &cmd, std::uint32_t rgba) {
+    cmd.rgba[0] = static_cast<std::uint8_t>(rgba >> 24);
+    cmd.rgba[1] = static_cast<std::uint8_t>(rgba >> 16);
+    cmd.rgba[2] = static_cast<std::uint8_t>(rgba >> 8);
+    cmd.rgba[3] = static_cast<std::uint8_t>(rgba);
+}
+
+}  // namespace
+
+int api_on_overlay(GtMod *self, GtOverlayFn fn) {
+    if (!v8_mod(self, "on_overlay")) return 1;
+    if (g_initializing != self) {
+        std::fprintf(stderr, "[mod:%s] on_overlay refused: the callback is registered during gt_mod_init only\n", self->id.c_str());
+        return 2;
+    }
+    if (fn == nullptr) return 3;
+    for (const Overlay &o : g_overlays)
+        if (o.mod == self) {
+            std::fprintf(stderr, "[mod:%s] on_overlay refused: this mod already has an overlay\n", self->id.c_str());
+            return 4;
+        }
+    g_overlays.push_back(Overlay{self, fn});
+    return 0;
+}
+
+void api_draw_text(GtMod *self, float x, float y, float size, std::uint32_t rgba, const char *text) {
+    if (!draw_allowed(self, "draw_text") || text == nullptr || *text == '\0' || !finite(x) || !finite(y) || !finite(size) || size <= 0.0f) return;
+    DrawCommand cmd;
+    cmd.kind = DrawKind::Text;
+    cmd.a = x, cmd.b = y, cmd.c = size;
+    set_color(cmd, rgba);
+    std::size_t n = strnlen(text, kDrawTextCapacity - 1);
+    while (text[n] != '\0' && n > 0 && (static_cast<unsigned char>(text[n]) & 0xC0) == 0x80) --n;  // cut by the capacity: never inside a UTF-8 sequence
+    std::memcpy(cmd.text, text, n);
+    cmd.text[n] = '\0';
+    g_draw.push_back(cmd);
+}
+
+void api_draw_rect(GtMod *self, float x, float y, float w, float h, std::uint32_t rgba) {
+    if (!draw_allowed(self, "draw_rect") || !finite(x) || !finite(y) || !finite(w) || !finite(h)) return;
+    DrawCommand cmd;
+    cmd.kind = DrawKind::Rect;
+    cmd.a = x, cmd.b = y, cmd.c = w, cmd.d = h;
+    set_color(cmd, rgba);
+    g_draw.push_back(cmd);
+}
+
+void api_draw_line(GtMod *self, float x0, float y0, float x1, float y1, float width, std::uint32_t rgba) {
+    if (!draw_allowed(self, "draw_line") || !finite(x0) || !finite(y0) || !finite(x1) || !finite(y1) || !finite(width) || width <= 0.0f) return;
+    DrawCommand cmd;
+    cmd.kind = DrawKind::Line;
+    cmd.a = x0, cmd.b = y0, cmd.c = x1, cmd.d = y1, cmd.e = width;
+    set_color(cmd, rgba);
+    g_draw.push_back(cmd);
 }
 
 }  // namespace gt::mods::services

@@ -1,4 +1,4 @@
-/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 4).
+/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 6, 8).
  *
  * A mod is a shared library that exports `gt_mod_init`. The loader calls it once with the host's function table;
  * the mod registers hooks on guest (PSP) addresses through `api->hook` and reads/writes guest state through the
@@ -33,6 +33,8 @@ extern "C" {
 #define GT_MOD_API_VERSION_5 5
 /* v6 (2026-11-16): action_held, so a cheat can last while its button is held (nitro). */
 #define GT_MOD_API_VERSION_6 6
+/* v8 (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md): 2D drawing over the game (on_overlay, draw_text / draw_rect / draw_line). The v8 functions refuse a mod that declared api < 8. (7 is the rollover-physics SDK, a separate branch.) */
+#define GT_MOD_API_VERSION_8 8
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -73,6 +75,10 @@ typedef void (*GtMenuActivateFn)(GtMod *self, int direction);
 /* v4. An action: runs on the vblank tick (call_guest allowed, as in a tick) after its hotkey or its menu entry fired it, at most
  * once per vblank, never while its mod is switched off. */
 typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
+/* v8. Runs once per game vblank on the vblank tick thread, after every mod's tick (ctx may read game state; call_guest is allowed), never while
+ * its mod is switched off. The draw_* calls are valid only inside it: the host keeps what was drawn until the next pass, so a pass that draws
+ * nothing clears the mod's overlay. */
+typedef void (*GtOverlayFn)(GtMod *self, GtModCtx *ctx);
 
 
 /* v5. Named hook points: the host maps each to the guest function it researched (docs/MODS.md names the evidence). */
@@ -218,6 +224,17 @@ typedef struct GtModApi {
     /* v6. 1 while the binding of this mod's action `id` (as given to add_action) is held down right now: all its pad buttons, or its key with its
      * modifiers. Pad bindings count only in a race (the host passes those buttons to the game in the menus); 0 for an unknown id or no binding. */
     int (*action_held)(GtMod *self, const char *id);
+    /* ---- v8 (appended). Only valid for a mod that declared `api = 8`. ---- */
+    /* Registers the overlay callback (during gt_mod_init only; one per mod). 0 = ok. */
+    int (*on_overlay)(GtMod *self, GtOverlayFn fn);
+    /* 2D drawing in a 480 x 272 logical space (origin top-left, scaled to the shown game picture, anti-aliased, sharp at any output size), drawn over
+     * the game and under the host's menus. Valid only inside the on_overlay callback (other calls are ignored and logged once); at most 4096 commands
+     * per pass, later ones are dropped. `rgba` is 0xRRGGBBAA, straight alpha. Draw order = call order. Non-finite coordinates drop the command.
+     * draw_text: (x, y) is the top-left of the text line, `size` its height in logical units (the host UI font, UTF-8, cut at 95 bytes);
+     * draw_line: round caps, `width` in logical units. */
+    void (*draw_text)(GtMod *self, float x, float y, float size, uint32_t rgba, const char *text);
+    void (*draw_rect)(GtMod *self, float x, float y, float w, float h, uint32_t rgba);
+    void (*draw_line)(GtMod *self, float x0, float y0, float x1, float y1, float width, uint32_t rgba);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

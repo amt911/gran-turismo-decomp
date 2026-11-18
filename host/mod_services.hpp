@@ -116,4 +116,23 @@ std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVe
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
 
+// v8: the draw layer (include/gt_mod/gt_mod_api.h). The host (gt_play: play_backends.cpp) sets the sink that takes each pass's command list
+// (lcs patch 0071: HostDrawCmd has this layout); without one the draws are discarded. The list is submitted when it changed: a pass that
+// draws nothing after one that did submits the empty list (the layer goes away).
+constexpr std::size_t kMaxDrawCommands = 4096;
+constexpr std::size_t kDrawTextCapacity = 96;
+enum class DrawKind : std::uint8_t { Text, Rect, Line };
+struct DrawCommand {
+    DrawKind kind{DrawKind::Rect};
+    float a{0}, b{0}, c{0}, d{0}, e{0};  // text: x, y, size. rect: x, y, w, h. line: x0, y0, x1, y1, width
+    std::uint8_t rgba[4]{255, 255, 255, 255};
+    char text[kDrawTextCapacity]{};
+};
+using DrawSink = void (*)(const DrawCommand *commands, std::size_t count);
+void set_draw_sink(DrawSink sink);
+int api_on_overlay(GtMod *self, GtOverlayFn fn);
+void api_draw_text(GtMod *self, float x, float y, float size, std::uint32_t rgba, const char *text);
+void api_draw_rect(GtMod *self, float x, float y, float w, float h, std::uint32_t rgba);
+void api_draw_line(GtMod *self, float x0, float y0, float x1, float y1, float width, std::uint32_t rgba);
+
 }  // namespace gt::mods::services
