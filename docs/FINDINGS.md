@@ -3407,3 +3407,12 @@ is uploaded only when its version changes, is rasterized at the size it is shown
 source, transparent or opaque destination, fully covered rows): 6 ms, pixel-identical (hash of 20 frames). Measure with a
 standalone bench linking `lcs_host_style.cpp` (perf was not usable here; valgrind/callgrind was).
 
+
+## A hook that draws a part twice must give the leaf its blob back (2026-11-18)
+
+Re-issuing a car part's draw (the Step 0 probe of the mod draw API, `tools/mod_draw_probe/car_replay_probe.cpp`) in a `GT_HOOK_MESH_DRAW` hook: `call_original` runs the leaf `0x08B550A8` (14
+instructions: it writes `BASE` + `CALL blob` at the list cursor `word(0x08D6CE00 + 0x5C)` and advances the cursor by 8) **with the context the hook holds, and leaves that context changed**: a0 ends holding the
+new cursor (the leaf returns it in v0 as well). A second `call_original` in the same hook therefore drew a "blob" that was the old list cursor: the `CALL` went into the list itself and the rest of the
+frame's list was never executed (a race frame with no cars, no HUD; the GE trace stopped after the first replayed part). Fix: save a0 before the first call and restore it before the second, and hand the
+caller the cursor after the commands the hook appended (`set_gpr(2, cursor)`). Confirmed: the first fix (v0 only) still stopped the list after the same 4182 prims; with a0 restored the list ran to 7286 prims (6725 without the probe) and the race frame shows both cars.
+**Rule for any hook that calls the original twice:** the callee may rewrite its argument registers; copy the arguments first and put them back before every call after the first.

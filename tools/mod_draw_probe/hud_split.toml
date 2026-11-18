@@ -1,0 +1,9 @@
+id = "hud-split-probe"
+name = "HUD split probe"
+version = "0.0.1"
+library = "libhud_split_probe.so"
+api = 2
+enabled = true
+
+[settings]
+from = 18500

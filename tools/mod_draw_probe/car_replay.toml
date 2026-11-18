@@ -1,0 +1,9 @@
+id = "car-replay-probe"
+name = "Car replay probe"
+version = "0.0.1"
+library = "libcar_replay_probe.so"
+api = 5
+enabled = true
+
+[settings]
+shift = "2.5 0 0"
