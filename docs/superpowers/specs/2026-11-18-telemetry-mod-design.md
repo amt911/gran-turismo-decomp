@@ -1,6 +1,6 @@
 # Telemetry mod — design
 
-**Status:** draft, waiting for approval. User request 2026-11-18 ("Me interesan todos"; idea: on-screen telemetry: speed per wheel, slip, G forces, a simple graph). Decisions *(Claude)*.
+**Status:** approved by the user on 2026-11-18 ("me parece bien, continua"). User request 2026-11-18 ("Me interesan todos"; idea: on-screen telemetry: speed per wheel, slip, G forces, a simple graph). Decisions *(Claude)*.
 
 ## Goals
 

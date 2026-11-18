@@ -1,6 +1,6 @@
 # Realistic rollover physics — design
 
-**Status:** draft, waiting for the user's approval. The user asked for this on 2026-11-18: "me gustaría que se implementara una física para los rollovers, algo de 0 que sea realista, que si rebota el coche en la pista, que rebote de forma realista". They skip design questions as a rule, so every decision below marked *(Claude)* is Claude's call.
+**Status:** approved by the user on 2026-11-18 ("me parece bien, continua"). The user asked for this on 2026-11-18: "me gustaría que se implementara una física para los rollovers, algo de 0 que sea realista, que si rebota el coche en la pista, que rebote de forma realista". They skip design questions as a rule, so every decision below marked *(Claude)* is Claude's call.
 
 ## Why
 

@@ -1,6 +1,6 @@
 # Best-lap ghost in any mode — design
 
-**Status:** draft, waiting for approval. User request 2026-11-18 (idea: a ghost of your best lap in any mode, not only Time Trial). Decisions *(Claude)*.
+**Status:** approved by the user on 2026-11-18 ("me parece bien, continua"). User request 2026-11-18 (idea: a ghost of your best lap in any mode, not only Time Trial). Decisions *(Claude)*.
 
 ## Goals
 

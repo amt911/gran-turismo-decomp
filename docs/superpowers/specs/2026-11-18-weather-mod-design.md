@@ -1,6 +1,6 @@
 # Weather and time of day mod — design
 
-**Status:** draft, waiting for approval. User request 2026-11-18 (idea: dynamic weather / time of day in a race, rain or a progressive sunset). Decisions *(Claude)*.
+**Status:** approved by the user on 2026-11-18 ("me parece bien, continua"). User request 2026-11-18 (idea: dynamic weather / time of day in a race, rain or a progressive sunset). Decisions *(Claude)*.
 
 ## Goals
 

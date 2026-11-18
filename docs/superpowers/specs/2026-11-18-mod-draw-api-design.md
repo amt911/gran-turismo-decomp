@@ -1,6 +1,6 @@
 # Mod draw API (overlay, scene grade, extra car pass) — design
 
-**Status:** draft, waiting for the user's approval. This is the shared host piece behind three mods the user asked for on 2026-11-18 ("Me interesan todos"): telemetry, weather / time of day and the ghost in any mode. Decisions marked *(Claude)*.
+**Status:** approved by the user on 2026-11-18 ("me parece bien, continua"). This is the shared host piece behind three mods the user asked for on 2026-11-18 ("Me interesan todos"): telemetry, weather / time of day and the ghost in any mode. Decisions marked *(Claude)*.
 
 ## Why
 
