@@ -24,7 +24,7 @@ index 4c6b917..f4df2a1 100644
  inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
  
 diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
-index 6f2c28f..548cb50 100644
+index 933064d..6103360 100644
 --- a/lcs/host/lcs_display_menu.cpp
 +++ b/lcs/host/lcs_display_menu.cpp
 @@ -671,6 +671,36 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {

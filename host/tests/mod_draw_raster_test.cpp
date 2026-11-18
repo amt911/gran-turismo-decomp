@@ -147,6 +147,8 @@ int main(int argc, char **argv) {
         std::vector<std::uint8_t> px(static_cast<std::size_t>(a.width) * a.height * 4u);
         check(lcs::host_draw_copy(a.version, px.data(), px.size()) && px[0] == 0x10 && px[1] == 0x20 && px[2] == 0x30 && px[3] == 0xFF, "the copy is the picture");
         check(lcs::host_draw_request(size).version == a.version, "the same list and size twice rasterize once");
+        lcs::host_draw_submit(list.data(), list.size());  // the same content again (a static overlay resubmitted every vblank)
+        check(lcs::host_draw_request(size).version == a.version, "an identical resubmitted list keeps the picture (no new rasterization, no new upload)");
         check(!lcs::host_draw_copy(a.version, px.data(), px.size() - 1u), "a too small buffer is refused");
         const std::vector<lcs::HostDrawCmd> list2{rect(0, 0, 480, 272, 0x405060FFu)};
         lcs::host_draw_submit(list2.data(), list2.size());

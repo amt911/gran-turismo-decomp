@@ -45,10 +45,10 @@ index 4d4a8e4..4c6b917 100644
  inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
  
 diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
-index ea92082..6f2c28f 100644
+index ea92082..933064d 100644
 --- a/lcs/host/lcs_display_menu.cpp
 +++ b/lcs/host/lcs_display_menu.cpp
-@@ -671,6 +671,127 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {
+@@ -671,6 +671,133 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {
      w.synchronous = synchronous;
  }
  
@@ -101,10 +101,16 @@ index ea92082..6f2c28f 100644
 +
 +}  // namespace
 +
++bool same_commands(const HostDrawCmd &a, const HostDrawCmd &b) {
++    return a.kind == b.kind && a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d && a.e == b.e && std::memcmp(a.rgba, b.rgba, sizeof a.rgba) == 0 &&
++           std::strncmp(a.text, b.text, kDrawTextCapacity) == 0;
++}
++
 +void host_draw_submit(const HostDrawCmd *commands, std::size_t count) noexcept {
 +    DrawWorker &w = draw_worker();
 +    std::lock_guard<std::mutex> lock(w.mutex);
 +    if (commands == nullptr) count = 0u;
++    if (count != 0u && count == w.list.size() && std::equal(commands, commands + count, w.list.begin(), same_commands)) return;  // the same list: keep the picture
 +    w.list.assign(commands, commands + count);
 +    ++w.list_generation;
 +    if (count == 0u) {  // no layer: forget the picture so a later list is rasterized afresh
