@@ -27,6 +27,15 @@
 #   --sabotage-nobox (=6: body_box off, the log still measures: the body sinks 1 m, the box judge fails on the depth),
 #   --sabotage-pushupright (=7: the box ground 0.6 m too high with floor corners always on: it pushes an upright car; the box judge fails on the upright touches and boxcmp on the state lines before the impact),
 #   --sabotage-nocap (=8: box_kick_cap 20: the rise judge must fail), --sabotage-liveonly (=10: the mod skips the replay: --replay must fail)
+#   --sim        (rollover 0.5.0, style "realistic": the rigid-body simulation) the `rollover` route, the barrier hit: no takeover before the crash, one at the crash because of the hit, the energy budget (the
+#                total energy never above the one right after the hit impulse: no hopping, no spinning top), no hull point > 0.05 m under the ground, rest or handback; and the pose the game
+#                draws is the simulation's pose within one step of motion (kd). `--seconds 300` is needed on this desktop (powersave): the default 150 s does not reach the barrier
+#   --drop       the same route with a fake drop of 2 m (GT_MOD_ROLLOVER_DROP=m100:2.0): the first rebound <= 1.2 e^2 h, the car slides to rest (friction), is handed back, driving resumes
+#   --sim-replay the `circuit` route with a fake hit (GT_MOD_ROLLOVER_FAKE=m30:9): the same takeover live and in the replay, simulated poses within 0.5 m at the same step after it
+#   --others     with --sim: deformation, reset-to-track, cheats, analog-pedals, draw-distance and orbit-camera enabled too (the run must still pass)
+#   Each of these must FAIL: --sabotage-restitution (=13: restitution 1.0; with --drop), --sabotage-nofriction (=14; --drop), --sabotage-nopose (=15: the simulation runs but its pose is never sent to the game; --sim),
+#   --sabotage-notakeover (=16; --sim). The legacy modes below run the mod with style = "arcade" (the 0.4.0 scripted roll); --sabotage-flipflag (=4) is gone: the flag hooks are the host's now
+#   (host/tests/tilt_free_test.cpp pins which readers get 1, flip machine excluded).
 # Env: ROUTE (a pad route file, default config/pad_routes/rollover.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
 # GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_rollover_check, gitignored; never /tmp),
 # KEEP_BASELINE=1 (reuse the baseline of $OUT when --decomp, route, --every and --seconds match). Exit: 0 pass, 1 check failed, 2 setup/run problem (a gt_play that crashed, timed out
@@ -38,10 +47,12 @@ mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_rollover_check}
 case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
-decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0 replay=0
+decomp=off seconds=150 every=30 sabotage=0 simmode= others=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0 replay=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --sabotage-liveonly) sabotage=10;; --replay) replay=1;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
+    --sim) simmode=sim;; --drop) simmode=drop;; --sim-replay) simmode=replay;; --others) others=1;;
+    --sabotage-restitution) sabotage=13;; --sabotage-nofriction) sabotage=14;; --sabotage-nopose) sabotage=15;; --sabotage-notakeover) sabotage=16;;
+    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --sabotage-liveonly) sabotage=10;; --replay) replay=1;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --roll-only) roll_only=1;; --recover) recover=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_rollover_check: unknown argument $1" >&2; exit 2;;
@@ -62,7 +73,7 @@ if true; then
     || { echo "mod_rollover_check: mod build failed (log $out/mod-build-s$sabotage.log)" >&2; exit 2; }
   cp "$mbuild/rollover/librollover.so" "$out/mods/rollover/" && cp "$mbuild/rollover/librollover.so" "$out/mods_disabled/rollover/" \
     && cp "$mbuild/rollover/librollover.so" "$out/mods_recover/rollover/" && cp "$mbuild/reset-to-track/libreset_to_track.so" "$out/mods_recover/reset-to-track/" || exit 2
-  sed 's/^enabled = false/enabled = true/' "$mods_repo/rollover/mod.toml" > "$out/mods/rollover/mod.toml"
+  sed 's/^enabled = false/enabled = true/; s/^style *=.*/style = "arcade"/' "$mods_repo/rollover/mod.toml" > "$out/mods/rollover/mod.toml"
   cp "$mods_repo/rollover/mod.toml" "$out/mods_disabled/rollover/mod.toml"   # shipped state: enabled = false
   cp "$out/mods/rollover/mod.toml" "$out/mods_recover/rollover/mod.toml"
   cp "$mbuild/rollover/librollover.so" "$out/mods_nobox/rollover/" && sed 's/^body_box *=.*/body_box = false/' "$out/mods/rollover/mod.toml" > "$out/mods_nobox/rollover/mod.toml"
@@ -70,6 +81,7 @@ if true; then
   sed 's/^enabled = false/enabled = true/; s/^rewind_ms *=.*/rewind_ms = 4500/' "$mods_repo/reset-to-track/mod.toml" > "$out/mods_recover/reset-to-track/mod.toml"
 fi
 
+declare -a extra_env=()  # extra variables of the next run_one (the fake hit / drop of the simulation modes)
 # run_one LABEL MODS_DIR TOGGLE_SPEC|- FRAMES(0|1) ROUTE_FILE
 run_one() {
   local label=$1 mdir=$2 tog=$3 frames=$4 rfile=$5
@@ -79,6 +91,7 @@ run_one() {
                  GT_MOD_ROLLOVER_LOG=1 GT_MOD_RESET_LOG=1 GT_PAD="$(grep -v '^#' "$rfile")" GT_PAD_LOG=1 GT_FRAME_EVERY=$every)
   [ "$tog" != "-" ] && vars+=(GT_MOD_MENU_TEST_TOGGLE="$tog")
   [ $replay -eq 1 ] && vars+=(GT_MOD_ROLLOVER_FAKE=m30:9)
+  vars+=("${extra_env[@]}")
   [ "$frames" = 1 ] && vars+=(GT_FRAME_DUMP="$repo/$out/$label/frames")
   local -a lock=(tools/cpu_lock.sh "mod_rollover_check:$label"); [ -n "${MOD_CHECK_NO_LOCK:-}" ] && lock=()
   local try rc=0
@@ -97,6 +110,29 @@ run_one() {
 }
 mdir="$out/mods"
 py=.venv/bin/python
+if [ -n "$simmode" ]; then  # the rigid-body style (rollover 0.5.0): its own judge (tools/mod_rollover_sim_check.py)
+  [ "$seconds" = 150 ] && seconds=300   # this desktop runs powersave: 150 s of wall clock does not reach the barrier
+  sroute=$route; [ "$simmode" = replay ] && sroute=${ROUTE:-config/pad_routes/circuit.pad}
+  [ -f "$sroute" ] || { echo "mod_rollover_check: no pad route $sroute" >&2; exit 2; }
+  smods="$out/mods_$simmode"; rm -rf "$smods"; mkdir -p "$smods/rollover" || exit 2
+  { cmake --build "$mbuild" -j2; } >> "$out/mod-build-s$sabotage.log" 2>&1 || { echo "mod_rollover_check: mod build failed (log $out/mod-build-s$sabotage.log)" >&2; exit 2; }
+  cp "$mbuild/rollover/librollover.so" "$smods/rollover/" && sed 's/^enabled = false/enabled = true/' "$mods_repo/rollover/mod.toml" > "$smods/rollover/mod.toml" || exit 2
+  if [ $others -eq 1 ]; then
+    for pair in analog-pedals:libanalog_pedals.so cheats:libcheats.so draw-distance:libdraw_distance.so orbit-camera:liborbit_camera.so \
+                reset-to-track:libreset_to_track.so deformation:libdeformation.so; do
+      d=${pair%%:*}; mkdir -p "$smods/$d" && cp "$mbuild/$d/${pair#*:}" "$smods/$d/" && sed 's/^enabled = false/enabled = true/' "$mods_repo/$d/mod.toml" > "$smods/$d/mod.toml" \
+        || { echo "mod_rollover_check: cannot install $d" >&2; exit 2; }
+    done
+  fi
+  case $simmode in
+    drop) extra_env=(GT_MOD_ROLLOVER_DROP=m100:2.0);;
+    replay) extra_env=(GT_MOD_ROLLOVER_FAKE=m30:9);;
+  esac
+  [ "$simmode" = replay ] && [ "$seconds" = 300 ] && seconds=330
+  run_one "$simmode" "$smods" - 0 "$sroute" || exit 2
+  $py -I tools/mod_rollover_sim_check.py "$out" "$([ $others -eq 1 ] && [ "$simmode" = sim ] && echo others || echo "$simmode")"
+  exit $?
+fi
 # KEEP_BASELINE=1 reuses $out/baseline only when it was made with the same --decomp, route, --every and --seconds (recorded in baseline/.config)
 cfg="decomp=$decomp route=$route every=$every seconds=$seconds"
 need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/baseline/frames" ] || [ "$(cat "$out/baseline/.config" 2>/dev/null)" != "$cfg" ]; }

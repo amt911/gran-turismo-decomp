@@ -1,6 +1,7 @@
 // host/game_state.hpp: the named accessors of the mod SDK against a guest memory image built here.
 #include "game_state.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -76,6 +77,99 @@ int main() {
     CarState back{};
     check(car_state(m, 0x09300000u, back) && back.speed == 33.0f && back.throttle == 0.6f, "car state round trip");
     check(!car_state(m, 0u, back) && !car_set_state(m, 0u, s), "a null handle is refused");
+
+    // ---- v7 (2026-11-18) ----
+    {
+        // The Euler convention (0x0893C3E4): yaw 1.571 is the race start's heading (-1, 0, 0); pitch up lifts the forward row; the basis is left-handed.
+        float rows[9];
+        const float start[3] = {0.0f, 0.0f, 1.5708f};
+        euler_to_rows(start, rows);
+        check(std::fabs(rows[0] + 1.0f) < 1e-3f && std::fabs(rows[1]) < 1e-3f && std::fabs(rows[8] - 1.0f) < 1e-6f, "euler: yaw 1.571 faces -x, up stays up");
+        const float nose[3] = {0.3f, 0.0f, 0.0f};
+        euler_to_rows(nose, rows);
+        check(rows[2] > 0.29f && rows[8] > 0.95f, "euler: positive pitch raises the forward row");
+        const float rolled[3] = {0.0f, 0.5f, 0.0f};
+        euler_to_rows(rolled, rows);
+        check(rows[5] < -0.47f && rows[8] > 0.87f && rows[6] > 0.47f, "euler: positive roll tips the up row toward the right row (x here)");
+        // left-handed: forward x right = -up, at many angles; and the round trip rows -> Euler -> rows, near the poles included
+        int bad_hand = 0, bad_trip = 0, n = 0;
+        for (float p = -1.5707f; p <= 1.5708f; p += 0.0611f)
+            for (float r = -3.14f; r <= 3.15f; r += 0.1571f)
+                for (float y = -3.14f; y <= 3.15f; y += 0.4f) {
+                    const float e[3] = {p, r, y};
+                    float a[9], b[9], e2[3];
+                    euler_to_rows(e, a);
+                    const float cx = a[1] * a[5] - a[2] * a[4], cy = a[2] * a[3] - a[0] * a[5], cz = a[0] * a[4] - a[1] * a[3];
+                    if (std::fabs(cx + a[6]) > 1e-4f || std::fabs(cy + a[7]) > 1e-4f || std::fabs(cz + a[8]) > 1e-4f) ++bad_hand;
+                    rows_to_euler(a, e2);
+                    euler_to_rows(e2, b);
+                    float worst = 0;
+                    for (int k = 0; k < 9; ++k) worst = std::fmax(worst, std::fabs(a[k] - b[k]));
+                    if (worst > 2e-3f) ++bad_trip;
+                    ++n;
+                }
+        check(bad_hand == 0, "euler: the basis is left-handed (f x r = -u) at every angle");
+        std::fprintf(stderr, "euler round trip: %d angle triples, %d off\n", n, bad_trip);
+        check(bad_trip == 0, "euler: rows -> Euler -> rows round trip, upside down and at +-90 degrees of pitch");
+        // the pole itself
+        const float pole[3] = {1.5707963f, 0.0f, 0.7f};
+        float pr[9], pe[3], pr2[9];
+        euler_to_rows(pole, pr);
+        rows_to_euler(pr, pe);
+        euler_to_rows(pe, pr2);
+        float worst = 0;
+        for (int k = 0; k < 9; ++k) worst = std::fmax(worst, std::fabs(pr[k] - pr2[k]));
+        check(worst < 5e-3f && std::fabs(pe[0]) <= 1.5708f, "euler: at the pole the rebuilt rows match");
+    }
+    {
+        // car_set_pose / car_state round trip, dimensions and wheel records on the fake world of the cars test (slot 0)
+        const std::uint32_t car0 = 0x09100000u + 0x2010u, body0 = 0x09300000u;
+        const float pos[3] = {10.0f, -20.0f, 5.0f}, vel[3] = {3.0f, 4.0f, 0.0f}, w[3] = {0.1f, 0.2f, 0.3f};
+        const float e[3] = {0.2f, 2.9f, -1.0f};  // upside down
+        float rows[9];
+        euler_to_rows(e, rows);
+        CarState before{};
+        car_state(m, body0, before);
+        check(car_set_pose(m, body0, pos, rows, vel, w), "pose: written");
+        CarState s{};
+        check(car_state(m, body0, s), "pose: read back");
+        check(s.position[0] == 10.0f && s.position[2] == 5.0f && std::fabs(s.speed - 5.0f) < 1e-6f && s.velocity[1] == 4.0f, "pose: position, velocity and speed |v|");
+        bool rates0 = true;
+        for (float r : s.rates) rates0 = rates0 && r == 0.0f;
+        check(rates0, "pose: the five rate fields are zero");
+        check(std::fabs(s.euler[0] - e[0]) < 1e-4f && std::fabs(s.euler[1] - e[1]) < 1e-4f && std::fabs(s.euler[2] - e[2]) < 1e-4f, "pose: the Euler angles are derived from the rows");
+        bool rows_ok = true;
+        for (int k = 0; k < 9; ++k) rows_ok = rows_ok && s.basis[k] == rows[k];
+        check(rows_ok && s.throttle == before.throttle && s.brake == before.brake, "pose: rows written as given, pedals untouched");
+        float bad[9];
+        for (int k = 0; k < 9; ++k) bad[k] = rows[k];
+        bad[0] *= 2.0f;
+        check(!car_set_pose(m, body0, pos, bad, vel, w), "pose: rows that are not a rotation are refused");
+        const float nan[3] = {std::nanf(""), 0.0f, 0.0f};
+        check(!car_set_pose(m, body0, nan, rows, vel, w) && !car_set_pose(m, body0, pos, rows, vel, nan) && !car_set_pose(m, 0u, pos, rows, vel, w), "pose: non-finite values and a null handle are refused");
+        check(s.position[0] == 10.0f, "pose: a refused call writes nothing");
+        // dimensions: the car record at word(car + 0xC)
+        const std::uint32_t rec = 0x09500000u;
+        const auto put = [&](std::uint32_t at, float v) { std::uint32_t b; std::memcpy(&b, &v, 4); m.store32(at, b); };
+        m.store32(car0 + 0xCu, rec);
+        put(rec + 0x08u, 1.783f); put(rec + 0x18u, 2.442f); put(rec + 0x1Cu, 1.434f); put(rec + 0x40u, 0.879f); put(rec + 0x48u, -1.563f);
+        CarDimensions d{};
+        check(car_dimensions(m, W, body0, d) && d.wheelbase == 2.442f && d.track == 1.434f && d.front_axle == 0.879f && d.rear_axle == -1.563f && d.radius == 1.783f, "dimensions: the car record");
+        check(!car_dimensions(m, W, 0x09999999u, d) && !car_dimensions(m, 0u, body0, d), "dimensions: a body that is no slot of the world is refused");
+        // wheel records: word(car + 0x10) + 0x38 i: x, -y (Y-up), ground height; byte +0x2C = 0 found; +0x2D surface; load at K + 0x70 + 0x118 i + 0x54
+        const std::uint32_t wrec = 0x09510000u;
+        m.store32(car0 + 0x10u, wrec);
+        for (std::uint32_t i = 0; i < 4; ++i) {
+            put(wrec + 0x38u * i, 1.0f + i); put(wrec + 0x38u * i + 8u, -(10.0f + i)); put(wrec + 0x38u * i + 0xCu, 3.0f + 0.1f * i);
+            m.store32(wrec + 0x38u * i + 0x2Cu, i == 2 ? 0x0100u + 1u : 0x0200u);  // byte +0x2C = 1 (no road) on wheel 2; +0x2D = 2 elsewhere
+            put(body0 + 0x70u + 0x118u * i + 0x54u, 100.0f * i);
+        }
+        WheelContact wc[4]{};
+        check(car_wheel_contacts(m, W, body0, wc), "wheels: read");
+        check(wc[1].x == 2.0f && wc[1].y == 11.0f && std::fabs(wc[1].ground_height - 3.1f) < 1e-6f && wc[1].valid == 1 && wc[1].surface == 2, "wheels: x, y (= -z of the Y-up record), height, valid, surface");
+        check(wc[2].valid == 0 && wc[3].load == 300.0f && wc[0].load == 0.0f, "wheels: byte +0x2C != 0 is not valid; the load comes from the wheel struct");
+        check(!car_wheel_contacts(m, W, 0x09999999u, wc), "wheels: a body that is no slot is refused");
+    }
 
     if (failures == 0) std::puts("game_state: all checks passed");
     // ---- v5: impact from the velocity change (docs/FACTS.md "Collision code ... NOT FOUND": the delta-v fallback). ----

@@ -116,4 +116,37 @@ std::uint32_t model_runs(const psprecomp::GuestMemory &memory, std::uint32_t mod
 constexpr std::uint32_t kListState = 0x08D6CE00u;
 bool list_world_matrix(const psprecomp::GuestMemory &memory, float out[12], std::uint32_t max_bytes = 0x10000u);
 
+// ---- v7: pose writing, dimensions and wheel records (docs/superpowers/specs/2026-11-18-rollover-physics-design.md; FACTS "Rollover physics research (2026-11-18)"). ----
+
+// The Euler convention the body is rebuilt from (0x0893C3E4, read from the asm 2026-11-18): angles (pitch = K+0x6FC, roll = K+0x700, yaw = K+0x704),
+// s = sin, c = cos, indices 1 pitch, 2 roll, 3 yaw:
+//   forward row = (-s3 c1, c3 c1, s1)
+//   right row   = (c3 c2 - s1 s2 s3, s3 c2 + s1 s2 c3, -c1 s2)
+//   up row      = (c3 s2 + s1 c2 s3, s3 s2 - s1 c2 c3, c1 c2)
+// (yaw 1.571 gives forward (-1, 0, 0): the `race` start's velocity direction, FACTS "Car body state").
+void euler_to_rows(const float euler[3], float rows[9]);
+// The inverse: pitch = asin(forward.z) in [-pi/2, pi/2], roll = atan2(-right.z, up.z), yaw = atan2(-forward.x, forward.y). At the pole (|forward.z| ~ 1) yaw and
+// roll are one degree of freedom: roll = 0 and yaw takes it all, so the rows rebuilt from the result are the input's within float noise.
+void rows_to_euler(const float rows[9], float euler[3]);
+
+// A world's car slot: the car object (word(car + 8) is the body handle), or 0 when `handle` is no slot of `world`.
+std::uint32_t car_object(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle);
+
+struct CarDimensions {
+    float wheelbase, track, front_axle, rear_axle, radius;
+};
+bool car_dimensions(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle, CarDimensions &out);
+
+struct WheelContact {
+    float x, y, ground_height;
+    std::int32_t surface, valid;
+    float load;
+};
+bool car_wheel_contacts(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle, WheelContact out[4]);
+
+// Writes position, basis rows, the Euler angles derived from them, velocity, speed (|velocity|) and zero in all five rate fields. False (nothing written)
+// for a bad handle, a non-finite value or rows that are not an orthonormal basis (each row unit within 1e-2, mutually perpendicular within 1e-2).
+bool car_set_pose(psprecomp::GuestMemory &memory, std::uint32_t handle, const float position[3], const float basis[9], const float velocity[3],
+                  const float angular_velocity[3]);
+
 } // namespace gt::game_state
