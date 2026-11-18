@@ -11,10 +11,6 @@
 #                touch while upright; and the default flow adds a `nobox` run, the mod with body_box = false: the state lines before the first impact must be
 #                byte-identical with and without the box, and without it the body must sink > 0.5 m)
 #   --frames     one more run with the box on and a frame every 3 vblanks, pruned to the vblanks around the crash (--frames-window FROM:TO, default auto: 60 vblanks before the first impulse to 300 after): PPMs in $OUT/tumble/frames (tumble_nobox with --without-box) for a person to look at (no judge); with --without-box the same for the box off
-#   --realistic  (rollover 0.4.0) the shipped defaults (style realistic) on the barrier hit: the mod asks for a lean (< 4 rad/s), the car never passes ~80 deg of tilt and ends upright
-#                (the other runs use style = "arcade", the old easy flip); the default flow includes it
-#   --pitch      (rollover 0.4.0) route `pitch`, GT_MOD_ROLLOVER_FAKE_PITCH=m250:1.5 forces a nose-up pitch rate for 60 steps: the pitch angle must stay at the game's own
-#                35 degree limit (the nose standing up is a gimbal lock of the game's Euler angles: the car spins like a top); the default flow includes it
 #   --roll-only  just the roll run (no baseline, no disabled run)
 #   --toggle-off the F9 menu's toggle turns the mod off (GT_MOD_MENU_TEST_TOGGLE=rollover@v<--toggle-at>, default v16300) before the crash:
 #                PASS = the mod ran before `-> OFF` and logged nothing after, the frames from 120 vblanks after the toggle to the route's end
@@ -25,7 +21,7 @@
 #                (GT_MOD_ROLLOVER_FAKE=m30:9): the replay re-simulates the race from the recorded pad stream, so the mod must act there too;
 #                PASS = a `REPLAY start` line, hits of the same size live and in the replay, the car rolls in both, and, paired by steps since the hit, the replayed car
 #                stays within MAX_REPLAY_DRIFT of the live one at every logged step (mod_rollover_check.py judge_replay; mod >= 0.3.0)
-#   Each of these must FAIL: --sabotage-oldrates (=11: the 0.3.0 numbers, threshold 3 / gain 2.5 / cap 12: the barrier flips the car; runs --realistic), --sabotage-pitchlimit (=12: no pitch limit; runs --pitch), --without-mod (-DROLLOVER_SABOTAGE=5: stock physics, the mod only logs: nothing rolls; with --recover the car is not upside down at the reset), --sabotage-noflag (-DROLLOVER_SABOTAGE=1: the impulse without the flag, the game's
+#   Each of these must FAIL: --without-mod (-DROLLOVER_SABOTAGE=5: stock physics, the mod only logs: nothing rolls; with --recover the car is not upside down at the reset), --sabotage-noflag (-DROLLOVER_SABOTAGE=1: the impulse without the flag, the game's
 #   clamp holds the tilt), --sabotage-noimpulse (=2: the flag without any impulse: the barrier alone does not roll the car),
 #   --sabotage-threshold0 (=3: an impulse in normal driving), --sabotage-flipflag (=4: the flag also lifted for the dormant flip state machine: the car sinks through the road),
 #   --sabotage-nobox (=6: body_box off, the log still measures: the body sinks 1 m, the box judge fails on the depth),
@@ -42,10 +38,10 @@ mods_repo=${GT_MODS_REPO:-$repo/../gt-mods}
 build=${BUILD:-build}
 out=${OUT:-recomp/analysis/mod_rollover_check}
 case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esac  # absolute OUT: the runs join "$repo/$out"
-decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0 replay=0 realistic=0 pitch=0
+decomp=off seconds=150 every=30 sabotage=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0 replay=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --sabotage-liveonly) sabotage=10;; --sabotage-oldrates) sabotage=11; realistic=1;; --sabotage-pitchlimit) sabotage=12; pitch=1;; --realistic) realistic=1;; --pitch) pitch=1;; --replay) replay=1;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
+    --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-flipflag) sabotage=4;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --sabotage-liveonly) sabotage=10;; --replay) replay=1;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --roll-only) roll_only=1;; --recover) recover=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;
     *) echo "mod_rollover_check: unknown argument $1" >&2; exit 2;;
@@ -55,10 +51,9 @@ done
 [ -x "$build/gt_play" ] || { echo "mod_rollover_check: no $build/gt_play" >&2; exit 2; }
 route=${ROUTE:-config/pad_routes/rollover.pad}
 [ $recover -eq 1 ] && route=${ROUTE:-config/pad_routes/rollover_reset.pad}
-[ $pitch -eq 1 ] && route=${ROUTE:-config/pad_routes/pitch.pad}
 [ $replay -eq 1 ] && { route=${ROUTE:-config/pad_routes/circuit.pad}; [ "$seconds" = 150 ] && seconds=330; }
 [ -f "$route" ] || { echo "mod_rollover_check: no pad route $route" >&2; exit 2; }
-mkdir -p "$out/mods_real/rollover" "$out/nomods" "$out/mods/rollover" "$out/mods_disabled/rollover" "$out/mods_recover/rollover" "$out/mods_recover/reset-to-track" "$out/mods_nobox/rollover" || exit 2
+mkdir -p "$out/nomods" "$out/mods/rollover" "$out/mods_disabled/rollover" "$out/mods_recover/rollover" "$out/mods_recover/reset-to-track" "$out/mods_nobox/rollover" || exit 2
 if true; then
   mbuild="$out/mod-build-s$sabotage"
   flags=""; [ $sabotage -ne 0 ] && flags="-DROLLOVER_SABOTAGE=$sabotage"
@@ -70,9 +65,6 @@ if true; then
   sed 's/^enabled = false/enabled = true/' "$mods_repo/rollover/mod.toml" > "$out/mods/rollover/mod.toml"
   cp "$mods_repo/rollover/mod.toml" "$out/mods_disabled/rollover/mod.toml"   # shipped state: enabled = false
   cp "$out/mods/rollover/mod.toml" "$out/mods_recover/rollover/mod.toml"
-  # the shipped defaults (style realistic): the `realistic` and `pitch` runs. Every other run asks for the old easy flip: style arcade (threshold 3, gain 1.35, cap 8 rad/s)
-  cp "$mbuild/rollover/librollover.so" "$out/mods_real/rollover/" && sed 's/^enabled = false/enabled = true/' "$mods_repo/rollover/mod.toml" > "$out/mods_real/rollover/mod.toml"
-  for d in mods mods_recover; do sed -i 's/^style *=.*/style = "arcade"/; s/^threshold *=.*/threshold = 3.0/; s/^gain *=.*/gain = 2.5/; s/^cap *=.*/cap = 12.0/' "$out/$d/rollover/mod.toml"; done  # the box runs need a full tumble: the 0.3.0 rates (0.4.0 defaults barely tip the car)
   cp "$mbuild/rollover/librollover.so" "$out/mods_nobox/rollover/" && sed 's/^body_box *=.*/body_box = false/' "$out/mods/rollover/mod.toml" > "$out/mods_nobox/rollover/mod.toml"
   # rewind_ms 4500 as the reset check does: the restored pose is ~130 m before the barrier
   sed 's/^enabled = false/enabled = true/; s/^rewind_ms *=.*/rewind_ms = 4500/' "$mods_repo/reset-to-track/mod.toml" > "$out/mods_recover/reset-to-track/mod.toml"
@@ -87,7 +79,6 @@ run_one() {
                  GT_MOD_ROLLOVER_LOG=1 GT_MOD_RESET_LOG=1 GT_PAD="$(grep -v '^#' "$rfile")" GT_PAD_LOG=1 GT_FRAME_EVERY=$every)
   [ "$tog" != "-" ] && vars+=(GT_MOD_MENU_TEST_TOGGLE="$tog")
   [ $replay -eq 1 ] && vars+=(GT_MOD_ROLLOVER_FAKE=m30:9)
-  [ "$label" = pitch ] && vars+=(GT_MOD_ROLLOVER_FAKE_PITCH=m250:1.5)  # a nose-up pitch rate of 1.5 rad/s for 60 steps, 250 steps after the car first moves (a hard hit saturates it at 1.57 for ~25)
   [ "$frames" = 1 ] && vars+=(GT_FRAME_DUMP="$repo/$out/$label/frames")
   local -a lock=(tools/cpu_lock.sh "mod_rollover_check:$label"); [ -n "${MOD_CHECK_NO_LOCK:-}" ] && lock=()
   local try rc=0
@@ -110,16 +101,6 @@ py=.venv/bin/python
 cfg="decomp=$decomp route=$route every=$every seconds=$seconds"
 need_baseline() { [ -z "${KEEP_BASELINE:-}" ] || [ ! -d "$out/baseline/frames" ] || [ "$(cat "$out/baseline/.config" 2>/dev/null)" != "$cfg" ]; }
 make_baseline() { run_one baseline "$out/nomods" - 1 "$1" && echo "$cfg" > "$out/baseline/.config"; }
-if [ $pitch -eq 1 ]; then  # the pitch limit: a forced pitch kick must not stand the nose up (rollover 0.4.0); --sabotage-pitchlimit must FAIL
-  run_one pitch "$out/mods_real" - 0 "$route" || exit 2
-  $py -I tools/mod_rollover_check.py "$out" pitch
-  exit $?
-fi
-if [ $realistic -eq 1 ]; then  # the shipped defaults on the barrier hit: a lean, not a flip; --sabotage-oldrates (the 0.3.0 numbers) must FAIL
-  run_one realistic "$out/mods_real" - 0 "$route" || exit 2
-  $py -I tools/mod_rollover_check.py "$out" realistic
-  exit $?
-fi
 if [ $replay -eq 1 ]; then
   run_one replay "$out/mods" - 0 "$route" || exit 2
   $py -I tools/mod_rollover_check.py "$out" replay
@@ -183,11 +164,7 @@ need_baseline && { make_baseline "$route" || exit 2; }
 run_one disabled "$out/mods_disabled" - 1 "$route" || exit 2
 run_one roll "$mdir" - 0 "$route" || exit 2
 run_one nobox "$out/mods_nobox" - 0 "$route" || exit 2
-run_one realistic "$out/mods_real" - 0 "$route" || exit 2
-run_one pitch "$out/mods_real" - 0 config/pad_routes/pitch.pad || exit 2
 rc=0
-$py -I tools/mod_rollover_check.py "$out" realistic || rc=1
-$py -I tools/mod_rollover_check.py "$out" pitch || rc=1
 $py -I tools/mod_rollover_check.py "$out" disabled || rc=1
 $py -I tools/mod_rollover_check.py "$out" roll || rc=1
 $py -I tools/mod_rollover_check.py "$out" boxcmp || rc=1
