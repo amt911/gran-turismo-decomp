@@ -229,10 +229,15 @@ if(GT_PLAY)
     if(GT_PANEL_SABOTAGE_USE_OVERLAY)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PANEL_SABOTAGE_USE_OVERLAY=1)
     endif()
-    # Verification only (tools/mod_draw_check.sh --sabotage-flush must FAIL): the draw list is never handed to the window / dump.
+    # Verification only (tools/mod_draw_check.sh --sabotage-flush / --sabotage-grade must FAIL): the draw list is never handed to the window / dump;
+    # the scene grade never reaches the window / dump.
     option(GT_DRAW_SABOTAGE_NO_FLUSH "sabotage: the mods' draw lists are dropped" OFF)
     if(GT_DRAW_SABOTAGE_NO_FLUSH)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_DRAW_SABOTAGE_NO_FLUSH=1)
+    endif()
+    option(GT_GRADE_SABOTAGE_IGNORE "sabotage: the scene grade is ignored" OFF)
+    if(GT_GRADE_SABOTAGE_IGNORE)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_GRADE_SABOTAGE_IGNORE=1)
     endif()
     # Verification only: a held-back button released inside its window never reaches the game (mod_reset_check.sh --tap --sabotage-notap, API 4).
     option(GT_PAD_MENU_SABOTAGE_NO_REPLAY "sabotage: the late tap of a held-back button is swallowed" OFF)

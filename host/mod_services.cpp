@@ -45,6 +45,14 @@ std::vector<DrawCommand> g_draw;          // the pass in progress (the vblank ti
 const GtMod *g_draw_owner = nullptr;      // the mod whose overlay callback is running
 bool g_draw_submitted_any = false;        // the last submit was non-empty
 std::atomic<DrawSink> g_draw_sink{nullptr};
+struct ModGrade {
+    const GtMod *mod;
+    SceneGrade grade;
+};
+std::mutex g_grade_mutex;
+std::vector<ModGrade> g_grades;           // set by scene_grade, one per mod (any guest thread; the tick publishes)
+SceneGrade g_grade_published;             // what the sink got last
+std::atomic<GradeSink> g_grade_sink{nullptr};
 std::mutex g_queue_mutex;
 std::vector<std::string> g_queue;  // actions to run on the next tick (hotkeys: the pad/keyboard poll; the menu: the window thread)
 GtMod *g_initializing = nullptr;
@@ -455,6 +463,29 @@ void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob) {
 
 namespace {
 
+bool same_grade(const SceneGrade &a, const SceneGrade &b) {
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.brightness == b.brightness && a.saturation == b.saturation;
+}
+
+// The product over the active mods' grades.
+SceneGrade combined_grade() {
+    SceneGrade out;
+    std::lock_guard<std::mutex> lock(g_grade_mutex);
+    for (const ModGrade &m : g_grades) {
+        if (!is_on(m.mod)) continue;
+        out.r *= m.grade.r, out.g *= m.grade.g, out.b *= m.grade.b;
+        out.brightness *= m.grade.brightness, out.saturation *= m.grade.saturation;
+    }
+    return out;
+}
+
+void publish_scene_grade() {
+    const SceneGrade now = combined_grade();
+    if (same_grade(now, g_grade_published)) return;
+    g_grade_published = now;
+    if (const GradeSink sink = g_grade_sink.load(std::memory_order_acquire)) sink(now);
+}
+
 // v8: every active mod's overlay callback, one list for all of them (the mods draw in load order), handed to the sink.
 void run_overlays(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (g_overlays.empty()) return;
@@ -500,9 +531,14 @@ void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
                 a.fn(a.mod, &action_ctx);
             }
     run_overlays(rt, ctx);
+    publish_scene_grade();
 }
 
 void remove_for(const GtMod *mod) {
+    {
+        std::lock_guard<std::mutex> lock(g_grade_mutex);
+        g_grades.erase(std::remove_if(g_grades.begin(), g_grades.end(), [mod](const ModGrade &g) { return g.mod == mod; }), g_grades.end());
+    }
     g_overlays.erase(std::remove_if(g_overlays.begin(), g_overlays.end(), [mod](const Overlay &o) { return o.mod == mod; }), g_overlays.end());
     g_rows.erase(std::remove_if(g_rows.begin(), g_rows.end(), [mod](const Row &r) { return r.mod == mod; }), g_rows.end());
     g_ticks.erase(std::remove_if(g_ticks.begin(), g_ticks.end(), [mod](const Tick &t) { return t.mod == mod; }), g_ticks.end());
@@ -520,6 +556,12 @@ void clear_for_tests() {
     g_draw_owner = nullptr;
     g_draw_submitted_any = false;
     g_draw_sink.store(nullptr);
+    {
+        std::lock_guard<std::mutex> lock(g_grade_mutex);
+        g_grades.clear();
+    }
+    g_grade_published = SceneGrade{};
+    g_grade_sink.store(nullptr);
     {
         std::lock_guard<std::mutex> lock(g_queue_mutex);
         g_queue.clear();
@@ -617,5 +659,25 @@ void api_draw_line(GtMod *self, float x0, float y0, float x1, float y1, float wi
     set_color(cmd, rgba);
     g_draw.push_back(cmd);
 }
+
+void set_grade_sink(GradeSink sink) { g_grade_sink.store(sink, std::memory_order_release); }
+
+int api_scene_grade(GtMod *self, float r, float g, float b, float brightness, float saturation) {
+    if (!v8_mod(self, "scene_grade")) return 1;
+    for (const float v : {r, g, b, brightness, saturation})
+        if (!std::isfinite(v)) return 2;
+    const auto clamp4 = [](float v) { return std::min(std::max(v, 0.0f), 4.0f); };
+    const SceneGrade grade{clamp4(r), clamp4(g), clamp4(b), clamp4(brightness), clamp4(saturation)};
+    std::lock_guard<std::mutex> lock(g_grade_mutex);
+    for (ModGrade &m : g_grades)
+        if (m.mod == self) {
+            m.grade = grade;
+            return 0;
+        }
+    g_grades.push_back(ModGrade{self, grade});
+    return 0;
+}
+
+SceneGrade effective_scene_grade() { return combined_grade(); }
 
 }  // namespace gt::mods::services

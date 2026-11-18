@@ -130,6 +130,15 @@ struct DrawCommand {
 };
 using DrawSink = void (*)(const DrawCommand *commands, std::size_t count);
 void set_draw_sink(DrawSink sink);
+// The scene grade (v8): the product of the active mods' grades, handed to the sink when it changes (and once back to neutral).
+struct SceneGrade {
+    float r{1.0f}, g{1.0f}, b{1.0f}, brightness{1.0f}, saturation{1.0f};
+};
+using GradeSink = void (*)(const SceneGrade &grade);
+void set_grade_sink(GradeSink sink);
+int api_scene_grade(GtMod *self, float r, float g, float b, float brightness, float saturation);
+// The effective grade right now (tests).
+SceneGrade effective_scene_grade();
 int api_on_overlay(GtMod *self, GtOverlayFn fn);
 void api_draw_text(GtMod *self, float x, float y, float size, std::uint32_t rgba, const char *text);
 void api_draw_rect(GtMod *self, float x, float y, float w, float h, std::uint32_t rgba);

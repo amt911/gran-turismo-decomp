@@ -71,8 +71,17 @@ void draw_sink(const gt::mods::services::DrawCommand *commands, std::size_t coun
     g_draw_last = std::move(list);
 }
 
-// The frame dumps show what the window shows: the mods' layer over the game picture.
+void grade_sink(const gt::mods::services::SceneGrade &grade) {
+#ifdef GT_GRADE_SABOTAGE_IGNORE  // verification only: the grade is dropped
+    (void)grade;
+    return;
+#endif
+    lcs::host_scene_grade_set(lcs::HostSceneGrade{grade.r, grade.g, grade.b, grade.brightness, grade.saturation});
+}
+
+// The frame dumps show what the window shows: the game picture graded, the mods' layer over it (ungraded).
 void frame_composer(std::vector<std::uint8_t> &rgb, std::uint32_t width, std::uint32_t height) {
+    lcs::host_scene_grade_apply_rgb(lcs::host_scene_grade(), rgb.data(), static_cast<std::size_t>(width) * height);  // neutral: untouched
     std::vector<lcs::HostDrawCmd> list;
     {
         std::lock_guard<std::mutex> lock(g_draw_mutex);
@@ -368,6 +377,7 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
 #endif
     gt::mods::services::set_menu_open_query(&overlay_open);
     gt::mods::services::set_draw_sink(&draw_sink);
+    gt::mods::services::set_grade_sink(&grade_sink);
     gt::set_frame_composer(&frame_composer);
     gt::mods::services::set_action_held_query([](const std::string &id) {
         return device().pad_held(id) || (!any_overlay_open() && device_ns::key_held(device().key_binding(id)));

@@ -33,7 +33,8 @@ extern "C" {
 #define GT_MOD_API_VERSION_5 5
 /* v6 (2026-11-16): action_held, so a cheat can last while its button is held (nitro). */
 #define GT_MOD_API_VERSION_6 6
-/* v8 (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md): 2D drawing over the game (on_overlay, draw_text / draw_rect / draw_line). The v8 functions refuse a mod that declared api < 8. (7 is the rollover-physics SDK, a separate branch.) */
+/* v8 (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md): 2D drawing over the game (on_overlay, draw_text / draw_rect / draw_line) and a
+ * whole-image colour grade (scene_grade). The v8 functions refuse a mod that declared api < 8. (7 is the rollover-physics SDK, a separate branch.) */
 #define GT_MOD_API_VERSION_8 8
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
@@ -235,6 +236,13 @@ typedef struct GtModApi {
     void (*draw_text)(GtMod *self, float x, float y, float size, uint32_t rgba, const char *text);
     void (*draw_rect)(GtMod *self, float x, float y, float w, float h, uint32_t rgba);
     void (*draw_line)(GtMod *self, float x0, float y0, float x1, float y1, float width, uint32_t rgba);
+    /* A colour grade of the whole game picture (not of the draw_* layer or the host's menus): per channel, c' = clamp(mix(luma(c * (r, g, b)), c * (r, g, b),
+     * saturation) * brightness) with c in 0..1 and luma = Rec.709. (1, 1, 1, 1, 1) is neutral: no grade at all, frames byte-identical to a run without it.
+     * r, g, b, brightness and saturation must be finite and are clamped to 0..4. It stays until the mod sets another one or is switched off in the menu;
+     * several mods' grades multiply. Callable from hooks, ticks and the overlay. 0 = ok, non-zero for a non-finite value. The GPU window applies all of it; the
+     * SDL software window only the tint * brightness (clamped to 1); frame dumps (GT_FRAME_DUMP) apply all of it. The picture shown includes the game's own HUD:
+     * the grade cannot tell the HUD from the 3D scene yet (docs/FACTS.md "Scene grade"). */
+    int (*scene_grade)(GtMod *self, float r, float g, float b, float brightness, float saturation);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

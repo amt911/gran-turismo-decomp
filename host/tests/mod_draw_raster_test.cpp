@@ -164,6 +164,31 @@ int main(int argc, char **argv) {
         check(rgb[3] == 5 && rgb[4] == 10 && rgb[5] == 143, "a half transparent blue pixel blends 50 / 50 (rounded)");
         check(rgb[6] == 200 && rgb[7] == 200 && rgb[8] == 200, "a transparent pixel leaves the image alone (byte-identical)");
     }
+    {  // the scene grade (lcs patch 0072)
+        std::vector<std::uint8_t> ramp;
+        for (int v = 0; v < 256; ++v) ramp.insert(ramp.end(), {static_cast<std::uint8_t>(v), static_cast<std::uint8_t>(255 - v), static_cast<std::uint8_t>((v * 7) & 255)});
+        std::vector<std::uint8_t> same = ramp;
+        lcs::host_scene_grade_apply_rgb(lcs::HostSceneGrade{}, same.data(), 256);
+        check(same == ramp, "the neutral grade is the identity, byte for byte");
+        check(lcs::host_scene_grade_neutral(lcs::host_scene_grade()), "the stored grade starts neutral");
+        std::vector<std::uint8_t> half = ramp;
+        lcs::host_scene_grade_apply_rgb(lcs::HostSceneGrade{0.5f, 0.5f, 0.5f, 1.0f, 1.0f}, half.data(), 256);
+        bool halved = true;
+        for (std::size_t i = 0; i < ramp.size(); ++i) halved = halved && half[i] == static_cast<std::uint8_t>(ramp[i] / 255.0f * 0.5f * 255.0f + 0.5f);
+        check(halved && half[255 * 3] == 128 && half[0] == 0, "a 0.5 tint halves every channel (rounded to nearest)");
+        std::vector<std::uint8_t> bright = {200, 100, 10};
+        lcs::host_scene_grade_apply_rgb(lcs::HostSceneGrade{1, 1, 1, 2.0f, 1}, bright.data(), 1);
+        check(bright[0] == 255 && bright[1] == 200 && bright[2] == 20, "brightness 2 doubles and clamps at 255");
+        std::vector<std::uint8_t> grey = {255, 0, 0};
+        lcs::host_scene_grade_apply_rgb(lcs::HostSceneGrade{1, 1, 1, 1, 0.0f}, grey.data(), 1);
+        check(grey[0] == grey[1] && grey[1] == grey[2] && grey[0] == 54, "saturation 0 gives the Rec.709 luma (0.2126 * 255 = 54)");
+        std::vector<std::uint8_t> tint = {255, 255, 255};
+        lcs::host_scene_grade_apply_rgb(lcs::HostSceneGrade{1.0f, 0.0f, 0.5f, 1.0f, 1.0f}, tint.data(), 1);
+        check(tint[0] == 255 && tint[1] == 0 && tint[2] == 128, "a tint scales each channel");
+        lcs::host_scene_grade_set(lcs::HostSceneGrade{0.25f, 1, 1, 1, 1});
+        check(lcs::host_scene_grade().r == 0.25f && !lcs::host_scene_grade_neutral(lcs::host_scene_grade()), "set / get");
+        lcs::host_scene_grade_set(lcs::HostSceneGrade{});
+    }
     if (failures == 0) std::puts("mod_draw_raster tests passed");
     return failures == 0 ? 0 : 1;
 }

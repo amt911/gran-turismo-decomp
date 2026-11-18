@@ -42,6 +42,9 @@ void sink(const gt::mods::services::DrawCommand *commands, std::size_t count) {
     ++g_sink_calls;
     g_sunk.assign(commands, commands + count);
 }
+gt::mods::services::SceneGrade g_graded;
+int g_grade_calls = 0;
+void grade_sink(const gt::mods::services::SceneGrade &g) { g_graded = g; ++g_grade_calls; }
 bool g_draw_now = true;
 const GtModApi *g_api8 = nullptr;
 void overlay_a(GtMod *self, GtModCtx *) {
@@ -425,6 +428,35 @@ int main() {
         run_vblank_tick(rt, regs, 6);
         check(g_sunk.size() == kMaxDrawCommands, "at most 4096 commands per pass; a non-finite coordinate is dropped");
         clear_for_tests();
+        {  // the scene grade
+            GtMod g6, ga, gb;
+            g6.id = "g6", g6.api_version = GT_MOD_API_VERSION_6;
+            ga.id = "ga", ga.api_version = GT_MOD_API_VERSION_8;
+            gb.id = "gb", gb.api_version = GT_MOD_API_VERSION_8;
+            check(api8.scene_grade(&g6, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f) != 0, "scene_grade refused to an api-6 mod");
+            check(api8.scene_grade(&ga, 0.0f / 0.0f, 1, 1, 1, 1) != 0 && api8.scene_grade(&ga, 1, 1, 1, 1.0f / 0.0f, 1) != 0, "a non-finite grade is refused");
+            check(effective_scene_grade().r == 1.0f, "refused grades change nothing");
+            set_grade_sink(&grade_sink);
+            g_grade_calls = 0;
+            run_vblank_tick(rt, regs, 10);
+            check(g_grade_calls == 0, "neutral at start: the sink is not called");
+            check(api8.scene_grade(&ga, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f) == 0, "scene_grade accepted");
+            run_vblank_tick(rt, regs, 11);
+            check(g_grade_calls == 1 && g_graded.r == 0.5f && g_graded.brightness == 1.0f, "the tick publishes the grade");
+            run_vblank_tick(rt, regs, 12);
+            check(g_grade_calls == 1, "an unchanged grade is not republished");
+            check(api8.scene_grade(&gb, 1.0f, 2.0f, 9.0f, 0.5f, 3.0f) == 0, "a second mod");
+            run_vblank_tick(rt, regs, 13);
+            check(g_graded.r == 0.5f && g_graded.g == 1.0f && g_graded.b == 2.0f && g_graded.brightness == 0.5f && g_graded.saturation == 3.0f,
+                  "grades multiply (values clamp to 0..4 first)");
+            ga.active.store(false);
+            run_vblank_tick(rt, regs, 14);
+            check(g_graded.r == 1.0f && g_graded.b == 4.0f, "a switched-off mod's grade is dropped");
+            gb.active.store(false);
+            run_vblank_tick(rt, regs, 15);
+            check(g_grade_calls == 4 && g_graded.b == 1.0f && g_graded.brightness == 1.0f, "back to neutral: the sink is told once");
+            clear_for_tests();
+        }
     }
 
     if (failures == 0) std::puts("mod_services tests passed");
