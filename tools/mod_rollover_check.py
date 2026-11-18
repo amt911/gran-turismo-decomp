@@ -30,7 +30,9 @@ TAG = r"\[mod:rollover\] "
 NUM = r"-?(?:[\d.]+|nan|inf)"
 VEC = rf"({NUM}),({NUM}),({NUM})"
 STATE = re.compile(TAG + rf"st=(\d+) imp=(\d+) since=(-?\d+) pos={VEC} vel={VEC} fwd={VEC} lat={VEC} up={VEC} tilt=({NUM}),({NUM}) "
-                   rf"rate=({NUM}) flag=([0-9A-Fa-f]{{2}})/(-?\d+) held=(\d+)\(({NUM})\)(?: (?:body|flipmachine)_calls=(\d+))?")
+                   rf"rate=({NUM}) flag=([0-9A-Fa-f]{{2}})/(-?\d+) held=(\d+)\(({NUM})\)(?: (?:body|flipmachine)_calls=(\d+))?"
+                   rf"(?: pclamp=(\d+) prate=({NUM}),({NUM}) yrate=({NUM}))?")
+FAKEPITCH = re.compile(TAG + r"FAKEPITCH st=(\d+) rate=(-?[\d.]+) steps=(\d+)")
 IMPULSE = re.compile(TAG + rf"IMPULSE st=(\d+) held=({NUM})(?: lat={VEC})?")
 FLAGREAD = re.compile(TAG + r"FLAGREAD ra=([0-9A-Fa-f]{8}) lifted=([01])")
 LIFTED_OK = {0x0893E5AC, 0x08956BF0}  # the tilt clamp's and the angle wrap's call sites (+ 8): the only readers that may get 1 (--decomp off)
@@ -65,6 +67,12 @@ MIN_PREMISE_DEPTH = 0.5   # m: the box-off run must sink at least this deep, or 
 SETTLE_AFTER_RESET = 20   # steps after a reset out of a tumble in which the springs settle (0.9 rad/s of wobble at 10, 0.1 at 17)
 MAX_SETTLED_RATE = 0.3
 MAX_REPLAY_DRIFT = 0.5    # m: largest distance between the live car and its replay at the same player-car step (measured 0.06 m on circuit_analog, a car at rest)
+PITCH_LIMIT = 0.611       # rad: the game's own pitch clamp (35 deg), kept by the mod (0.4.0)
+PITCH_SLACK = 0.08        # rad: the limit is checked before the step, so the angle may be one step's turn past it in a logged state
+MAX_NOSE_Z = 0.62         # |forward.z| (= sin(pitch)): sin(0.611 + slack) = 0.64 at most; a nose standing up is > 0.9
+PITCH_WINDOW = 400        # steps after the kick that are judged
+MAX_REALISTIC_RATE = 4.0  # rad/s: the roll rate the shipped defaults ask for in the barrier hit (a drive of R rad/s held 40 steps turns the car R/3 rad; over ~1 rad it goes over)
+MIN_REALISTIC_UP_Z = 0.2  # the car never goes past ~80 deg of tilt in the barrier hit with the shipped defaults
 ROLLED_UP_Z = 0.5         # up.z below this: the car is past ~60 deg of tilt
 
 
@@ -75,7 +83,8 @@ def parse_states(text):
         f = [float(x) for x in g[3:20]] + [float(g[20])]
         out.append({"st": int(g[0]), "imp": int(g[1]), "since": int(g[2]), "pos": tuple(f[0:3]), "vel": tuple(f[3:6]), "fwd": tuple(f[6:9]),
                     "lat": tuple(f[9:12]), "up": tuple(f[12:15]), "tilt": (f[15], f[16]), "rate": f[17],
-                    "flag": int(g[21], 16), "count": int(g[22]), "held": int(g[23]), "flipcalls": int(g[25]) if g[25] is not None else None})
+                    "flag": int(g[21], 16), "count": int(g[22]), "held": int(g[23]), "flipcalls": int(g[25]) if g[25] is not None else None,
+                    "pclamp": int(g[26]) if g[26] is not None else None, "yrate": float(g[29]) if g[29] is not None else None})
     return out
 
 
@@ -162,6 +171,59 @@ def judge_roll(text, expected_flipcalls=True):
         return False, f"the car ends neither upright nor upside down at rest (up.z {end['up'][2]:.3f}, {speed(end):.1f} m/s)"
     return True, (f"first hit at step {first['st']} (rate {first['held']:+.1f}), {len(before)} quiet lines before it; lowest up.z {low['up'][2]:.3f}, "
                   f"tilt {top_tilt:.2f} rad toward the side hit; flip machine dormant, no height jump; ends up.z {end['up'][2]:.2f} at {speed(end):.1f} m/s")
+
+
+def judge_pitch(text, expect_limit=True):
+    """The pitch run: a nose-up pitch rate is forced for a while (FAKEPITCH line); the car's pitch angle must stay at the game's own 35 degree limit (the
+    nose never stands up: forward.z = sin(pitch) stays under MAX_NOSE_Z) and the limit must have had something to hold (pclamp > 0), or the run
+    proves nothing. Returns (ok, message)."""
+    states = parse_states(text)
+    kicks = [(int(m.group(1)), float(m.group(2))) for m in FAKEPITCH.finditer(text)]
+    if not states:
+        return False, "no `[mod:rollover]` state lines: the mod did not run"
+    if not kicks:
+        return False, "no FAKEPITCH line: the pitch kick was never applied (GT_MOD_ROLLOVER_FAKE_PITCH)"
+    kick, _rate = kicks[0]
+    window = [s for s in states if kick <= s["st"] <= kick + PITCH_WINDOW]
+    if len(window) < 5:
+        return False, f"only {len(window)} state lines in the {PITCH_WINDOW} steps after the kick at step {kick}"
+    nose = max(abs(s["fwd"][2]) for s in window)
+    pitch = max(abs(s["tilt"][0]) for s in window)
+    clamps = max((s["pclamp"] or 0) for s in window)
+    if nose > MAX_NOSE_Z or pitch > PITCH_LIMIT + PITCH_SLACK:
+        top = max(window, key=lambda s: abs(s["tilt"][0]))
+        return False, (f"the nose went up: |forward.z| {nose:.2f} (max {MAX_NOSE_Z}), pitch {pitch:.2f} rad (limit {PITCH_LIMIT}) at step {top['st']}, "
+                       f"{pitch:.2f} rad; the car stands on its tail and spins ({abs(top['yrate'] or 0):.1f} rad/s of yaw there)")
+    if expect_limit and clamps == 0:
+        return False, "the limit never engaged (pclamp 0): the kick did not push the pitch past 35 degrees, so the run proves nothing"
+    return True, f"kick at step {kick}: pitch stayed within {pitch:.2f} rad (|forward.z| {nose:.2f}); the limit held it in {clamps} steps"
+
+
+def judge_realistic(text):
+    """The barrier hit with the shipped defaults: the mod asks for a lean, not a flip (the hit is detected; the roll rate is under MAX_REALISTIC_RATE; the
+    car never gets past ~80 degrees of tilt; it ends upright). Returns (ok, message)."""
+    states, impulses = parse_states(text), parse_impulses(text)
+    if not states:
+        return False, "no `[mod:rollover]` state lines: the mod did not run"
+    if not impulses:
+        return False, "no IMPULSE line: the hit was not detected (the premise of the check)"
+    first = impulses[0]
+    if first["st"] < MIN_CRASH_STEP:
+        return False, f"an impulse at step {first['st']}, before the crash"
+    if abs(first["held"]) > MAX_REALISTIC_RATE:
+        return False, f"the barrier hit asked for a roll rate of {abs(first['held']):.1f} rad/s (max {MAX_REALISTIC_RATE}): a wall hit would flip the car"
+    window = [s for s in states if first["st"] <= s["st"] <= first["st"] + ROLL_WINDOW]
+    if not window:
+        return False, "no state lines after the impulse"
+    low = min(window, key=lambda s: s["up"][2])
+    if low["up"][2] < MIN_REALISTIC_UP_Z:
+        return False, f"the car went over: up.z {low['up'][2]:.3f} at step {low['st']} (min {MIN_REALISTIC_UP_Z})"
+    final = [s for s in states if s["st"] >= first["st"] + SETTLE_STEPS]
+    if not final:
+        return False, f"the log ends before {SETTLE_STEPS} steps after the impulse"
+    if final[-1]["up"][2] < MIN_UPRIGHT_Z:
+        return False, f"the car does not end upright (up.z {final[-1]['up'][2]:.3f})"
+    return True, f"hit at step {first['st']} asked {abs(first['held']):.1f} rad/s; lowest up.z {low['up'][2]:.2f}, ends upright (up.z {final[-1]['up'][2]:.2f})"
 
 
 def parse_box(text):
@@ -348,6 +410,14 @@ def main(argv):
         okb, messageb = judge_box(text)
         print(("PASS " if okb else "FAIL ") + f"box: {messageb}")
         return 0 if ok and okb else 1
+    if mode == "pitch":
+        ok, message = judge_pitch(read(os.path.join(out, "pitch", "run.log")))
+        print(("PASS " if ok else "FAIL ") + f"pitch: {message}")
+        return 0 if ok else 1
+    if mode == "realistic":
+        ok, message = judge_realistic(read(os.path.join(out, "realistic", "run.log")))
+        print(("PASS " if ok else "FAIL ") + f"realistic: {message}")
+        return 0 if ok else 1
     if mode == "boxcmp":
         ok, message = judge_box_compare(read(os.path.join(out, "roll", "run.log")), read(os.path.join(out, "nobox", "run.log")))
         print(("PASS " if ok else "FAIL ") + f"boxcmp: {message}")
