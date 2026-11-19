@@ -179,6 +179,7 @@ const GtModApi &mod_api(int version) {
                         services::api_model_runs, services::api_run_vertex, services::api_run_set_vertex, services::api_on_switch_off, services::api_blob_runs, services::api_draw_matrix,
                         services::api_run_normal, services::api_run_set_normal, services::api_action_held,
                         services::api_car_dimensions, services::api_car_wheel_contacts, services::api_car_set_pose, tilt::api_tilt_free,
+                        nullptr, nullptr, nullptr, nullptr, nullptr,  // v8 (PR #667): reserved slots
                         camera::api_camera_get, camera::api_camera_set, camera::api_replay_active};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),

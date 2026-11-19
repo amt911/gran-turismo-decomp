@@ -392,6 +392,37 @@ tools/mod_rollover_check.sh --without-mod         # física original, el mod sol
 
 Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
 
+## API v9: cámara (spec `docs/superpowers/specs/2026-11-18-extra-cameras-design.md`)
+
+Un mod que declara `api = 9` puede leer y sustituir la pose de la cámara del jugador sin direcciones del juego (`host/mod_camera.cpp`, `host/tests/mod_camera_test.cpp`).
+**Debe fusionarse después de #667 (API v8, dibujo 2D):** los campos v9 de `GtModApi` van tras los v8; mientras #667 no esté, el host rechaza `api = 8`.
+
+- `hook_point(GT_HOOK_CAMERA, fn)`: `fn` corre delante de la carga de la matriz de vista (`0x08B568DC`, una vez por capa del bucle del renderizador `0x08AF1524`) **solo para la cámara
+  del jugador** (la cámara activa del objeto de escena `S`, que nombra `0x08928A80`; la matriz que se carga debe ser su vista dentro de las tolerancias del mod orbit-camera, así que
+  la pasada del retrovisor y las demás capas no la ven). El host llama a la carga original **después** de todos los `fn` activos: `fn` **no** llama a `call_original`. Una función por mod.
+  FACTS «Camera and the world-matrix upload» tiene la evidencia de las tres direcciones.
+- `camera_get(self, ctx, eye, basis)` / `camera_set(self, ctx, eye, basis)`: la pose en el **marco físico** (Z arriba, el de `car_state`) con la convención de filas del coche
+  (adelante, derecha, arriba; izquierdas). `camera_set` exige filas unitarias y ortogonales (1e-2) y valores finitos, y escribe la vista en el temporal del renderizador: nada más en el juego ve el cambio;
+  hay que escribirla en cada fotograma. Fuera de una función de cámara devuelven distinto de 0.
+- `replay_active(self, ctx)`: 1 mientras el último paso de mundo tenía al coche humano en su rol de repetición (rol 3 de `race_cars`).
+- Conversión de marcos (probada en `mod_camera_test`): render (x, y, z) -> físico (x, -z, y); la cámara mira por -z de la vista (`adelante = -fila 2` de la matriz cámara-a-mundo).
+- Sin ajuste de plano cercano (la spec lo dejaba «si el SDK puede»): no está.
+
+## Construir e instalar `extra-cameras`
+
+README de `gt-mods` (`extra-cameras/`, API 9, `enabled = false` por defecto). Vistas **Wheel** (fija a la carrocería en la rueda delantera izquierda), **Roof** (sobre el techo, mirando adelante y algo abajo) y **TV**
+(puntos fijos junto a la pista que siguen al coche) en la categoría Camera del dispositivo de trucos (fila `Extra view`, acción `Next extra view`), y la **cámara helicóptero** de las repeticiones (fila `Replay camera`).
+No hechas (documentado en el README del mod): ampliar el ciclo SELECT del juego y el botón de cámara de la repetición, y migrar orbit-camera a estas funciones.
+
+```bash
+GT_MODS_REPO=../gt-mods-cams tools/mod_cameras_check.sh [--decomp off|on] [--others]   # off / idle (sin vista extra: todos los fotogramas idénticos) / wheel / roof / tv
+tools/mod_cameras_check.sh --heli [--decomp off|on]       # ruta circuit: en la repetición el ojo queda por encima y detrás del coche
+tools/mod_cameras_check.sh --without-mod                  # debe FALLAR (sin líneas CAM)
+tools/mod_cameras_check.sh --sabotage-offset              # el mod calcula la pose pero no la entrega al juego: debe FALLAR (el coche no se dibuja donde dice la pose)
+```
+El juez compara la pose entregada con las matrices MUNDO del propio juego: el mod registra, por cada pieza del coche del jugador que dibuja, la fila de traslación de su matriz (`draw_matrix`) y
+la posición que la pose pone al origen del cuerpo (`DRAW seen=... expected=...`); la mediana de la diferencia debe quedar bajo 1 m por componente (el origen del modelo no es el del cuerpo: ~0,7 m en vertical medido con la vista Roof).
+
 ## Descargador de mods (en construcción)
 
 Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):

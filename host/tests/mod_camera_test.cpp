@@ -51,6 +51,11 @@ void camera_fn(GtModCtx *c) {
     if (g_set_eye != nullptr) g_set_status = api.camera_set(g_mod, c, g_set_eye, g_set_basis);
 }
 
+float g_b_eye[3];
+int g_b_status = -9;
+GtMod *g_mod_b = nullptr;
+void camera_fn_b(GtModCtx *c) { g_b_status = mod_api(GT_MOD_API_VERSION_9).camera_get(g_mod_b, c, g_b_eye, g_basis_seen); }
+
 void write_matrix(psprecomp::Runtime &rt, std::uint32_t at, const float m[16]) {
     for (int i = 0; i < 16; ++i) {
         std::uint32_t bits;
@@ -213,6 +218,12 @@ int main() {
         g_set_status = -1;
         load(scratch);
         check(g_set_status != 0 && g_set_status != -1, "rows that are not a rotation are refused");
+        const float mirrored[9] = {0, 1, 0, -1, 0, 0, 0, 0, 1};  // right-handed: forward x right . up = +1
+        g_set_basis = mirrored;
+        g_set_status = -1;
+        write_matrix(rt, scratch, view);
+        load(scratch);
+        check(g_set_status != 0 && g_set_status != -1, "a right-handed (mirrored) set is refused");
         psprecomp::AllegrexContext cc{};
         GtModCtx fake{&rt, &cc, 0, 0};
         float e[3], b[9];
@@ -226,6 +237,53 @@ int main() {
         check(g_get_status == -3, "a switched-off mod's camera function does not run");
         mod.api_version = 7;
         check(camera::api_camera_hook(&mod, camera_fn) != 0 && camera::api_replay_active(&mod, &fake) == 0, "api < 9 refuses the v9 functions");
+        camera::clear_for_tests();
+    }
+    clear_hooks_for_tests();
+    // two mods with camera functions: the second still runs after the first replaced the pose, and sees the first's pose (the match test is against the game's view, not the edited one)
+    {
+        psprecomp::Runtime rt;
+        rt.register_function(camera::kSceneRefresh, &scene_refresh, "refresh");
+        rt.register_function(camera::kSceneRenderer, &scene_render, "render");
+        rt.register_function(camera::kViewLoad, &view_load, "load");
+        GtMod a, b;
+        a.id = "cams-a"; a.api_version = 9; a.active.store(true);
+        b.id = "cams-b"; b.api_version = 9; b.active.store(true);
+        g_mod = &a;
+        g_mod_b = &b;
+        std::string error;
+        check(camera::install(rt, &a, error) && camera::install(rt, &b, error), "install two mods");
+        check(camera::api_camera_hook(&a, camera_fn) == 0 && camera::api_camera_hook(&b, camera_fn_b) == 0, "both register");
+        const std::uint32_t S = 0x09000000u, CAM = 0x09100000u, SP = 0x09200000u;
+        const float eye[3] = {10, 2, -4};
+        float cam[16] = {};
+        cam[0] = cam[5] = cam[10] = cam[15] = 1.0f;
+        for (int k = 0; k < 3; ++k) cam[12 + k] = eye[k];
+        write_matrix(rt, CAM + camera::kCameraMatrix, cam);
+        rt.memory().store32(S + camera::kSceneCamera, CAM);
+        psprecomp::AllegrexContext ctx{};
+        ctx.gpr[31] = 0x08800100u;
+        ctx.gpr[4] = S;
+        ctx.pc = camera::kSceneRefresh;
+        rt.function_at(camera::kSceneRefresh)(rt, ctx);
+        ctx.pc = camera::kSceneRenderer;
+        ctx.gpr[29] = SP + camera::kLoopFrame;
+        rt.function_at(camera::kSceneRenderer)(rt, ctx);
+        const std::uint32_t scratch = SP + camera::kLoopScratch;
+        float view[16];
+        identity_view(eye, view);
+        write_matrix(rt, scratch, view);
+        const float tv_eye[3] = {0, 0, 50};
+        const float basis[9] = {0, 1, 0, 1, 0, 0, 0, 0, 1};
+        g_set_eye = tv_eye;
+        g_set_basis = basis;
+        g_b_status = -9;
+        psprecomp::AllegrexContext c{};
+        c.pc = camera::kViewLoad;
+        c.gpr[4] = scratch;
+        c.gpr[31] = 0x08800100u;
+        rt.function_at(camera::kViewLoad)(rt, c);
+        check(g_b_status == 0 && near(g_b_eye[0], 0) && near(g_b_eye[1], 0) && near(g_b_eye[2], 50), "the second mod's camera function runs and sees the first one's pose");
         camera::clear_for_tests();
     }
     if (failures == 0) std::puts("mod_camera_test: all checks passed");

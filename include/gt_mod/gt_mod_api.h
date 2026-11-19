@@ -262,6 +262,12 @@ typedef struct GtModApi {
      * only the clamp and the Euler-angle wrap read the lifted flag, never the dormant flip machine. Takes effect at the next physics step; undone
      * when the mod is switched off in the menu. 0 = ok; non-zero for a null handle. */
     int (*tilt_free)(GtMod *self, GtModCtx *ctx, uint32_t car, int on);
+    /* ---- v8 (PR #667, the draw API): these slots are reserved so the v9 fields below keep their offsets when #667 merges. NULL until then; the host refuses `api = 8`. ---- */
+    int (*reserved_v8_on_overlay)(GtMod *self, void *fn);
+    void (*reserved_v8_draw_text)(GtMod *self, float x, float y, float size, uint32_t rgba, const char *text);
+    void (*reserved_v8_draw_rect)(GtMod *self, float x, float y, float w, float h, uint32_t rgba);
+    void (*reserved_v8_draw_line)(GtMod *self, float x0, float y0, float x1, float y1, float width, uint32_t rgba);
+    int (*reserved_v8_scene_grade)(GtMod *self, float r, float g, float b, float brightness, float saturation);
     /* ---- v9 (appended after v8). Only valid for a mod that declared `api = 9`. ---- */
     /* In a GT_HOOK_CAMERA function: the camera's pose in the PHYSICS frame (Z up, the frame of car_state): `eye` and `basis` = three rows (forward, right, up), the car's convention
      * (left-handed rows). 0 = ok; non-zero outside a camera hook or for a matrix that is not finite. */
@@ -269,7 +275,7 @@ typedef struct GtModApi {
     /* Replaces the pose the game is about to render with (same frame and row convention). The rows must be unit length and orthogonal within 1e-2, the values finite; non-zero (nothing
      * changed) otherwise. Applies to this load only: write it every frame. The pose, not the game's view object, so nothing else in the game sees the edit. */
     int (*camera_set)(GtMod *self, GtModCtx *ctx, const float eye[3], const float basis[9]);
-    /* 1 while the race being shown is a replay (the latest world step had the human's car in its replay role), else 0. Callable from hooks, ticks and camera functions. */
+    /* 1 while the race being shown is a replay (the latest world step had the human's car in its replay role), else 0. Callable from hooks, ticks and camera functions. The host learns the world from the world-step hook (GT_HOOK_WORLD_STEP): a mod that never hooks it (nor does any other loaded mod) always gets 0. */
     int (*replay_active)(GtMod *self, GtModCtx *ctx);
 } GtModApi;
 

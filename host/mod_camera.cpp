@@ -30,6 +30,10 @@ std::uint32_t g_scene = 0, g_loop_scratch = 0;
 std::atomic<std::uint32_t> g_world{0};
 // The view the host is handing to the mods right now (valid only inside a camera hook).
 const GtModCtx *g_view_ctx = nullptr;
+std::uint32_t g_view_address = 0;  // the validated address of that view (64 bytes inside guest memory): a mod's set_gpr or a call_guest cannot redirect camera_get / camera_set
+// The view the last camera_set wrote: another mod's link of the SAME load sees an edited matrix, which no longer matches the scene camera, and must still be given it.
+float g_edited[16];
+bool g_have_edited = false;
 
 void call_next(GtModCtx *c) { mod_api(GT_MOD_API_VERSION_7).call_original(c); }
 
@@ -74,13 +78,18 @@ void on_view_load(GtModCtx *c) {
         view[i] = load_f(rt, view_address + 4u * i);
         cm[i] = load_f(rt, cam + kCameraMatrix + 4u * i);
     }
-    if (view_matches_camera(view, cm)) {
+    bool same_as_edit = g_have_edited;
+    for (int i = 0; i < 16 && same_as_edit; ++i) same_as_edit = view[i] == g_edited[i];
+    if (view_matches_camera(view, cm) || same_as_edit) {
+        g_have_edited = false;  // a new load starts from the game's matrix
         // the hooks of the active mods that registered one; this link's own mod first (the chain gives every mod's link a turn)
         for (const Hook &h : hooks())
             if (h.mod == c->mod && c->mod != nullptr && c->mod->active.load(std::memory_order_acquire)) {
                 g_view_ctx = c;
+                g_view_address = view_address;
                 h.fn(c);
                 g_view_ctx = nullptr;
+                g_view_address = 0u;
             }
     }
     call_next(c);
@@ -164,7 +173,7 @@ bool camera_ok(GtMod *self, const char *what) {
 int api_camera_get(GtMod *self, GtModCtx *ctx, float eye[3], float basis[9]) {
     if (!camera_ok(self, "camera_get") || ctx == nullptr || eye == nullptr || basis == nullptr || g_view_ctx != ctx) return 1;  // only inside a camera hook
     float view[16];
-    const std::uint32_t a = ctx->ctx->gpr[4];
+    const std::uint32_t a = g_view_address;
     for (int i = 0; i < 16; ++i) view[i] = load_f(*ctx->rt, a + 4u * i);
     return view_to_pose(view, eye, basis) ? 0 : 1;
 }
@@ -186,10 +195,17 @@ int api_camera_set(GtMod *self, GtModCtx *ctx, const float eye[3], const float b
             if (std::fabs(d) > 1e-2f) return 1;
         }
     }
+    // handedness: the car's rows are left-handed (forward x right . up = -1); a reflected set would flip the culling
+    {
+        const float cx = basis[1] * basis[5] - basis[2] * basis[4], cy = basis[2] * basis[3] - basis[0] * basis[5], cz = basis[0] * basis[4] - basis[1] * basis[3];
+        if (cx * basis[6] + cy * basis[7] + cz * basis[8] > -0.5f) return 1;
+    }
     float view[16];
     pose_to_view(eye, basis, view);
-    const std::uint32_t a = ctx->ctx->gpr[4];
-    for (int i = 0; i < 16; ++i) store_f(*ctx->rt, a + 4u * i, view[i]);  // the renderer's stack temporary: nothing else sees the edit
+    const std::uint32_t a = g_view_address;
+    for (int i = 0; i < 16; ++i) store_f(*ctx->rt, a + 4u * i, view[i]);
+    std::memcpy(g_edited, view, sizeof g_edited);
+    g_have_edited = true;  // the renderer's stack temporary: nothing else sees the edit
     return 0;
 }
 
@@ -233,6 +249,8 @@ void clear_for_tests() {
     g_scene = g_loop_scratch = 0u;
     g_world.store(0u);
     g_view_ctx = nullptr;
+    g_view_address = 0u;
+    g_have_edited = false;
 }
 
 }  // namespace gt::mods::camera
