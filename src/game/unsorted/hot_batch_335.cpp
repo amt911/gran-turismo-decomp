@@ -1012,6 +1012,7 @@ void func_08B41AF4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (record == 0u) return leave(0u);
     for (;;) {
         if (static_cast<s32>(signed_half(rt, record + 0x28u)) >= 0) {
+            ctx.gpr[5] = signed_half(rt, record + 0x28u);  // a1 as the asm leaves it (lh a1, 0x28(s1)): the callee may read it
             const u32 holder = call_set(rt, ctx, 0x08B3EBD0u, {object + 0x154u});
             if (holder != 0u && word(rt, holder + 0x10u) != 0u) call_set(rt, ctx, 0x08B3ED24u, {holder, signed_half(rt, record + 0x16u), signed_half(rt, record)});
         }

@@ -1170,7 +1170,8 @@ void func_08A15DA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 begin = word(rt, object + 0x3Cu);
     const s32 count = static_cast<s32>(end - begin) >> 4;
     ctx.gpr[2] = static_cast<u32>(count);
-    const auto append = [&](u32 source, bool copy_from_source, const float values[4], u32 capacity) {
+    // `values` null: the empty-vector case, which reads the argument's four floats only when it stores them (an argument the original never reads may be any word).
+    const auto append = [&](u32 source, const float *values, u32 capacity) {
         ctx.gpr[2] = capacity;
         if (end == capacity) {
             call_set(rt, ctx, 0x08C16984u, {vector, end, source});
@@ -1178,19 +1179,19 @@ void func_08A15DA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         }
         u32 next_end = end;
         if (end != 0u) {
-            put_float(rt, end + 0xCu, values[3]);
-            put_float(rt, end + 0u, values[0]);
-            put_float(rt, end + 4u, values[1]);
-            put_float(rt, end + 8u, values[2]);
+            const float stored[4] = {values != nullptr ? values[0] : float_at(rt, source), values != nullptr ? values[1] : float_at(rt, source + 4u),
+                                     values != nullptr ? values[2] : float_at(rt, source + 8u), values != nullptr ? values[3] : float_at(rt, source + 0xCu)};
+            put_float(rt, end + 0xCu, stored[3]);
+            put_float(rt, end + 0u, stored[0]);
+            put_float(rt, end + 4u, stored[1]);
+            put_float(rt, end + 8u, stored[2]);
             next_end = word(rt, vector + 4u);
             ctx.gpr[3] = next_end;
         }
-        (void)copy_from_source;
         put(rt, vector + 4u, next_end + 0x10u);
     };
     if (count == 0) {
-        const float values[4] = {float_at(rt, argument), float_at(rt, argument + 4u), float_at(rt, argument + 8u), float_at(rt, argument + 0xCu)};
-        append(argument, false, values, word(rt, vector + 8u));
+        append(argument, nullptr, word(rt, vector + 8u));
         return;
     }
     const u32 last = end - 0x10u;
@@ -1215,7 +1216,7 @@ void func_08A15DA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     put_float(rt, frame.at(8u), z);
     put_float(rt, frame.at(0xCu), w);
     const float values[4] = {x, y, z, w};
-    append(frame.at(0u), true, values, word(rt, vector + 8u));
+    append(frame.at(0u), values, word(rt, vector + 8u));
 }
 void func_08ABADE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_request_record(rt, ctx); }
 void func_08AC6FE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x28u), G[18]); put(rt, frame.at(0x24u), G[17]); put(rt, frame.at(0x20u), G[16]); put(rt, frame.at(0x2Cu), G[31]); G[18] = G[4]; G[17] = G[6]; G[16] = G[5]; call_here(rt, ctx, 0x08B344E0u); G[2] = 0x1u; store8(G[18] + 0x28u, G[2]); G[4] = G[16]; G[5] = G[17]; call_here(rt, ctx, 0x08C7AB50u); { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[16] = 0u; if (tk) goto L_08AC711C; } put(rt, G[18] + 0x2Cu, G[2]); G[4] = G[2]; call_here(rt, ctx, 0x08C7AB80u); { const bool tk = G[2] != 0u; G[16] = 0u; if (tk) goto L_08AC711C; } G[4] = word(rt, G[18] + 0x2Cu); G[16] = frame.at(0x4u); G[5] = G[16]; call_here(rt, ctx, 0x08C7AB68u); { const bool tk = G[2] != 0u; G[2] = word(rt, frame.at(0x4u)); if (tk) goto L_08AC7118; } G[3] = frame.at(0u); put(rt, frame.at(0x0u), 0u); G[2] = static_cast<std::int32_t>(G[2]) < 0 ? 1u : 0u; if (G[2] == 0u) G[3] = G[16]; G[5] = word(rt, G[3] + 0x0u); G[4] = word(rt, G[18] + 0x2Cu); G[3] = 0x2u; G[2] = G[5] >> 31; G[2] = G[2] + G[5]; G[2] = sra(G[2], 1); put(rt, G[18] + 0x30u, G[3]); G[5] = frame.at(0x8u); put(rt, G[18] + 0x38u, G[2]); call_here(rt, ctx, 0x08C7AB78u); { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[2] = word(rt, frame.at(0x8u)); if (tk) goto L_08AC7118; } G[4] = word(rt, G[18] + 0x2Cu); G[5] = frame.at(0xCu); put(rt, G[18] + 0x34u, G[2]); G[6] = frame.at(0x10u); G[7] = frame.at(0x14u); put(rt, frame.at(0xCu), 0u); put(rt, frame.at(0x10u), 0u); put(rt, frame.at(0x14u), 0u); call_here(rt, ctx, 0x08C7AB70u); { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[5] = word(rt, frame.at(0x10u)); if (tk) goto L_08AC7118; } { const bool tk = static_cast<std::int32_t>(G[5]) < 0; G[4] = word(rt, frame.at(0xCu)); if (tk) goto L_08AC70F8; } G[2] = static_cast<std::int32_t>(G[4]) < static_cast<std::int32_t>(G[5]) ? 1u : 0u; { const bool tk = G[2] != 0u; G[3] = word(rt, frame.at(0x14u)); if (tk) goto L_08AC70FC; } { const bool tk = static_cast<std::int32_t>(G[3]) < 0; G[2] = static_cast<std::int32_t>(G[4]) < static_cast<std::int32_t>(G[3]) ? 1u : 0u; if (tk) goto L_08AC70FC; } if (G[2] != 0u) { G[16] = 0x1u; goto L_08AC7100; } G[4] = word(rt, G[18] + 0x2Cu); G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08C7AB60u); G[5] = word(rt, frame.at(0x10u)); G[4] = word(rt, frame.at(0xCu)); G[3] = word(rt, frame.at(0x14u)); goto L_08AC70FC; L_08AC70F8: ; G[3] = word(rt, frame.at(0x14u)); L_08AC70FC: ; G[16] = 0x1u; L_08AC7100: ; put(rt, G[18] + 0x3Cu, G[4]); put(rt, G[18] + 0x40u, G[5]); put(rt, G[18] + 0x44u, G[3]); store8(G[18] + 0x28u, 0u); goto L_08AC711C; L_08AC7118: ; G[16] = 0u; L_08AC711C: ; G[4] = G[18]; call_here(rt, ctx, 0x08B3457Cu); G[2] = G[16]; goto exit_;  exit_: ; G[18] = word(rt, frame.at(0x28u)); G[17] = word(rt, frame.at(0x24u)); G[16] = word(rt, frame.at(0x20u)); } } if (tail != 0u) jump(ctx, tail); } }
