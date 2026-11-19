@@ -60,7 +60,7 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   `GT_SYNTH_ROUTE=<full route>` sets the scene with another route (its full-gate length + 1200 s): script natives whose
   holders reach race objects fault in the original after `dealer` and compare after `race` (FINDINGS). A batch
   verified that way is re-checked in its verdict with the same variable. The variable takes a comma-separated list
-  (the routes run side by side): verdicts run `GT_SYNTH_ROUTE=dealer,race,save_garage,circuit,buy,options`, every
+  (the routes run side by side): verdicts run `GT_SYNTH_ROUTE=dealer,race,save_garage,circuit,buy,options` and `garage,challenge,dirt,manual,challenge2` (`GT_VERIFY_SYNTH_GROUPS`), every
   route some function was verified after.
   **Corpus (spec `2026-11-11-coverage-guided-synthetic-inputs-design.md`):** `config/synth_corpus/<ADDRESS>.txt` holds recipes (a generated case plus
   mutations, no game bytes) that earlier searches found to reach new branches; the synthetic gate replays them after each function's
