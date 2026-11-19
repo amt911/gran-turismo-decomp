@@ -63,13 +63,19 @@ def test_barrier_passes_and_each_defect_fails():
     assert "quiet" in sc.judge_barrier("\n".join(barrier_log().splitlines()[30:]))[1] or "state lines" in sc.judge_barrier("\n".join(barrier_log().splitlines()[30:]))[1]
 
 
-def test_barrier_requires_a_tip_and_a_valid_rest_pose():
+def test_barrier_tip_only_in_tip_mode_and_valid_rest_pose():
     no_tip = barrier_log().replace("up.z=0.100", "up.z=0.900")
-    ok, why = sc.judge_barrier(no_tip)
+    assert sc.judge_barrier(no_tip)[0]  # the real barrier hit does not tip the car (measured): not asked
+    ok, why = sc.judge_barrier(no_tip, tip=True)
     assert not ok and "never tipped" in why
+    assert sc.judge_barrier(barrier_log(), tip=True)[0]
     floating = barrier_log().replace("contacts=4/4", "contacts=1/1")  # final pose held by one contact
     assert "not a valid rest pose" in sc.judge_barrier(floating)[1]
     assert sc.judge_barrier(floating + "\n" + ends())[0]  # handed back: no rest pose asked
+    # a takeover before the crash step is fine in tip mode (the fake hit comes early) but not in the route's barrier mode
+    early = barrier_log().replace("TAKEOVER st=1855", "TAKEOVER st=900")
+    assert not sc.judge_barrier(early)[0]
+    assert sc.judge_barrier(early, tip=True)[0]
 
 
 def test_sim_hits_are_bounded():
