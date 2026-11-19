@@ -95,7 +95,7 @@ def drop_log(rebound=0.04, e_drop=2.0, handback=True, gain=12.0, upz_after=1.0):
         lines.append(sim(100 + n, n, lowest=z, vel=(4.0, 0, vz), bottom=0, contacts=0))
         n += 1
     lines.append(sim(100 + n, n, lowest=0.0, vel=(3.9, 0, math.sqrt(2 * 9.81 * rebound)), bottom=4, contacts=4)); n += 1
-    lines.append(sim(100 + n, n, lowest=rebound, vel=(3.8, 0, 0.5), bottom=0, contacts=0)); n += 1
+    lines.append(sim(100 + n, n, lowest=rebound, vel=(3.8, 0, 0.5 * math.sqrt(2 * 9.81 * rebound)), bottom=0, contacts=0)); n += 1
     lines.append(sim(100 + n, n, lowest=rebound, vel=(3.8, 0, -0.2), bottom=0, contacts=0)); n += 1
     for k in range(120):
         lines.append(sim(100 + n, n, lowest=0.0, vel=(max(0.0, 3.8 - 0.07 * k), 0, 0), bottom=4, contacts=4)); n += 1
