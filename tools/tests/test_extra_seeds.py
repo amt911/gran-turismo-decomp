@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from tools.extra_seeds import (
+    effective_sizes,
     Evidence, REASON_NO_EVIDENCE, REASON_SHARED_TAIL, falls_into, references, select, verify, write_seeds,
 )
 
@@ -157,3 +158,16 @@ def test_sabotage_a_seed_inside_an_existing_function_is_a_split(tmp_path: Path):
 def test_select_rejects_an_unknown_phase():
     with pytest.raises(ValueError):
         select([], BASE, {}, set(), [], "C")
+
+
+def test_effective_sizes_cut_an_overlapping_thunk_at_its_jump():
+    words, funcs = lay([j(BASE + 0x40), NOP, PROLOGUE] + RET + [NOP] * 3)
+    assert funcs == {BASE: 32}
+    assert effective_sizes(words, BASE, funcs) == {BASE: 8}
+    assert effective_sizes(words, BASE, {BASE: 8}) == {BASE: 8}
+
+
+def test_effective_sizes_keep_code_after_a_return_that_a_branch_jumps_over():
+    skip = 0x10000000 | 3  # b +3 words
+    words, funcs = lay([skip, NOP, JR_RA, NOP, JR_RA, NOP, NOP, NOP])
+    assert effective_sizes(words, BASE, funcs)[BASE] == 24

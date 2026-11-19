@@ -154,6 +154,29 @@ def select(words: Sequence[int], base: int, functions: Mapping[int, int], emitte
     return seeds, rejected
 
 
+def effective_sizes(words: Sequence[int], base: int, functions: Mapping[int, int]) -> dict[int, int]:
+    """The size of each function as its code shows it: up to the first unconditional return/jump (and its delay slot) that no earlier
+    branch jumps over. Ghidra's sizes can overlap (a two-instruction tail-jump thunk listed with the size of the function after it);
+    a seed inside such an overlap is not a split of the thunk."""
+    sizes = {}
+    for address, size in functions.items():
+        start = (address - base) // 4
+        body = words[start:start + size // 4]
+        farthest = 0  # index of the farthest branch target seen so far
+        end = len(body)
+        for i, w in enumerate(body):
+            op = w >> 26
+            if op in (4, 5, 6, 7, 0x14, 0x15, 0x16, 0x17) or (op == 1 and (w >> 16) & 31 in (0, 1, 2, 3, 0x10, 0x11)):
+                offset = w & 0xFFFF
+                offset -= 0x10000 if offset & 0x8000 else 0
+                farthest = max(farthest, i + 1 + offset)
+            if _unconditional(w) and farthest <= i + 1:
+                end = min(len(body), i + 2)
+                break
+        sizes[address] = 4 * end
+    return sizes
+
+
 def write_seeds(path: Path, seeds: Iterable[int], load_base: int = LOAD_BASE) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("# extra seeds (tools.extra_seeds): runtime addresses, derived from the user's dump, never committed\n"
@@ -218,7 +241,13 @@ def _main_verify(args: argparse.Namespace) -> int:  # pragma: no cover - reads g
     from tools.progress import load_functions
 
     seeds = [int(line.split("#")[0].strip(), 16) for line in args.seeds.read_text().splitlines() if line.split("#")[0].strip()]
-    functions = {LOAD_BASE + a: s for a, s in load_functions(args.functions).items()}
+    from tools.family_members import TextImage
+
+    elf = args.elf.read_bytes()
+    image = TextImage.from_elf(elf)
+    words = struct.unpack(f"<{len(image.text) // 4}I", image.text[:len(image.text) // 4 * 4])
+    inside = {a: s for a, s in load_functions(args.functions).items() if image.base <= a < image.base + len(image.text)}
+    functions = {LOAD_BASE + a: s for a, s in effective_sizes(words, image.base, inside).items()}
     tsv_before = args.tsv_before or args.functions
     errors = verify(args.before, args.after, tsv_before, args.functions, seeds, functions)
     registered_before, _ = _generated_sets(args.before)
@@ -245,6 +274,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - comman
     v.add_argument("--seeds", type=Path, default=Path("recomp/extra_seeds.txt"))
     v.add_argument("--functions", type=Path, default=Path("recomp/analysis/functions.tsv"))
     v.add_argument("--tsv-before", type=Path)
+    v.add_argument("--elf", type=Path, default=Path("extracted/EBOOT.elf"))
     args = parser.parse_args(argv)
     return _main_select(args) if args.command == "select" else _main_verify(args)
 
