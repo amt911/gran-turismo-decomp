@@ -3407,3 +3407,31 @@ is uploaded only when its version changes, is rasterized at the size it is shown
 source, transparent or opaque destination, fully covered rows): 6 ms, pixel-identical (hash of 20 frames). Measure with a
 standalone bench linking `lcs_host_style.cpp` (perf was not usable here; valgrind/callgrind was).
 
+
+## Why 2,368 functions are never emitted (2026-11-19, `new-functions` research)
+
+Of the 23,208 functions in `recomp/analysis/functions.tsv`, 306 lie outside `.text` (the 2-instruction import stubs of the Sony
+libraries: `import_wrappers` in `auto_codegen_report.json`, never registrable and never counted) and 22,902 lie inside it, of which
+2,368 have no `runtime.register_function(...)` in `recomp/generated/`. `psp_recomp --auto` is a global CFG discovery: it seeds from the ELF
+entry, every `j`/`jal` target found in code it reached, relocated data words that hold code addresses (`relocated_data_code_pointer`,
+`relocated_r_mips32_code_pointer`) and `lui`/`addiu` pairs (`materialized_code_pointer`, `relocated_hi16_lo16_code_pointer`, patch 0008),
+then emits each reached instruction once (41,467 seeds, 258,051 block entries, 884,604 instructions). A function nothing reaches is not emitted.
+Classification of the 2,368 (a static scan of `.text` words, `jal`/`j` targets, `lui`+load/store/addiu pairs within 10 instructions, and
+raw 32-bit words anywhere in the ELF; script not kept, numbers reproducible with `tools.shapes` + that scan):
+
+| class | functions |
+| --- | ---: |
+| no reference of any kind (no `jal`, no `lui` pair, no data word): dead code the linker kept (unused template instances, destructors, copies) | 1,998 |
+| a raw data word equals the address (vtable or table slot) but the recompiler did not seed it (no relocation entry for that word, or a word that merely looks like an address) | 246 |
+| called (`jal`/`j`) only from other unemitted code | 80 |
+| called from a function that is emitted, but from a block the CFG never reached (dead path after a noreturn call, for instance) | 34 |
+| `lui`/`addiu` address of it appears only in such an unreached block | 10 |
+| padding (all nops) or data that does not decode as instructions | 0 |
+
+Sizes: 867 are under 20 instructions, 960 are 20-39, the rest larger. All of them decode as valid Allegrex instructions, so none is data
+misdetected as code.
+What it would take to make them gate-able: a patch to `psp_recomp` (next to 0014, which already takes extra boundaries) that reads a list of
+extra function seeds (`functions.tsv` entries without a registration) and emits them. The generated code grows by their instructions (about
+20 % more functions, mostly small) and `tools.recomp` / the build get slower accordingly. Emission alone proves nothing about reachability:
+a gate can only compare such a function with synthetic cases (`tools.decomp_gate synth`), and the 1,998 dead ones have no real callers at all,
+so they would be verified synthetically only. Not done: it changes the generated baseline every gate compares against.
