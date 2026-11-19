@@ -124,6 +124,39 @@ bool car_set_state(psprecomp::GuestMemory &m, std::uint32_t h, const CarState &s
     return true;
 }
 
+void euler_to_rows(const float e[3], float rows[9]) {
+    const float s1 = std::sin(e[0]), c1 = std::cos(e[0]), s2 = std::sin(e[1]), c2 = std::cos(e[1]), s3 = std::sin(e[2]), c3 = std::cos(e[2]);
+    rows[0] = -s3 * c1; rows[1] = c3 * c1; rows[2] = s1;
+    rows[3] = c3 * c2 - s1 * s2 * s3; rows[4] = s3 * c2 + s1 * s2 * c3; rows[5] = -c1 * s2;
+    rows[6] = c3 * s2 + s1 * c2 * s3; rows[7] = s3 * s2 - s1 * c2 * c3; rows[8] = c1 * c2;
+}
+
+namespace {
+float wrap_pi(float a) {
+    const float pi = 3.14159265358979f;
+    while (a > pi) a -= 2.0f * pi;
+    while (a < -pi) a += 2.0f * pi;
+    return a;
+}
+}  // namespace
+
+void rows_to_euler(const float r[9], float e[3], const float *previous) {
+    const float fz = r[2] > 1.0f ? 1.0f : r[2] < -1.0f ? -1.0f : r[2];
+    e[0] = std::asin(fz);
+    const float c1 = std::sqrt(std::fmax(0.0f, 1.0f - fz * fz));  // cos(pitch)
+    // Near the pole yaw and roll turn about almost the same axis and the standard formulas divide by cos(pitch): their float noise grows as it shrinks (a wobble of the
+    // written angles). The right row has unit length in that plane, so there the roll comes from the invariant it carries: yaw + roll at the +pole, yaw - roll at the -pole.
+    const float sign = fz > 0 ? 1.0f : -1.0f;
+    const float invariant = std::atan2(r[4], r[3]);
+    if (c1 > 0.0014f) {
+        e[2] = std::atan2(-r[0], r[1]);
+        e[1] = c1 < 0.014f ? wrap_pi(sign * (invariant - e[2])) : std::atan2(-r[5], r[8]);
+    } else {  // within 0.08 degrees of the pole: the forward row's horizontal part is noise; keep the previous roll (continuity) and put the rest in yaw
+        e[1] = previous != nullptr && std::isfinite(previous[1]) ? previous[1] : 0.0f;
+        e[2] = wrap_pi(invariant - sign * e[1]);
+    }
+}
+
 namespace {
 constexpr std::uint32_t kWheelRecords = 0x10u, kWheelStride = 0x38u, kSurface = 0x2Cu, kOffTrack = 0x300u, kCarRecord = 0xCu;
 constexpr std::uint32_t kWheelBase = 0x18u, kTrack = 0x1Cu;
@@ -236,6 +269,81 @@ bool list_world_matrix(const psprecomp::GuestMemory &m, float out[12], std::uint
         return true;
     }
     return false;
+}
+
+} // namespace gt::game_state
+
+namespace gt::game_state {
+
+std::uint32_t car_object(const psprecomp::GuestMemory &m, std::uint32_t world, std::uint32_t handle) {
+    if (handle == 0u || world == 0u || !m.contains(world, 0xCu)) return 0u;
+    const std::uint32_t slots = m.load32(world + 4u), count = m.load32(world + 8u);
+    if (slots == 0u) return 0u;
+    for (std::uint32_t i = 0; i < count && i < kMaxCars; ++i) {
+        const std::uint32_t car = slots + i * kSlotSize + kCarInSlot;
+        if (m.contains(car, 0x14u) && m.load32(car + kBody) == handle) return car;
+    }
+    return 0u;
+}
+
+bool car_dimensions(const psprecomp::GuestMemory &m, std::uint32_t world, std::uint32_t handle, CarDimensions &out) {
+    const std::uint32_t car = car_object(m, world, handle);
+    const std::uint32_t rec = car == 0u ? 0u : word_or_0(m, car + 0xCu);
+    if (rec == 0u || !m.contains(rec, 0x50u)) return false;
+    out.radius = load_f(m, rec + 0x08u);
+    out.wheelbase = load_f(m, rec + 0x18u);
+    out.track = load_f(m, rec + 0x1Cu);
+    out.front_axle = load_f(m, rec + 0x40u);
+    out.rear_axle = load_f(m, rec + 0x48u);
+    return std::isfinite(out.radius + out.wheelbase + out.track + out.front_axle + out.rear_axle);
+}
+
+bool car_wheel_contacts(const psprecomp::GuestMemory &m, std::uint32_t world, std::uint32_t handle, WheelContact out[4]) {
+    const std::uint32_t car = car_object(m, world, handle);
+    const std::uint32_t recs = car == 0u ? 0u : word_or_0(m, car + 0x10u);
+    if (recs == 0u || !m.contains(recs, 4u * 0x38u) || !body_ok(m, handle)) return false;
+    for (std::uint32_t i = 0; i < 4u; ++i) {
+        const std::uint32_t r = recs + 0x38u * i;
+        out[i].x = load_f(m, r);
+        out[i].y = -load_f(m, r + 8u);  // the records are Y-up: the physics frame's y is -z
+        out[i].ground_height = load_f(m, r + 0xCu);
+        // The surface word at +0x2C is 0 on asphalt and 0x0300 off the track (FACTS "Car body state"), little-endian: byte +0x2C = 0 and byte +0x2D = the type 0 / 3 (2 also seen).
+        // FACTS "Road query and the wheel contact records" (measured against the game's own results): the LOW byte +0x2C = 1 means no road found (the height is then a fallback),
+        // 0 means ground, off-track terrain included (it has a real height). So `valid` is that byte, `surface` the next one.
+        out[i].surface = m.load8(r + 0x2Du);
+        out[i].valid = m.load8(r + 0x2Cu) == 0u && std::isfinite(out[i].x + out[i].y + out[i].ground_height) ? 1 : 0;
+        out[i].load = load_f(m, handle + 0x70u + 0x118u * i + 0x54u);
+    }
+    return true;
+}
+
+bool car_set_pose(psprecomp::GuestMemory &m, std::uint32_t handle, const float position[3], const float basis[9], const float velocity[3],
+                  const float angular_velocity[3]) {
+    if (!body_ok(m, handle)) return false;
+    for (int i = 0; i < 3; ++i)
+        if (!std::isfinite(position[i]) || !std::isfinite(velocity[i]) || !std::isfinite(angular_velocity[i])) return false;
+    for (int i = 0; i < 9; ++i)
+        if (!std::isfinite(basis[i])) return false;
+    for (int a = 0; a < 3; ++a) {
+        const float *ra = basis + 3 * a;
+        if (std::fabs(ra[0] * ra[0] + ra[1] * ra[1] + ra[2] * ra[2] - 1.0f) > 1e-2f) return false;
+        for (int b = a + 1; b < 3; ++b) {
+            const float *rb = basis + 3 * b;
+            if (std::fabs(ra[0] * rb[0] + ra[1] * rb[1] + ra[2] * rb[2]) > 1e-2f) return false;
+        }
+    }
+    float euler[3], previous[3];
+    for (int i = 0; i < 3; ++i) previous[i] = load_f(m, handle + kEuler + 4u * i);  // continuity near the pole
+    rows_to_euler(basis, euler, previous);
+    // the game's basis is left-handed (forward x right = -up, FACTS "Rollovers"): a right-handed set would be mirrored by the Euler rebuild
+    if (basis[0] * (basis[4] * basis[8] - basis[5] * basis[7]) + basis[1] * (basis[5] * basis[6] - basis[3] * basis[8]) + basis[2] * (basis[3] * basis[7] - basis[4] * basis[6]) > -0.5f) return false;
+    for (int i = 0; i < 3; ++i) store_f(m, handle + kPosition + 4u * i, position[i]);
+    for (int i = 0; i < 9; ++i) store_f(m, handle + kBasis + 4u * i, basis[i]);
+    for (int i = 0; i < 3; ++i) store_f(m, handle + kEuler + 4u * i, euler[i]);
+    for (int i = 0; i < 3; ++i) store_f(m, handle + kVelocity + 4u * i, velocity[i]);
+    store_f(m, handle + kSpeed, std::sqrt(velocity[0] * velocity[0] + velocity[1] * velocity[1] + velocity[2] * velocity[2]));
+    for (int i = 0; i < 5; ++i) store_f(m, handle + kRates[i], 0.0f);
+    return true;
 }
 
 } // namespace gt::game_state
