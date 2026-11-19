@@ -47,6 +47,7 @@ make_mods() {
   if [ $others -eq 1 ]; then
     for pair in analog-pedals:libanalog_pedals.so cheats:libcheats.so draw-distance:libdraw_distance.so orbit-camera:liborbit_camera.so reset-to-track:libreset_to_track.so \
                 rollover:librollover.so deformation:libdeformation.so mechanical-damage:libmechanical_damage.so; do
+      [ -d "$mods_repo/${pair%%:*}" ] || continue   # a mod that is not in this gt-mods checkout yet (mechanical-damage before its PR merges)
       install_mod "$1" "${pair%%:*}" "${pair#*:}" true || { echo "mod_cameras_check: cannot install ${pair%%:*}" >&2; exit 2; }
     done
   fi
