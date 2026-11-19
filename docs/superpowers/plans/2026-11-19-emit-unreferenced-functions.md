@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Steps use checkboxes.
 
 **Goal:** let `psp_recomp` emit functions nothing in the code or data reaches, starting with the 370 that have reference evidence (Phase A).
-**Architecture:** a new patch (0071) adds a seeds file (7th `--auto` argument) whose addresses become `extra_seed` seeds; `tools.recomp` passes it and hashes it into its stamp; `tools/extra_seeds.py` selects the seeds (classification and evidence filter) and verifies a regeneration against the one before it.
+**Architecture:** a new patch (0073) adds a seeds file (7th `--auto` argument) whose addresses become `extra_seed` seeds; `tools.recomp` passes it and hashes it into its stamp; `tools/extra_seeds.py` selects the seeds (classification and evidence filter) and verifies a regeneration against the one before it.
 **Tech Stack:** C++ patch to the pinned lcs-recomp tree, Python 3 + pytest (coverage >= 80 %).
 **Spec:** `docs/superpowers/specs/2026-11-19-emit-unreferenced-functions-design.md`
 
@@ -21,8 +21,8 @@
 - A seed outside executable ranges is ignored by the analysis (add_seed), not an error.
 - A seeds file line with a comment or blank line parses.
 
-### Task 1: patch 0071 and `tools.recomp --extra-seeds`
-**Files:** Create `tools/patches/lcs-recomp/0071-codegen-extra-seeds.patch`; Modify `tools/recomp.py`; Test `tools/tests/test_recomp.py`.
+### Task 1: patch 0073 and `tools.recomp --extra-seeds`
+**Files:** Create `tools/patches/lcs-recomp/0073-codegen-extra-seeds.patch`; Modify `tools/recomp.py`; Test `tools/tests/test_recomp.py`.
 **Interfaces:** Produces `regenerate(..., seeds: Iterable[int] = ())`; with seeds, the command gains the boundaries slot (empty string when no boundaries) and the seeds file path `out/extra_seeds.txt` as arguments 6 and 7; the stamp digest includes the seeds listing.
 - [ ] Tests: `test_seeds_are_passed_as_seventh_argument`, `test_changing_seeds_reruns`, `test_no_seeds_leaves_command_unchanged` (assert the existing command list is identical).
 - [ ] Implement; the patch adds `extra_seeds` to `analyze_program` and the argument to `generate_auto`.
