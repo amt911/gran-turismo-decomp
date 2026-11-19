@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -359,7 +360,9 @@ bool v5_mod(GtMod *self, const char *what) {
 }
 
 namespace {
-gt::game_state::ImpactTracker g_impact;  // the step hook runs on one guest thread at a time (cooperative scheduling)
+// One tracker per mod: car_impact compares with the previous call, so a tracker shared by two mods made the second caller of a step see dv = 0 (the deformation and
+// mechanical-damage mods both ask once per step). The step hook runs on one guest thread at a time (cooperative scheduling).
+std::map<const GtMod *, gt::game_state::ImpactTracker> g_impact;
 }
 static_assert(sizeof(GtMeshInfo) == sizeof(gt::mesh::BlobInfo), "GtMeshInfo mirrors mesh::BlobInfo");
 static_assert(sizeof(GtCarImpact) == sizeof(gt::game_state::Impact), "GtCarImpact mirrors game_state::Impact");
@@ -367,7 +370,7 @@ static_assert(sizeof(GtCarImpact) == sizeof(gt::game_state::Impact), "GtCarImpac
 int api_car_impact(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarImpact *out) {
     if (!v5_mod(self, "car_impact") || ctx == nullptr || out == nullptr) return 1;
     gt::game_state::Impact impact{};
-    if (!gt::game_state::car_impact(ctx->rt->memory(), world, car, g_impact, impact)) return 1;
+    if (!gt::game_state::car_impact(ctx->rt->memory(), world, car, g_impact[self], impact)) return 1;
     std::memcpy(out, &impact, sizeof impact);
     return 0;
 }
@@ -502,6 +505,7 @@ void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
 }
 
 void remove_for(const GtMod *mod) {
+    g_impact.erase(mod);
     g_rows.erase(std::remove_if(g_rows.begin(), g_rows.end(), [mod](const Row &r) { return r.mod == mod; }), g_rows.end());
     g_ticks.erase(std::remove_if(g_ticks.begin(), g_ticks.end(), [mod](const Tick &t) { return t.mod == mod; }), g_ticks.end());
     g_actions.erase(std::remove_if(g_actions.begin(), g_actions.end(), [mod](const ActionDecl &a) { return a.mod == mod; }), g_actions.end());
@@ -509,6 +513,7 @@ void remove_for(const GtMod *mod) {
 }
 
 void clear_for_tests() {
+    g_impact.clear();
     g_rows.clear();
     g_ticks.clear();
     g_actions.clear();
