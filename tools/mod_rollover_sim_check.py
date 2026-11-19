@@ -14,7 +14,8 @@ Judged:
   barrier   no takeover before MIN_CRASH_STEP (quiet driving untouched), one at the crash because of a hit; then the simulation obeys the energy budget (total
             energy m g z + 1/2 m v^2 + 1/2 w.I.w never above the energy right after the hit impulse by more than ENERGY_TOLERANCE: no hopping, no "peonza"), no hull point
             more than MAX_BELOW_GROUND under the ground, |w_z| under MAX_YAW_RATE while up.z < 0.3, and the car ends at rest or handed back;
-  drop      a fake drop of ~2 m: the first rebound's apex is at most BOUNCE_FACTOR * e^2 * the drop height over the rest height, then the car lies still and is handed back,
+  slide     (`--slide`) a car dropped 0.3 m at speed slides on its floor: the energy it loses over the distance is the friction coefficient 0.7 within 25 %;
+  drop      a fake drop of ~2 m, at rest: the first rebound's apex is at most BOUNCE_FACTOR * e^2 * the drop height over the rest height, then the car lies still and is handed back,
             the throttle then accelerates it again (driving resumes);
   pose      (every run) kd within a step of motion while simulating at speed: what the game draws is the simulation's pose;
   replay    the same takeover happens live and in the replay, and the simulated poses agree within MAX_REPLAY_DRIFT at the same number of steps after the takeover.
@@ -52,7 +53,8 @@ RESUME_STEPS = 400
 MAX_REPLAY_DRIFT = 0.5
 G = 9.81
 SLIDE_MIN_SPEED = 1.0       # m/s on the floor that count as sliding
-SLIDE_TOLERANCE = 0.25      # of v0^2 / (2 mu g)
+SLIDE_TOLERANCE = 0.25      # of mu
+SLIDE_MIN_DISTANCE = 1.0    # m
 MAX_SIM_HITS = 12           # impulses taken from the game's own collision while simulating (a barrier scrape is a few; landings and rests with grounded wheel records must add none)
 MIN_TIP_UP_Z = 0.5          # the barrier hit must tip the car at least this far (up.z under this)
 REBOUND_STEPS = 10         # steps after the first contact in which the rebound speed is read
@@ -214,28 +216,28 @@ def judge_resume(text, handback):
 
 
 def judge_slide(text, mu=0.7):
-    """The drop run's car arrives with a forward speed: Coulomb friction stops it. From its first moving step on its floor to the first step AFTER its last moving step at which it
-    is still, it travels v0^2 / (2 mu g) within SLIDE_TOLERANCE (a car that slides on without friction never stops; one that stops too soon or too late has the wrong friction)."""
+    """`--slide`: a car dropped 0.3 m with its speed kept lands on its floor and slides under Coulomb friction. Over the first simulation episode (to its handback or stop), from the
+    first step it slides on its floor (>= 3 floor points, over SLIDE_MIN_SPEED) to its last, the energy it lost (kinetic + potential per kg) over g * the distance is the friction
+    coefficient the simulation really used: it must be within SLIDE_TOLERANCE of `mu` (no friction gives 0; a square-clamp or doubled friction is far off)."""
     sims = parse_sim(text)
     ends = parse_ends(text)
-    if ends:  # the first simulation episode only (the drop): the route's barrier crash comes later and has its own sliding
+    if ends:  # the first simulation episode only: the route's barrier crash comes later and has its own sliding
         sims = [s for s in sims if s["st"] <= ends[0]["st"]]
     if not sims:
         return False, "no simulated step"
-    horiz = lambda s: math.hypot(s["vel"][0], s["vel"][1])  # noqa: E731
-    moving = [i for i, s in enumerate(sims) if s["bottom"] >= 3 and horiz(s) > SLIDE_MIN_SPEED]
+    speed = lambda s: math.sqrt(sum(x * x for x in s["vel"]))  # noqa: E731
+    moving = [i for i, s in enumerate(sims) if s["bottom"] >= 3 and math.hypot(s["vel"][0], s["vel"][1]) > SLIDE_MIN_SPEED]
     if not moving:
         return False, "the car never slid on its floor: the friction check shows nothing"
-    first, last = moving[0], moving[-1]
-    stopped = next((i for i in range(last + 1, len(sims)) if horiz(sims[i]) < 0.3), None)
-    if stopped is None:
-        return False, "the sliding car never stops: no friction"
-    v0 = horiz(sims[first])
-    travelled = math.hypot(sims[stopped]["pos"][0] - sims[first]["pos"][0], sims[stopped]["pos"][1] - sims[first]["pos"][1])
-    expected = v0 * v0 / (2 * mu * G)
-    if abs(travelled - expected) > SLIDE_TOLERANCE * expected:
-        return False, f"the car slid {travelled:.2f} m from {v0:.2f} m/s, expected {expected:.2f} m (mu {mu}) within {SLIDE_TOLERANCE:.0%}"
-    return True, f"slid {travelled:.2f} m from {v0:.2f} m/s (expected {expected:.2f} m), still after {sims[stopped]['n'] - sims[first]['n']} steps"
+    first, last = sims[moving[0]], sims[moving[-1]]
+    travelled = math.hypot(last["pos"][0] - first["pos"][0], last["pos"][1] - first["pos"][1])
+    if travelled < SLIDE_MIN_DISTANCE:
+        return False, f"the car slid only {travelled:.2f} m (need {SLIDE_MIN_DISTANCE}): too short to read the friction"
+    lost = 0.5 * (speed(first) ** 2 - speed(last) ** 2) + G * (first["comz"] - last["comz"])
+    mu_used = lost / (G * travelled)
+    if abs(mu_used - mu) > SLIDE_TOLERANCE * mu:
+        return False, f"the slide lost energy as friction {mu_used:.2f} (over {travelled:.1f} m from {speed(first):.1f} m/s), expected {mu} within {SLIDE_TOLERANCE:.0%}"
+    return True, f"slid {travelled:.1f} m from {speed(first):.1f} to {speed(last):.1f} m/s: friction {mu_used:.2f} (expected {mu})"
 
 
 def judge_replay(text):
@@ -266,7 +268,7 @@ def read(path):
 
 def main(argv):
     out, mode = argv[1], argv[2]
-    label = {"sim": "sim", "drop": "drop", "replay": "replay", "others": "sim"}[mode]
+    label = {"sim": "sim", "drop": "drop", "slide": "slide", "replay": "replay", "others": "sim"}[mode]
     text = read(os.path.join(out, label, "run.log"))
     verdicts = []
     if mode in ("sim", "others"):
@@ -274,6 +276,7 @@ def main(argv):
         verdicts.append(("pose", judge_pose(parse_sim(text))))
     elif mode == "drop":
         verdicts.append(("drop", judge_drop(text)))
+    elif mode == "slide":
         verdicts.append(("slide", judge_slide(text)))
         verdicts.append(("pose", judge_pose(parse_sim(text))))
     elif mode == "replay":

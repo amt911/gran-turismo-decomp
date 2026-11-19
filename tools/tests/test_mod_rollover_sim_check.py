@@ -118,32 +118,31 @@ def test_drop_bounce_bounds():
     assert not low[0] and "not ~2.0" in low[1]
 
 
-def slide_log(v0=10.0, mu=0.7, stop_early=False, never=False):
-    """A car landing flat at v0 and sliding to rest by Coulomb friction: v = sqrt(v0^2 - 2 mu g x)."""
-    lines, x, v, n = [], 0.0, v0, 1
-    while v > 0.05 or n < 3:
-        v = 0.0 if stop_early and n > 5 else (v0 if never else math.sqrt(max(v * v - 2 * mu * 9.81 * (v / 60.0), 0.0)))
+def slide_log(mu=0.7, v0=12.0, steps=60, drop_z=0.0):
+    """A car landing flat at v0 and sliding under Coulomb friction `mu` for `steps` steps, then handed back (the first episode ends)."""
+    lines, x, v, z = [], 0.0, v0, 1.0
+    for n in range(1, steps + 1):
+        v = max(0.0, v - mu * 9.81 / 60.0)
         x += v / 60.0
-        lines.append(sim(100 + n, n, pos=(x, 0.0, 1.0), vel=(v, 0, 0), bottom=4, contacts=4))
-        n += 1
-        if n > 600:
-            break
-    for k in range(0 if never else 30):  # at rest
-        lines.append(sim(100 + n + k, n + k, pos=(x, 0.0, 1.0), vel=(0, 0, 0), bottom=4, contacts=4))
+        z += drop_z / steps
+        lines.append(sim(100 + n, n, pos=(x, 0.0, z), vel=(v, 0, 0), bottom=4, contacts=4, comz=z))
+    lines.append(ends("HANDBACK", 100 + steps, steps))
     return "\n".join(lines)
 
 
-def test_slide_needs_friction():
+def test_slide_reads_the_friction_used():
     ok, why = sc.judge_slide(slide_log())
     assert ok, why
-    assert "never stops" in sc.judge_slide(slide_log(never=True))[1]  # no friction: it slides on
-    ok, why = sc.judge_slide(slide_log(stop_early=True))
-    assert not ok and "expected" in why  # it stops far too soon: too much friction
+    assert "friction 0.00" in sc.judge_slide(slide_log(mu=0.0))[1]  # no friction: nothing lost
+    assert not sc.judge_slide(slide_log(mu=1.4))[0]  # doubled friction (or a square clamp's diagonal)
+    assert not sc.judge_slide(slide_log(mu=0.3))[0]
+    assert sc.judge_slide(slide_log(mu=0.7, drop_z=-0.0))[0]
+    assert "too short" in sc.judge_slide(slide_log(v0=1.5, steps=10))[1]
     assert not sc.judge_slide(sim(1, 1, bottom=4, vel=(0, 0, 0)))[0]  # never moved: shows nothing
-    # only the first episode counts: a later fast slide (the barrier tumble) does not rescue a drop that stopped dead
-    first = slide_log(stop_early=True)
+    # only the first episode counts: a later fast slide at the right friction does not rescue a slide at the wrong one
+    wrong = slide_log(mu=0.0)
     later = "\n".join(sim(5000 + n, n, pos=(100.0 + n * 0.2, 0, 1), vel=(12.0, 0, 0), bottom=4, contacts=4) for n in range(1, 60))
-    assert not sc.judge_slide(first + "\n" + ends("HANDBACK", 4000, 50) + "\n" + later)[0]
+    assert not sc.judge_slide(wrong + "\n" + later)[0]
 
 
 def test_pose_reaches_the_game():

@@ -30,10 +30,11 @@
 #   --sim        (rollover 0.5.0, style "realistic": the rigid-body simulation) the `rollover` route, the barrier hit: no takeover before the crash, one at the crash because of the hit, the energy budget (the
 #                total energy never above the one right after the hit impulse: no hopping, no spinning top), no hull point > 0.05 m under the ground, rest or handback; and the pose the game
 #                draws is the simulation's pose within one step of motion (kd). the sim modes default to `--seconds 480` on this desktop (powersave): 300 s reached vblank ~13300 of the route's 17980
-#   --drop       the same route with a fake drop of 2 m (GT_MOD_ROLLOVER_DROP=m450:2.0): the first rebound <= 1.2 e^2 h, the car slides to rest (friction), is handed back, driving resumes
+#   --drop       the same route with a fake drop of 2 m (GT_MOD_ROLLOVER_DROP=m450:2.0): the first rebound <= 1.2 e^2 h, the car is handed back, driving resumes
+#   --slide      the same with a drop of 0.3 m that keeps the car's speed (GT_MOD_ROLLOVER_DROP=m450:0.3:keep): the energy lost sliding gives friction 0.7 within 25 %
 #   --sim-replay the `circuit` route with a fake hit (GT_MOD_ROLLOVER_FAKE=m30:9): the same takeover live and in the replay, simulated poses within 0.5 m at the same step after it
 #   --others     with --sim: deformation, reset-to-track, cheats, analog-pedals, draw-distance and orbit-camera enabled too (the run must still pass)
-#   Each of these must FAIL: --sabotage-restitution (=13: restitution 1.0; with --drop), --sabotage-nofriction (=14; --drop), --sabotage-nopose (=15: the simulation runs but its pose is never sent to the game; --sim),
+#   Each of these must FAIL: --sabotage-restitution (=13: restitution 1.0; with --drop), --sabotage-nofriction (=14; --slide), --sabotage-nopose (=15: the simulation runs but its pose is never sent to the game; --sim),
 #   --sabotage-notakeover (=16; --sim). The legacy modes below run the mod with style = "arcade" (the 0.4.0 scripted roll); --sabotage-flipflag (=4) is gone: the flag hooks are the host's now
 #   (host/tests/tilt_free_test.cpp pins which readers get 1, flip machine excluded).
 # Env: ROUTE (a pad route file, default config/pad_routes/rollover.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
@@ -50,7 +51,7 @@ case $out in /*) out=$(realpath -m --relative-to="$repo" "$out") || exit 2;; esa
 decomp=off seconds=150 every=30 sabotage=0 simmode= others=0 toggle=0 roll_only=0 recover=0 toggle_at=16300 frames=0 fwindow=auto nobox_frames=0 replay=0
 while [ $# -gt 0 ]; do
   case $1 in
-    --sim) simmode=sim;; --drop) simmode=drop;; --sim-replay) simmode=replay;; --others) others=1;;
+    --sim) simmode=sim;; --drop) simmode=drop;; --slide) simmode=slide;; --sim-replay) simmode=replay;; --others) others=1;;
     --sabotage-restitution) sabotage=13;; --sabotage-nofriction) sabotage=14;; --sabotage-nopose) sabotage=15;; --sabotage-notakeover) sabotage=16;;
     --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --sabotage-liveonly) sabotage=10;; --replay) replay=1;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --roll-only) roll_only=1;; --recover) recover=1;;
@@ -125,7 +126,8 @@ if [ -n "$simmode" ]; then  # the rigid-body style (rollover 0.5.0): its own jud
     done
   fi
   case $simmode in
-    drop) extra_env=(GT_MOD_ROLLOVER_DROP=m450:2.0);;
+    drop) extra_env=(GT_MOD_ROLLOVER_DROP=m100:2.0);;
+    slide) extra_env=(GT_MOD_ROLLOVER_DROP=m450:0.3:keep);;
     replay) extra_env=(GT_MOD_ROLLOVER_FAKE=m30:9);;
   esac
   [ "$simmode" = replay ] && [ "$seconds" = 480 ] && seconds=420
