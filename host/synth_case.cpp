@@ -374,6 +374,39 @@ constexpr std::uint64_t kV2Stream = 0x56324B0000000000ull;
 
 } // namespace
 
+namespace {
+
+// Decimal digits or 0x-prefixed hex only (no octal), the whole text, at most 32 bits.
+bool parse_u32(const std::string &text, bool default_hex, std::uint32_t &out) {
+    if (text.empty()) return false;
+    bool hex = default_hex;
+    std::size_t start = 0u;
+    if (text.size() > 2u && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) { hex = true; start = 2u; }
+    if (start >= text.size()) return false;
+    unsigned long long value = 0u;
+    for (std::size_t i = start; i < text.size(); ++i) {
+        const char c = text[i];
+        unsigned digit;
+        if (c >= '0' && c <= '9') digit = static_cast<unsigned>(c - '0');
+        else if (hex && c >= 'a' && c <= 'f') digit = static_cast<unsigned>(c - 'a' + 10);
+        else if (hex && c >= 'A' && c <= 'F') digit = static_cast<unsigned>(c - 'A' + 10);
+        else return false;
+        value = value * (hex ? 16u : 10u) + digit;
+        if (value > 0xFFFFFFFFull) return false;
+    }
+    out = static_cast<std::uint32_t>(value);
+    return true;
+}
+
+} // namespace
+
+bool parse_case_count(const char *text, unsigned maximum, unsigned &out) {
+    std::uint32_t value = 0u;
+    if (text == nullptr || !parse_u32(text, false, value)) return false;
+    out = value > maximum ? maximum : value;
+    return true;
+}
+
 std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error) {
     std::map<std::uint32_t, Shape> shapes;
     std::size_t begin = 0u;
@@ -397,14 +430,14 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
             i = j;
         }
         if (words.empty()) continue;
-        char *stop = nullptr;
-        const unsigned long address = std::strtoul(words[0].c_str(), &stop, 16);
-        if (*stop != '\0') { fail("bad address"); continue; }
+        std::uint32_t address = 0u;
+        if (!parse_u32(words[0], true, address)) { fail("bad address"); continue; }
         Shape shape;
         bool have_reg = false, ok = true;
         for (std::size_t w = 1; w < words.size() && ok; ++w) {
             const std::string &word = words[w];
             if (word.rfind("reg:", 0) == 0) {
+                if (have_reg) { fail("more than one reg"); ok = false; break; }
                 const std::size_t eq = word.find('=');
                 const std::string name = word.substr(4, eq == std::string::npos ? 0 : eq - 4);
                 const std::string rest = eq == std::string::npos ? "" : word.substr(eq + 1);
@@ -413,24 +446,25 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
                 for (int k = 0; k < 8; ++k) if (name == names[k]) found = k;
                 if (found < 0 || rest.rfind("struct:", 0) != 0) { fail("bad reg"); ok = false; break; }
                 shape.reg = static_cast<unsigned>(found);
-                shape.size = static_cast<std::uint32_t>(std::strtoul(rest.c_str() + 7, nullptr, 0));
-                if (shape.size == 0u || shape.size > 0x1000u) { fail("bad size"); ok = false; break; }
+                if (!parse_u32(rest.substr(7), false, shape.size) || shape.size == 0u || shape.size > kBlockWords * 4u) {
+                    fail("bad size (1..1024)"); ok = false; break;
+                }
                 have_reg = true;
             } else if (word.rfind("field:+", 0) == 0) {
                 const std::size_t eq = word.find('=');
                 if (eq == std::string::npos) { fail("bad field"); ok = false; break; }
                 ShapeField field;
-                field.offset = static_cast<std::uint32_t>(std::strtoul(word.substr(7, eq - 7).c_str(), nullptr, 0));
+                if (!parse_u32(word.substr(7, eq - 7), false, field.offset)) { fail("bad field offset"); ok = false; break; }
                 const std::string kind = word.substr(eq + 1);
                 if (kind == "ptr") {
                     field.pointer = true;
                 } else if (kind.rfind("int:", 0) == 0) {
                     field.pointer = false;
-                    char *after = nullptr;
-                    field.low = static_cast<std::uint32_t>(std::strtoul(kind.c_str() + 4, &after, 0));
-                    if (after[0] != '.' || after[1] != '.') { fail("bad int range"); ok = false; break; }
-                    field.high = static_cast<std::uint32_t>(std::strtoul(after + 2, nullptr, 0));
+                    const std::size_t dots = kind.find("..");
+                    if (dots == std::string::npos || !parse_u32(kind.substr(4, dots - 4), false, field.low) ||
+                        !parse_u32(kind.substr(dots + 2), false, field.high)) { fail("bad int range"); ok = false; break; }
                     if (field.high < field.low) { fail("empty int range"); ok = false; break; }
+                    if (field.high - field.low > 0xFFFFu) { fail("int range wider than 65535"); ok = false; break; }
                 } else { fail("bad field kind"); ok = false; break; }
                 if (field.offset % 4u != 0u) { fail("unaligned field"); ok = false; break; }
                 shape.fields.push_back(field);
@@ -439,7 +473,8 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
         if (!ok) continue;
         if (!have_reg) { fail("no reg"); continue; }
         for (const ShapeField &f : shape.fields) if (f.offset + 4u > shape.size) { fail("field outside the struct"); ok = false; }
-        if (ok) shapes[static_cast<std::uint32_t>(address)] = shape;
+        if (!ok) continue;
+        if (!shapes.emplace(address, shape).second) fail("duplicate address");
     }
     return shapes;
 }
@@ -484,14 +519,18 @@ SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint
     if (shapes != nullptr) {
         if (const auto it = shapes->find(function); it != shapes->end()) {
             const Shape &shape = it->second;
-            std::uint32_t base = slot_pointer();
-            base &= ~0xFu;
-            if (base + shape.size > layout.arena_base + layout.arena_bytes) base = layout.arena_base;
+            std::uint32_t base;
+            for (;;) {  // inside one block that is not a table (a struct must not overlap a vtable block)
+                base = slot_pointer();
+                const std::uint32_t first = (base - layout.arena_base) / (kBlockWords * 4u);
+                const std::uint32_t last = (base - layout.arena_base + shape.size - 1u) / (kBlockWords * 4u);
+                if (first == last && !arena.is_table(first * kBlockWords)) break;
+            }
             inputs.gpr[shape.reg] = base;
             const std::uint32_t at = (base - layout.arena_base) / 4u;
             for (const ShapeField &field : shape.fields) {
                 const std::uint32_t word = at + field.offset / 4u;
-                inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);
+                inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);  // span <= 65536
             }
         }
     }

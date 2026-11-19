@@ -101,6 +101,8 @@ struct Shape {
     std::vector<ShapeField> fields;
 };
 // `ADDRESS reg:a0=struct:SIZE [field:+OFFSET=ptr] [field:+OFFSET=int:LOW..HIGH]...` per line, `#` comments. An error line is described in *error.
+// A case count from the environment: decimal digits only (error otherwise), clamped to `maximum`.
+bool parse_case_count(const char *text, unsigned maximum, unsigned &out);
 std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error);
 SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout,
                                const std::map<std::uint32_t, Shape> *shapes);
