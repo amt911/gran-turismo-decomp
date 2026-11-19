@@ -24,11 +24,16 @@ bool g_body_freed = false;  // the latest body step to start belongs to a freed 
 void call_next(GtModCtx *c) { mod_api(GT_MOD_API_VERSION_7).call_original(c); }
 
 void on_body_step(GtModCtx *c) {
-    const std::uint32_t car = c->rt->memory().load32(c->ctx->gpr[4] + 8u);  // a0 = the car object, whose +8 is the body
-    g_body_freed = freed(car);
+    // a0 = the car object, whose +8 is the body K: `tools.disasm 08956DC8` (2026-11-18): `addu s0,a0,zero` at entry, then `lw a0,0x8(s0)` before the call that builds the basis
+    // rows at a0+0x1C/0x28/0x34 (0893C3E4) from the Euler angles a0+0x6FC/0x700/0x704, i.e. K. The same function runs under `--decomp on` as a decompiled body with the same a0.
+    const std::uint32_t a0 = c->ctx->gpr[4];
+    const std::uint32_t car = c->rt->memory().contains(a0, 12u) ? c->rt->memory().load32(a0 + 8u) : 0u;
+    g_body_freed = car != 0u && freed(car);
     g_in_body = g_body_freed;
     call_next(c);
     g_in_body = false;
+    // g_body_freed stays until the next body step starts, on purpose: `--decomp off` runs the readers AFTER this hook has returned (FACTS "Hook mechanics ... rollover"), where
+    // only the call-site `ra` and this flag tell the car; the readers whose `ra` is the clamp's or the wrap's are only ever called from the body step.
 }
 void on_contact_step(GtModCtx *c) {  // inside the body step, but it must read the game's real word (its decompiled flag-1 path differs)
     const bool was = g_in_body;

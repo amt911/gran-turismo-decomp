@@ -63,6 +63,21 @@ def test_barrier_passes_and_each_defect_fails():
     assert "quiet" in sc.judge_barrier("\n".join(barrier_log().splitlines()[30:]))[1] or "state lines" in sc.judge_barrier("\n".join(barrier_log().splitlines()[30:]))[1]
 
 
+def test_barrier_requires_a_tip_and_a_valid_rest_pose():
+    no_tip = barrier_log().replace("up.z=0.100", "up.z=0.900")
+    ok, why = sc.judge_barrier(no_tip)
+    assert not ok and "never tipped" in why
+    floating = barrier_log().replace("contacts=4/4", "contacts=1/1")  # final pose held by one contact
+    assert "not a valid rest pose" in sc.judge_barrier(floating)[1]
+    assert sc.judge_barrier(floating + "\n" + ends())[0]  # handed back: no rest pose asked
+
+
+def test_sim_hits_are_bounded():
+    spam = barrier_log() + "\n" + "\n".join(f"[mod:rollover] HIT st={2000 + i} dv=0.00,0.00,2.00 (in the simulation) n={i}" for i in range(30))
+    assert "taken for a wall" in sc.judge_barrier(spam)[1]
+    assert sc.judge_barrier(barrier_log() + "\n[mod:rollover] HIT st=1900 dv=4.00,0.00,0.00 (in the simulation) n=1")[0]
+
+
 def drop_log(rebound=0.04, e_drop=2.0, handback=True, gain=12.0, upz_after=1.0):
     lines = [sim(100, 1, lowest=e_drop, vel=(4.0, 0, -0.1), bottom=0, contacts=0)]
     z = e_drop
@@ -103,12 +118,32 @@ def test_drop_bounce_bounds():
     assert not low[0] and "not ~2.0" in low[1]
 
 
+def slide_log(v0=10.0, mu=0.7, stop_early=False, never=False):
+    """A car landing flat at v0 and sliding to rest by Coulomb friction: v = sqrt(v0^2 - 2 mu g x)."""
+    lines, x, v, n = [], 0.0, v0, 1
+    while v > 0.05 or n < 3:
+        v = 0.0 if stop_early and n > 5 else (v0 if never else math.sqrt(max(v * v - 2 * mu * 9.81 * (v / 60.0), 0.0)))
+        x += v / 60.0
+        lines.append(sim(100 + n, n, pos=(x, 0.0, 1.0), vel=(v, 0, 0), bottom=4, contacts=4))
+        n += 1
+        if n > 600:
+            break
+    for k in range(0 if never else 30):  # at rest
+        lines.append(sim(100 + n + k, n + k, pos=(x, 0.0, 1.0), vel=(0, 0, 0), bottom=4, contacts=4))
+    return "\n".join(lines)
+
+
 def test_slide_needs_friction():
-    ok, why = sc.judge_slide(drop_log())
+    ok, why = sc.judge_slide(slide_log())
     assert ok, why
-    sliding_forever = "\n".join(sim(100 + n, n, vel=(3.8, 0, 0), bottom=4) for n in range(1, 200))
-    assert not sc.judge_slide(sliding_forever)[0]
+    assert "never stops" in sc.judge_slide(slide_log(never=True))[1]  # no friction: it slides on
+    ok, why = sc.judge_slide(slide_log(stop_early=True))
+    assert not ok and "expected" in why  # it stops far too soon: too much friction
     assert not sc.judge_slide(sim(1, 1, bottom=4, vel=(0, 0, 0)))[0]  # never moved: shows nothing
+    # only the first episode counts: a later fast slide (the barrier tumble) does not rescue a drop that stopped dead
+    first = slide_log(stop_early=True)
+    later = "\n".join(sim(5000 + n, n, pos=(100.0 + n * 0.2, 0, 1), vel=(12.0, 0, 0), bottom=4, contacts=4) for n in range(1, 60))
+    assert not sc.judge_slide(first + "\n" + ends("HANDBACK", 4000, 50) + "\n" + later)[0]
 
 
 def test_pose_reaches_the_game():

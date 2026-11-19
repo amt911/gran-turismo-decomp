@@ -30,7 +30,7 @@
 #   --sim        (rollover 0.5.0, style "realistic": the rigid-body simulation) the `rollover` route, the barrier hit: no takeover before the crash, one at the crash because of the hit, the energy budget (the
 #                total energy never above the one right after the hit impulse: no hopping, no spinning top), no hull point > 0.05 m under the ground, rest or handback; and the pose the game
 #                draws is the simulation's pose within one step of motion (kd). the sim modes default to `--seconds 480` on this desktop (powersave): 300 s reached vblank ~13300 of the route's 17980
-#   --drop       the same route with a fake drop of 2 m (GT_MOD_ROLLOVER_DROP=m100:2.0): the first rebound <= 1.2 e^2 h, the car slides to rest (friction), is handed back, driving resumes
+#   --drop       the same route with a fake drop of 2 m (GT_MOD_ROLLOVER_DROP=m450:2.0): the first rebound <= 1.2 e^2 h, the car slides to rest (friction), is handed back, driving resumes
 #   --sim-replay the `circuit` route with a fake hit (GT_MOD_ROLLOVER_FAKE=m30:9): the same takeover live and in the replay, simulated poses within 0.5 m at the same step after it
 #   --others     with --sim: deformation, reset-to-track, cheats, analog-pedals, draw-distance and orbit-camera enabled too (the run must still pass)
 #   Each of these must FAIL: --sabotage-restitution (=13: restitution 1.0; with --drop), --sabotage-nofriction (=14; --drop), --sabotage-nopose (=15: the simulation runs but its pose is never sent to the game; --sim),
@@ -125,7 +125,7 @@ if [ -n "$simmode" ]; then  # the rigid-body style (rollover 0.5.0): its own jud
     done
   fi
   case $simmode in
-    drop) extra_env=(GT_MOD_ROLLOVER_DROP=m100:2.0);;
+    drop) extra_env=(GT_MOD_ROLLOVER_DROP=m450:2.0);;
     replay) extra_env=(GT_MOD_ROLLOVER_FAKE=m30:9);;
   esac
   [ "$simmode" = replay ] && [ "$seconds" = 480 ] && seconds=420

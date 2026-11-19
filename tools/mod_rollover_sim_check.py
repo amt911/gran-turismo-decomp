@@ -51,6 +51,10 @@ MIN_RESUME_GAIN = 3.0       # m/s the car must gain in ROLL_FORWARD steps after 
 RESUME_STEPS = 400
 MAX_REPLAY_DRIFT = 0.5
 G = 9.81
+SLIDE_MIN_SPEED = 1.0       # m/s on the floor that count as sliding
+SLIDE_TOLERANCE = 0.25      # of v0^2 / (2 mu g)
+MAX_SIM_HITS = 12           # impulses taken from the game's own collision while simulating (a barrier scrape is a few; landings and rests with grounded wheel records must add none)
+MIN_TIP_UP_Z = 0.5          # the barrier hit must tip the car at least this far (up.z under this)
 REBOUND_STEPS = 10         # steps after the first contact in which the rebound speed is read
 RESTITUTION = 0.15          # the shipped default (mod.toml)
 
@@ -104,6 +108,10 @@ def judge_pose(sims):
     return True, f"{len(judged)} steps at speed, the pose at the start of each step is the written one within a step of motion (excess {worst_pos:.4f} m, up {worst_up:.4f})"
 
 
+def sim_hit_count(text):
+    return len(re.findall(TAG + r"HIT st=\d+ .*\(in the simulation\)", text))
+
+
 def judge_barrier(text):
     sims, takeovers, ends = parse_sim(text), parse_takeovers(text), parse_ends(text)
     early = [t for t in takeovers if t["st"] < MIN_CRASH_STEP]
@@ -139,6 +147,17 @@ def judge_barrier(text):
     handed = [e for e in ends if e["kind"] == "HANDBACK"]
     if not rest and not handed:
         return False, "the car neither comes to rest nor is handed back"
+    # a hit at ~90 km/h into the barrier must TIP the car (the check is about a tumble, not a scrape): up.z under MIN_TIP_UP_Z at some step after the takeover
+    hits = sim_hit_count(text)
+    if hits > MAX_SIM_HITS:
+        return False, f"{hits} impulses from the game's collision while simulating (limit {MAX_SIM_HITS}): the landing/rest of the car is being taken for a wall"
+    tipped = min(s["upz"] for s in sims)
+    if tipped >= MIN_TIP_UP_Z:
+        return False, f"the hit never tipped the car: lowest up.z {tipped:.2f} (need under {MIN_TIP_UP_Z})"
+    if not handed:  # a valid rest pose: still, held by at least 3 contacts, not in the ground
+        last = sims[-1]
+        if last["contacts"] < 3 or last["lowest"] < -MAX_BELOW_GROUND or not all(math.isfinite(x) for x in (*last["pos"], last["upz"])):
+            return False, f"the final pose is not a valid rest pose (contacts {last['contacts']}, lowest {last['lowest']:.3f})"
     final = "handed back" if handed else f"at rest (up.z {sims[-1]['upz']:.2f})"
     return True, (f"takeover at step {takeovers[0]['st']} (hit), {len(sims)} simulated steps, peak energy {max(s['E'] for s in sims):.0f} J of {limit:.0f} allowed, "
                   f"lowest point {low:.3f} m, max |w_z| while down {max(spin) if spin else 0:.1f} rad/s, {final}; ground height gap {ground_e:.2f} m")
@@ -165,6 +184,8 @@ def judge_drop(text, restitution=RESTITUTION, drop=2.0):
         return False, f"the first rebound reaches {apex:.3f} m, above {BOUNCE_FACTOR} e^2 h = {limit:.3f} m (e {restitution}, drop {h0:.2f} m, impact {v_imp:.1f} m/s)"
     if apex < MIN_BOUNCE_FACTOR * restitution * restitution * h0:
         return False, f"the rebound {apex:.3f} m is under {MIN_BOUNCE_FACTOR} e^2 h = {MIN_BOUNCE_FACTOR * restitution * restitution * h0:.3f} m: it did not bounce like a body of restitution {restitution}"
+    if sim_hit_count(text) > MAX_SIM_HITS:
+        return False, f"{sim_hit_count(text)} impulses from the game's collision while simulating (limit {MAX_SIM_HITS})"
     handed = [e for e in ends if e["kind"] == "HANDBACK"]
     if not handed:
         return False, "the car lies at rest upright but was never handed back"
@@ -192,18 +213,29 @@ def judge_resume(text, handback):
     return True, f"driving resumes (+{gain:.1f} m/s in {RESUME_STEPS} steps)"
 
 
-def judge_slide(text):
-    """The drop run's car arrives with a forward speed: Coulomb friction must stop it (a car that slides on without friction never comes to rest)."""
+def judge_slide(text, mu=0.7):
+    """The drop run's car arrives with a forward speed: Coulomb friction stops it. From its first moving step on its floor to the first step AFTER its last moving step at which it
+    is still, it travels v0^2 / (2 mu g) within SLIDE_TOLERANCE (a car that slides on without friction never stops; one that stops too soon or too late has the wrong friction)."""
     sims = parse_sim(text)
+    ends = parse_ends(text)
+    if ends:  # the first simulation episode only (the drop): the route's barrier crash comes later and has its own sliding
+        sims = [s for s in sims if s["st"] <= ends[0]["st"]]
     if not sims:
         return False, "no simulated step"
-    moving = [s for s in sims if s["bottom"] >= 3 and math.hypot(s["vel"][0], s["vel"][1]) > 1.0]
+    horiz = lambda s: math.hypot(s["vel"][0], s["vel"][1])  # noqa: E731
+    moving = [i for i, s in enumerate(sims) if s["bottom"] >= 3 and horiz(s) > SLIDE_MIN_SPEED]
     if not moving:
         return False, "the car never slid on its floor: the friction check shows nothing"
-    stopped = [s for s in sims if s["bottom"] >= 3 and math.hypot(s["vel"][0], s["vel"][1]) < 0.3]
-    if not stopped:
+    first, last = moving[0], moving[-1]
+    stopped = next((i for i in range(last + 1, len(sims)) if horiz(sims[i]) < 0.3), None)
+    if stopped is None:
         return False, "the sliding car never stops: no friction"
-    return True, f"slid {len(moving)} steps on its floor, stopped by step n={stopped[0]['n']}"
+    v0 = horiz(sims[first])
+    travelled = math.hypot(sims[stopped]["pos"][0] - sims[first]["pos"][0], sims[stopped]["pos"][1] - sims[first]["pos"][1])
+    expected = v0 * v0 / (2 * mu * G)
+    if abs(travelled - expected) > SLIDE_TOLERANCE * expected:
+        return False, f"the car slid {travelled:.2f} m from {v0:.2f} m/s, expected {expected:.2f} m (mu {mu}) within {SLIDE_TOLERANCE:.0%}"
+    return True, f"slid {travelled:.2f} m from {v0:.2f} m/s (expected {expected:.2f} m), still after {sims[stopped]['n'] - sims[first]['n']} steps"
 
 
 def judge_replay(text):

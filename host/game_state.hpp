@@ -127,7 +127,7 @@ bool list_world_matrix(const psprecomp::GuestMemory &memory, float out[12], std:
 void euler_to_rows(const float euler[3], float rows[9]);
 // The inverse: pitch = asin(forward.z) in [-pi/2, pi/2], roll = atan2(-right.z, up.z), yaw = atan2(-forward.x, forward.y). At the pole (|forward.z| ~ 1) yaw and
 // roll are one degree of freedom: roll = 0 and yaw takes it all, so the rows rebuilt from the result are the input's within float noise.
-void rows_to_euler(const float rows[9], float euler[3]);
+void rows_to_euler(const float rows[9], float euler[3], const float *previous = nullptr);  // previous: the Euler angles the car had (continuity inside 0.08 degrees of the pole)
 
 // A world's car slot: the car object (word(car + 8) is the body handle), or 0 when `handle` is no slot of `world`.
 std::uint32_t car_object(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle);
@@ -144,8 +144,9 @@ struct WheelContact {
 };
 bool car_wheel_contacts(const psprecomp::GuestMemory &memory, std::uint32_t world, std::uint32_t handle, WheelContact out[4]);
 
-// Writes position, basis rows, the Euler angles derived from them, velocity, speed (|velocity|) and zero in all five rate fields. False (nothing written)
-// for a bad handle, a non-finite value or rows that are not an orthonormal basis (each row unit within 1e-2, mutually perpendicular within 1e-2).
+// Writes position, basis rows, the Euler angles derived from them, velocity, speed (|velocity|) and ZERO in all five rate fields: `angular_velocity` is only checked for
+// finiteness and is NOT stored (the game's rate fields are not body-axis components). False (nothing written) for a bad handle, a non-finite value, rows that are not an
+// orthonormal basis (each row unit within 1e-2, mutually perpendicular within 1e-2) or not LEFT-handed (forward x right . up must be about -1, as the game's basis).
 bool car_set_pose(psprecomp::GuestMemory &memory, std::uint32_t handle, const float position[3], const float basis[9], const float velocity[3],
                   const float angular_velocity[3]);
 

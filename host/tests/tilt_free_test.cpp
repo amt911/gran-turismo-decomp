@@ -88,6 +88,9 @@ int main() {
     g_clamp_flag = g_contact_flag = 99;
     call_body(rt, car_a);
     check(g_clamp_flag == 0 && g_contact_flag == 0, "a car nobody freed reads the game's flag, 0");
+    g_clamp_flag = 99;
+    call_body(rt, 0xFFFFFFF0u);  // a0 outside the guest memory: no read, no throw, nothing freed
+    check(g_clamp_flag == 0, "a bad a0 is guarded");
 
     const GtModApi &api7 = mod_api(GT_MOD_API_VERSION_7);
     check(api7.version == 7 && api7.tilt_free != nullptr && api7.car_set_pose != nullptr && api7.car_dimensions != nullptr && api7.car_wheel_contacts != nullptr, "the v7 table has the four calls");

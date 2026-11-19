@@ -246,9 +246,9 @@ typedef struct GtModApi {
     int (*car_wheel_contacts)(GtMod *self, GtModCtx *ctx, uint32_t world, uint32_t car, GtWheelContact out[4]);
     /* Writes a whole pose consistently (world-step hook, car-draw hook or vblank tick): the position, the three basis rows (forward, right, up: the
      * game's left-handed rows) and the three Euler angles the game rebuilds its basis from (derived from the rows, so a mod never sees +0x6FC),
-     * the velocity and the speed, and zero in every angular-rate field. `angular_velocity` (world, rad/s) is checked for finiteness and otherwise
-     * not used: the game's rate fields are not body-axis components (FACTS "Rollover body box"), so zero is the one value that is proven to make the
-     * game's next step leave the pose alone. 0 = ok; non-zero for a bad handle, a non-finite value or rows that are not a rotation. */
+     * the velocity and the speed, and zero in every angular-rate field. `angular_velocity` (world, rad/s) is checked for finiteness and NOT stored (the rate fields are
+     * zeroed; it only lets a mod pass what it has): the game's rate fields are not body-axis components (FACTS "Rollover body box"), so zero is the one value that is proven to make the
+     * game's next step leave the pose alone. 0 = ok; non-zero for a bad handle, a non-finite value rows that are not a rotation, or a right-handed set (the game's rows are left-handed: forward x right . up = -1). */
     int (*car_set_pose)(GtMod *self, GtModCtx *ctx, uint32_t car, const float position[3], const float basis[9], const float velocity[3],
                         const float angular_velocity[3]);
     /* Lifts (on != 0) or restores the game's 35-degree tilt clamp for `car`'s body step, the way the rollover mod always did (FACTS "Rollovers"):

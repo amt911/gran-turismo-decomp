@@ -120,6 +120,27 @@ int main() {
         float worst = 0;
         for (int k = 0; k < 9; ++k) worst = std::fmax(worst, std::fabs(pr[k] - pr2[k]));
         check(worst < 5e-3f && std::fabs(pe[0]) <= 1.5708f, "euler: at the pole the rebuilt rows match");
+        // a smooth attitude through the band 0.9999 < |forward.z| < 1: yaw 0.5, roll 0.3 + 2 x (angle below the pole), pitch going to the pole: the written angles must not wobble
+        for (int sign = -1; sign <= 1; sign += 2) {
+            float prev[3] = {0.0f, 0.3f, 0.5f}, prev_rows[9];
+            bool first = true;
+            float worst_jump = 0.0f, worst_rows = 0.0f;
+            for (double below = 2e-2; below > 1e-6; below *= 0.93) {
+                const float eu[3] = {float(sign * (1.5707963267948966 - below)), float(0.3 + 5.0 * below), 0.5f};
+                float rr[9], got[3], back[9];
+                euler_to_rows(eu, rr);
+                rows_to_euler(rr, got, first ? nullptr : prev);
+                euler_to_rows(got, back);
+                for (int k = 0; k < 9; ++k) worst_rows = std::fmax(worst_rows, std::fabs(rr[k] - back[k]));
+                if (!first) worst_jump = std::fmax(worst_jump, std::fmax(std::fabs(got[1] - prev[1]), std::fabs(got[2] - prev[2])));
+                std::memcpy(prev, got, sizeof prev);
+                std::memcpy(prev_rows, rr, sizeof prev_rows);
+                first = false;
+            }
+            std::fprintf(stderr, "pole band sign %d: worst step in roll/yaw %.5f, rows error %.6f\n", sign, worst_jump, worst_rows);
+            check(worst_jump < 0.02f, "euler: the angles do not wobble through the pole band (continuity)");
+            check(worst_rows < 1e-3f, "euler: the rows rebuilt from the angles of the pole band match");
+        }
     }
     {
         // car_set_pose / car_state round trip, dimensions and wheel records on the fake world of the cars test (slot 0)
@@ -145,6 +166,10 @@ int main() {
         for (int k = 0; k < 9; ++k) bad[k] = rows[k];
         bad[0] *= 2.0f;
         check(!car_set_pose(m, body0, pos, bad, vel, w), "pose: rows that are not a rotation are refused");
+        float righthanded[9];
+        for (int k = 0; k < 9; ++k) righthanded[k] = rows[k];
+        for (int k = 0; k < 3; ++k) righthanded[3 + k] = -rows[3 + k];  // mirror the right row: a right-handed, still orthonormal set
+        check(!car_set_pose(m, body0, pos, righthanded, vel, w), "pose: a right-handed basis is refused");
         const float nan[3] = {std::nanf(""), 0.0f, 0.0f};
         check(!car_set_pose(m, body0, nan, rows, vel, w) && !car_set_pose(m, body0, pos, rows, vel, nan) && !car_set_pose(m, 0u, pos, rows, vel, w), "pose: non-finite values and a null handle are refused");
         check(s.position[0] == 10.0f, "pose: a refused call writes nothing");
@@ -161,13 +186,14 @@ int main() {
         m.store32(car0 + 0x10u, wrec);
         for (std::uint32_t i = 0; i < 4; ++i) {
             put(wrec + 0x38u * i, 1.0f + i); put(wrec + 0x38u * i + 8u, -(10.0f + i)); put(wrec + 0x38u * i + 0xCu, 3.0f + 0.1f * i);
-            m.store32(wrec + 0x38u * i + 0x2Cu, i == 2 ? 0x0100u + 1u : 0x0200u);  // byte +0x2C = 1 (no road) on wheel 2; +0x2D = 2 elsewhere
+            m.store32(wrec + 0x38u * i + 0x2Cu, i == 2 ? 0x0100u + 1u : i == 3 ? 0x0300u : 0x0200u);  // byte +0x2C = 1 (no road) on wheel 2; +0x2D = 2 elsewhere
             put(body0 + 0x70u + 0x118u * i + 0x54u, 100.0f * i);
         }
         WheelContact wc[4]{};
         check(car_wheel_contacts(m, W, body0, wc), "wheels: read");
         check(wc[1].x == 2.0f && wc[1].y == 11.0f && std::fabs(wc[1].ground_height - 3.1f) < 1e-6f && wc[1].valid == 1 && wc[1].surface == 2, "wheels: x, y (= -z of the Y-up record), height, valid, surface");
         check(wc[2].valid == 0 && wc[3].load == 300.0f && wc[0].load == 0.0f, "wheels: byte +0x2C != 0 is not valid; the load comes from the wheel struct");
+        check(wc[3].valid == 1 && wc[3].surface == 3, "wheels: the off-track word 0x0300 reads valid with surface 3");
         check(!car_wheel_contacts(m, W, 0x09999999u, wc), "wheels: a body that is no slot is refused");
     }
 
