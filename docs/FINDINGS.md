@@ -3407,3 +3407,10 @@ is uploaded only when its version changes, is rasterized at the size it is shown
 source, transparent or opaque destination, fully covered rows): 6 ms, pixel-identical (hash of 20 frames). Measure with a
 standalone bench linking `lcs_host_style.cpp` (perf was not usable here; valgrind/callgrind was).
 
+
+## Extra seeds: what the recompiler's discovery scans, and two traps (2026-11-19)
+
+- `collect_initial_seeds` scans every instruction of `.text` for `jal` (not `j`) targets plus data pointers and `lui`/`addiu` pairs, so a function reached only by a `j` tail call, or only by a vtable word without a relocation, is never seeded. Extra seeds (patch 0073, `tools.extra_seeds`) add them; a seed also stops the linear scan of a block that runs over it (`known_seeds.contains(pc)` in `analyze_function`), which is why the generated units that contain them change shape (`tools.extra_seeds verify` proves no entry or block label of the baseline disappears).
+- Ghidra sizes can overlap: `0x08ACC93C` is an 8-byte `j`+delay-slot thunk listed with the size of the function after it, so a seed at `0x08ACC944` looked like a split. `effective_sizes` cuts a function at its first unconditional return that no branch jumps over.
+- Installing regenerated files with `cp -p` keeps their old mtimes, older than the objects built from the previous content: ninja then rebuilds nothing. `touch` the files whose content differs (`cmp`), or let `tools.recomp` write into the build's own `recomp/generated`.
+- The synthetic gate over every registration has 5 mismatches on `main` before this change (`0x0889E01C`, `0x088A657C`, `0x0893D9AC`, `0x08C18650`, `0x08C70D64`): a before/after comparison must expect the same five, not zero.
