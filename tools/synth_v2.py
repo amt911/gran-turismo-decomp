@@ -42,15 +42,24 @@ def parse_v2(text: str) -> dict[int, tuple[int, int]]:
     return out
 
 
+def total_compared(text: str) -> dict[int, int]:
+    """address -> cases compared, summed over every function line of the text (a log concatenated from several routes has one per route)."""
+    totals: dict[int, int] = {}
+    for match in re.finditer(r"@0x([0-9A-Fa-f]{8}): compared (\d+)", text):
+        address = int(match.group(1), 16)
+        totals[address] = totals.get(address, 0) + int(match.group(2))
+    return totals
+
+
 def newly_compared(off: str, on: str) -> set[int]:
     """Functions with no comparison in the v2-off run, and v2 cases that compared equal with no mismatch in the v2-on run."""
-    before = parse_synth_log(off)
+    off_total = total_compared(off)
     after = parse_synth_log(on)
     cases = parse_v2(on)
     return {
         address
         for address, (compared, equal) in cases.items()
-        if compared > 0 and compared == equal and before.get(address) is not None and before[address].compared == 0
+        if compared > 0 and compared == equal and address in off_total and off_total[address] == 0
         and address in after and after[address].mismatched == 0
     }
 
@@ -74,13 +83,13 @@ def needs_scene(text: str) -> set[int]:
 
 
 def table(off: str, on: str, files: Mapping[str, Collection[int]]) -> dict[str, Row]:
-    before = parse_synth_log(off)
+    before = total_compared(off)
     new = newly_compared(off, on)
     scene = needs_scene(on) - new
     rows: dict[str, Row] = {}
     for name, addresses in files.items():
         installed = [a for a in addresses if a in before]
-        rows[name] = Row(len(installed), sum(1 for a in installed if before[a].compared > 0), len(new & set(addresses)), len(scene & set(addresses)))
+        rows[name] = Row(len(installed), sum(1 for a in installed if before[a] > 0), len(new & set(addresses)), len(scene & set(addresses)))
     return rows
 
 

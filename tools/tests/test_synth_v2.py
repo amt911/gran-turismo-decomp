@@ -73,3 +73,8 @@ def test_main_prints_the_table(tmp_path, capsys):
     assert v2.main([str(tmp_path / "off.log"), str(tmp_path / "on.log"), "--src", str(src)]) == 0
     out = capsys.readouterr().out
     assert "hot_batch_320" in out and out.splitlines()[-1].startswith("total")
+
+
+def test_totals_sum_over_the_routes_of_a_concatenated_log():
+    two_routes = OFF + OFF.splitlines()[0].replace("compared 8, equal 8", "compared 2, equal 2") + "\n"
+    assert v2.total_compared(two_routes)[0x08810000] == 10
