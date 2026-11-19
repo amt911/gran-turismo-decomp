@@ -4,8 +4,8 @@
 // the result string is assigned to the output (0x08A5BAD8) and the local released (0x08A5B9EC). v0 = 1 unless the second conversion gave nothing.
 // (2) 22 destructors of 24 instructions: the vtable word is stored, a member at +OFFSET that holds an object is released through its
 // vtable's first virtual (with the word at +OFFSET as argument) and cleared, then 0x08A780B0 or another base finishes (tail call).
-// Of the 48 conversions only 7 were compared by the synthetic cases (the others have the same body but no comparable case: the generated
-// inputs make the type function fault), and 18 of the 22 destructors; the rest are not registered here.
+// Of the 48 conversions 31 compare in the synthetic gate once the corpus recipes (config/synth_corpus/<ADDRESS>.txt, found by the coverage
+// search) make the type function succeed; 17 still have no comparable case, and 18 of the 22 destructors compare; the rest are not registered here.
 // No names: none has evidence.
 #include "decomp_registry.hpp"
 #include "gt/game/hot_common.hpp"
@@ -126,6 +126,30 @@ void func_08A1D5F8(Runtime &rt, AllegrexContext &ctx) { release_member_then_tail
 void func_08A2D4E0(Runtime &rt, AllegrexContext &ctx) { release_member_then_tail(rt, ctx, 0x08CBE6A0u, 0x14u, 0x08A780B0u); }
 void func_08A31958(Runtime &rt, AllegrexContext &ctx) { release_member_then_tail(rt, ctx, 0x08CD14C0u, 0x14u, 0x08A780B0u); }
 void func_08A37868(Runtime &rt, AllegrexContext &ctx) { release_member_then_tail(rt, ctx, 0x08CD17F0u, 0x14u, 0x08A780B0u); }
+void func_08976938(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089767B8u); }
+void func_089918F4(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089915FCu); }
+void func_08991CA0(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08991AD8u); }
+void func_089A276C(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089A24F0u); }
+void func_089B4AD8(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089B4800u); }
+void func_089B544C(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089B4FD0u); }
+void func_089CACF4(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089CA6CCu); }
+void func_089D4EAC(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089D4CDCu); }
+void func_089D5184(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089D5034u); }
+void func_089D8A8C(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089D8380u); }
+void func_089ED64C(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089ED4CCu); }
+void func_089FC524(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089FB8E0u); }
+void func_089FE18C(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089FDFBCu); }
+void func_089FEFDC(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x089FEE38u); }
+void func_08A036E0(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A03568u); }
+void func_08A0C1EC(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A0C09Cu); }
+void func_08A0C648(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A0C4F8u); }
+void func_08A2A238(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A2A14Cu); }
+void func_08A376D0(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A3762Cu); }
+void func_08A5926C(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A5916Cu); }
+void func_08A84644(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08A844D0u); }
+void func_08AABBE0(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08AABAE0u); }
+void func_08AAC0A8(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08AABFA8u); }
+void func_08AAF588(Runtime &rt, AllegrexContext &ctx) { convert_string(rt, ctx, 0x08AAF4BCu); }
 
 } // namespace
 } // namespace new_batch_5
@@ -157,3 +181,27 @@ NEW5(0x08A1D5F8u, func_08A1D5F8, Word);
 NEW5(0x08A2D4E0u, func_08A2D4E0, Word);
 NEW5(0x08A31958u, func_08A31958, Word);
 NEW5(0x08A37868u, func_08A37868, Word);
+NEW5(0x08976938u, func_08976938, Word);
+NEW5(0x089918F4u, func_089918F4, Word);
+NEW5(0x08991CA0u, func_08991CA0, Word);
+NEW5(0x089A276Cu, func_089A276C, Word);
+NEW5(0x089B4AD8u, func_089B4AD8, Word);
+NEW5(0x089B544Cu, func_089B544C, Word);
+NEW5(0x089CACF4u, func_089CACF4, Word);
+NEW5(0x089D4EACu, func_089D4EAC, Word);
+NEW5(0x089D5184u, func_089D5184, Word);
+NEW5(0x089D8A8Cu, func_089D8A8C, Word);
+NEW5(0x089ED64Cu, func_089ED64C, Word);
+NEW5(0x089FC524u, func_089FC524, Word);
+NEW5(0x089FE18Cu, func_089FE18C, Word);
+NEW5(0x089FEFDCu, func_089FEFDC, Word);
+NEW5(0x08A036E0u, func_08A036E0, Word);
+NEW5(0x08A0C1ECu, func_08A0C1EC, Word);
+NEW5(0x08A0C648u, func_08A0C648, Word);
+NEW5(0x08A2A238u, func_08A2A238, Word);
+NEW5(0x08A376D0u, func_08A376D0, Word);
+NEW5(0x08A5926Cu, func_08A5926C, Word);
+NEW5(0x08A84644u, func_08A84644, Word);
+NEW5(0x08AABBE0u, func_08AABBE0, Word);
+NEW5(0x08AAC0A8u, func_08AAC0A8, Word);
+NEW5(0x08AAF588u, func_08AAF588, Word);
