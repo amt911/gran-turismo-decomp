@@ -1,6 +1,6 @@
 # Emit the unreferenced functions — design (2026-11-19)
 
-Status: **draft for the user's approval** (design only, no code). Design calls of the author are marked "(Claude)".
+Status: **approved by the user on 2026-11-19**. (design only, no code). Design calls of the author are marked "(Claude)".
 
 ## Problem
 
