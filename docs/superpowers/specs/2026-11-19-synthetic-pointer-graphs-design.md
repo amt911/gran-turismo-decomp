@@ -1,6 +1,6 @@
 # Synthetic pointer graphs: cases whose dereferenced words are valid memory
 
-Status: proposed (Claude; the user is away and approves specs as a rule). Extends
+Status: **approved by the user on 2026-11-19**. Extends
 `2026-10-25-synthetic-cases-design.md`, `2026-11-10-recorded-arguments-design.md` (option B, class-matched a0) and
 `2026-11-11-coverage-guided-synthetic-inputs-design.md` (corpus). No code before this is approved.
 
