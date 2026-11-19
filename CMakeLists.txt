@@ -192,7 +192,7 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
-        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/game_state.cpp host/mesh_blob.cpp host/pad_menu.cpp host/ui_row.cpp host/ui_view.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/tilt_free.cpp host/game_state.cpp host/mesh_blob.cpp host/pad_menu.cpp host/ui_row.cpp host/ui_view.cpp
         host/cheat_device/bindings.cpp host/cheat_device/menu.cpp host/cheat_device/device.cpp host/cheat_device/keyboard_sdl.cpp
         host/draw_composite.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
@@ -359,7 +359,7 @@ if(LibArchive_FOUND AND OpenSSL_FOUND)
     endif()
 endif()
 # mod_hooks.cpp's API table reaches mod_services.cpp, which calls guest code through gt::call_guest
-set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/game_state.cpp host/mesh_blob.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
+set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/tilt_free.cpp host/game_state.cpp host/mesh_blob.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
 add_executable(mod_hooks_tests host/tests/mod_hooks_test.cpp ${GT_MOD_CORE})
 target_include_directories(mod_hooks_tests PRIVATE host include)
 target_link_libraries(mod_hooks_tests PRIVATE psprecomp_core)
@@ -377,6 +377,10 @@ add_executable(mod_menu_tests host/tests/mod_menu_test.cpp host/mod_menu.cpp hos
 target_include_directories(mod_menu_tests PRIVATE host include)
 target_link_libraries(mod_menu_tests PRIVATE psprecomp_core Threads::Threads)
 add_test(NAME mod_menu COMMAND mod_menu_tests)
+add_executable(tilt_free_tests host/tests/tilt_free_test.cpp ${GT_MOD_CORE})
+target_include_directories(tilt_free_tests PRIVATE host include)
+target_link_libraries(tilt_free_tests PRIVATE psprecomp_core)
+add_test(NAME tilt_free COMMAND tilt_free_tests)
 add_executable(mod_services_tests host/tests/mod_services_test.cpp ${GT_MOD_CORE})
 target_include_directories(mod_services_tests PRIVATE host include)
 target_link_libraries(mod_services_tests PRIVATE psprecomp_core)

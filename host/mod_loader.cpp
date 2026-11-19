@@ -3,6 +3,7 @@
 #include "mod_hooks.hpp"
 #include "mod_manifest.hpp"
 #include "mod_services.hpp"
+#include "tilt_free.hpp"
 
 #include <dlfcn.h>
 
@@ -78,10 +79,9 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
             skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
-        // 7 is the rollover-physics SDK (feat/sdk-rollover-physics): not in this build; the host implements 1 to 6 and 8.
-        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_8 || manifest->api == 7) {
+        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_8) {
             skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + " to " +
-                 std::to_string(GT_MOD_API_VERSION_6) + " and " + std::to_string(GT_MOD_API_VERSION_8) + ")");
+                 std::to_string(GT_MOD_API_VERSION_8) + ")");
             continue;
         }
         const std::filesystem::path library = mod_dir / manifest->library;
@@ -105,6 +105,12 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
         mod->manifest = mod_dir / "mod.toml";
         GtMod *self = mod.get();
         live_mods().push_back(std::move(mod));
+        std::string tilt_error;
+        if (self->api_version >= GT_MOD_API_VERSION_7 && !tilt::install(rt, self, tilt_error)) {  // v7: the host's tilt hooks, owned by the mod
+            remove_hooks_for(rt, self);
+            skip("tilt_free hooks: " + tilt_error);
+            continue;
+        }
         services::begin_init(self);
         const int status = init(&mod_api(self->api_version), self);  // a v1 mod is told version 1
         services::end_init();

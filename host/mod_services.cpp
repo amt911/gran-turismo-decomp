@@ -346,6 +346,36 @@ int api_money_set(GtMod *self, GtModCtx *ctx, std::uint32_t value) {
     return gt::game_state::money_set(ctx->rt->memory(), value) ? 0 : 1;
 }
 
+bool v7_mod(GtMod *self, const char *what) {
+    if (self == nullptr) return false;
+    if (self->api_version < GT_MOD_API_VERSION_7) {
+        std::fprintf(stderr, "[mod:%s] %s refused: the mod declared api %d (needs api = 7)\n", self->id.c_str(), what, self->api_version);
+        return false;
+    }
+    return true;
+}
+static_assert(sizeof(GtCarDimensions) == sizeof(gt::game_state::CarDimensions), "GtCarDimensions mirrors game_state::CarDimensions");
+static_assert(sizeof(GtWheelContact) == sizeof(gt::game_state::WheelContact), "GtWheelContact mirrors game_state::WheelContact");
+int api_car_dimensions(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarDimensions *out) {
+    if (!v7_mod(self, "car_dimensions") || ctx == nullptr || out == nullptr) return 1;
+    gt::game_state::CarDimensions d{};
+    if (!gt::game_state::car_dimensions(ctx->rt->memory(), world, car, d)) return 1;
+    std::memcpy(out, &d, sizeof d);
+    return 0;
+}
+int api_car_wheel_contacts(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtWheelContact out[4]) {
+    if (!v7_mod(self, "car_wheel_contacts") || ctx == nullptr || out == nullptr) return 1;
+    gt::game_state::WheelContact w[4]{};
+    if (!gt::game_state::car_wheel_contacts(ctx->rt->memory(), world, car, w)) return 1;
+    std::memcpy(out, w, sizeof w);
+    return 0;
+}
+int api_car_set_pose(GtMod *self, GtModCtx *ctx, std::uint32_t car, const float position[3], const float basis[9], const float velocity[3],
+                     const float angular_velocity[3]) {
+    if (!v7_mod(self, "car_set_pose") || ctx == nullptr || position == nullptr || basis == nullptr || velocity == nullptr || angular_velocity == nullptr) return 1;
+    return gt::game_state::car_set_pose(ctx->rt->memory(), car, position, basis, velocity, angular_velocity) ? 0 : 1;
+}
+
 bool v5_mod(GtMod *self, const char *what) {
     if (self == nullptr) return false;
     if (self->api_version < GT_MOD_API_VERSION_5) {

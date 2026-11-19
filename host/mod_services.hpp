@@ -112,6 +112,11 @@ int api_on_switch_off(GtMod *self, GtVblankFn fn);
 int api_run_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int8_t xyz[3]);
 int api_run_set_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int8_t xyz[3]);
 int api_draw_matrix(GtMod *self, GtModCtx *ctx, float out[12]);
+// v7: dimensions, wheel records and the pose write (host/game_state.hpp).
+int api_car_dimensions(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarDimensions *out);
+int api_car_wheel_contacts(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtWheelContact out[4]);
+int api_car_set_pose(GtMod *self, GtModCtx *ctx, std::uint32_t car, const float position[3], const float basis[9], const float velocity[3],
+                     const float angular_velocity[3]);
 std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity);
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
