@@ -1,0 +1,93 @@
+diff --git a/src/program_analysis.cpp b/src/program_analysis.cpp
+--- a/src/program_analysis.cpp
++++ b/src/program_analysis.cpp
+@@ -478,10 +478,14 @@
+ ProgramAnalysis analyze_program(const Elf32Image &elf,
+                                 const GuestMemory &memory,
+                                 std::uint32_t load_base,
+-                                std::size_t max_instructions_per_function) {
++                                std::size_t max_instructions_per_function,
++                                const std::vector<std::uint32_t> &extra_seeds) {
+     ProgramAnalysis program{};
+     program.executable_ranges = executable_ranges_for(elf, load_base);
+     program.seeds = collect_initial_seeds(elf, memory, load_base, program.executable_ranges);
++    // Extra function seeds given by the caller (a seeds file): functions nothing in the code or data points at. They are added like
++    // any other seed (try_emplace: an address the analysis already found keeps its own source).
++    for (const auto address : extra_seeds) add_seed(program.seeds, program.executable_ranges, address, "extra_seed");
+     program.functions.reserve(program.seeds.size());
+ 
+     std::unordered_map<std::uint32_t, std::size_t> label_owners;
+diff --git a/include/psprecomp/program_analysis.hpp b/include/psprecomp/program_analysis.hpp
+--- a/include/psprecomp/program_analysis.hpp
++++ b/include/psprecomp/program_analysis.hpp
+@@ -41,6 +41,7 @@
+ [[nodiscard]] ProgramAnalysis analyze_program(const Elf32Image &elf,
+                                               const GuestMemory &memory,
+                                               std::uint32_t load_base,
+-                                              std::size_t max_instructions_per_function = 131072u);
++                                              std::size_t max_instructions_per_function = 131072u,
++                                              const std::vector<std::uint32_t> &extra_seeds = {});
+ 
+ } // namespace psprecomp
+diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
+--- a/tools/codegen_main.cpp
++++ b/tools/codegen_main.cpp
+@@ -1564,7 +1564,8 @@
+                   const std::filesystem::path &output_dir,
+                   std::uint32_t load_base,
+                   std::uint32_t unit_span_bytes,
+-                  const std::filesystem::path &boundaries_path) {
++                  const std::filesystem::path &boundaries_path,
++                  const std::filesystem::path &seeds_path) {
+     const auto elf = psprecomp::Elf32Image::from_file(elf_path);
+     psprecomp::GuestMemory memory;
+     (void)elf.load_and_relocate(memory, load_base);
+@@ -1584,7 +1585,20 @@
+             import_stubs.insert(static_cast<std::uint32_t>(std::stoul(line, nullptr, 16)));
+         }
+     }
+-    const auto program = psprecomp::analyze_program(elf, memory, load_base);
++    // Extra seeds: guest addresses of functions to emit although nothing reaches them (one hex number per line, '#' comments).
++    // Unlike the boundaries above they are emitted as ordinary code, not replaced by the host.
++    std::vector<std::uint32_t> extra_seeds;
++    if (!seeds_path.empty()) {
++        std::ifstream seeds(seeds_path);
++        if (!seeds) throw psprecomp::Error("cannot read seeds file " + seeds_path.string());
++        std::string line;
++        while (std::getline(seeds, line)) {
++            line = line.substr(0, line.find('#'));
++            if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
++            extra_seeds.push_back(static_cast<std::uint32_t>(std::stoul(line, nullptr, 16)));
++        }
++    }
++    const auto program = psprecomp::analyze_program(elf, memory, load_base, 131072u, extra_seeds);
+     if (program.executable_ranges.empty()) throw psprecomp::Error("ELF has no executable ranges");
+ 
+     std::filesystem::create_directories(output_dir);
+@@ -1760,8 +1774,8 @@
+ int main(int argc, char **argv) {
+     try {
+         if (argc >= 4 && std::string_view(argv[2]) == "--auto") {
+-            if (argc > 7) {
+-                std::cerr << "Usage: psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes] [boundaries_file]\n";
++            if (argc > 8) {
++                std::cerr << "Usage: psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes] [boundaries_file] [seeds_file]\n";
+                 return 2;
+             }
+             const std::uint32_t load_base = argc >= 5
+@@ -1772,12 +1786,13 @@
+                 : 0x20000u;
+             if (unit_span == 0u || (unit_span & 3u) != 0u) throw psprecomp::Error("unit_span_bytes must be non-zero and 4-byte aligned");
+             return generate_auto(argv[1], argv[3], load_base, unit_span,
+-                                 argc >= 7 ? std::filesystem::path(argv[6]) : std::filesystem::path());
++                                 argc >= 7 ? std::filesystem::path(argv[6]) : std::filesystem::path(),
++                                 argc >= 8 ? std::filesystem::path(argv[7]) : std::filesystem::path());
+         }
+         if (argc == 4) return generate_manual(argv[1], argv[2], argv[3]);
+         std::cerr << "Usage:\n"
+                   << "  psp_recomp <ELF> <functions.csv> <generated_manifest.cpp>\n"
+-                  << "  psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes] [boundaries_file]\n";
++                  << "  psp_recomp <ELF> --auto <generated_dir> [load_base_hex] [unit_span_bytes] [boundaries_file] [seeds_file]\n";
+         return 2;
+     } catch (const std::exception &e) {
+         std::cerr << "psp_recomp error: " << e.what() << "\n";

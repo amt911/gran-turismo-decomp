@@ -32,6 +32,8 @@ RECOMP_BIN = REPO / "tools/src/lcs-recomp/out/tools/psp_recomp"
 STAMP = ".inputs.sha1"
 REGISTRY = "generated_registry.cpp"
 BOUNDARIES = "decomp_boundaries.txt"
+SEEDS = "extra_seeds.txt"
+SEEDS_SOURCE = REPO / "recomp" / SEEDS  # derived by tools.extra_seeds, ignored by git
 
 Runner = Callable[[Sequence[str]], None]
 
@@ -44,12 +46,14 @@ def run(cmd: Sequence[str]) -> None:
     subprocess.run(list(cmd), check=True, stdout=subprocess.DEVNULL)
 
 
-def _inputs_digest(elf: Path, recomp_bin: Path, load_base: int, unit_span: int, listing: str) -> str:
+def _inputs_digest(elf: Path, recomp_bin: Path, load_base: int, unit_span: int, listing: str, seeds_listing: str = "") -> str:
     h = hashlib.sha1()
     for path in (elf, recomp_bin):
         h.update(path.read_bytes())
     h.update(f"{load_base:#010x} {unit_span:#x}".encode())
     h.update(listing.encode())
+    if seeds_listing:  # absent seeds leave the digest of a build without the feature unchanged
+        h.update(b"seeds:" + seeds_listing.encode())
     return h.hexdigest()
 
 
@@ -58,15 +62,28 @@ def decomp_boundaries(src: Path) -> list[int]:
     return sorted(PROGRESS_LOAD_BASE + vaddr for vaddr in decompiled_functions(src))
 
 
+def read_seeds(path: Path) -> list[int]:
+    """Addresses of a seeds file (hex, one per line, `#` comments); no file means no seeds."""
+    if not path.is_file():
+        return []
+    out = []
+    for line in path.read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            out.append(int(line, 16))
+    return out
+
+
 def regenerate(elf: Path, out_dir: Path, recomp_bin: Path, load_base: int = LOAD_BASE,
-               unit_span: int = UNIT_SPAN, boundaries: Iterable[int] = (), runner: Runner = run) -> bool:
+               unit_span: int = UNIT_SPAN, boundaries: Iterable[int] = (), seeds: Iterable[int] = (), runner: Runner = run) -> bool:
     """Run psp_recomp unless out_dir already holds output for exactly these inputs. True if it ran."""
     if not elf.is_file():
         raise RecompError(f"{elf} not found: run `.venv/bin/python -m tools.extract` first")
     if not recomp_bin.is_file():
         raise RecompError(f"{recomp_bin} not found: run tools/setup.sh first")
     listing = "".join(f"{address:#010x}\n" for address in sorted(boundaries))
-    digest = _inputs_digest(elf, recomp_bin, load_base, unit_span, listing)
+    seeds_listing = "".join(f"{address:#010x}\n" for address in sorted(set(seeds)))
+    digest = _inputs_digest(elf, recomp_bin, load_base, unit_span, listing, seeds_listing)
     stamp = out_dir / STAMP
     if (stamp.is_file() and stamp.read_text().strip() == digest
             and (out_dir / REGISTRY).is_file()):
@@ -77,6 +94,12 @@ def regenerate(elf: Path, out_dir: Path, recomp_bin: Path, load_base: int = LOAD
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / BOUNDARIES).write_text(listing)
         cmd.append(str(out_dir / BOUNDARIES))
+    if seeds_listing:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / SEEDS).write_text(seeds_listing)
+        if not listing:
+            cmd.append("")  # the boundaries slot, empty
+        cmd.append(str(out_dir / SEEDS))
     runner(cmd)
     stamp.write_text(digest + "\n")
     return True
@@ -86,9 +109,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--elf", type=Path, default=REPO / "extracted/EBOOT.elf")
     parser.add_argument("--out", type=Path, default=REPO / "recomp/generated")
+    parser.add_argument("--extra-seeds", type=Path, default=SEEDS_SOURCE,
+                        help="file of function addresses to emit although nothing reaches them (tools.extra_seeds select)")
     args = parser.parse_args(argv)
     try:
-        ran = regenerate(args.elf, args.out, RECOMP_BIN, boundaries=decomp_boundaries(REPO / "src"))
+        ran = regenerate(args.elf, args.out, RECOMP_BIN, boundaries=decomp_boundaries(REPO / "src"),
+                         seeds=read_seeds(args.extra_seeds))
     except RecompError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
