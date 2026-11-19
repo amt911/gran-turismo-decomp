@@ -1,4 +1,4 @@
-/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 7).
+/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 9).
  *
  * A mod is a shared library that exports `gt_mod_init`. The loader calls it once with the host's function table;
  * the mod registers hooks on guest (PSP) addresses through `api->hook` and reads/writes guest state through the
@@ -36,6 +36,10 @@ extern "C" {
 /* v7 (docs/superpowers/specs/2026-11-18-rollover-physics-design.md): what a rigid-body mod needs: the car's dimensions, the ground under each wheel,
  * one named call that writes a whole pose, and the tilt switch. The v7 functions refuse a mod that declared api < 7. */
 #define GT_MOD_API_VERSION_7 7
+/* v8 is the mod draw API (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md, PR #667): its functions sit between tilt_free and camera_get below once that PR merges.
+ * v9 (docs/superpowers/specs/2026-11-18-extra-cameras-design.md): the player camera's pose, readable and replaceable (GT_HOOK_CAMERA, camera_get, camera_set) and
+ * replay_active. The v9 functions refuse a mod that declared api < 9. */
+#define GT_MOD_API_VERSION_9 9
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -82,7 +86,10 @@ typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
 typedef enum GtHookPoint {
     GT_HOOK_WORLD_STEP = 1, /* the physics step of every car; a0 = the world (what race_cars / player_car take) */
     GT_HOOK_MESH_DRAW = 2,  /* the model draw leaf: draw_mesh_blob(ctx) is the blob about to be drawn */
-    GT_HOOK_CAR_DRAW = 3    /* the per-car "view" update that runs once per car per frame: draw_car_model(ctx) names the car and its model */
+    GT_HOOK_CAR_DRAW = 3,   /* the per-car "view" update that runs once per car per frame: draw_car_model(ctx) names the car and its model */
+    /* v9. The player camera's view load (once per layer of the scene renderer, for the player camera only: not the rear-view mirror pass). Inside the function camera_get reads
+     * the pose and camera_set replaces it. The host calls the game's load after every active mod's function: the function must NOT call call_original. One per mod. */
+    GT_HOOK_CAMERA = 4
 } GtHookPoint;
 
 /* v5. What one physics step did to a car, from its velocity change (the game keeps no contact point: docs/FACTS.md). Call car_impact once
@@ -255,6 +262,15 @@ typedef struct GtModApi {
      * only the clamp and the Euler-angle wrap read the lifted flag, never the dormant flip machine. Takes effect at the next physics step; undone
      * when the mod is switched off in the menu. 0 = ok; non-zero for a null handle. */
     int (*tilt_free)(GtMod *self, GtModCtx *ctx, uint32_t car, int on);
+    /* ---- v9 (appended after v8). Only valid for a mod that declared `api = 9`. ---- */
+    /* In a GT_HOOK_CAMERA function: the camera's pose in the PHYSICS frame (Z up, the frame of car_state): `eye` and `basis` = three rows (forward, right, up), the car's convention
+     * (left-handed rows). 0 = ok; non-zero outside a camera hook or for a matrix that is not finite. */
+    int (*camera_get)(GtMod *self, GtModCtx *ctx, float eye[3], float basis[9]);
+    /* Replaces the pose the game is about to render with (same frame and row convention). The rows must be unit length and orthogonal within 1e-2, the values finite; non-zero (nothing
+     * changed) otherwise. Applies to this load only: write it every frame. The pose, not the game's view object, so nothing else in the game sees the edit. */
+    int (*camera_set)(GtMod *self, GtModCtx *ctx, const float eye[3], const float basis[9]);
+    /* 1 while the race being shown is a replay (the latest world step had the human's car in its replay role), else 0. Callable from hooks, ticks and camera functions. */
+    int (*replay_active)(GtMod *self, GtModCtx *ctx);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */
