@@ -87,4 +87,22 @@ std::vector<std::uint32_t> hot_offsets(const SynthInputs &inputs, const SynthLay
 
 SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout);
 
+// Generator v2 (spec 2026-11-19-synthetic-pointer-graphs-design.md): cases appended after the v1 ones, drawn from their own random stream
+// so v1 inputs and corpus recipes replay unchanged. Every arena word is zero, a small int, a float, a table start (leaf functions) or a
+// 16-byte-aligned pointer into the arena, so a chain of dereferences stays inside valid memory.
+struct ShapeField {
+    std::uint32_t offset{};
+    bool pointer{true};      // false: an integer in [low, high]
+    std::uint32_t low{}, high{};
+};
+struct Shape {
+    unsigned reg{};          // 0-7: a0-a3, t0-t3
+    std::uint32_t size{};    // bytes of the arena slot the register points at
+    std::vector<ShapeField> fields;
+};
+// `ADDRESS reg:a0=struct:SIZE [field:+OFFSET=ptr] [field:+OFFSET=int:LOW..HIGH]...` per line, `#` comments. An error line is described in *error.
+std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error);
+SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout,
+                               const std::map<std::uint32_t, Shape> *shapes);
+
 } // namespace gt

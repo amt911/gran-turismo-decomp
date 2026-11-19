@@ -211,5 +211,65 @@ int main() {
             check(ok.arena.size() == rl.arena_bytes / 4u, "mutated case keeps the arena size");
         }
     }
+
+    // v1 stability (spec 2026-11-19-synthetic-pointer-graphs-design.md): the inputs of 200 cases of 20 addresses hash to the value
+    // recorded before the v2 generator existed. Changing it changes every existing comparison and corpus recipe.
+    {
+        gt::SynthLayout stable = layout;
+        stable.live_objects = {0x09D00010u, 0x09D00200u};
+        stable.class_instances[0x08900040u] = {0x09D00010u};
+        std::uint64_t h = 1469598103934665603ull;
+        const auto mix = [&](std::uint32_t v) { h ^= v; h *= 1099511628211ull; };
+        for (unsigned f = 0; f < 20u; ++f)
+            for (unsigned i = 0; i < 200u; ++i) {
+                const gt::SynthInputs in = gt::make_synth_case(0x08900000u + f * 0x20u, i, 1u, stable);
+                for (const std::uint32_t v : in.gpr) mix(v);
+                for (const std::uint32_t v : in.fpr) mix(v);
+                for (const std::uint32_t v : in.arena) mix(v);
+            }
+        check(h == 0x0A65E4E5379AC39Aull, "v1 inputs are bit-for-bit what they were before v2");
+    }
+
+    // v2: pointer closure. Every word is zero, a small int, a float, a leaf function (table), or a 16-byte-aligned pointer into the arena.
+    {
+        const std::uint32_t floats[] = {0x00000000u, 0x3F800000u, 0xBF800000u, 0x3F000000u, 0x40000000u, 0x42C80000u, 0x3A83126Fu, 0x447A0000u};
+        unsigned bad = 0u, pointers = 0u, words = 0u;
+        for (unsigned index = 0u; index < 16u; ++index) {
+            const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, index, 1u, layout, nullptr);
+            check(in.arena.size() == layout.arena_bytes / 4u, "v2 arena has the same size");
+            check(in_arena(layout, in.gpr[0]), "v2 a0 is an arena pointer");
+            for (const std::uint32_t w : in.arena) {
+                ++words;
+                bool known = w <= 16u;
+                for (const std::uint32_t f : floats) known = known || w == f;
+                for (const std::uint32_t l : layout.leaf_functions) known = known || w == l;
+                if (in_arena(layout, w)) { known = (w - layout.arena_base) % 16u == 0u; ++pointers; }
+                if (!known) ++bad;
+            }
+        }
+        check(bad == 0u, "v2 words are only pointers into the arena, small ints, floats or leaf functions");
+        check(pointers * 100u > words * 60u, "v2 draws mostly pointers");
+        const gt::SynthInputs a2 = gt::make_synth_case_v2(0x08912340u, 3u, 1u, layout, nullptr);
+        const gt::SynthInputs b2 = gt::make_synth_case_v2(0x08912340u, 3u, 1u, layout, nullptr);
+        check(a2.gpr == b2.gpr && a2.arena == b2.arena, "v2 is deterministic");
+        const gt::SynthInputs v1 = gt::make_synth_case(0x08912340u, 3u, 1u, layout);
+        check(v1.arena != a2.arena, "v2 draws from its own stream");
+    }
+
+    // shapes file
+    {
+        std::string error;
+        const auto shapes = gt::parse_shapes("# comment\n08912340 reg:a1=struct:64 field:+0x10=ptr field:+0x14=int:0..8\n", &error);
+        check(error.empty() && shapes.size() == 1u, "a shapes line parses");
+        const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, 0u, 1u, layout, &shapes);
+        const std::uint32_t base = in.gpr[1];
+        check(in_arena(layout, base), "the shaped register points into the arena");
+        const std::uint32_t at = (base - layout.arena_base) / 4u;
+        check(in_arena(layout, in.arena[at + 4u]), "the ptr field holds an arena pointer");
+        check(in.arena[at + 5u] <= 8u, "the int field is within its range");
+        std::string bad_error;
+        gt::parse_shapes("08912340 reg:q9=struct:64\n", &bad_error);
+        check(!bad_error.empty(), "a malformed shapes line is reported");
+    }
     return failures == 0 ? 0 : 1;
 }

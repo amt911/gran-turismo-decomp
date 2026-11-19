@@ -82,6 +82,8 @@ struct Entry {
     unsigned mismatched{};
     unsigned skipped{};
     unsigned informative{};   // compared cases where the original actually changed memory
+    unsigned v2_compared{};   // of `compared`, the cases of generator v2 (spec 2026-11-19-synthetic-pointer-graphs-design.md)
+    unsigned v2_equal{};
     std::uint64_t calls{};    // all calls seen, to spread the compared cases over the run
     std::uint64_t next_sample{};
     std::string first_mismatch;
@@ -911,6 +913,23 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
     if (search_cases != 0u && !can_search)
         std::cerr << "[decomp] GT_SYNTH_SEARCH needs a coverage build (tools.decomp_gate coverage --synth --search): no search\n";
     const int kChildSeconds = 10 + (can_search ? static_cast<int>(search_seconds) : 0);
+    // Generator v2: GT_SYNTH_V2=<n> cases per function after the v1 ones (default 8, 0 = off); shapes from config/synth_shapes.txt
+    // (GT_SYNTH_SHAPES=<file>, optional).
+    unsigned v2_cases = 8u;
+    if (const char *v2_env = std::getenv("GT_SYNTH_V2"); v2_env != nullptr) v2_cases = static_cast<unsigned>(std::strtoul(v2_env, nullptr, 10));
+    std::map<std::uint32_t, Shape> shapes;
+    if (v2_cases != 0u) {
+        const char *shapes_env = std::getenv("GT_SYNTH_SHAPES");
+        std::ifstream shapes_file(shapes_env != nullptr ? shapes_env : "config/synth_shapes.txt");
+        if (shapes_file) {
+            std::ostringstream text;
+            text << shapes_file.rdbuf();
+            std::string shapes_error;
+            shapes = parse_shapes(text.str(), &shapes_error);
+            if (!shapes_error.empty()) std::cerr << "[decomp] synthetic shapes: " << shapes_error << "\n";
+            else std::cerr << "[decomp] synthetic shapes: " << shapes.size() << " functions\n";
+        }
+    }
     // The corpus: recipes that earlier searches found (config/synth_corpus/<ADDRESS>.txt; GT_SYNTH_CORPUS=<dir>, "off" disables).
     std::map<std::uint32_t, std::vector<Recipe>> corpus;
     {
@@ -948,8 +967,10 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         waitpid(pid, &status, 0);
         Entry &entry = *child.entry;
         std::istringstream in(child.output);
-        unsigned compared = 0, equal = 0, mismatched = 0, skipped = 0, informative = 0;
-        if (!killed && (in >> compared >> equal >> mismatched >> skipped >> informative)) {
+        unsigned compared = 0, equal = 0, mismatched = 0, skipped = 0, informative = 0, v2_compared = 0, v2_equal = 0;
+        if (!killed && (in >> compared >> equal >> mismatched >> skipped >> informative >> v2_compared >> v2_equal)) {
+            entry.v2_compared += v2_compared;
+            entry.v2_equal += v2_equal;
             entry.compared += compared;
             entry.equal += equal;
             entry.mismatched += mismatched;
@@ -1013,7 +1034,7 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         if (pid == 0) {  // the child: this function's cases, its counters to the pipe, then _exit (no parent cleanup)
             close(pipe_fds[0]);
             g_mismatch_cases.clear();
-            g_case_budget = g_cases + static_cast<unsigned>(corpus.count(address) != 0u ? corpus[address].size() : 0u) + (can_search ? search_cases : 0u);
+            g_case_budget = g_cases + v2_cases + static_cast<unsigned>(corpus.count(address) != 0u ? corpus[address].size() : 0u) + (can_search ? search_cases : 0u);
             const auto run_case = [&](const SynthInputs &inputs, unsigned index) {
                 std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
                 const std::vector<ScenePoke> pokes = scene_pokes(address, index);
@@ -1055,6 +1076,11 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                     seen = now;
                 }
             }
+            const unsigned compared_before_v2 = entry.compared, equal_before_v2 = entry.equal;
+            for (unsigned k = 0; k < v2_cases && !rt.stopped(); ++k)
+                run_case(make_synth_case_v2(address, k, seed, layout, &shapes), g_cases + k);
+            entry.v2_compared = entry.compared - compared_before_v2;
+            entry.v2_equal = entry.equal - equal_before_v2;
             if (const auto it = corpus.find(address); it != corpus.end())
                 for (const Recipe &recipe : it->second) {
                     if (rt.stopped()) break;
@@ -1095,7 +1121,7 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 std::fprintf(stderr, "[search] %08X done: compared %u skipped %u found %zu non-zero %llu\n", address, entry.compared, entry.skipped, printed.size(), static_cast<unsigned long long>(seen));
             std::ostringstream out;
             out << entry.compared << ' ' << entry.equal << ' ' << entry.mismatched << ' ' << entry.skipped << ' '
-                << entry.informative << '\n' << entry.first_mismatch << '\n' << entry.first_skip << '\n';
+                << entry.informative << ' ' << entry.v2_compared << ' ' << entry.v2_equal << '\n' << entry.first_mismatch << '\n' << entry.first_skip << '\n';
             for (const std::string &mismatch_case : g_mismatch_cases) out << mismatch_case << '\n';
             for (const std::string &line : printed) out << line << '\n';
             const std::string text = out.str();
@@ -1147,6 +1173,7 @@ int decomp_report() {
                   << entry.mismatched << ", not comparable " << entry.skipped << " (calls " << entry.calls
                   << ", cases that changed memory " << entry.informative << ", nested in " << entry.nested_equal
                   << " equal / " << entry.nested_mismatched << " mismatched cases)\n";
+        if (g_synth_mode) std::cerr << "[decomp]   v2 cases: compared " << entry.v2_compared << ", equal " << entry.v2_equal << "\n";
         if (!entry.first_mismatch.empty()) std::cerr << "[decomp]   first mismatch: " << entry.first_mismatch << "\n";
         if (!entry.first_skip.empty()) std::cerr << "[decomp]   first not comparable: " << entry.first_skip << "\n";
         if (entry.mismatched != 0u) status = 2;

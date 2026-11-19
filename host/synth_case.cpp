@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <set>
+#include <string>
 
 namespace gt {
 namespace {
@@ -360,6 +361,141 @@ Recipe mutate_recipe(std::uint32_t function, const Recipe &parent, MutationRando
     }
     child.mutations.push_back(m);
     return child;
+}
+
+} // namespace gt
+
+// ---- generator v2 ----
+
+namespace gt {
+namespace {
+
+constexpr std::uint64_t kV2Stream = 0x56324B0000000000ull;
+
+} // namespace
+
+std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error) {
+    std::map<std::uint32_t, Shape> shapes;
+    std::size_t begin = 0u;
+    unsigned line_number = 0u;
+    const auto fail = [&](const char *what) {
+        if (error != nullptr && error->empty()) *error = "shapes line " + std::to_string(line_number) + ": " + what;
+    };
+    while (begin <= text.size()) {
+        std::size_t end = text.find('\n', begin);
+        if (end == std::string::npos) end = text.size();
+        std::string line = text.substr(begin, end - begin);
+        begin = end + 1u;
+        ++line_number;
+        if (const std::size_t hash = line.find('#'); hash != std::string::npos) line.resize(hash);
+        std::vector<std::string> words;
+        for (std::size_t i = 0; i < line.size();) {
+            while (i < line.size() && (line[i] == ' ' || line[i] == '\t' || line[i] == '\r')) ++i;
+            std::size_t j = i;
+            while (j < line.size() && line[j] != ' ' && line[j] != '\t' && line[j] != '\r') ++j;
+            if (j > i) words.push_back(line.substr(i, j - i));
+            i = j;
+        }
+        if (words.empty()) continue;
+        char *stop = nullptr;
+        const unsigned long address = std::strtoul(words[0].c_str(), &stop, 16);
+        if (*stop != '\0') { fail("bad address"); continue; }
+        Shape shape;
+        bool have_reg = false, ok = true;
+        for (std::size_t w = 1; w < words.size() && ok; ++w) {
+            const std::string &word = words[w];
+            if (word.rfind("reg:", 0) == 0) {
+                const std::size_t eq = word.find('=');
+                const std::string name = word.substr(4, eq == std::string::npos ? 0 : eq - 4);
+                const std::string rest = eq == std::string::npos ? "" : word.substr(eq + 1);
+                static const char *const names[8] = {"a0", "a1", "a2", "a3", "t0", "t1", "t2", "t3"};
+                int found = -1;
+                for (int k = 0; k < 8; ++k) if (name == names[k]) found = k;
+                if (found < 0 || rest.rfind("struct:", 0) != 0) { fail("bad reg"); ok = false; break; }
+                shape.reg = static_cast<unsigned>(found);
+                shape.size = static_cast<std::uint32_t>(std::strtoul(rest.c_str() + 7, nullptr, 0));
+                if (shape.size == 0u || shape.size > 0x1000u) { fail("bad size"); ok = false; break; }
+                have_reg = true;
+            } else if (word.rfind("field:+", 0) == 0) {
+                const std::size_t eq = word.find('=');
+                if (eq == std::string::npos) { fail("bad field"); ok = false; break; }
+                ShapeField field;
+                field.offset = static_cast<std::uint32_t>(std::strtoul(word.substr(7, eq - 7).c_str(), nullptr, 0));
+                const std::string kind = word.substr(eq + 1);
+                if (kind == "ptr") {
+                    field.pointer = true;
+                } else if (kind.rfind("int:", 0) == 0) {
+                    field.pointer = false;
+                    char *after = nullptr;
+                    field.low = static_cast<std::uint32_t>(std::strtoul(kind.c_str() + 4, &after, 0));
+                    if (after[0] != '.' || after[1] != '.') { fail("bad int range"); ok = false; break; }
+                    field.high = static_cast<std::uint32_t>(std::strtoul(after + 2, nullptr, 0));
+                    if (field.high < field.low) { fail("empty int range"); ok = false; break; }
+                } else { fail("bad field kind"); ok = false; break; }
+                if (field.offset % 4u != 0u) { fail("unaligned field"); ok = false; break; }
+                shape.fields.push_back(field);
+            } else { fail("unknown word"); ok = false; }
+        }
+        if (!ok) continue;
+        if (!have_reg) { fail("no reg"); continue; }
+        for (const ShapeField &f : shape.fields) if (f.offset + 4u > shape.size) { fail("field outside the struct"); ok = false; }
+        if (ok) shapes[static_cast<std::uint32_t>(address)] = shape;
+    }
+    return shapes;
+}
+
+SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout,
+                               const std::map<std::uint32_t, Shape> *shapes) {
+    Random random{(seed * 0x100000001B3ull ^ (static_cast<std::uint64_t>(function) << 20) ^ index) ^ kV2Stream};
+    const Arena arena{layout};
+    const std::uint32_t slots = arena.words() / 4u;  // 16-byte slots
+    const auto slot_pointer = [&]() {
+        for (;;) {  // a slot that is not inside a table block
+            const std::uint32_t slot = random.below(slots);
+            if (!arena.is_table(slot * 4u)) return layout.arena_base + slot * 16u;
+        }
+    };
+    const auto table_pointer = [&]() {
+        const std::uint32_t tables = arena.words() / (kBlockWords * kTableEvery);
+        return layout.arena_base + 4u * ((random.below(tables) * kTableEvery + kTableEvery - 1u) * kBlockWords);
+    };
+    SynthInputs inputs;
+    inputs.arena.resize(arena.words());
+    for (std::uint32_t i = 0; i < arena.words(); ++i) {
+        if (arena.is_table(i)) {
+            inputs.arena[i] = layout.leaf_functions[random.below(static_cast<std::uint32_t>(layout.leaf_functions.size()))];
+            continue;
+        }
+        const std::uint32_t pick = random.below(100u);
+        if (pick < 70u) inputs.arena[i] = slot_pointer();
+        else if (pick < 80u) inputs.arena[i] = arena.has_tables() ? table_pointer() : slot_pointer();
+        else if (pick < 90u) inputs.arena[i] = 0u;
+        else if (pick < 95u) inputs.arena[i] = random.below(17u);
+        else inputs.arena[i] = kFloats[random.below(8u)];
+    }
+    for (std::uint32_t &reg : inputs.gpr) {
+        const std::uint32_t pick = random.below(100u);
+        reg = pick < 60u ? slot_pointer() : pick < 80u ? random.below(17u) : pick < 90u ? 0u : slot_pointer();
+    }
+    inputs.gpr[0] = slot_pointer();
+    for (std::uint32_t &reg : inputs.fpr) reg = kFloats[random.below(8u)];
+    if (const auto it = layout.class_instances.find(function); it != layout.class_instances.end() && !it->second.empty())
+        inputs.gpr[0] = it->second[(seed + static_cast<std::uint64_t>(index) * 7u) % it->second.size()];
+    if (shapes != nullptr) {
+        if (const auto it = shapes->find(function); it != shapes->end()) {
+            const Shape &shape = it->second;
+            std::uint32_t base = slot_pointer();
+            base &= ~0xFu;
+            if (base + shape.size > layout.arena_base + layout.arena_bytes) base = layout.arena_base;
+            inputs.gpr[shape.reg] = base;
+            const std::uint32_t at = (base - layout.arena_base) / 4u;
+            for (const ShapeField &field : shape.fields) {
+                const std::uint32_t word = at + field.offset / 4u;
+                inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);
+            }
+        }
+    }
+    return inputs;
 }
 
 } // namespace gt
