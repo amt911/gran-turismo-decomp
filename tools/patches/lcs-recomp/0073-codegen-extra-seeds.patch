@@ -42,7 +42,7 @@ diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
      const auto elf = psprecomp::Elf32Image::from_file(elf_path);
      psprecomp::GuestMemory memory;
      (void)elf.load_and_relocate(memory, load_base);
-@@ -1584,7 +1585,20 @@
+@@ -1584,7 +1585,27 @@
              import_stubs.insert(static_cast<std::uint32_t>(std::stoul(line, nullptr, 16)));
          }
      }
@@ -54,17 +54,24 @@ diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
 +        std::ifstream seeds(seeds_path);
 +        if (!seeds) throw psprecomp::Error("cannot read seeds file " + seeds_path.string());
 +        std::string line;
++        std::size_t line_number = 0;
 +        while (std::getline(seeds, line)) {
++            ++line_number;
 +            line = line.substr(0, line.find('#'));
 +            if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
-+            extra_seeds.push_back(static_cast<std::uint32_t>(std::stoul(line, nullptr, 16)));
++            try {
++                extra_seeds.push_back(static_cast<std::uint32_t>(std::stoul(line, nullptr, 16)));
++            } catch (const std::exception &) {
++                throw psprecomp::Error("seeds file " + seeds_path.string() + " line " + std::to_string(line_number) +
++                                       ": not a hex address: '" + line + "'");
++            }
 +        }
 +    }
 +    const auto program = psprecomp::analyze_program(elf, memory, load_base, 131072u, extra_seeds);
      if (program.executable_ranges.empty()) throw psprecomp::Error("ELF has no executable ranges");
  
      std::filesystem::create_directories(output_dir);
-@@ -1760,8 +1774,8 @@
+@@ -1760,8 +1781,8 @@
  int main(int argc, char **argv) {
      try {
          if (argc >= 4 && std::string_view(argv[2]) == "--auto") {
@@ -75,7 +82,7 @@ diff --git a/tools/codegen_main.cpp b/tools/codegen_main.cpp
                  return 2;
              }
              const std::uint32_t load_base = argc >= 5
-@@ -1772,12 +1786,13 @@
+@@ -1772,12 +1793,13 @@
                  : 0x20000u;
              if (unit_span == 0u || (unit_span & 3u) != 0u) throw psprecomp::Error("unit_span_bytes must be non-zero and 4-byte aligned");
              return generate_auto(argv[1], argv[3], load_base, unit_span,

@@ -33,7 +33,7 @@ STAMP = ".inputs.sha1"
 REGISTRY = "generated_registry.cpp"
 BOUNDARIES = "decomp_boundaries.txt"
 SEEDS = "extra_seeds.txt"
-SEEDS_SOURCE = REPO / "recomp" / SEEDS  # derived by tools.extra_seeds, ignored by git
+SEEDS_SOURCE = REPO / "config" / SEEDS  # committed: ELF vaddrs picked by tools.extra_seeds (no game bytes)
 
 Runner = Callable[[Sequence[str]], None]
 
@@ -62,15 +62,20 @@ def decomp_boundaries(src: Path) -> list[int]:
     return sorted(PROGRESS_LOAD_BASE + vaddr for vaddr in decompiled_functions(src))
 
 
-def read_seeds(path: Path) -> list[int]:
-    """Addresses of a seeds file (hex, one per line, `#` comments); no file means no seeds."""
+def read_seeds(path: Path, load_base: int = LOAD_BASE) -> list[int]:
+    """Runtime addresses of a seeds file (ELF vaddrs in hex, one per line, `#` comments). A missing file is an error: the committed
+    list is part of the build, and silently building without it would prove nothing."""
     if not path.is_file():
-        return []
+        raise RecompError(f"seeds file {path} not found (the committed list is config/extra_seeds.txt; --no-extra-seeds builds without)")
     out = []
-    for line in path.read_text().splitlines():
-        line = line.split("#", 1)[0].strip()
-        if line:
-            out.append(int(line, 16))
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        text = line.split("#", 1)[0].strip()
+        if not text:
+            continue
+        try:
+            out.append(load_base + int(text, 16))
+        except ValueError:
+            raise RecompError(f"{path}:{number}: not a hex address: {text!r}") from None
     return out
 
 
@@ -110,11 +115,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--elf", type=Path, default=REPO / "extracted/EBOOT.elf")
     parser.add_argument("--out", type=Path, default=REPO / "recomp/generated")
     parser.add_argument("--extra-seeds", type=Path, default=SEEDS_SOURCE,
-                        help="file of function addresses to emit although nothing reaches them (tools.extra_seeds select)")
+                        help="file of ELF vaddrs of functions to emit although nothing reaches them (default: the committed list)")
+    parser.add_argument("--no-extra-seeds", action="store_true", help="the baseline generation: no extra seeds")
     args = parser.parse_args(argv)
     try:
         ran = regenerate(args.elf, args.out, RECOMP_BIN, boundaries=decomp_boundaries(REPO / "src"),
-                         seeds=read_seeds(args.extra_seeds))
+                         seeds=[] if args.no_extra_seeds else read_seeds(args.extra_seeds))
     except RecompError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
