@@ -765,3 +765,35 @@ ruled out is listed so nobody re-reads it. Confidence in each line is marked.
 
 **Not done / next if the exact point is wanted**: (1) a `GT_RAM_DUMP` pair of one step before and after the barrier hit, diffed over the 0x2100-byte car slot, to see which fields
 change in that step; (2) read the virtual calls listed above (the controller object `world+0x10`, `0x08946EC0`, `0x0894A15C`, `0x0894F6C8`, `0x0894E9C0`, `0x0894B310`, `0x0895DD80`).
+
+## Rollover physics research (2026-11-18, spec `2026-11-18-rollover-physics-design.md` step 0; runtime addresses)
+
+Evidence: throwaway probe mods (not committed) on the `rollover` pad route, `--decomp off`, headless; frames of the same race moments compared byte for byte and read as pictures.
+**Observations** first, then what they decide.
+
+**1. Is writing the pose at `GT_HOOK_CAR_DRAW` enough to show it? No: it changes nothing on screen.** A probe wrote roll 3.0 rad (position and yaw kept, basis rows and Euler angles consistent) on the
+car at the grid, steps 150-260, in four variants: none (`f0`), before the world step only (`f1`), before the step and again at `0x0889BAB0` before `call_original` (`f3`), at the car draw only (`f2`).
+- `f1` and `f3`: the dumped frame at the same vblank is **byte-identical** (`cmp`): the draw-point write has no effect on the picture.
+- In both the picture shows the world (the chase camera follows the car) rolled ~30 degrees, not 172: the game's step clamped the roll (tilt clamp 0.611 rad, then the springs; K+0x700 read 0.524 at
+  the first mesh draw of the car) and the camera and the car's model matrix (`draw_matrix`) were built from that **post-step state, before the car-draw hook runs**. The same matrix is seen in `f1` and `f3`
+  (12 floats equal at steps 140, 200, 240), the K the hook then saw (`eul` roll 3.0) is not what was drawn.
+- `f2` (draw-time write only): the picture differs from `f0` (the car's roll in the picture comes from the next step's clamp of the persistent 3.0), again not a 172-degree car.
+- So the state the renderer (camera included) reads is K **after the world step**. The mod therefore writes the simulated pose **before** the step with the tilt clamp lifted (`tilt_free`), so the game's step
+  leaves it almost as written (rates zero: no rotation added), and what is drawn is the simulation's pose plus one step of the game's own motion. A write at the car-draw hook adds nothing and is not used. A post-step
+  hook that rewrote K before the camera reads it was not looked for (the camera/view update that precedes `0x0889BAB0` was not identified); the in-game check (`kd`: the pose the game reports at the start of a step
+  against the one written) measures how much the step moves the pose.
+
+**2. Road query at arbitrary points: not offered (`ground_height` is not in API 7).** `call_guest` is allowed only from the vblank tick (it refuses hooks), where the road query is known not to be
+frame-neutral (docs/FINDINGS.md "`call_guest` of the road query from a mod tick is not frame-neutral": byte-identity runs diverged with the query run and its result ignored). Not re-measured. The simulation uses the plane
+through the four wheel records' ground heights (`car_wheel_contacts`), the same as the body box of rollover 0.2-0.4.
+
+**3. Angular rates.** The rate fields (`+0x6E4/6E8/6F0/6F4/6F8`) are not clean body-axis components (FACTS "Rollover body box": R2 0.37-0.96 against the basis change). `car_set_pose` writes **zero** in all five, the only
+value proven to leave a written pose alone in the next step (FACTS "Car body state": restoring a pose); the simulation owns the angular velocity and the game is only told the pose. `angular_velocity` is validated and unused.
+
+**4. Barrier geometry.** No new Ghidra pass (not cheap; the 2026-11-14 static search, FACTS "Collision code for dent contact points ... NOT FOUND", stands). A barrier hit enters the simulation as the
+velocity change the game's own collision gave in one step (`dv`), applied as an impulse `m dv` at a point on the hull side (the direction of `-dv`, `hit_height` of the way up from the floor).
+
+**5. The Euler convention** (asm of `0x0893C3E4`, read 2026-11-18; transcribed in `host/game_state.cpp` `euler_to_rows`; proven by a round trip over 34 112 angle triples including the poles, `host/tests/game_state_test.cpp`).
+`s`/`c` = sin/cos, indices 1 pitch (`K+0x6FC`), 2 roll (`K+0x700`), 3 yaw (`K+0x704`): forward row `(-s3 c1, c3 c1, s1)`, right row `(c3 c2 - s1 s2 s3, s3 c2 + s1 s2 c3, -c1 s2)`, up row
+`(c3 s2 + s1 c2 s3, s3 s2 - s1 c2 c3, c1 c2)`. Yaw 1.571 gives forward `(-1, 0, 0)` (the race start's velocity direction), up.z = `c1 c2`, and the basis is left-handed (forward x right = -up) at every angle.
+The inverse is unique for pitch in [-pi/2, pi/2]; at the pole (forward vertical) yaw and roll are one degree of freedom and the host puts it all in yaw.
