@@ -99,9 +99,18 @@ def read_doubled(path):
     return width, height, bytes(min(255, v * 2) for v in pixels)
 
 
+def read_for_timer(path):
+    """The frame as it is when its lap timer is readable (a run whose grade did nothing), else doubled (a graded run): both kinds pair with the baseline, so a
+    grade that is ignored fails on the brightness comparison below, not on "nothing pairs"."""
+    frame = cam.read_ppm(path)
+    if len(lap_timer.timer_mask(frame)) >= lap_timer.MIN_PIXELS:
+        return frame
+    return read_doubled(path)
+
+
 def judge_grade(base, mod, indices):
     base_timers = cam.run_timers({k: base[k] for k in base})
-    mod_timers = lap_timer.run_timers({k: mod[k] for k in mod}, read_doubled)
+    mod_timers = lap_timer.run_timers({k: mod[k] for k in mod}, read_for_timer)
     pairs = 0
     for k in sorted(set(indices) & set(mod)):
         partner = cam.pair_by_timer(base_timers, k, mod_timers.get(k))
