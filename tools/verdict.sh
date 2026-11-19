@@ -49,7 +49,9 @@ if [ "$scope" = skip ]; then
 else
   # Two groups, one after the other: a synthetic run is CPU-bound (unlike a gate route), and six at once ran so slowly that
   # every one hit its timeout (exit 124, verdict 526, 2026-11-10).
-  for group in dealer,race save_garage,circuit,buy,options; do
+  # GT_VERIFY_SYNTH_GROUPS: the scene groups, space-separated. The third group holds the scenes PR 674's functions were verified
+  # after (garage, challenge, dirt, manual, challenge2): every scene some function was verified after must stay in the verdict.
+  for group in ${GT_VERIFY_SYNTH_GROUPS:-dealer,race save_garage,circuit,buy,options garage,challenge,dirt,manual,challenge2}; do
     t=v${tag}_${group%%,*}
     # Its own lock and its own cores (user, 2026-11-10): a synthetic run is CPU-bound, not paced, so it need not wait for
     # another verdict's real-time gate routes (GT_GATE_CPUS above); one synthetic group at a time on GT_SYNTH_CPUS.
