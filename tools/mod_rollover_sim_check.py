@@ -55,6 +55,7 @@ G = 9.81
 SLIDE_MIN_SPEED = 1.0       # m/s on the floor that count as sliding
 SLIDE_TOLERANCE = 0.25      # of mu
 SLIDE_MIN_DISTANCE = 1.0    # m
+SLIDE_SETTLE = 3            # steps after the first floor contact before the friction is read
 MAX_SIM_HITS = 12           # impulses taken from the game's own collision while simulating (a barrier scrape is a few; landings and rests with grounded wheel records must add none)
 MIN_TIP_UP_Z = 0.5          # the barrier hit must tip the car at least this far (up.z under this)
 REBOUND_STEPS = 10         # steps after the first contact in which the rebound speed is read
@@ -229,7 +230,11 @@ def judge_slide(text, mu=0.7):
     moving = [i for i, s in enumerate(sims) if s["bottom"] >= 3 and math.hypot(s["vel"][0], s["vel"][1]) > SLIDE_MIN_SPEED]
     if not moving:
         return False, "the car never slid on its floor: the friction check shows nothing"
-    first, last = sims[moving[0]], sims[moving[-1]]
+    # the landing itself (impact impulses, the floor settling on the road) is not friction: the window starts SLIDE_SETTLE steps after the first floor contact
+    window = [i for i in moving if i >= moving[0] + SLIDE_SETTLE]
+    if len(window) < 2:
+        return False, "the slide is too short to read the friction after the landing"
+    first, last = sims[window[0]], sims[window[-1]]
     travelled = math.hypot(last["pos"][0] - first["pos"][0], last["pos"][1] - first["pos"][1])
     if travelled < SLIDE_MIN_DISTANCE:
         return False, f"the car slid only {travelled:.2f} m (need {SLIDE_MIN_DISTANCE}): too short to read the friction"
