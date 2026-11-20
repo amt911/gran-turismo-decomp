@@ -1,0 +1,14 @@
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md, item 3): one line per function,
+# with the asm evidence above it. Drafted by DeepSeek V4.1 Flash from tools.disasm, kept only where the gate then compared.
+
+#   sw a3,0x0(a0); sw t0,0x0(a0+v0); lw a2,0x0(a0); sw 0,0x4(a0); func_08C54A7C(a0 = this + lw -0xC(a2)).
+#   -> a1+0x0 ptr (dereferenced at -0xC). a1+0x4 is only copied into the object (no constraint). a0 is the destination
+#   object: written at +0x0/+0x4 and re-read after the write, so it needs no more than valid memory.
+0x08C55C24 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A17CD8: lw v1,0x0(a0) then lw t2,0x0(v1) -> v1 is a pointer, its +0x0 word is only tested (bnez) to pick the
+#   argument order of the tail call func_08966B20; a0 itself is never used again. -> a0+0x0 ptr, size 16.
+0x08A17CD8 reg:a0=struct:16 field:+0x0=ptr
+#   Both are pointers; a shape cannot order two independently drawn pointers, and end < begin is a ~4 GiB length
+#   (alloc fails, copy to null), so the only expressible bounded range is the empty one: begin = end = 0.
+#   (There is no `null` field kind; int:0..0 is a null pointer here, not a counter.)
+0x08A66DB8 reg:a1=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0
