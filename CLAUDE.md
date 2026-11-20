@@ -90,6 +90,10 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Its result is still checked like Claude's own work:** the caller reads the diff against the asm and makes sure every
     gate passed (fast or synthetic compare, `sabotage` pinned on each function, `frame_audit`, `literal_check`, `sp_loads`,
     `arg_reads`) before committing or opening a PR. A function is decompiled only when its gate says so.
+  - **Batch size depends on the drafter's speed.** The user says which providers are fast and which are slow. Fast
+    drafters get **60–80 functions per PR**: the verdict costs about the same hour whatever the batch size, and it is
+    the bottleneck. DeepSeek V4.1 Flash is fast (user, 2026-11-20). Slow drafters keep the old 15–25: Claude writing by
+    hand is slow. Either way a batch stays within the decomp workflow's ~80.
   - **Tell the user whenever an opencode session is open.** Every session is logged with its start and end in
     `~/repos/gt-ops/out/opencode-sessions.log`; the orchestrating session watches that file and says so in the chat.
   - **If the delegate stops working**, ask the user, and meanwhile do the work with Claude. That covers money running out
