@@ -118,6 +118,25 @@ import above. Add below only what applies to Claude Code alone. -->
     these cases. When the user says it is back, delegate again.
     Running out of credit also leaves the flag `/tmp/claude-1000/delegate-no-credit`. Every later call then stops at
     once, until the user tops up and the flag is removed. The main session tells the user as soon as the flag appears.
+- **Pipeline architecture: scripts, not agents** (user, 2026-11-20: "maximizar velocidad y minimizar tokens y uso de
+  Claude"). Mechanical decomp work runs as shell scripts in `~/repos/gt-ops/`, not as Claude subagents. The agents cost
+  600k–900k tokens each and waited between turns; the scripts cost no Claude tokens and run in parallel.
+  - **Drafting:** `draftloop.sh WORKTREE` (`draftloop2.sh` with `POOL=` and `BATCH=`) runs one delegate session after
+    another. Each session drafts a batch of free candidates, with input shapes, and commits it locally. A loop stops on
+    exit 2 or when the pool is empty.
+  - **Verifying:** `vloop.sh` (main-session batches) and `vloopg.sh` (`gt-bN` batches) build, run the synthetic
+    compare with the batch's shapes, and run `sabotage --synth`. They keep only functions that compared with 0
+    mismatches and were pinned, and drop the rest without trying to fix them. `mprune.py` prunes the file;
+    `commitbatch.sh` and the loops commit it, push it, open the PR and queue its verdict.
+  - **Landing:** `lqueue2.sh` (helper laptop) and `dqueue.sh` (desktop) run the verdicts one at a time and merge the
+    clean ones.
+  - **Keeping it moving:** `prio.sh` gives verdicts CPU priority, `stalls.sh` finds stuck waits, `wait_verdicts.sh`
+    bounds waits, and `mkwt.sh` creates prebuilt-library worktrees.
+  - **Claude's role:** the main session supervises and handles exceptions only: stalls, merge conflicts, broken
+    scripts, the pool running out, and reports to the user. It starts subagents only for work that is not mechanical
+    (structured rewrites that need judgement, mods, investigating a fault), and only when the user asks for them.
+  - **The bottleneck is the verdict:** about 1.5–2 h per PR, one at a time per machine. More functions per PR, up to
+    the decomp workflow's ~80, or another machine, raise throughput; more drafting does not.
 - **How the work is organised (the setup to reuse in future sessions).**
   - **Team: the main session plus three agents.** One agent works on mods, one on structured rewrites and one on
     decompiling new functions (user, 2026-11-19: "tiene que haber 3"). Each agent has its own worktree, and claim
