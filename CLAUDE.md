@@ -80,18 +80,18 @@ import above. Add below only what applies to Claude Code alone. -->
 
 ## User decisions, 2026-11-20 (asked to be kept in this file)
 
-- **Decompilation drafting is delegated to another provider's LLM**, which is faster: DeepSeek V4.1 Flash through OpenRouter,
-  called with `tools/delegate.sh "<prompt>"` (opencode, model `openrouter/deepseek/deepseek-v4.1-flash-1017`; override with
-  `GT_DELEGATE_MODEL`). This applies to new functions and to structured rewrites, at any time.
-  - **Claude (and its agents) prepares each task:** the `tools.disasm` output, the rules that bind the body (structured C,
-    named locals, `G[n]` only at the call boundary, the delay-slot and `v0` traps of the decomp workflow, every argument
-    register a callee gets) and a style example from a merged batch.
-  - **Claude takes the answer as a draft:** it reads it against the asm, then runs the same gates as for its own code. That
-    means the fast or synthetic compare, `sabotage` pinned on each function, `frame_audit`, `literal_check`, `sp_loads` and
-    `arg_reads`. The delegate's output is never "decompiled" until the gate says so, and nothing it writes is committed
-    unread.
-  - **The delegate has no repo access:** `tools/delegate.sh` runs it in a fresh empty directory. It gets only what the
-    prompt carries: game disassembly snippets, never `game_files/`, saves, keys or the user's personal data.
+- **Decompilation is delegated to another provider's LLM**, which is faster: DeepSeek V4.1 Flash through OpenRouter,
+  called with `tools/delegate.sh [-C DIR] [-t TITLE] "<task>"` (opencode, model `openrouter/deepseek/deepseek-v4.1-flash-1017`;
+  override with `GT_DELEGATE_MODEL`). This applies to new functions and to structured rewrites, at any time.
+  - **The delegate works as Claude would: full access**, like Claude. It runs in the caller's worktree (`-C`), may read
+    and edit the repo and run the tools, gates and builds (`opencode run --auto`), and reads `AGENTS.md` like any agent.
+    The hard limits are prepended to every task: never merge, never push main, never force-push, the memory cgroup,
+    the gate locks, kill only its own processes, no game data in git.
+  - **Its result is still checked like Claude's own work:** the caller reads the diff against the asm and makes sure every
+    gate passed (fast or synthetic compare, `sabotage` pinned on each function, `frame_audit`, `literal_check`, `sp_loads`,
+    `arg_reads`) before committing or opening a PR. A function is decompiled only when its gate says so.
+  - **Tell the user whenever an opencode session is open.** Every session is logged with its start and end in
+    `~/repos/gt-ops/out/opencode-sessions.log`; the orchestrating session watches that file and says so in the chat.
   - **If the delegate stops working**, ask the user, and meanwhile do the work with Claude. That covers money running out
     (it is billed per API call), auth, rate limits, network or outage. `tools/delegate.sh` exits 2 with the reason in all
     these cases. When the user says it is back, delegate again.
