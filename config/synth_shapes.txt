@@ -52,3 +52,6 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 08873ADC: lw 0xC(a0) / lw 0x14(a0) are holder pointers dereferenced again (+0x24..0x26, slots); disasm 08873AF4, 08873C64
+0x08873ADC reg:a0=struct:32 field:+0xC=ptr field:+0x14=ptr
