@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -49,7 +50,18 @@ void store_f(psprecomp::Runtime &rt, std::uint32_t address, float v) {
     rt.memory().store32(address, bits);
 }
 
+// GT_MOD_CAMERA_DEBUG=1: counters of the view loads (diagnosis of a build where the camera function never runs), printed every 600 loads.
+struct Counters {
+    unsigned loads = 0, scratch = 0, camera = 0, matched = 0, scenes = 0, renders = 0;
+};
+Counters g_counters;
+bool debug_on() {
+    static const bool on = std::getenv("GT_MOD_CAMERA_DEBUG") != nullptr;
+    return on;
+}
+
 void on_scene_refresh(GtModCtx *c) {
+    ++g_counters.scenes;
     const std::uint32_t s = c->ctx->gpr[4];
     if (s != 0u && c->rt->memory().contains(s + kSceneCamera, 4u) && c->rt->memory().load32(s + kSceneCamera) != 0u) g_scene = s;
     call_next(c);
@@ -57,22 +69,28 @@ void on_scene_refresh(GtModCtx *c) {
 
 // NOT a "while inside" flag: call_original returns before the recompiled loop body has run its calls (FACTS "Camera"); only the latest entry's scratch address is kept.
 void on_scene_render(GtModCtx *c) {
+    ++g_counters.renders;
     g_loop_scratch = c->ctx->gpr[29] - kLoopFrame + kLoopScratch;
     call_next(c);
 }
 
 void on_view_load(GtModCtx *c) {
     psprecomp::Runtime &rt = *c->rt;
+    if (debug_on() && ++g_counters.loads % 600u == 0u)
+        std::fprintf(stderr, "[camera] loads=%u scratch_ok=%u camera_ok=%u matched=%u refresh_calls=%u render_calls=%u scene=%08x scratch=%08x\n", g_counters.loads, g_counters.scratch, g_counters.camera, g_counters.matched,
+                     g_counters.scenes, g_counters.renders, g_scene, g_loop_scratch);
     const std::uint32_t view_address = c->ctx->gpr[4];
     if (g_loop_scratch == 0u || view_address != g_loop_scratch || g_scene == 0u || !rt.memory().contains(view_address, 64u) || !rt.memory().contains(g_scene + kSceneCamera, 4u)) {
         call_next(c);
         return;
     }
+    ++g_counters.scratch;
     const std::uint32_t cam = rt.memory().load32(g_scene + kSceneCamera);
     if (cam == 0u || !rt.memory().contains(cam + kCameraMatrix, 64u)) {
         call_next(c);
         return;
     }
+    ++g_counters.camera;
     float view[16], cm[16];
     for (int i = 0; i < 16; ++i) {
         view[i] = load_f(rt, view_address + 4u * i);
@@ -81,6 +99,7 @@ void on_view_load(GtModCtx *c) {
     bool same_as_edit = g_have_edited;
     for (int i = 0; i < 16 && same_as_edit; ++i) same_as_edit = view[i] == g_edited[i];
     if (view_matches_camera(view, cm) || same_as_edit) {
+        ++g_counters.matched;
         g_have_edited = false;  // a new load starts from the game's matrix
         // the hooks of the active mods that registered one; this link's own mod first (the chain gives every mod's link a turn)
         for (const Hook &h : hooks())

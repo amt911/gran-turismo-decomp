@@ -32,7 +32,7 @@ done
 [ -z "$want" ] && want=" idle wheel roof tv"
 has() { case "$want" in *" $1"*) return 0;; *) return 1;; esac; }
 route=config/pad_routes/chase.pad
-has cycle && { route=config/pad_routes/cycle.pad; [ "$seconds" = 170 ] && seconds=450; }
+has cycle && { route=config/pad_routes/cycle.pad; [ "$seconds" = 170 ] && seconds=600; }
 has heli && { route=config/pad_routes/circuit.pad; [ "$seconds" = 170 ] && seconds=330; }
 [ -f "$route" ] || { echo "mod_cameras_check: no pad route $route" >&2; exit 2; }
 mkdir -p "$out" || exit 2
@@ -58,7 +58,7 @@ declare -a extra_env=()
 run_one() {  # run_one LABEL MODS_DIR FRAMES(0|1)
   local label=$1 mdir=$2 frames=$3
   rm -rf "$out/$label" && mkdir -p "$out/$label/frames" "$out/$label/savedata" || return 2
-  local -a vars=(GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/$label/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 GT_MOD_CAMS_LOG=1
+  local -a vars=(GT_MODS_DIR="$repo/$mdir" GT_SAVEDATA_DIR="$repo/$out/$label/savedata" SDL_VIDEODRIVER=dummy LCS_UNCAPPED=1 GT_MOD_CAMS_LOG=1 GT_MOD_CAMERA_DEBUG=1
                  GT_PAD="$(grep -v '^#' "$route")" GT_PAD_LOG=1 GT_FRAME_EVERY=$every)
   vars+=("${extra_env[@]}")
   [ "$frames" = 1 ] && vars+=(GT_FRAME_DUMP="$repo/$out/$label/frames")
