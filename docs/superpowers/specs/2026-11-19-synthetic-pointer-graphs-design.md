@@ -114,3 +114,8 @@ functions in the main session's batches 3 and 4 (an analysis by DeepSeek, `holde
 - **Evidence next to the line:** each `global:` word carries a comment with the asm that reads it, as for every shape.
 - **Limits:** at most 4 globals per function, and ADDR must lie in `.data`/`.bss` of the ELF; anything else is a
   parse error.
+- **Literal words:** a `field:+OFFSET=word:VALUE` holds a fixed 32-bit word instead of a drawn one, the same in every v2
+  case of the function. Its purpose is a holder object's vtable pointer: VALUE is the address of the game's real vtable in
+  `.rodata`/`.data`, so a virtual call through the holder runs real code, where a vtable pointer into the pointer-closed
+  arena faults. VALUE must lie in the ELF image `[0x08804000, 0x08DF74AC)` or be 0; anything else is a parse error, and
+  a literal field costs no draw, so shapes with only `ptr`/`int` fields keep byte-identical inputs.

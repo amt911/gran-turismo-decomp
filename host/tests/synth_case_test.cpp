@@ -292,7 +292,8 @@ int main() {
         check(!shape.has_reg, "a global-only line sets no register");
         check(shape.globals.size() == 1u && shape.globals[0].address == 0x08CF2F08u && shape.globals[0].size == 16u,
               "the global word and its slot size are kept");
-        check(shape.globals[0].fields.size() == 1u && shape.globals[0].fields[0].offset == 4u && shape.globals[0].fields[0].pointer,
+        check(shape.globals[0].fields.size() == 1u && shape.globals[0].fields[0].offset == 4u &&
+                  shape.globals[0].fields[0].kind == gt::ShapeFieldKind::Pointer,
               "the field after a global belongs to its slot");
         error.clear();
         check(gt::parse_shapes("08912340 global:147795720=struct:8\n", &error, kDataBegin, kDataEnd).size() == 1u && error.empty(),
@@ -330,6 +331,67 @@ int main() {
         rejects("08912340 reg:a0=struct:64 field:+0xFFFFFFFC=ptr\n", "a field offset that would wrap is rejected");
         rejects("08912340 global:0x08CF2F08=struct:8 global:0x08CF2F08=struct:8\n", "a duplicate global address is rejected");
         rejects("08912340 field:+0=ptr\n", "a field before any reg/global is rejected");
+    }
+
+    // literal words (spec 2026-11-19-synthetic-pointer-graphs-design.md, addendum 2026-11-20): a field may be a fixed
+    // 32-bit word inside the ELF image — a holder object's real vtable — so a virtual call through the holder runs real
+    // code instead of faulting on the pointer-closed arena.
+    {
+        constexpr std::uint32_t kDataBegin = 0x08CD8500u, kDataEnd = 0x08DF74ACu;  // the RW segment at load base 0x08804000
+        constexpr std::uint32_t kVtable = 0x08C80000u;                             // a vtable word in .rodata
+        std::string error;
+        const auto shapes = gt::parse_shapes(
+            "08912340 reg:a1=struct:16 field:+0=word:0x08C80000 field:+12=word:0\n"
+            "08912341 global:0x08CF2F08=struct:16 field:+4=word:0x08C80000\n",
+            &error, kDataBegin, kDataEnd);
+        check(error.empty() && shapes.size() == 2u, "a word: field parses in a reg slot and in a global slot");
+        if (shapes.size() == 2u) {
+            const gt::Shape &shaped = shapes.at(0x08912340u);
+            check(shaped.fields.size() == 2u && shaped.fields[0].kind == gt::ShapeFieldKind::Word &&
+                      shaped.fields[0].offset == 0u && shaped.fields[0].value == kVtable,
+                  "a word: field keeps its literal");
+            check(shaped.fields.size() == 2u && shaped.fields[1].kind == gt::ShapeFieldKind::Word && shaped.fields[1].value == 0u,
+                  "zero is a valid literal word");
+            check(shapes.at(0x08912341u).globals[0].fields.size() == 1u &&
+                      shapes.at(0x08912341u).globals[0].fields[0].kind == gt::ShapeFieldKind::Word,
+                  "a word: field after a global belongs to its slot");
+        }
+        const auto rejects = [&](const char *text, const char *why) {
+            std::string e;
+            gt::parse_shapes(text, &e, kDataBegin, kDataEnd);
+            check(!e.empty(), why);
+        };
+        rejects("08912340 reg:a0=struct:16 field:+0=word:0x09E00000\n", "a literal word in the arena is rejected");
+        rejects("08912340 reg:a0=struct:16 field:+0=word:0x08DF74AC\n", "a literal word at the end of the image is rejected");
+        rejects("08912340 reg:a0=struct:16 field:+0=word:0x08803FFC\n", "a literal word below the image is rejected");
+        rejects("08912340 reg:a0=struct:16 field:+0=word:0xFFFFFFFF\n", "a literal word outside the image is rejected");
+        rejects("08912340 reg:a0=struct:16 field:+0=word:0x108C80000\n", "a literal word wider than 32 bits is rejected");
+        rejects("08912340 reg:a0=struct:16 field:+0=word:\n", "a word: field without a value is rejected");
+        rejects("08912340 reg:a0=struct:8 field:+8=word:0x08C80000\n", "a literal word outside its slot is rejected");
+
+        // The literal is the same in every v2 case of that function and costs no draw: the case is the shape's case
+        // without the word fields, but for the literal words (a ptr/int field would move, so compare with only word fields).
+        const auto worded = gt::parse_shapes("08912340 reg:a1=struct:32 field:+0=word:0x08C80000 field:+8=word:0\n", &error);
+        const auto bare = gt::parse_shapes("08912340 reg:a1=struct:32\n", &error);
+        check(error.empty() && worded.size() == 1u && bare.size() == 1u, "a word-only shape and a bare shape parse");
+        for (unsigned index = 0u; index < 16u; ++index) {
+            const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, index, 1u, layout, &worded);
+            const gt::SynthInputs plain = gt::make_synth_case_v2(0x08912340u, index, 1u, layout, &bare);
+            check(in.gpr == plain.gpr && in.fpr == plain.fpr, "a literal word moves no register");
+            const std::uint32_t at = (in.gpr[1] - layout.arena_base) / 4u;
+            bool others_same = true;
+            for (std::size_t i = 0; i < in.arena.size(); ++i)
+                if (i != at && i != at + 2u && in.arena[i] != plain.arena[i]) others_same = false;
+            check(others_same, "a word: field changes no other word");
+            check(in.arena[at] == kVtable && in.arena[at + 2u] == 0u, "every v2 case holds the same literal at its offset");
+        }
+        const auto holders = gt::parse_shapes("08912340 global:0x08CF2F08=struct:16 field:+4=word:0x08C80000\n", &error,
+                                              kDataBegin, kDataEnd);
+        const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, 0u, 1u, layout, &holders);
+        check(in.pokes.size() == 1u, "the globally shaped case pokes its word");
+        const std::uint32_t at = in.pokes.empty() ? 0u : (in.pokes[0].value - layout.arena_base) / 4u;
+        check(!in.pokes.empty() && in_arena(layout, in.pokes[0].value) && in.arena[at + 1u] == kVtable,
+              "the global slot holds the literal word too");
     }
 
     // shapes file

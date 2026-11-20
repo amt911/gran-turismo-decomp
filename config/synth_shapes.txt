@@ -4,7 +4,7 @@
 #
 # Grammar, `#` starts a comment:
 #
-#   ADDRESS [reg:aX=struct:SIZE] [global:0xADDR=struct:SIZE]... [field:+OFFSET=ptr|int:LOW..HIGH]...
+#   ADDRESS [reg:aX=struct:SIZE] [global:0xADDR=struct:SIZE]... [field:+OFFSET=ptr|int:LOW..HIGH|word:VALUE]...
 #
 # - ADDRESS is the function the shape is for (16-bit hex, no 0x). A line needs a `reg:` or a `global:`.
 # - `reg:aX=struct:SIZE` (one per line) makes aX, in the function's v2 cases, point at a fresh arena slot of SIZE bytes.
@@ -14,9 +14,12 @@
 #   the harness saves the word, sets it before the original and the decompiled run, and puts the original back after.
 #   v1 cases, corpus recipes and every other function are untouched. An ADDR outside .data/.bss, unaligned, duplicated,
 #   a fifth global on a line, or a missing `=struct:SIZE` is a parse error.
-# - `field:+OFFSET=ptr|int:LOW..HIGH` belongs to the `reg:` or `global:` word before it (a field before any of them is an
-#   error). OFFSET is 4-aligned and inside that slot. `ptr` fills the word with a pointer-closed arena slot; `int:L..H`
-#   fills an integer in the range (span at most 65535).
+# - `field:+OFFSET=ptr|int:LOW..HIGH|word:VALUE` belongs to the `reg:` or `global:` word before it (a field before any of
+#   them is an error). OFFSET is 4-aligned and inside that slot. `ptr` fills the word with a pointer-closed arena slot;
+#   `int:L..H` fills an integer in the range (span at most 65535); `word:VALUE` writes that literal 32-bit word, the same in
+#   every v2 case of the function — a holder object's real vtable in .rodata/.data, so a virtual call through the holder
+#   runs real code (a vtable pointer into the arena would fault). VALUE must lie in the ELF image [0x08804000, 0x08DF74AC)
+#   or be 0; anything else is a parse error.
 #
 # Values are decimal or 0x-hex; sizes are decimal (010 is ten, not octal). Every v2 input stays pointer-closed: pointers
 # into the arena (16-byte aligned), table starts, zero, small ints and floats, never a word just outside RAM.

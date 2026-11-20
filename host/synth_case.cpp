@@ -18,6 +18,9 @@ namespace {
 constexpr std::uint32_t kBlockWords = 256u;
 constexpr std::uint32_t kTableEvery = 8u;
 constexpr std::uint32_t kCodeBegin = 0x08804000u, kCodeEnd = 0x08D00000u;
+// The ELF image at load base 0x08804000: .text through the end of .bss. A `word:` field holds a real address in it (a
+// vtable pointer in .rodata/.data), or zero; anything else points outside the guest's memory.
+constexpr std::uint32_t kImageBegin = 0x08804000u, kImageEnd = 0x08DF74ACu;
 constexpr std::uint32_t kFloats[] = {0x00000000u, 0x3F800000u, 0xBF800000u, 0x3F000000u,
                                      0x40000000u, 0x42C80000u, 0x3A83126Fu, 0x447A0000u};  // 0, ±1, 0.5, 2, 100, 0.001, 1000
 
@@ -483,14 +486,20 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
                 if (!parse_u32(word.substr(7, eq - 7), false, field.offset)) { fail("bad field offset"); ok = false; break; }
                 const std::string kind = word.substr(eq + 1);
                 if (kind == "ptr") {
-                    field.pointer = true;
+                    field.kind = ShapeFieldKind::Pointer;
                 } else if (kind.rfind("int:", 0) == 0) {
-                    field.pointer = false;
+                    field.kind = ShapeFieldKind::Integer;
                     const std::size_t dots = kind.find("..");
                     if (dots == std::string::npos || !parse_u32(kind.substr(4, dots - 4), false, field.low) ||
                         !parse_u32(kind.substr(dots + 2), false, field.high)) { fail("bad int range"); ok = false; break; }
                     if (field.high < field.low) { fail("empty int range"); ok = false; break; }
                     if (field.high - field.low > 0xFFFFu) { fail("int range wider than 65535"); ok = false; break; }
+                } else if (kind.rfind("word:", 0) == 0) {
+                    field.kind = ShapeFieldKind::Word;
+                    if (!parse_u32(kind.substr(5), false, field.value)) { fail("bad word value"); ok = false; break; }
+                    if (field.value != 0u && (field.value < kImageBegin || field.value >= kImageEnd)) {
+                        fail("word outside the ELF image"); ok = false; break;
+                    }
                 } else { fail("bad field kind"); ok = false; break; }
                 if (field.offset % 4u != 0u) { fail("unaligned field"); ok = false; break; }
                 if (static_cast<std::uint64_t>(field.offset) + 4u > slot_size()) { fail("field outside the struct"); ok = false; break; }
@@ -565,7 +574,13 @@ SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint
                 const std::uint32_t at = (base - layout.arena_base) / 4u;
                 for (const ShapeField &field : fields) {
                     const std::uint32_t word = at + field.offset / 4u;
-                    inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);  // span <= 65536
+                    switch (field.kind) {
+                    case ShapeFieldKind::Pointer: inputs.arena[word] = slot_pointer(); break;
+                    case ShapeFieldKind::Integer:
+                        inputs.arena[word] = field.low + random.below(field.high - field.low + 1u);  // span <= 65536
+                        break;
+                    case ShapeFieldKind::Word: inputs.arena[word] = field.value; break;  // a real vtable, the same in every case
+                    }
                 }
             };
             if (shape.has_reg) {

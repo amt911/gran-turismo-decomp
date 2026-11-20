@@ -93,10 +93,15 @@ SynthInputs make_synth_case(std::uint32_t function, unsigned index, std::uint64_
 // Generator v2 (spec 2026-11-19-synthetic-pointer-graphs-design.md): cases appended after the v1 ones, drawn from their own random stream
 // so v1 inputs and corpus recipes replay unchanged. Every arena word is zero, a small int, a float, a table start (leaf functions) or a
 // 16-byte-aligned pointer into the arena, so a chain of dereferences stays inside valid memory.
+// `word:` (addendum 2026-11-20): a literal 32-bit word written as it is in every v2 case — the address of the game's real
+// vtable in .rodata/.data, so a virtual call through the holder runs real code; a vtable pointer in the pointer-closed
+// arena faults. VALUE must lie in the ELF image [0x08804000, 0x08DF74AC) or be 0.
+enum class ShapeFieldKind { Pointer, Integer, Word };
 struct ShapeField {
     std::uint32_t offset{};
-    bool pointer{true};      // false: an integer in [low, high]
-    std::uint32_t low{}, high{};
+    ShapeFieldKind kind{ShapeFieldKind::Pointer};  // Pointer: a pointer-closed arena slot; Integer: [low, high]; Word: value
+    std::uint32_t low{}, high{};                   // Integer: the drawn range (span at most 65535)
+    std::uint32_t value{};                         // Word: the literal written at `offset`
 };
 // A global holder (addendum 2026-11-20): the 4-byte guest word at `address` (.data/.bss) points at an arena slot of `size`
 // bytes, with `fields` laid out in it, so a function that first dereferences a null holder compares. Evidence next to the
@@ -113,9 +118,10 @@ struct Shape {
     std::vector<ShapeField> fields;
     std::vector<GlobalShape> globals;  // at most 4
 };
-// `ADDRESS [reg:aX=struct:SIZE] [global:0xADDR=struct:SIZE]... [field:+OFFSET=ptr|int:LOW..HIGH]...` per line, `#` comments: a
-// `field:` belongs to the `reg:`/`global:` before it. A global address must lie in [globals_begin, globals_end) (the ELF's
-// .data/.bss at run time); with no range given a `global:` word is an error. An error line is described in *error.
+// `ADDRESS [reg:aX=struct:SIZE] [global:0xADDR=struct:SIZE]... [field:+OFFSET=ptr|int:LOW..HIGH|word:VALUE]...` per line, `#`
+// comments: a `field:` belongs to the `reg:`/`global:` before it. A global address must lie in [globals_begin, globals_end)
+// (the ELF's .data/.bss at run time); with no range given a `global:` word is an error. A `word:` VALUE must lie in the ELF
+// image [0x08804000, 0x08DF74AC) or be 0. An error line is described in *error.
 // A case count from the environment: decimal digits only (error otherwise), clamped to `maximum`.
 bool parse_case_count(const char *text, unsigned maximum, unsigned &out);
 std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error,
