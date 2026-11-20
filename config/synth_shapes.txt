@@ -1,0 +1,26 @@
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md, item 3, and its addendum 2026-11-20
+# on global holders): one line per function, with the asm evidence above it. Entries are added only where the gate then
+# compared; the file may stay empty (comments only), and an unreadable GT_SYNTH_SHAPES path fails the run.
+#
+# Grammar, `#` starts a comment:
+#
+#   ADDRESS [reg:aX=struct:SIZE] [global:0xADDR=struct:SIZE]... [field:+OFFSET=ptr|int:LOW..HIGH]...
+#
+# - ADDRESS is the function the shape is for (16-bit hex, no 0x). A line needs a `reg:` or a `global:`.
+# - `reg:aX=struct:SIZE` (one per line) makes aX, in the function's v2 cases, point at a fresh arena slot of SIZE bytes.
+#   SIZE is 1..1024 and the slot sits inside one block that is not a table block.
+# - `global:0xADDR=struct:SIZE` (up to 4 per line, ADDR in the ELF's .data/.bss writable segment) makes the 4-byte guest
+#   word at ADDR point at a fresh arena slot of SIZE bytes. GLOBAL WORDS ARE POKED ONLY IN THAT FUNCTION'S v2 CASES:
+#   the harness saves the word, sets it before the original and the decompiled run, and puts the original back after.
+#   v1 cases, corpus recipes and every other function are untouched. An ADDR outside .data/.bss, unaligned, duplicated,
+#   a fifth global on a line, or a missing `=struct:SIZE` is a parse error.
+# - `field:+OFFSET=ptr|int:LOW..HIGH` belongs to the `reg:` or `global:` word before it (a field before any of them is an
+#   error). OFFSET is 4-aligned and inside that slot. `ptr` fills the word with a pointer-closed arena slot; `int:L..H`
+#   fills an integer in the range (span at most 65535).
+#
+# Values are decimal or 0x-hex; sizes are decimal (010 is ten, not octal). Every v2 input stays pointer-closed: pointers
+# into the arena (16-byte aligned), table starts, zero, small ints and floats, never a word just outside RAM.
+#
+# Example (the evidence line above it is required, as for a symbol name):
+#   #   lw v1,0x0(a0); bnez v1,... reads the holder before anything else, then lw t0,0x8(v1).
+#   0x08C12345 global:0x08CF2F08=struct:16 field:+0x8=ptr

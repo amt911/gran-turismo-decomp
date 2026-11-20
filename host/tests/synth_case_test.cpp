@@ -280,6 +280,58 @@ int main() {
         check(v1.arena != a2.arena, "v2 draws from its own stream");
     }
 
+    // global holders (spec 2026-11-19-synthetic-pointer-graphs-design.md, addendum 2026-11-20): a shape line may set
+    // words in .data/.bss to point at a fresh arena slot, so a function that first reads a null global compares.
+    {
+        constexpr std::uint32_t kDataBegin = 0x08CD8500u, kDataEnd = 0x08DF74ACu;  // the RW segment at load base 0x08804000
+        std::string error;
+        const auto shapes = gt::parse_shapes("08912340 global:0x08CF2F08=struct:16 field:+4=ptr\n", &error,
+                                             kDataBegin, kDataEnd);
+        check(error.empty() && shapes.size() == 1u, "a global shape line parses");
+        const gt::Shape &shape = shapes.at(0x08912340u);
+        check(!shape.has_reg, "a global-only line sets no register");
+        check(shape.globals.size() == 1u && shape.globals[0].address == 0x08CF2F08u && shape.globals[0].size == 16u,
+              "the global word and its slot size are kept");
+        check(shape.globals[0].fields.size() == 1u && shape.globals[0].fields[0].offset == 4u && shape.globals[0].fields[0].pointer,
+              "the field after a global belongs to its slot");
+        error.clear();
+        check(gt::parse_shapes("08912340 global:147795720=struct:8\n", &error, kDataBegin, kDataEnd).size() == 1u && error.empty(),
+              "a decimal global address parses");
+
+        error.clear();
+        const auto two = gt::parse_shapes(
+            "08912340 global:0x08CF2F08=struct:8 field:+0=int:0..4 global:0x08CF2F0C=struct:12 field:+8=ptr\n",
+            &error, kDataBegin, kDataEnd);
+        check(error.empty() && two.size() == 1u && two.at(0x08912340u).globals.size() == 2u, "two globals on one line parse");
+        check(two.at(0x08912340u).globals[0].fields.size() == 1u && two.at(0x08912340u).globals[1].fields.size() == 1u &&
+                  two.at(0x08912340u).globals[1].fields[0].offset == 8u,
+              "each global keeps the fields that follow it");
+        error.clear();
+        const auto both = gt::parse_shapes("08912340 reg:a1=struct:16 field:+0=ptr global:0x08CF2F08=struct:16\n",
+                                           &error, kDataBegin, kDataEnd);
+        check(error.empty() && both.size() == 1u && both.at(0x08912340u).has_reg && both.at(0x08912340u).globals.size() == 1u,
+              "a line may set a register and a global");
+
+        const auto rejects = [&](const char *text, const char *why) {
+            std::string e;
+            gt::parse_shapes(text, &e, kDataBegin, kDataEnd);
+            check(!e.empty(), why);
+        };
+        rejects("08912340 global:0x08CF2F08=struct:8 global:0x08CF2F0C=struct:8 global:0x08CF2F10=struct:8 "
+                "global:0x08CF2F14=struct:8 global:0x08CF2F18=struct:8\n", "a fifth global on a line is rejected");
+        rejects("08912340 global:0x08CF2F08\n", "a global without a struct size is rejected");
+        rejects("08912340 global:0x09E00000=struct:16\n", "a global address outside .data/.bss is rejected (the arena)");
+        rejects("08912340 global:0x08CD84FC=struct:16\n", "a global address below .data is rejected");
+        rejects("08912340 global:0x08DF74AC=struct:16\n", "a global address at the end of .bss is rejected");
+        rejects("08912340 global:0x08CF2F0A=struct:16\n", "an unaligned global address is rejected");
+        rejects("08912340 global:0x08CF2F08=struct:0\n", "a zero-size global slot is rejected");
+        rejects("08912340 global:0x08CF2F08=struct:2048\n", "a global slot larger than a block is rejected");
+        rejects("08912340 global:0x08CF2F08=struct:8 field:+8=ptr\n", "a field outside its global slot is rejected");
+        rejects("08912340 reg:a0=struct:64 field:+0xFFFFFFFC=ptr\n", "a field offset that would wrap is rejected");
+        rejects("08912340 global:0x08CF2F08=struct:8 global:0x08CF2F08=struct:8\n", "a duplicate global address is rejected");
+        rejects("08912340 field:+0=ptr\n", "a field before any reg/global is rejected");
+    }
+
     // shapes file
     {
         std::string error;
@@ -320,6 +372,64 @@ int main() {
             const std::uint32_t last = (in.gpr[2] - big.arena_base + 1023u) / 1024u;
             check(first == last && first % 8u != 7u, "a shape struct sits inside one block that is not a table");
         }
+    }
+    // global holders in a v2 case: each global word is poked to a fresh, pointer-closed arena slot; nothing else moves.
+    {
+        constexpr std::uint32_t kDataBegin = 0x08CD8500u, kDataEnd = 0x08DF74ACu;
+        std::string error;
+        const auto shapes = gt::parse_shapes(
+            "08912340 reg:a1=struct:16 field:+4=ptr "
+            "global:0x08CF2F08=struct:32 field:+0=ptr field:+8=int:0..8 "
+            "global:0x08CF2F0C=struct:16 field:+4=ptr\n",
+            &error, kDataBegin, kDataEnd);
+        check(error.empty(), "the reg + globals shape parses");
+        const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, 0u, 1u, layout, &shapes);
+        check(in.pokes.size() == 2u, "a v2 case carries one poke per global");
+        check(in.pokes[0].address == 0x08CF2F08u && in.pokes[1].address == 0x08CF2F0Cu, "the pokes name the global words");
+        const std::uint32_t first = in.pokes[0].value, second = in.pokes[1].value;
+        check(in_arena(layout, first) && in_arena(layout, second), "each global points into the arena");
+        check((first - layout.arena_base) % 16u == 0u && (second - layout.arena_base) % 16u == 0u, "a global slot is 16-byte aligned");
+        check(first != second, "each global gets its own slot");
+        check(in.gpr[1] != first && in.gpr[1] != second, "the shaped register has a slot of its own");
+        const std::uint32_t at = (first - layout.arena_base) / 4u;
+        check(in_arena(layout, in.arena[at]) && (in.arena[at] - layout.arena_base) % 16u == 0u,
+              "a ptr field of a global slot is a 16-byte-aligned arena pointer");
+        check(in.arena[at + 2u] <= 8u, "an int field of a global slot is within its range");
+        const std::uint32_t other = (second - layout.arena_base) / 4u;
+        check(in_arena(layout, in.arena[other + 1u]), "the second global's ptr field is an arena pointer too");
+        // the slots and the register's struct do not overlap
+        const auto overlaps = [](std::uint32_t a, std::uint32_t na, std::uint32_t b, std::uint32_t nb) {
+            return a < b + nb && b < a + na;
+        };
+        check(!overlaps(first, 32u, second, 16u), "global slots do not overlap");
+        check(!overlaps(first, 32u, in.gpr[1], 16u) && !overlaps(second, 16u, in.gpr[1], 16u), "a global slot does not overlap the register's struct");
+        const gt::SynthInputs again = gt::make_synth_case_v2(0x08912340u, 0u, 1u, layout, &shapes);
+        check(again.pokes.size() == 2u && again.pokes[0].value == first && again.pokes[1].value == second &&
+                  again.gpr == in.gpr && again.arena == in.arena,
+              "a global-shaped v2 case is deterministic");
+        // a case of a global-shaped function whose line has no reg: still pokes, a0 keeps the plain v2 slot
+        const auto only_global = gt::parse_shapes("08912340 global:0x08CF2F08=struct:16\n", &error, kDataBegin, kDataEnd);
+        const gt::SynthInputs plain = gt::make_synth_case_v2(0x08912340u, 0u, 1u, layout, &only_global);
+        check(plain.pokes.size() == 1u && plain.pokes[0].address == 0x08CF2F08u, "a global-only shape pokes its word");
+        check(in_arena(layout, plain.gpr[0]), "a global-only shape leaves the plain v2 a0");
+        const gt::SynthInputs v1 = gt::make_synth_case(0x08912340u, 0u, 1u, layout);
+        check(v1.pokes.empty(), "a v1 case pokes nothing");
+    }
+
+    // a shape without globals keeps the v2 inputs it made before global holders (hash from the pre-change host/synth_case.cpp)
+    {
+        std::string error;
+        const auto shapes = gt::parse_shapes("08912340 reg:a1=struct:64 field:+0x10=ptr field:+0x14=int:0..8\n", &error);
+        std::uint64_t h = 1469598103934665603ull;
+        const auto mix = [&](std::uint32_t v) { h ^= v; h *= 1099511628211ull; };
+        for (unsigned index = 0u; index < 16u; ++index) {
+            const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, index, 1u, layout, &shapes);
+            check(in.pokes.empty(), "a shape without globals pokes nothing");
+            for (const std::uint32_t v : in.gpr) mix(v);
+            for (const std::uint32_t v : in.fpr) mix(v);
+            for (const std::uint32_t v : in.arena) mix(v);
+        }
+        check(h == 0x703DEAFA0EC10D89ull, "a shape without globals draws the v2 inputs it drew before global holders");
     }
     {
         unsigned n = 99u;
