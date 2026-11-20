@@ -21,8 +21,7 @@ mkdir -p "$(dirname "$log")"
 limits='Hard limits (they bind you exactly like they bind Claude in this repo; AGENTS.md has the rest):
 - Never merge anything, never push main, never force-push. Push only feature branches you were told to push.
 - Heavy jobs (recomp, builds, gates, pytest with workers) run inside the gt-heavy.slice memory cgroup (AGENTS.md); builds with clang at -j4.
-- Every tools.decomp_gate run sets GT_GATE_CPU_LOCK="<desc>" and is preceded by /home/andres/repos/gt-ops/wait_verdicts.sh (bounded wait).
-- Run ONE tools.decomp_gate job at a time and wait for it to finish: never start a second run while one is waiting or running, and never reuse a tag. A gate run can wait minutes for its lock; that is not a hang.
+- You only WRITE code: draft, build, static audits (tools.frame_audit, literal_check, sp_loads, arg_reads), local commit. Do NOT run tools.decomp_gate (no gate, synth, coverage, sabotage): Claude verifies after you.
 - Kill only processes you started (no pkill -f). Never commit game data, recompiler output or the local CMakeLists GT_PREBUILT_GENERATED change. Do not access /mnt/veracrypt64.
 - Decompiled bodies are hand-written structured C (named locals, G[n] only at the call boundary); a function is done only when its gate passes.
 
