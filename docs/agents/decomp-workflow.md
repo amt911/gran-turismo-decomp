@@ -64,7 +64,11 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   route some function was verified after.
   **Generator v2 (spec `2026-11-19-synthetic-pointer-graphs-design.md`):** after the 8 v1 cases each function gets `GT_SYNTH_V2` more (default 8, 0 = today's
   run exactly) whose arena words are only arena pointers, tables, zero, small ints and floats, so a chain of dereferences stays valid; optional
-  `config/synth_shapes.txt` lays out a register's struct. The report prints `v2 cases: compared N, equal M` per function;
+  `config/synth_shapes.txt` lays out a register's struct. **Global holders (addendum 2026-11-20):** a shape line may also carry
+  `global:0xADDR=struct:SIZE` (at most 4, ADDR in the ELF's `.data`/`.bss`) and its `field:` words; in that function's v2 cases the word at ADDR is
+  poked to a fresh pointer-closed arena slot before both runs and restored after, so a function that first reads a null holder compares (v1 cases and
+  every other function are untouched). The report prints `v2 cases: compared N, equal M` per function and, for a global-shaped one,
+  `v2 global cases: compared N, equal M` too: that evidence is weaker than a scene and counted apart.
   `.venv/bin/python -m tools.synth_v2 OFF.log ON.log` gives the per-file before/after table. v1 inputs are hash-pinned in `host/tests/synth_case_test.cpp`.
   **Corpus (spec `2026-11-11-coverage-guided-synthetic-inputs-design.md`):** `config/synth_corpus/<ADDRESS>.txt` holds recipes (a generated case plus
   mutations, no game bytes) that earlier searches found to reach new branches; the synthetic gate replays them after each function's

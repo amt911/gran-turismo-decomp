@@ -34,18 +34,21 @@ std::vector<VtableRun> find_vtable_runs(std::uint32_t begin, std::uint32_t end,
 std::map<std::uint32_t, std::vector<std::uint32_t>> class_instances(
     const std::vector<VtableRun> &runs, const std::vector<std::pair<std::uint32_t, std::uint32_t>> &objects);
 
-struct SynthInputs {
-    std::array<std::uint32_t, 8> gpr{};   // a0-a3, t0-t3
-    std::array<std::uint32_t, 8> fpr{};   // f12-f19 (bits)
-    std::vector<std::uint32_t> arena;     // arena_bytes / 4 words, written at arena_base
-};
-
-// Global words a function's odd-numbered cases set before they run (even ones keep the scene as it is): the paths a flag in
-// game data selects, which no route and no generated input ever sets (func_08945F6C: the flag at 0x08CF2F08, FINDINGS).
+// A guest word set before a case runs and put back after it: `value` at `address`.
 struct ScenePoke {
     std::uint32_t address;
     std::uint32_t value;
 };
+
+struct SynthInputs {
+    std::array<std::uint32_t, 8> gpr{};   // a0-a3, t0-t3
+    std::array<std::uint32_t, 8> fpr{};   // f12-f19 (bits)
+    std::vector<std::uint32_t> arena;     // arena_bytes / 4 words, written at arena_base
+    std::vector<ScenePoke> pokes;         // global holders a v2 shape sets (empty for v1 cases and shapes without globals)
+};
+
+// Global words a function's odd-numbered cases set before they run (even ones keep the scene as it is): the paths a flag in
+// game data selects, which no route and no generated input ever sets (func_08945F6C: the flag at 0x08CF2F08, FINDINGS).
 std::vector<ScenePoke> scene_pokes(std::uint32_t function, unsigned index);
 
 // Recipes (spec 2026-11-11-coverage-guided-synthetic-inputs-design.md): a generated case (index, seed) plus mutations, as one text line
@@ -95,15 +98,28 @@ struct ShapeField {
     bool pointer{true};      // false: an integer in [low, high]
     std::uint32_t low{}, high{};
 };
+// A global holder (addendum 2026-11-20): the 4-byte guest word at `address` (.data/.bss) points at an arena slot of `size`
+// bytes, with `fields` laid out in it, so a function that first dereferences a null holder compares. Evidence next to the
+// `global:` line, as for every shape.
+struct GlobalShape {
+    std::uint32_t address{};
+    std::uint32_t size{};    // bytes of the arena slot the word points at
+    std::vector<ShapeField> fields;
+};
 struct Shape {
     unsigned reg{};          // 0-7: a0-a3, t0-t3
     std::uint32_t size{};    // bytes of the arena slot the register points at
+    bool has_reg{false};     // a line may set globals only
     std::vector<ShapeField> fields;
+    std::vector<GlobalShape> globals;  // at most 4
 };
-// `ADDRESS reg:a0=struct:SIZE [field:+OFFSET=ptr] [field:+OFFSET=int:LOW..HIGH]...` per line, `#` comments. An error line is described in *error.
+// `ADDRESS [reg:aX=struct:SIZE] [global:0xADDR=struct:SIZE]... [field:+OFFSET=ptr|int:LOW..HIGH]...` per line, `#` comments: a
+// `field:` belongs to the `reg:`/`global:` before it. A global address must lie in [globals_begin, globals_end) (the ELF's
+// .data/.bss at run time); with no range given a `global:` word is an error. An error line is described in *error.
 // A case count from the environment: decimal digits only (error otherwise), clamped to `maximum`.
 bool parse_case_count(const char *text, unsigned maximum, unsigned &out);
-std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error);
+std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error,
+                                            std::uint32_t globals_begin = 0u, std::uint32_t globals_end = 0u);
 SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout,
                                const std::map<std::uint32_t, Shape> *shapes);
 

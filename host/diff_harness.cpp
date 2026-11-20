@@ -58,6 +58,9 @@ constexpr std::uint32_t kRamBase = 0x08000000u;
 constexpr std::uint32_t kVramBase = 0x04000000u;  // physical VRAM, 2 MiB (its mirrors map onto it)
 constexpr std::size_t kVramSize = 0x200000u;
 constexpr std::uint32_t kRamSize = 32u * 1024u * 1024u;
+// The ELF's writable data segment (.data, .sbss, .bss, .bss.NNNN) at run time: program header 1, vaddr 0x4d8500 + 0x9afac,
+// plus the load base 0x08804000 (FACTS § Runtime). The only words a synthetic `global:` shape may poke.
+constexpr std::uint32_t kDataSegmentBegin = 0x08804000u + 0x4d8500u, kDataSegmentEnd = 0x08804000u + 0x4d8500u + 0x9afacu;
 // Return addresses planted for isolated runs, outside guest memory: the run ends when the original
 // returns to its case's one. Each case takes one from a pool, because a case that continues live
 // (below) keeps its address until the original really returns there — maybe never (a thread loop).
@@ -123,6 +126,8 @@ std::uint64_t next_sample_after(std::uint64_t call) {
 DecompMode g_mode = DecompMode::Off;
 unsigned g_cases = 32u;
 unsigned g_v2_cases = 8u;       // generator v2 cases per function after the v1 ones (GT_SYNTH_V2, 0 = off)
+// Functions whose shape sets global holders (addendum 2026-11-20): their v2 cases are reported on their own line.
+std::set<std::uint32_t> g_global_shapes;
 unsigned g_case_budget = 32u;  // cases a function may compare in one run: g_cases, and in a case child also the corpus and the search
 std::unordered_map<std::uint32_t, Entry> g_entries;
 // The trampoline runs on every call of a decompiled function: a hash lookup there cost as much as the memory
@@ -939,9 +944,11 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             std::ostringstream text;
             text << shapes_file.rdbuf();
             std::string shapes_error;
-            shapes = parse_shapes(text.str(), &shapes_error);
+            shapes = parse_shapes(text.str(), &shapes_error, kDataSegmentBegin, kDataSegmentEnd);
             if (!shapes_error.empty()) throw std::runtime_error(shapes_path + ": " + shapes_error);
             std::cerr << "[decomp] synthetic shapes: " << shapes.size() << " functions\n";
+            for (const auto &[address, shape] : shapes)
+                if (!shape.globals.empty()) g_global_shapes.insert(address);
         }
     }
     // The corpus: recipes that earlier searches found (config/synth_corpus/<ADDRESS>.txt; GT_SYNTH_CORPUS=<dir>, "off" disables).
@@ -1055,7 +1062,8 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             g_case_budget = g_cases + v2_cases + static_cast<unsigned>(corpus.count(address) != 0u ? corpus[address].size() : 0u) + (can_search ? search_cases : 0u);
             const auto run_case = [&](const SynthInputs &inputs, unsigned index) {
                 std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
-                const std::vector<ScenePoke> pokes = scene_pokes(address, index);
+                std::vector<ScenePoke> pokes = scene_pokes(address, index);
+                pokes.insert(pokes.end(), inputs.pokes.begin(), inputs.pokes.end());  // global holders of a v2 shape
                 std::vector<std::uint32_t> poked_before;
                 for (const ScenePoke &poke : pokes) {
                     poked_before.push_back(rt.memory().load32(poke.address));
@@ -1073,7 +1081,8 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 } catch (...) {
                 }
                 g_synthetic_call = false;
-                for (std::size_t k = 0; k < pokes.size(); ++k) rt.memory().store32(pokes[k].address, poked_before[k]);
+                // reverse order, so a word poked twice (a scene poke and a global holder at the same address) ends at its original
+                for (std::size_t k = pokes.size(); k-- > 0u;) rt.memory().store32(pokes[k].address, poked_before[k]);
                 // a stop inside the original's run ends only that case (not comparable)
                 if (rt.stopped()) rt.clear_stop();
             };
@@ -1205,6 +1214,9 @@ int decomp_report() {
                   << ", cases that changed memory " << entry.informative << ", nested in " << entry.nested_equal
                   << " equal / " << entry.nested_mismatched << " mismatched cases)\n";
         if (g_synth_mode && g_v2_cases != 0u) std::cerr << "[decomp]   v2 cases: compared " << entry.v2_compared << ", equal " << entry.v2_equal << "\n";
+        // A shape's global holders are weaker evidence than a scene: the cases they made comparable are counted on their own line.
+        if (g_synth_mode && g_v2_cases != 0u && g_global_shapes.count(address) != 0u && entry.v2_compared != 0u)
+            std::cerr << "[decomp]   v2 global cases: compared " << entry.v2_compared << ", equal " << entry.v2_equal << "\n";
         if (!entry.first_mismatch.empty()) std::cerr << "[decomp]   first mismatch: " << entry.first_mismatch << "\n";
         if (!entry.first_skip.empty()) std::cerr << "[decomp]   first not comparable: " << entry.first_skip << "\n";
         if (entry.mismatched != 0u) status = 2;

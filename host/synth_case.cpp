@@ -407,13 +407,15 @@ bool parse_case_count(const char *text, unsigned maximum, unsigned &out) {
     return true;
 }
 
-std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error) {
+std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error,
+                                            std::uint32_t globals_begin, std::uint32_t globals_end) {
     std::map<std::uint32_t, Shape> shapes;
     std::size_t begin = 0u;
     unsigned line_number = 0u;
     const auto fail = [&](const char *what) {
         if (error != nullptr && error->empty()) *error = "shapes line " + std::to_string(line_number) + ": " + what;
     };
+    constexpr int kNoSlot = -2;  // the slot a `field:` belongs to: kNoSlot, -1 (the register), or an index in shape.globals
     while (begin <= text.size()) {
         std::size_t end = text.find('\n', begin);
         if (end == std::string::npos) end = text.size();
@@ -433,11 +435,13 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
         std::uint32_t address = 0u;
         if (!parse_u32(words[0], true, address)) { fail("bad address"); continue; }
         Shape shape;
-        bool have_reg = false, ok = true;
+        int current = kNoSlot;
+        bool ok = true;
+        const auto slot_size = [&] { return current < 0 ? shape.size : shape.globals[static_cast<std::size_t>(current)].size; };
         for (std::size_t w = 1; w < words.size() && ok; ++w) {
             const std::string &word = words[w];
             if (word.rfind("reg:", 0) == 0) {
-                if (have_reg) { fail("more than one reg"); ok = false; break; }
+                if (shape.has_reg) { fail("more than one reg"); ok = false; break; }
                 const std::size_t eq = word.find('=');
                 const std::string name = word.substr(4, eq == std::string::npos ? 0 : eq - 4);
                 const std::string rest = eq == std::string::npos ? "" : word.substr(eq + 1);
@@ -449,8 +453,30 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
                 if (!parse_u32(rest.substr(7), false, shape.size) || shape.size == 0u || shape.size > kBlockWords * 4u) {
                     fail("bad size (1..1024)"); ok = false; break;
                 }
-                have_reg = true;
+                shape.has_reg = true;
+                current = -1;
+            } else if (word.rfind("global:", 0) == 0) {
+                if (shape.globals.size() >= 4u) { fail("more than 4 globals"); ok = false; break; }
+                const std::size_t eq = word.find('=');
+                const std::string rest = eq == std::string::npos ? "" : word.substr(eq + 1);
+                GlobalShape global;
+                if (eq == std::string::npos || !parse_u32(word.substr(7, eq - 7), false, global.address) ||
+                    rest.rfind("struct:", 0) != 0) { fail("bad global"); ok = false; break; }
+                if (global.address % 4u != 0u) { fail("unaligned global"); ok = false; break; }
+                if (globals_begin >= globals_end || global.address < globals_begin ||
+                    static_cast<std::uint64_t>(global.address) + 4u > globals_end) {
+                    fail("global outside .data/.bss"); ok = false; break;
+                }
+                if (!parse_u32(rest.substr(7), false, global.size) || global.size == 0u || global.size > kBlockWords * 4u) {
+                    fail("bad size (1..1024)"); ok = false; break;
+                }
+                for (const GlobalShape &seen : shape.globals)
+                    if (seen.address == global.address) { fail("duplicate global"); ok = false; break; }
+                if (!ok) break;
+                shape.globals.push_back(global);
+                current = static_cast<int>(shape.globals.size()) - 1;
             } else if (word.rfind("field:+", 0) == 0) {
+                if (current == kNoSlot) { fail("field before a reg or global"); ok = false; break; }
                 const std::size_t eq = word.find('=');
                 if (eq == std::string::npos) { fail("bad field"); ok = false; break; }
                 ShapeField field;
@@ -467,13 +493,13 @@ std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string
                     if (field.high - field.low > 0xFFFFu) { fail("int range wider than 65535"); ok = false; break; }
                 } else { fail("bad field kind"); ok = false; break; }
                 if (field.offset % 4u != 0u) { fail("unaligned field"); ok = false; break; }
-                shape.fields.push_back(field);
+                if (static_cast<std::uint64_t>(field.offset) + 4u > slot_size()) { fail("field outside the struct"); ok = false; break; }
+                if (current < 0) shape.fields.push_back(field);
+                else shape.globals[static_cast<std::size_t>(current)].fields.push_back(field);
             } else { fail("unknown word"); ok = false; }
         }
         if (!ok) continue;
-        if (!have_reg) { fail("no reg"); continue; }
-        for (const ShapeField &f : shape.fields) if (f.offset + 4u > shape.size) { fail("field outside the struct"); ok = false; }
-        if (!ok) continue;
+        if (!shape.has_reg && shape.globals.empty()) { fail("no reg"); continue; }
         if (!shapes.emplace(address, shape).second) fail("duplicate address");
     }
     return shapes;
@@ -519,18 +545,38 @@ SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint
     if (shapes != nullptr) {
         if (const auto it = shapes->find(function); it != shapes->end()) {
             const Shape &shape = it->second;
-            std::uint32_t base;
-            for (;;) {  // inside one block that is not a table (a struct must not overlap a vtable block)
-                base = slot_pointer();
-                const std::uint32_t first = (base - layout.arena_base) / (kBlockWords * 4u);
-                const std::uint32_t last = (base - layout.arena_base + shape.size - 1u) / (kBlockWords * 4u);
-                if (first == last && !arena.is_table(first * kBlockWords)) break;
+            // Slots used by this case's register struct and global holders: each is fresh, so no two overlap.
+            std::vector<std::pair<std::uint32_t, std::uint32_t>> used;
+            const auto fresh_slot = [&](std::uint32_t size) {
+                for (;;) {  // inside one block that is not a table (a struct must not overlap a vtable block)
+                    const std::uint32_t base = slot_pointer();
+                    const std::uint32_t first = (base - layout.arena_base) / (kBlockWords * 4u);
+                    const std::uint32_t last = (base - layout.arena_base + size - 1u) / (kBlockWords * 4u);
+                    if (first != last || arena.is_table(first * kBlockWords)) continue;
+                    bool overlaps = false;
+                    for (const auto &[other, length] : used)
+                        if (base < other + length && other < base + size) overlaps = true;
+                    if (overlaps) continue;
+                    used.emplace_back(base, size);
+                    return base;
+                }
+            };
+            const auto fill = [&](std::uint32_t base, const std::vector<ShapeField> &fields) {
+                const std::uint32_t at = (base - layout.arena_base) / 4u;
+                for (const ShapeField &field : fields) {
+                    const std::uint32_t word = at + field.offset / 4u;
+                    inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);  // span <= 65536
+                }
+            };
+            if (shape.has_reg) {
+                const std::uint32_t base = fresh_slot(shape.size);
+                inputs.gpr[shape.reg] = base;
+                fill(base, shape.fields);
             }
-            inputs.gpr[shape.reg] = base;
-            const std::uint32_t at = (base - layout.arena_base) / 4u;
-            for (const ShapeField &field : shape.fields) {
-                const std::uint32_t word = at + field.offset / 4u;
-                inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);  // span <= 65536
+            for (const GlobalShape &global : shape.globals) {  // global holders (addendum 2026-11-20): poked before both runs
+                const std::uint32_t base = fresh_slot(global.size);
+                inputs.pokes.push_back({global.address, base});
+                fill(base, global.fields);
             }
         }
     }
