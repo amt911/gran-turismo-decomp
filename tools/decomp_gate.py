@@ -83,7 +83,16 @@ SLICE = "gt-heavy.slice"
 SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
                 # real-time routes first when other sessions load the machine (their niced jobs still stalled routes)
                 "CPUWeight=10000")
-SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
+def heavy_slots() -> tuple[Path, ...]:
+    """The lock files of the heavy slots: GT_HEAVY_SLOTS of them (default 4: the gt-heavy.slice ceiling is 12 GB since
+    the user's decision of 2026-11-20, was 6 GB with 2 slots). The first two keep their old names, so worktrees on an
+    older checkout still share them."""
+    count = max(1, int(os.environ.get("GT_HEAVY_SLOTS", "4")))
+    return tuple(Path("/tmp/claude-1000/gt-heavy.lock" if i == 0 else f"/tmp/claude-1000/gt-heavy-{i + 1}.lock")
+                 for i in range(count))
+
+
+SLOTS = heavy_slots()
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 # A route keeps ~1 core busy (0.61-0.67 measured on a full gate, 2026-11-05; ~3 before the vblank pacing fix of
 # 2026-10-22); the cap leaves a fifth of the cores the gate may use free so routes keep pace. Those cores are the process's CPU affinity, not the machine's: another session's jobs pinned to

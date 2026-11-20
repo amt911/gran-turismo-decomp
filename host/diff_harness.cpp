@@ -11,6 +11,7 @@
 #include "diff_compare.hpp"
 #include "dirty_pages.hpp"
 #include "synth_case.hpp"
+#include "synth_report.hpp"
 #include "psprecomp/common.hpp"
 
 #include <sstream>
@@ -82,6 +83,8 @@ struct Entry {
     unsigned mismatched{};
     unsigned skipped{};
     unsigned informative{};   // compared cases where the original actually changed memory
+    unsigned v2_compared{};   // of `compared`, the cases of generator v2 (spec 2026-11-19-synthetic-pointer-graphs-design.md)
+    unsigned v2_equal{};
     std::uint64_t calls{};    // all calls seen, to spread the compared cases over the run
     std::uint64_t next_sample{};
     std::string first_mismatch;
@@ -119,6 +122,7 @@ std::uint64_t next_sample_after(std::uint64_t call) {
 
 DecompMode g_mode = DecompMode::Off;
 unsigned g_cases = 32u;
+unsigned g_v2_cases = 8u;       // generator v2 cases per function after the v1 ones (GT_SYNTH_V2, 0 = off)
 unsigned g_case_budget = 32u;  // cases a function may compare in one run: g_cases, and in a case child also the corpus and the search
 std::unordered_map<std::uint32_t, Entry> g_entries;
 // The trampoline runs on every call of a decompiled function: a hash lookup there cost as much as the memory
@@ -911,6 +915,35 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
     if (search_cases != 0u && !can_search)
         std::cerr << "[decomp] GT_SYNTH_SEARCH needs a coverage build (tools.decomp_gate coverage --synth --search): no search\n";
     const int kChildSeconds = 10 + (can_search ? static_cast<int>(search_seconds) : 0);
+    // Generator v2: GT_SYNTH_V2=<n> cases per function after the v1 ones (default 8, 0 = off); shapes from config/synth_shapes.txt
+    // (GT_SYNTH_SHAPES=<file>, optional).
+    constexpr unsigned kMaxV2Cases = 64u;
+    g_v2_cases = 8u;
+    if (const char *v2_env = std::getenv("GT_SYNTH_V2"); v2_env != nullptr) {
+        unsigned requested = 0u;
+        if (!parse_case_count(v2_env, UINT32_MAX, requested))
+            throw std::runtime_error(std::string("GT_SYNTH_V2 must be a number of cases (decimal digits), got '") + v2_env + "'");
+        if (requested > kMaxV2Cases) std::cerr << "[decomp] GT_SYNTH_V2=" << requested << " clamped to " << kMaxV2Cases << "\n";
+        g_v2_cases = requested > kMaxV2Cases ? kMaxV2Cases : requested;
+    }
+    const unsigned v2_cases = g_v2_cases;
+    // Optional shapes (config/synth_shapes.txt, or GT_SYNTH_SHAPES=<file>, which must then exist): a parse error or a duplicate fails the run.
+    std::map<std::uint32_t, Shape> shapes;
+    if (v2_cases != 0u) {
+        const char *shapes_env = std::getenv("GT_SYNTH_SHAPES");
+        const std::string shapes_path = shapes_env != nullptr ? shapes_env : "config/synth_shapes.txt";
+        std::ifstream shapes_file(shapes_path);
+        if (!shapes_file) {
+            if (shapes_env != nullptr) throw std::runtime_error("GT_SYNTH_SHAPES: cannot read " + shapes_path);
+        } else {
+            std::ostringstream text;
+            text << shapes_file.rdbuf();
+            std::string shapes_error;
+            shapes = parse_shapes(text.str(), &shapes_error);
+            if (!shapes_error.empty()) throw std::runtime_error(shapes_path + ": " + shapes_error);
+            std::cerr << "[decomp] synthetic shapes: " << shapes.size() << " functions\n";
+        }
+    }
     // The corpus: recipes that earlier searches found (config/synth_corpus/<ADDRESS>.txt; GT_SYNTH_CORPUS=<dir>, "off" disables).
     std::map<std::uint32_t, std::vector<Recipe>> corpus;
     {
@@ -922,10 +955,12 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
                 std::ifstream file(item.path());
                 std::string line;
                 if (!std::getline(file, line) || line != "# layout 1") continue;
+                bool other_generator = false;  // `# generator N` (default 1): recipes of another generator index other inputs
                 while (std::getline(file, line)) {
+                    if (line.rfind("# generator ", 0) == 0 && line != "# generator 1") other_generator = true;
                     std::uint32_t function = 0u;
                     Recipe recipe;
-                    if (parse_recipe(line, function, recipe)) corpus[function].push_back(recipe);
+                    if (!other_generator && parse_recipe(line, function, recipe)) corpus[function].push_back(recipe);
                 }
             }
             std::size_t total = 0u;
@@ -947,22 +982,26 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         int status = 0;
         waitpid(pid, &status, 0);
         Entry &entry = *child.entry;
-        std::istringstream in(child.output);
-        unsigned compared = 0, equal = 0, mismatched = 0, skipped = 0, informative = 0;
-        if (!killed && (in >> compared >> equal >> mismatched >> skipped >> informative)) {
-            entry.compared += compared;
-            entry.equal += equal;
-            entry.mismatched += mismatched;
-            entry.skipped += skipped;
-            entry.informative += informative;
-            entry.calls += compared + skipped;
-            std::string line;
-            std::getline(in, line);
-            std::getline(in, entry.first_mismatch);
-            std::getline(in, entry.first_skip);
-            while (std::getline(in, line))
+        const ChildReport report = parse_child_report(child.output, killed, g_v2_cases != 0u);
+        if (report.ok) {
+            entry.compared += report.compared;
+            entry.equal += report.equal;
+            entry.mismatched += report.mismatched;
+            entry.skipped += report.skipped;
+            entry.informative += report.informative;
+            entry.v2_compared += report.v2_compared;
+            entry.v2_equal += report.v2_equal;
+            entry.calls += report.compared + report.skipped;
+            entry.first_mismatch = report.first_mismatch;
+            entry.first_skip = report.first_skip;
+            if (report.v2_lost) {
+                entry.skipped += g_v2_cases;
+                entry.calls += g_v2_cases;
+                if (entry.first_skip.empty()) entry.first_skip = "synthetic: the v2 cases hung or ended without a report (v1 results kept)";
+            }
+            for (const std::string &line : report.other_lines)
                 if (line.rfind("[corpus] ", 0) == 0) std::cerr << line << "\n";
-                else if (!line.empty() && g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(line);
+                else if (g_mismatch_cases.size() < kMaxMismatchCases) g_mismatch_cases.insert(line);
         } else {
             entry.skipped += g_cases;
             entry.calls += g_cases;
@@ -1013,7 +1052,7 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
         if (pid == 0) {  // the child: this function's cases, its counters to the pipe, then _exit (no parent cleanup)
             close(pipe_fds[0]);
             g_mismatch_cases.clear();
-            g_case_budget = g_cases + static_cast<unsigned>(corpus.count(address) != 0u ? corpus[address].size() : 0u) + (can_search ? search_cases : 0u);
+            g_case_budget = g_cases + v2_cases + static_cast<unsigned>(corpus.count(address) != 0u ? corpus[address].size() : 0u) + (can_search ? search_cases : 0u);
             const auto run_case = [&](const SynthInputs &inputs, unsigned index) {
                 std::memcpy(arena, inputs.arena.data(), layout.arena_bytes);  // little-endian host and guest
                 const std::vector<ScenePoke> pokes = scene_pokes(address, index);
@@ -1093,16 +1132,34 @@ void run_synthetic_cases(psprecomp::Runtime &rt, const psprecomp::AllegrexContex
             }
             if (can_search && std::getenv("GT_SYNTH_SEARCH_DEBUG") != nullptr)
                 std::fprintf(stderr, "[search] %08X done: compared %u skipped %u found %zu non-zero %llu\n", address, entry.compared, entry.skipped, printed.size(), static_cast<unsigned long long>(seen));
+            const auto send = [&](const std::string &text) {
+                for (std::size_t written = 0; written < text.size();) {
+                    const ssize_t n = write(pipe_fds[1], text.data() + written, text.size() - written);
+                    if (n <= 0) break;
+                    written += static_cast<std::size_t>(n);
+                }
+            };
             std::ostringstream out;
             out << entry.compared << ' ' << entry.equal << ' ' << entry.mismatched << ' ' << entry.skipped << ' '
                 << entry.informative << '\n' << entry.first_mismatch << '\n' << entry.first_skip << '\n';
             for (const std::string &mismatch_case : g_mismatch_cases) out << mismatch_case << '\n';
             for (const std::string &line : printed) out << line << '\n';
-            const std::string text = out.str();
-            for (std::size_t written = 0; written < text.size();) {
-                const ssize_t n = write(pipe_fds[1], text.data() + written, text.size() - written);
-                if (n <= 0) break;
-                written += static_cast<std::size_t>(n);
+            if (v2_cases != 0u) out << "[v1-end]\n";  // the v1 results are safe from here: a kill during the v2 cases loses only those
+            send(out.str());
+            if (v2_cases != 0u) {  // generator v2 (spec 2026-11-19-synthetic-pointer-graphs-design.md): after the v1 report, own results
+                const Entry before = entry;
+                const std::set<std::string> known_mismatches = g_mismatch_cases;
+                for (unsigned k = 0; k < v2_cases && !rt.stopped(); ++k)
+                    run_case(make_synth_case_v2(address, k, seed, layout, &shapes), g_cases + k);
+                std::ostringstream tail;
+                tail << "[v2] " << entry.compared - before.compared << ' ' << entry.equal - before.equal << ' ' << entry.mismatched - before.mismatched
+                     << ' ' << entry.skipped - before.skipped << ' ' << entry.informative - before.informative << '\n';
+                if (entry.mismatched != before.mismatched && !entry.first_mismatch.empty() && entry.first_mismatch != before.first_mismatch)
+                    tail << "[v2-mismatch] " << entry.first_mismatch << '\n';
+                if (before.first_skip.empty() && !entry.first_skip.empty()) tail << "[v2-skip] " << entry.first_skip << '\n';
+                for (const std::string &mismatch_case : g_mismatch_cases)
+                    if (known_mismatches.count(mismatch_case) == 0u) tail << mismatch_case << '\n';
+                send(tail.str());
             }
             if (__llvm_profile_get_size_for_buffer != nullptr && __llvm_profile_write_buffer != nullptr) {
                 if (const char *pattern = std::getenv("LLVM_PROFILE_FILE"); pattern != nullptr) {
@@ -1147,6 +1204,7 @@ int decomp_report() {
                   << entry.mismatched << ", not comparable " << entry.skipped << " (calls " << entry.calls
                   << ", cases that changed memory " << entry.informative << ", nested in " << entry.nested_equal
                   << " equal / " << entry.nested_mismatched << " mismatched cases)\n";
+        if (g_synth_mode && g_v2_cases != 0u) std::cerr << "[decomp]   v2 cases: compared " << entry.v2_compared << ", equal " << entry.v2_equal << "\n";
         if (!entry.first_mismatch.empty()) std::cerr << "[decomp]   first mismatch: " << entry.first_mismatch << "\n";
         if (!entry.first_skip.empty()) std::cerr << "[decomp]   first not comparable: " << entry.first_skip << "\n";
         if (entry.mismatched != 0u) status = 2;

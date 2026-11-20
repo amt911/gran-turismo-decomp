@@ -1,0 +1,80 @@
+from tools import synth_v2 as v2
+
+OFF = """\
+[decomp] gt::hot_batch_320::f @0x08810000: compared 8, equal 8, mismatched 0, not comparable 0 (calls 8, cases that changed memory 3, nested in 0 equal / 0 mismatched cases)
+[decomp] gt::hot_batch_320::g @0x08810100: compared 0, equal 0, mismatched 0, not comparable 8 (calls 8, cases that changed memory 0, nested in 0 equal / 0 mismatched cases)
+[decomp] gt::hot_batch_321::h @0x08810200: compared 0, equal 0, mismatched 0, not comparable 8 (calls 8, cases that changed memory 0, nested in 0 equal / 0 mismatched cases)
+"""
+ON = """\
+[decomp] gt::hot_batch_320::f @0x08810000: compared 16, equal 16, mismatched 0, not comparable 0 (calls 16, cases that changed memory 3, nested in 0 equal / 0 mismatched cases)
+[decomp]   v2 cases: compared 8, equal 8
+[decomp] gt::hot_batch_320::g @0x08810100: compared 5, equal 5, mismatched 0, not comparable 11 (calls 16, cases that changed memory 2, nested in 0 equal / 0 mismatched cases)
+[decomp]   v2 cases: compared 5, equal 5
+[decomp] gt::hot_batch_321::h @0x08810200: compared 0, equal 0, mismatched 0, not comparable 16 (calls 16, cases that changed memory 0, nested in 0 equal / 0 mismatched cases)
+[decomp]   v2 cases: compared 0, equal 0
+"""
+
+
+def test_parse_v2_reads_the_line_after_each_function():
+    assert v2.parse_v2(ON) == {0x08810000: (8, 8), 0x08810100: (5, 5), 0x08810200: (0, 0)}
+    assert v2.parse_v2(OFF) == {}
+
+
+def test_newly_compared_needs_v2_cases_and_no_v1_comparison():
+    assert v2.newly_compared(OFF, ON) == {0x08810100}
+
+
+def test_newly_compared_ignores_mismatching_functions():
+    bad = ON.replace("compared 5, equal 5, mismatched 0", "compared 5, equal 4, mismatched 1")
+    assert v2.newly_compared(OFF, bad) == set()
+
+
+def test_table_groups_by_source_file():
+    files = {"hot_batch_320": {0x08810000, 0x08810100}, "hot_batch_321": {0x08810200}}
+    rows = v2.table(OFF, ON, files)
+    assert rows["hot_batch_320"] == v2.Row(installed=2, v1=1, v2_new=1)
+    assert rows["hot_batch_321"] == v2.Row(installed=1, v1=0, v2_new=0, scene=0)
+
+
+def test_format_table_has_a_total():
+    rows = {"a": v2.Row(2, 1, 1, 0), "b": v2.Row(1, 0, 0, 1)}
+    text = v2.format_table(rows)
+    assert "a" in text and "total" in text.splitlines()[-1] and "3" in text.splitlines()[-1]
+
+
+def test_a_v2_line_with_unequal_counts_is_not_newly_compared():
+    partial = ON.replace("v2 cases: compared 5, equal 5", "v2 cases: compared 5, equal 3")
+    assert v2.newly_compared(OFF, partial) == set()
+
+
+def test_an_address_missing_from_the_off_log_is_not_newly_compared():
+    only_f = OFF.splitlines()[0] + "\n"
+    assert v2.newly_compared(only_f, ON) == set()
+
+
+FAULT = (
+    "[decomp] gt::hot_batch_321::h @0x08810200: compared 0, equal 0, mismatched 0, not comparable 16 (calls 16, cases that changed memory 0, nested in 0 equal / 0 mismatched cases)\n"
+    "[decomp]   first not comparable: original: faulted: Guest memory access outside PSP RAM/EDRAM at 0x00000014\n"
+    "[decomp] gt::hot_batch_321::i @0x08810300: compared 0, equal 0, mismatched 0, not comparable 16 (calls 16, cases that changed memory 0, nested in 0 equal / 0 mismatched cases)\n"
+    "[decomp]   first not comparable: original: faulted: Guest memory access outside PSP RAM/EDRAM at 0xD3FF4A20\n"
+)
+
+
+def test_needs_scene_is_the_tiny_address_faults():
+    assert v2.needs_scene(FAULT) == {0x08810200}
+
+
+def test_main_prints_the_table(tmp_path, capsys):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "hot_batch_320.cpp").write_text("GT_DECOMP(0x08810000u, f, gt::ReturnKind::Word);\nGT_DECOMP(0x08810100u, g, gt::ReturnKind::Word);\n")
+    (tmp_path / "off.log").write_text(OFF)
+    (tmp_path / "on.log").write_text(ON)
+    assert v2.main([str(tmp_path / "off.log"), str(tmp_path / "on.log"), "--src", str(src)]) == 0
+    out = capsys.readouterr().out
+    assert "hot_batch_320" in out and out.splitlines()[-1].startswith("total")
+
+
+def test_totals_sum_over_the_routes_of_a_concatenated_log():
+    two_routes = OFF + OFF.splitlines()[0].replace("compared 8, equal 8", "compared 2, equal 2") + "\n"
+    assert v2.total_compared(two_routes)[0x08810000] == 10
