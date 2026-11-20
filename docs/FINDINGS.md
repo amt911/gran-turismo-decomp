@@ -3416,3 +3416,37 @@ new cursor (the leaf returns it in v0 as well). A second `call_original` in the 
 frame's list was never executed (a race frame with no cars, no HUD; the GE trace stopped after the first replayed part). Fix: save a0 before the first call and restore it before the second, and hand the
 caller the cursor after the commands the hook appended (`set_gpr(2, cursor)`). Confirmed: the first fix (v0 only) still stopped the list after the same 4182 prims; with a0 restored the list ran to 7286 prims (6725 without the probe) and the race frame shows both cars.
 **Rule for any hook that calls the original twice:** the callee may rewrite its argument registers; copy the arguments first and put them back before every call after the first.
+## Why 2,368 functions are never emitted (2026-11-19, `new-functions` research)
+
+Of the 23,208 functions in `recomp/analysis/functions.tsv`, 306 lie outside `.text` (the 2-instruction import stubs of the Sony
+libraries: `import_wrappers` in `auto_codegen_report.json`, never registrable and never counted) and 22,902 lie inside it, of which
+2,368 have no `runtime.register_function(...)` in `recomp/generated/`. `psp_recomp --auto` is a global CFG discovery: it seeds from the ELF
+entry, every `j`/`jal` target found in code it reached, relocated data words that hold code addresses (`relocated_data_code_pointer`,
+`relocated_r_mips32_code_pointer`) and `lui`/`addiu` pairs (`materialized_code_pointer`, `relocated_hi16_lo16_code_pointer`, patch 0008),
+then emits each reached instruction once (41,467 seeds, 258,051 block entries, 884,604 instructions). A function nothing reaches is not emitted.
+Classification of the 2,368 (a static scan of `.text` words, `jal`/`j` targets, `lui`+load/store/addiu pairs within 10 instructions, and
+raw 32-bit words anywhere in the ELF; script not kept, numbers reproducible with `tools.shapes` + that scan):
+
+| class | functions |
+| --- | ---: |
+| no reference of any kind (no `jal`, no `lui` pair, no data word): dead code the linker kept (unused template instances, destructors, copies) | 1,998 |
+| a raw data word equals the address (vtable or table slot) but the recompiler did not seed it (no relocation entry for that word, or a word that merely looks like an address) | 246 |
+| called (`jal`/`j`) only from other unemitted code | 80 |
+| called from a function that is emitted, but from a block the CFG never reached (dead path after a noreturn call, for instance) | 34 |
+| `lui`/`addiu` address of it appears only in such an unreached block | 10 |
+| padding (all nops) or data that does not decode as instructions | 0 |
+
+Sizes: 867 are under 20 instructions, 960 are 20-39, the rest larger. All of them decode as valid Allegrex instructions, so none is data
+misdetected as code.
+What it would take to make them gate-able: a patch to `psp_recomp` (next to 0014, which already takes extra boundaries) that reads a list of
+extra function seeds (`functions.tsv` entries without a registration) and emits them. The generated code grows by their instructions (about
+20 % more functions, mostly small) and `tools.recomp` / the build get slower accordingly. Emission alone proves nothing about reachability:
+a gate can only compare such a function with synthetic cases (`tools.decomp_gate synth`), and the 1,998 dead ones have no real callers at all,
+so they would be verified synthetically only. Not done: it changes the generated baseline every gate compares against.
+## Extra seeds: what the recompiler's discovery scans, and two traps (2026-11-19)
+
+- `collect_initial_seeds` scans every instruction of `.text` for `jal` (not `j`) targets plus data pointers and `lui`/`addiu` pairs, so a function reached only by a `j` tail call, or only by a vtable word without a relocation, is never seeded. Extra seeds (patch 0073, `tools.extra_seeds`) add them; a seed also stops the linear scan of a block that runs over it (`known_seeds.contains(pc)` in `analyze_function`), which is why the generated units that contain them change shape (`tools.extra_seeds verify` proves no entry or block label of the baseline disappears).
+- Ghidra sizes can overlap: `0x08ACC93C` is an 8-byte `j`+delay-slot thunk listed with the size of the function after it, so a seed at `0x08ACC944` looked like a split. `effective_sizes` cuts a function at its first unconditional return that no branch jumps over.
+- Installing regenerated files with `cp -p` keeps their old mtimes, older than the objects built from the previous content: ninja then rebuilds nothing. `touch` the files whose content differs (`cmp`), or let `tools.recomp` write into the build's own `recomp/generated`.
+- The synthetic gate over every registration has 5 mismatches on `main` before this change (`0x0889E01C`, `0x088A657C`, `0x0893D9AC`, `0x08C18650`, `0x08C70D64`): a before/after comparison must expect the same five, not zero.
+- **What `tools.extra_seeds verify` proves about bodies (2026-11-19):** besides the superset of function entries and block labels and the identical `functions.tsv`, every baseline block (the code between two `L_xxxxxxxx:` labels, up to the function's closing brace) must be unchanged after the seeds, once the dispatch tables, the `case N: goto` lines and the numeric ids of `invoke_chained_direct<..., id, ...>` (they renumber when a unit gains labels) are left out. The only change a new label may cause is a split: the block then reads as a prefix plus `goto L_new;` and the rest under the new label; following the added labels must reproduce the baseline body exactly. Measured with the 370 Phase A seeds: 258,051 baseline blocks, 0 changed, 0 split (the seeds are function starts, none lands inside a baseline block). Not covered: a change in the unit's trailing text (dispatch scaffolding, registration tables), which the trace, gate and synthetic comparisons cover.

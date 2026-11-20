@@ -39,7 +39,7 @@ applies to whatever REA *can* open, and to the EBOOT the day it can:
 function is registered with its name). Regenerate after improving the extractor:
 
 ```bash
-systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
+systemd-run --user --scope -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- \
   env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=4G tools/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless \
   ghidra gt -process EBOOT.elf -noanalysis -readOnly -scriptPath tools/ghidra_scripts \
   -postScript AdhocNatives.java $PWD/recomp/analysis/adhoc_natives.tsv 0x382fb0 0x383108
