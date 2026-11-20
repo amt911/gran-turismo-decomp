@@ -90,11 +90,17 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Its result is still checked like Claude's own work:** the caller reads the diff against the asm and makes sure every
     gate passed (fast or synthetic compare, `sabotage` pinned on each function, `frame_audit`, `literal_check`, `sp_loads`,
     `arg_reads`) before committing or opening a PR. A function is decompiled only when its gate says so.
-  - **Split of work (user, 2026-11-20): the delegate only writes code, Claude verifies.** Each delegate task is draft-only.
-    It writes the functions, builds, runs the static audits (`frame_audit`, `literal_check`, `sp_loads`, `arg_reads`) and
-    commits locally, then takes the next batch. It runs no `tools.decomp_gate` job, so it never waits on a lock. Claude
-    (the agents and the main session) reviews the diff against the asm and runs the corpus search, the synthetic or fast
-    compare and `sabotage`. Claude drops what fails and opens the PR. Verdicts run on the desktop and on the helper laptop.
+  - **Fast models only write code; Claude verifies (user, 2026-11-20), for the most throughput.** This applies to every
+    model the user names as fast; so far that is DeepSeek V4.1 Flash. Its tasks are draft-only: write the functions,
+    build, run the static audits (`frame_audit`, `literal_check`, `sp_loads`, `arg_reads`), commit locally, and take the
+    next batch at once.
+    - It runs **no gates of any kind**: no `tools.decomp_gate` fast, full, synth, coverage or corpus search, no
+      sabotage, no in-game checks and no verdicts. It never waits on a lock.
+    - Claude (the agents and the main session) reviews the diff against the asm and runs the corpus search, the
+      synthetic or fast compare and `sabotage`. Claude drops what fails and opens the PR. Verdicts run on the desktop
+      and on the helper laptop.
+    - `tools/delegate.sh` prepends this limit to every task. Slow models (Claude itself) keep doing both drafting and
+      verification.
   - **Batch size depends on the drafter's speed.** The user says which providers are fast and which are slow. Fast
     drafters get **60–80 functions per PR**: the verdict costs about the same hour whatever the batch size, and it is
     the bottleneck. DeepSeek V4.1 Flash is fast (user, 2026-11-20). Slow drafters keep the old 15–25: Claude writing by
