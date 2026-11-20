@@ -52,3 +52,8 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# a1 is the struct it compares against, read field by field from +0 up to the byte array at +0x16 (length from +3);
+# highest fixed offset 0x16, rounded up to 0x20. The count byte at +3 cannot be constrained: parse_shapes requires
+# 4-aligned field offsets, so random bytes drive both the "count > 0" and the "count <= 0" paths.
+0x088955D4 reg:a0=struct:48 field:+0x18=int:0..1 field:+0x1C=ptr
