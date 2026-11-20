@@ -89,7 +89,10 @@ typedef enum GtHookPoint {
     GT_HOOK_CAR_DRAW = 3,   /* the per-car "view" update that runs once per car per frame: draw_car_model(ctx) names the car and its model */
     /* v9. The player camera's view load (once per layer of the scene renderer, for the player camera only: not the rear-view mirror pass). Inside the function camera_get reads
      * the pose and camera_set replaces it. The host calls the game's load after every active mod's function: the function must NOT call call_original. One per mod. */
-    GT_HOOK_CAMERA = 4
+    GT_HOOK_CAMERA = 4,
+    /* v9. The game applying one of its view lists (0x089274C8(S, list)): the call a SELECT press makes after moving the list's position by one (with wrap), and also at setup. Chains like an
+     * ordinary hook (call call_original). Inside it view_cycle reads the list (a press: position != previous) and view_cycle_set changes the position the game then applies. */
+    GT_HOOK_VIEW_CYCLE = 5
 } GtHookPoint;
 
 /* v5. What one physics step did to a car, from its velocity change (the game keeps no contact point: docs/FACTS.md). Call car_impact once
@@ -277,6 +280,10 @@ typedef struct GtModApi {
     int (*camera_set)(GtMod *self, GtModCtx *ctx, const float eye[3], const float basis[9]);
     /* 1 while the race being shown is a replay (the latest world step had the human's car in its replay role), else 0. Callable from hooks, ticks and camera functions. The host learns the world from the world-step hook (GT_HOOK_WORLD_STEP): a mod that never hooks it (nor does any other loaded mod) always gets 0. */
     int (*replay_active)(GtMod *self, GtModCtx *ctx);
+    /* In a GT_HOOK_VIEW_CYCLE function: the list's position, previous position and number of views (0 = ok; non-zero outside the hook or for a list that does not check out). */
+    int (*view_cycle)(GtMod *self, GtModCtx *ctx, uint32_t *position, uint32_t *previous, uint32_t *count);
+    /* Sets the position (< count) the game applies when the function calls call_original. 0 = ok. */
+    int (*view_cycle_set)(GtMod *self, GtModCtx *ctx, uint32_t position);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

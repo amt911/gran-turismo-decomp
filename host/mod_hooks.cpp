@@ -95,6 +95,12 @@ int api_hook_point(GtMod *self, GtHookPoint point, GtHookFn fn) {
     case GT_HOOK_MESH_DRAW: return api_hook(self, services::kHookMeshDraw, fn);
     case GT_HOOK_CAR_DRAW: return api_hook(self, services::kHookCarDraw, fn);
     case GT_HOOK_CAMERA: return camera::api_camera_hook(self, fn);
+    case GT_HOOK_VIEW_CYCLE:
+        if (self->api_version < GT_MOD_API_VERSION_9) {
+            std::fprintf(stderr, "[mod:%s] hook_point(GT_HOOK_VIEW_CYCLE) refused: the mod declared api %d (needs api = 9)\n", self->id.c_str(), self->api_version);
+            return 1;
+        }
+        return api_hook(self, camera::kViewCycle, fn);
     }
     std::fprintf(stderr, "[mod:%s] hook_point refused: unknown point %d\n", self->id.c_str(), static_cast<int>(point));
     return 1;
@@ -180,7 +186,7 @@ const GtModApi &mod_api(int version) {
                         services::api_run_normal, services::api_run_set_normal, services::api_action_held,
                         services::api_car_dimensions, services::api_car_wheel_contacts, services::api_car_set_pose, tilt::api_tilt_free,
                         nullptr, nullptr, nullptr, nullptr, nullptr,  // v8 (PR #667): reserved slots
-                        camera::api_camera_get, camera::api_camera_set, camera::api_replay_active};
+                        camera::api_camera_get, camera::api_camera_set, camera::api_replay_active, camera::api_view_cycle, camera::api_view_cycle_set};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
                           v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5), v6 = table(GT_MOD_API_VERSION_6), v7 = table(GT_MOD_API_VERSION_7),

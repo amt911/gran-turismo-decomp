@@ -4,9 +4,10 @@
 # GT_MOD_CAMS_VIEW=wheel|roof|tv|heli (the checks have no keyboard).
 #   tools/mod_cameras_check.sh [--decomp off|on] [--seconds N] [--others] [--idle] [--wheel] [--roof] [--tv] [--heli] [--without-mod|--sabotage-offset]
 #   (default)    off (mod installed, switched off) + idle (enabled, no extra view: every frame identical to off) + the wheel, roof and TV views. PASS only if every judge passes.
+#   --cycle      the route's three SELECT presses with no forced view: the extra views come after the game's four (the third press reaches the Wheel view), the game's list stays on its first view
 #   --heli       the `circuit` route (race, leave from the pause menu, the replay plays) with the helicopter camera: the eye stays above and behind the car in the replay
 #   --others     every other mod enabled too (the run must still pass)
-#   Each of these must FAIL: --without-mod (no mod installed: no CAM lines), --sabotage-offset (-DCAMS_SABOTAGE=1: the pose set is the game's own: the car is not where the view says)
+#   Each of these must FAIL: --without-mod (no mod installed: no CAM lines), --sabotage-cycle (-DCAMS_SABOTAGE=2: the presses are not followed; with --cycle), --sabotage-offset (-DCAMS_SABOTAGE=1: the pose set is the game's own: the car is not where the view says)
 # Env: GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_cameras_check, gitignored; never /tmp), MOD_CHECK_NO_LOCK=1 (the caller holds tools/cpu_lock.sh),
 # KEEP_BASELINE=1 (reuse off/idle of $OUT when --decomp and --seconds match). Exit: 0 pass, 1 check failed, 2 setup/run problem.
 set -u
@@ -21,8 +22,8 @@ want=""
 while [ $# -gt 0 ]; do
   case $1 in
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --others) others=1;;
-    --idle|--wheel|--roof|--tv|--heli) want="$want ${1#--}";;
-    --without-mod) without=1;; --sabotage-offset) sab=1;;
+    --idle|--wheel|--roof|--tv|--heli|--cycle) want="$want ${1#--}";;
+    --without-mod) without=1;; --sabotage-offset) sab=1;; --sabotage-cycle) sab=2;;
     *) echo "mod_cameras_check: unknown argument $1" >&2; exit 2;;
   esac
   shift
@@ -80,6 +81,12 @@ rc=0
 judge() { $py -I tools/mod_cameras_check.py "$out" "$1" || rc=1; }
 cfg="decomp=$decomp seconds=$seconds others=$others route=$route"
 reuse_ok() { [ -n "${KEEP_BASELINE:-}" ] && [ "$(cat "$out/.config" 2>/dev/null)" = "$cfg" ] && [ -d "$out/$1/frames" ]; }
+if has cycle; then  # the game's own SELECT presses of the route, no forced view
+  extra_env=()
+  run_one cycle "$out/mods" 0 || exit 2
+  judge cycle
+  exit $rc
+fi
 if has heli; then
   extra_env=(GT_MOD_CAMS_VIEW=heli)
   run_one heli "$out/mods" 0 || exit 2

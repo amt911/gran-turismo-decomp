@@ -83,3 +83,35 @@ def test_main(tmp_path, capsys):
     assert mc.main(["x", str(tmp_path), "roof"]) == 0
     assert mc.main(["x", str(tmp_path), "nope"]) == 2
     assert math.isfinite(mc.DRAW_TOL)
+
+
+def cycle(n, game_after, virtual, view, game_before=1, d=1):
+    return f"[mod:extra-cameras] CYCLE press={n} dir={d} game {game_before}->{game_after} virtual={virtual} view={view}"
+
+
+def cycle_log(extra=None):
+    lines = [cycle(1, 2, 2, "Game"), cycle(2, 3, 3, "Game"), cycle(3, 0, 4, "Wheel", game_before=3)]
+    return lines + (extra if extra is not None else good_view_log("wheel"))
+
+
+def test_cycle_passes_when_the_third_press_reaches_the_wheel_view(tmp_path):
+    ok, detail = mc.judge_cycle(write(tmp_path, "cycle", cycle_log()))
+    assert ok, detail
+
+
+def test_cycle_fails_without_presses_wrong_steps_or_a_game_list_that_moves(tmp_path):
+    assert not mc.judge_cycle(write(tmp_path, "a", good_view_log("wheel")))[0]                       # the hook never saw a press
+    skip = [cycle(1, 2, 2, "Game"), cycle(2, 3, 5, "Roof"), cycle(3, 0, 6, "Tv", game_before=3)] + good_view_log("tv")
+    assert not mc.judge_cycle(write(tmp_path, "b", skip))[0]                                          # the virtual position skipped
+    moving = [cycle(1, 2, 2, "Game"), cycle(2, 3, 3, "Game"), cycle(3, 1, 4, "Wheel", game_before=3)] + good_view_log("wheel")
+    assert not mc.judge_cycle(write(tmp_path, "c", moving))[0]                                        # the game's list left its first view
+    never = [cycle(1, 1, 1, "Game", game_before=0), cycle(2, 2, 2, "Game"), cycle(3, 3, 3, "Game")] + good_view_log("wheel")
+    assert not mc.judge_cycle(write(tmp_path, "d", never))[0]                                         # no extra view reached
+    back = [cycle(1, 2, 2, "Game", d=-1), cycle(2, 3, 3, "Game"), cycle(3, 0, 4, "Wheel", game_before=3)] + good_view_log("wheel")
+    assert not mc.judge_cycle(write(tmp_path, "e", back))[0]                                          # a press read backwards
+    assert not mc.judge_cycle(write(tmp_path, "f", cycle_log(good_view_log("wheel", seen_off=3.0))))[0]  # the extra view is not what the game draws
+
+
+def test_main_cycle(tmp_path):
+    write(tmp_path, "cycle", cycle_log())
+    assert mc.main(["x", str(tmp_path), "cycle"]) == 0

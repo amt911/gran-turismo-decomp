@@ -56,6 +56,26 @@ int g_b_status = -9;
 GtMod *g_mod_b = nullptr;
 void camera_fn_b(GtModCtx *c) { g_b_status = mod_api(GT_MOD_API_VERSION_9).camera_get(g_mod_b, c, g_b_eye, g_basis_seen); }
 
+// The view cycle: the game moves the list position (+1 with wrap) and calls 0x089274C8(S, list); the hook may change the position before the call. The fake apply records what it saw.
+std::uint32_t g_applied_a0 = 0, g_applied_a1 = 0, g_applied_pos = 99, g_applied_calls = 0;
+void fake_apply(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    g_applied_a0 = ctx.gpr[4];
+    g_applied_a1 = ctx.gpr[5];
+    g_applied_pos = rt.memory().load32(ctx.gpr[5] + 8u);
+    ++g_applied_calls;
+    ctx.pc = ctx.gpr[31];
+}
+std::uint32_t g_vc_pos = 99, g_vc_prev = 99, g_vc_count = 99;
+int g_vc_set_status = -9;
+std::uint32_t g_vc_set_to = 99;
+GtMod *g_vc_mod = nullptr;
+void view_cycle_fn(GtModCtx *c) {
+    const GtModApi &api = mod_api(GT_MOD_API_VERSION_9);
+    api.view_cycle(g_vc_mod, c, &g_vc_pos, &g_vc_prev, &g_vc_count);
+    if (g_vc_set_to != 99) g_vc_set_status = api.view_cycle_set(g_vc_mod, c, g_vc_set_to);
+    api.call_original(c);
+}
+
 void write_matrix(psprecomp::Runtime &rt, std::uint32_t at, const float m[16]) {
     for (int i = 0; i < 16; ++i) {
         std::uint32_t bits;
@@ -285,6 +305,54 @@ int main() {
         rt.function_at(camera::kViewLoad)(rt, c);
         check(g_b_status == 0 && near(g_b_eye[0], 0) && near(g_b_eye[1], 0) && near(g_b_eye[2], 50), "the second mod's camera function runs and sees the first one's pose");
         camera::clear_for_tests();
+    }
+    // the view cycle: a hook point on the game's apply of its view list; view_cycle reads it (a press: position != previous), view_cycle_set changes what the game then applies
+    {
+        clear_hooks_for_tests();
+        psprecomp::Runtime rt;
+        bind_runtime(rt);
+        rt.register_function(camera::kViewCycle, &fake_apply, "apply");
+        GtMod mod;
+        mod.id = "vc";
+        mod.api_version = 9;
+        mod.active.store(true);
+        g_vc_mod = &mod;
+        check(mod_api(GT_MOD_API_VERSION_9).hook_point(&mod, GT_HOOK_VIEW_CYCLE, view_cycle_fn) == 0, "hook_point(GT_HOOK_VIEW_CYCLE)");
+        const std::uint32_t S = 0x09000000u, list = 0x09300000u, entries = 0x09310000u;
+        rt.memory().store32(list, entries);
+        rt.memory().store32(list + 4u, 4u);
+        rt.memory().store32(list + 8u, 0u);    // a press on the last view wrapped to 0
+        rt.memory().store32(list + 12u, 3u);
+        psprecomp::AllegrexContext ctx{};
+        auto call = [&] {
+            ctx.pc = camera::kViewCycle;
+            ctx.gpr[4] = S;
+            ctx.gpr[5] = list;
+            ctx.gpr[31] = 0x08800100u;
+            rt.function_at(camera::kViewCycle)(rt, ctx);
+        };
+        g_vc_set_to = 99;  // read only
+        call();
+        check(g_vc_pos == 0 && g_vc_prev == 3 && g_vc_count == 4, "view_cycle sees the position, the previous position and the count (3 -> 0 of 4)");
+        check(g_applied_calls == 1 && g_applied_a0 == S && g_applied_a1 == list && g_applied_pos == 0, "the game applies the list as it was when the hook only reads");
+        g_vc_set_to = 3;  // undo the wrap: the game must apply position 3
+        call();
+        check(g_vc_set_status == 0 && g_applied_pos == 3, "view_cycle_set changes the position the game applies");
+        g_vc_set_to = 4;  // out of range
+        rt.memory().store32(list + 8u, 1u);
+        call();
+        check(g_vc_set_status != 0 && g_applied_pos == 1, "a position outside the list is refused");
+        psprecomp::AllegrexContext cc{};
+        cc.gpr[5] = list;
+        GtModCtx other{&rt, &cc, 0x08900000u, 0};
+        std::uint32_t pos, prev, count;
+        check(camera::api_view_cycle(&mod, &other, &pos, &prev, &count) != 0 && camera::api_view_cycle_set(&mod, &other, 0) != 0, "outside the cycle hook the view functions are refused");
+        rt.memory().store32(list + 4u, 0u);
+        GtModCtx here{&rt, &cc, camera::kViewCycle, 0};
+        check(camera::api_view_cycle(&mod, &here, &pos, &prev, &count) != 0, "a list with no views does not check out");
+        mod.api_version = 7;
+        check(mod_api(GT_MOD_API_VERSION_9).hook_point(&mod, GT_HOOK_VIEW_CYCLE, view_cycle_fn) != 0, "api < 9 refuses the view-cycle hook point");
+        clear_hooks_for_tests();
     }
     if (failures == 0) std::puts("mod_camera_test: all checks passed");
     return failures == 0 ? 0 : 1;

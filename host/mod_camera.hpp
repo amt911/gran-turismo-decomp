@@ -23,6 +23,11 @@ constexpr std::uint32_t kSceneRefresh = 0x08928A80u;  // a0 = scene object S (on
 constexpr std::uint32_t kSceneRenderer = 0x08AF1524u; // the layer loop: its stack frame holds the scratch matrix the view loads read
 constexpr std::uint32_t kViewLoad = 0x08B568DCu;      // a0 = the 4x4 view matrix (row vectors)
 constexpr std::uint32_t kSceneCamera = 0x1FA4u, kCameraMatrix = 0x10u;  // word(S + 0x1FA4) = the active camera; its camera-to-world matrix is at +0x10 (row 3 = eye)
+// The game's view cycle. The step `0x08927D14(S, list)` (once per frame in a race; `list` = {+0 entries ptr (8 bytes each: camera index, parameter), +4 count, +8 position, +0xC previous position}) reads the
+// cycle button, moves `list+8` by +-1 with wrap, and calls `0x089274C8(S, list)`, which makes `S[0x1F70 + 4 * entry]` the active camera (`S+0x1FA4`); afterwards it copies `list+8` into `list+0xC`
+// (decompiled form: src/game/unsorted/hot_batch_294.cpp, `tools.disasm 08927D14`). `0x08927D14` is reached in-unit in the recompiled build (a hook on it never fires), `0x089274C8` is dispatched (FACTS "View cycle").
+// GT_HOOK_VIEW_CYCLE hooks `0x089274C8`: when position != previous the call is a press; the mod may change the position (view_cycle_set) before call_original and the game applies that one.
+constexpr std::uint32_t kViewCycle = 0x089274C8u;
 constexpr std::uint32_t kLoopFrame = 0x140u, kLoopScratch = 0xC0u;      // the loop's frame size and the scratch matrix inside it
 
 // Pure maths (host/tests/mod_camera_test.cpp). The renderer's frame is Y-up (x, y, z); the physics frame the cars live in is Z-up: p = (x, -z, y).
@@ -37,6 +42,10 @@ bool view_matches_camera(const float view[16], const float cam[16]);
 int api_camera_get(GtMod *self, GtModCtx *ctx, float eye[3], float basis[9]);
 int api_camera_set(GtMod *self, GtModCtx *ctx, const float eye[3], const float basis[9]);
 int api_replay_active(GtMod *self, GtModCtx *ctx);
+// In a GT_HOOK_VIEW_CYCLE function: the list's position, previous position and entry count (0 = ok; non-zero outside the hook or for a list that does not check out: count 1..32, positions < count).
+int api_view_cycle(GtMod *self, GtModCtx *ctx, std::uint32_t *position, std::uint32_t *previous, std::uint32_t *count);
+// Moves the position (< count): the game applies that entry's camera when the mod calls call_original (the step copies it into the previous position afterwards). 0 = ok.
+int api_view_cycle_set(GtMod *self, GtModCtx *ctx, std::uint32_t position);
 // hook_point(GT_HOOK_CAMERA): registers the mod's function (one per mod; during gt_mod_init). 0 = ok.
 int api_camera_hook(GtMod *self, GtHookFn fn);
 

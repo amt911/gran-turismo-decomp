@@ -404,6 +404,10 @@ Un mod que declara `api = 9` puede leer y sustituir la pose de la cámara del ju
 - `camera_get(self, ctx, eye, basis)` / `camera_set(self, ctx, eye, basis)`: la pose en el **marco físico** (Z arriba, el de `car_state`) con la convención de filas del coche
   (adelante, derecha, arriba; izquierdas). `camera_set` exige filas unitarias y ortogonales (1e-2) y valores finitos, y escribe la vista en el temporal del renderizador: nada más en el juego ve el cambio;
   hay que escribirla en cada fotograma. Fuera de una función de cámara devuelven distinto de 0.
+- `hook_point(GT_HOOK_VIEW_CYCLE, fn)` + `view_cycle(self, ctx, &pos, &prev, &count)` / `view_cycle_set(self, ctx, pos)`: el SELECT del juego. El juego guarda las vistas de carrera como una lista `{entradas, cuenta = 4, posición, posición previa}`;
+  el paso `0x08927D14(S, lista)` (una vez por fotograma; `tools.disasm 08927D14`, forma decompilada en `src/game/unsorted/hot_batch_294.cpp`) mueve `lista+8` en +-1 con vuelta cuando se pulsa el botón y llama a
+  `0x089274C8(S, lista)`, que hace activa la cámara `S[0x1F70 + 4 * entrada]` (`S+0x1FA4`); después copia la posición en `lista+0xC`. El host engancha **`0x089274C8`** (la llamada despachada: un gancho en
+  `0x08927D14` no se ve en el build recompilado, FACTS «View cycle»): una pulsación es `pos != prev`; el mod puede cambiar la posición antes de `call_original` y el juego aplica esa. Fuera del gancho las funciones devuelven distinto de 0.
 - `replay_active(self, ctx)`: 1 mientras el último paso de mundo tenía al coche humano en su rol de repetición (rol 3 de `race_cars`).
 - Conversión de marcos (probada en `mod_camera_test`): render (x, y, z) -> físico (x, -z, y); la cámara mira por -z de la vista (`adelante = -fila 2` de la matriz cámara-a-mundo).
 - Sin ajuste de plano cercano (la spec lo dejaba «si el SDK puede»): no está.
@@ -412,10 +416,13 @@ Un mod que declara `api = 9` puede leer y sustituir la pose de la cámara del ju
 
 README de `gt-mods` (`extra-cameras/`, API 9, `enabled = false` por defecto). Vistas **Wheel** (fija a la carrocería en la rueda delantera izquierda), **Roof** (sobre el techo, mirando adelante y algo abajo) y **TV**
 (puntos fijos junto a la pista que siguen al coche) en la categoría Camera del dispositivo de trucos (fila `Extra view`, acción `Next extra view`), y la **cámara helicóptero** de las repeticiones (fila `Replay camera`).
-No hechas (documentado en el README del mod): ampliar el ciclo SELECT del juego y el botón de cámara de la repetición, y migrar orbit-camera a estas funciones.
+El mod **amplía el ciclo SELECT** (`GT_HOOK_VIEW_CYCLE`): tras las cuatro vistas del juego (persecución, parachoques, cabina, capó) vienen Wheel, Roof y TV y luego vuelve a la persecución; mientras se muestra una extra la lista del juego queda en la persecución (que dibuja la carrocería).
+No hechas (README del mod): el botón de cámara de la repetición y migrar orbit-camera a estas funciones.
 
 ```bash
 GT_MODS_REPO=../gt-mods-cams tools/mod_cameras_check.sh [--decomp off|on] [--others]   # off / idle (sin vista extra: todos los fotogramas idénticos) / wheel / roof / tv
+tools/mod_cameras_check.sh --cycle                       # ruta chase sin vista forzada: tres SELECT del juego; la tercera pulsación llega a Wheel, la lista del juego se queda en su primera vista
+tools/mod_cameras_check.sh --cycle --sabotage-cycle      # el mod no sigue las pulsaciones: debe FALLAR
 tools/mod_cameras_check.sh --heli [--decomp off|on]       # ruta circuit: en la repetición el ojo queda por encima y detrás del coche
 tools/mod_cameras_check.sh --without-mod                  # debe FALLAR (sin líneas CAM)
 tools/mod_cameras_check.sh --sabotage-offset              # el mod calcula la pose pero no la entrega al juego: debe FALLAR (el coche no se dibuja donde dice la pose)

@@ -222,6 +222,38 @@ int api_replay_active(GtMod *self, GtModCtx *ctx) {
     return 0;
 }
 
+namespace {
+// The list of the view-cycle hook this call is for, validated; false outside the hook (the address is the hooked function's) or for a list that does not check out.
+bool view_list(GtMod *self, GtModCtx *ctx, std::uint32_t *list, std::uint32_t *position, std::uint32_t *previous, std::uint32_t *count, const char *what) {
+    if (!camera_ok(self, what) || ctx == nullptr || ctx->ctx == nullptr || ctx->address != kViewCycle) return false;
+    const std::uint32_t l = ctx->ctx->gpr[5];
+    if (!ctx->rt->memory().contains(l, 16u)) return false;
+    const std::uint32_t n = ctx->rt->memory().load32(l + 4u), p = ctx->rt->memory().load32(l + 8u), q = ctx->rt->memory().load32(l + 12u);
+    if (n == 0u || n > 32u || p >= n || q >= n) return false;
+    *list = l;
+    *position = p;
+    *previous = q;
+    *count = n;
+    return true;
+}
+}  // namespace
+
+int api_view_cycle(GtMod *self, GtModCtx *ctx, std::uint32_t *position, std::uint32_t *previous, std::uint32_t *count) {
+    std::uint32_t list, p, q, n;
+    if (position == nullptr || previous == nullptr || count == nullptr || !view_list(self, ctx, &list, &p, &q, &n, "view_cycle")) return 1;
+    *position = p;
+    *previous = q;
+    *count = n;
+    return 0;
+}
+
+int api_view_cycle_set(GtMod *self, GtModCtx *ctx, std::uint32_t position) {
+    std::uint32_t list, p, q, n;
+    if (!view_list(self, ctx, &list, &p, &q, &n, "view_cycle_set") || position >= n) return 1;
+    ctx->rt->memory().store32(list + 8u, position);
+    return 0;
+}
+
 int api_camera_hook(GtMod *self, GtHookFn fn) {
     if (!camera_ok(self, "hook_point(GT_HOOK_CAMERA)") || fn == nullptr) return 1;
     auto &v = hooks();

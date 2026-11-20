@@ -797,3 +797,15 @@ velocity change the game's own collision gave in one step (`dv`), applied as an 
 `s`/`c` = sin/cos, indices 1 pitch (`K+0x6FC`), 2 roll (`K+0x700`), 3 yaw (`K+0x704`): forward row `(-s3 c1, c3 c1, s1)`, right row `(c3 c2 - s1 s2 s3, s3 c2 + s1 s2 c3, -c1 s2)`, up row
 `(c3 s2 + s1 c2 s3, s3 s2 - s1 c2 c3, c1 c2)`. Yaw 1.571 gives forward `(-1, 0, 0)` (the race start's velocity direction), up.z = `c1 c2`, and the basis is left-handed (forward x right = -up) at every angle.
 The inverse is unique for pitch in [-pi/2, pi/2]; at the pole (forward vertical) yaw and roll are one degree of freedom and the host puts it all in yaw.
+
+
+## View cycle: the game's SELECT list (2026-11-20, extra-cameras mod; static reading + one probe run, `--decomp off`)
+
+- **Scene object S** (the a0 of `0x08928A80`, FACTS "Camera and the world-matrix upload"): `S+0x1F70 + 4 * i` (i = 0..12) are the 13 camera objects (`S[0x1F70]` is S itself, the chase camera), `S+0x1FA4` the active one, `S+0x1FB4` the previous one,
+  `S+0x1FA8` / `S+0x1FB8` the index / mode set by `0x08927148(S, index)` and `0x08927550(S, mode, ...)`, `S+0x1FCF` a lock byte (non-zero: nothing changes).
+- **A view list** `{+0 entries (8 bytes each: camera index, parameter), +4 count, +8 position, +0xC previous position}`. `0x08927D14(S, list)` (`tools.disasm 08927D14`; decompiled emitter form in `src/game/unsorted/hot_batch_294.cpp`, not registered):
+  tests the input device (`0x089273D8(S)` -> object; vtable slot `0xC` with button id `1`, else `0x40`), and, when it fires and `S+0x1FB0 >= 0`, moves `list+8` by -1 (button `0x40` held) or +1, wraps over `list+4`, calls `0x08927BE4`, then
+  `0x089274C8(S, list)`, which stores `S[0x1F70 + 4 * entries[pos].camera]` into `S+0x1FA4` (and `S+0x1FB4` = the old one, calls the camera's vtable slot `0x18` with the entry's parameter), then `list+0xC = list+8`.
+- **Which calls are dispatched** (probe mod hooking `0x08927148`, `0x08927550`, `0x089274C8`, `0x089281E4`, `0x08927D14`; `chase` route = the race and three SELECT presses): `0x089274C8` is called 4 times in the run: once from `0x08928278` (mode change)
+  and **three times with `ra = 0x08927E1C` (the call inside `0x08927D14`), one per press** (list `0x09415F84`); `0x08927D14` itself logged no position change, i.e. it is reached in-unit (no hook sees it). So the mod hooks `0x089274C8`: `pos != prev` is a press.
+  (The probe's `vblank_index` was 0 because a v1 probe has no tick; the correspondence press <-> call is by count and by `ra`, confirmed by the mod's `CYCLE` lines in `tools/mod_cameras_check.sh --cycle`.)

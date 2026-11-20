@@ -7,6 +7,7 @@ Judged here:
   idle      the mod enabled with no extra view selected: every frame byte-identical to the run with the mod switched off;
   view      (wheel | roof | tv) CAM lines exist for the view; the eye is where the view puts it relative to the car (distance range per view); the game drew the car where the pose says:
             the median over the DRAW lines of |seen - expected| per component under DRAW_TOL (the car's model origin is not exactly its body origin); and the frames differ from the idle run's;
+  cycle     (`chase` route, no forced view) the SELECT presses move a virtual position over the game's four views and the three extra ones (the game's own list stays on its first view while an extra is shown), and the view reached is drawn as judged for `view`;
   heli      (replay) the replay's CAM lines say `heli`, replay=1, and the eye stays above the car (>= HELI_MIN_UP m, after HELI_SETTLE_S of lines) and behind it.
 """
 import math
@@ -20,9 +21,12 @@ NUM = r"-?(?:[\d.]+|nan|inf)"
 VEC = rf"({NUM}),({NUM}),({NUM})"
 CAM = re.compile(TAG + rf"CAM vb=(\d+) view=(\w+) replay=([01]) eye={VEC} fwd={VEC} car={VEC} carfwd={VEC} up=({NUM})")
 DRAW = re.compile(TAG + rf"DRAW seen=\(({NUM}) ({NUM}) ({NUM})\) expected=\(({NUM}) ({NUM}) ({NUM})\)")
+CYCLE = re.compile(TAG + r"CYCLE press=(\d+) dir=(-?\d) game (\d+)->(\d+) virtual=(\d+) view=(\w+)")
 FRAME_DUMP = re.compile(r"\[frame-dump\] frame (\d+) vblank (\d+)")
 FRAME = re.compile(r"frame_(\d+)\.ppm$")
 
+GAME_VIEWS, EXTRA_VIEWS = 4, 3
+CYCLE_VIEWS = GAME_VIEWS + EXTRA_VIEWS
 DRAW_TOL = 1.0                      # m, per component, on the median
 MIN_DRAWS = 20
 MIN_CAMS = 50
@@ -131,6 +135,30 @@ def judge_heli(run_dir):
     return True, f"{len(rows)} replay lines, the eye stays >= {up:.1f} m above and >= {behind:.1f} m behind the car"
 
 
+def judge_cycle(run_dir):
+    """The game's SELECT presses (the `chase` route presses it three times) with the extra views after the game's four: the virtual position advances by one per press over 4 + 3 views, the game's own
+    list stays on its first view while an extra view is shown, and the extra view is what the game then draws (judge_view: eye distance and the car drawn where the pose says)."""
+    text = read(os.path.join(run_dir, "run.log"))
+    presses = [(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)), m.group(6)) for m in CYCLE.finditer(text)]
+    if len(presses) < 3:
+        return False, f"only {len(presses)} SELECT presses followed (the route presses it 3 times): the cycle hook never saw them"
+    if any(p[1] != 1 for p in presses):
+        return False, "a press read as backwards"
+    for before, after in zip(presses, presses[1:]):
+        if after[4] != (before[4] + 1) % CYCLE_VIEWS:
+            return False, f"the virtual position went {before[4]} -> {after[4]} between presses (need +1 mod {CYCLE_VIEWS})"
+    for _, _, _, game_after, virtual, _ in presses:
+        want = virtual if virtual < GAME_VIEWS else 0
+        if game_after != want:
+            return False, f"virtual {virtual}: the game's own list is on {game_after}, want {want}"
+    extras = [p for p in presses if p[4] >= GAME_VIEWS]
+    if not extras:
+        return False, f"no press reached an extra view (virtual positions {[p[4] for p in presses]})"
+    name = extras[-1][5].lower()
+    ok, detail = judge_view(name, run_dir, None)
+    return ok, f"{len(presses)} presses, virtual {[p[4] for p in presses]}, the game's list {[p[3] for p in presses]}, last view {name}; {detail}"
+
+
 def main(argv):
     out, mode = argv[1], argv[2]
     d = lambda label: os.path.join(out, label)  # noqa: E731
@@ -138,6 +166,8 @@ def main(argv):
         results = [judge_idle(d("off"), d("idle"))]
     elif mode in ("wheel", "roof", "tv"):
         results = [judge_view(mode, d(mode), d("idle") if os.path.isdir(d("idle")) else None)]
+    elif mode == "cycle":
+        results = [judge_cycle(d("cycle"))]
     elif mode == "heli":
         results = [judge_heli(d("heli"))]
     else:
