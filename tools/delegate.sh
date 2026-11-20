@@ -7,8 +7,9 @@
 # limits below are prepended to every prompt as well. Its result is still a draft until the caller's gates pass.
 # Every session is logged (start and end) to $GT_DELEGATE_LOG so the orchestrating session can tell the user when one is open.
 # Exit status: the answer on stdout with 0; 2 when the delegate is unavailable (no credit, auth, rate limit, network,
-# timeout, empty answer): the caller stops delegating, asks the user, and does the work itself.
-# GT_DELEGATE_MODEL overrides the model; GT_DELEGATE_TIMEOUT (seconds, default 1800) bounds one session.
+# empty answer): the caller stops delegating, asks the user, and does the work itself.
+# Exit 3 when the session hit GT_DELEGATE_TIMEOUT (seconds, default 14400: a batch with gates waits for locks): not an
+# outage, the work so far is in DIR. GT_DELEGATE_MODEL overrides the model.
 set -uo pipefail
 dir=$PWD title="gt-delegate"
 while getopts "C:t:" o; do case $o in C) dir=$OPTARG ;; t) title=$OPTARG ;; *) exit 64 ;; esac; done
@@ -28,9 +29,10 @@ Task:
 '
 err=$(mktemp); trap 'rm -f "$err"' EXIT
 echo "$(date '+%F %T') START pid=$$ dir=$dir title=$title model=$model" >> "$log"
-out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-1800}" opencode run --auto -m "$model" --title "$title" "$limits$1" 2>"$err")
+out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-14400}" opencode run --auto -m "$model" --title "$title" "$limits$1" 2>"$err")
 rc=$?
 echo "$(date '+%F %T') END   pid=$$ rc=$rc title=$title" >> "$log"
+[ $rc -eq 124 ] && { echo "delegate session timed out; its work so far is in $dir" >&2; exit 3; }
 if [ $rc -ne 0 ] || [ -z "${out//[[:space:]]/}" ]; then
   echo "delegate unavailable (exit $rc): $(tail -3 "$err" | tr '\n' ' ')" >&2
   exit 2
