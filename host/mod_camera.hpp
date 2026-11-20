@@ -42,6 +42,12 @@ bool view_matches_camera(const float view[16], const float cam[16]);
 int api_camera_get(GtMod *self, GtModCtx *ctx, float eye[3], float basis[9]);
 int api_camera_set(GtMod *self, GtModCtx *ctx, const float eye[3], const float basis[9]);
 int api_replay_active(GtMod *self, GtModCtx *ctx);
+// In a GT_HOOK_CAMERA function: the focal lengths, in pixels of the 480 x 272 picture, of the 3D projection the game has loaded for the world pass (the GU object's projection pointer
+// `word(0x08D6CE00 + 0x2E0 + 0xD04)`, FACTS "Camera and the world-matrix upload"): x_pixel = 240 + focal_x * x_view / -z_view, y_pixel = 136 - focal_y * y_view / -z_view. 0 = ok; non-zero outside a camera
+// function or when the loaded projection is not a perspective one (m[11] != -1: the HUD's orthographic one).
+int api_camera_projection(GtMod *self, GtModCtx *ctx, float *focal_x, float *focal_y);
+constexpr std::uint32_t kGuObject = 0x08D6CE00u, kGuBlock = 0x2E0u, kGuProjection = 0xD04u;
+
 // In a GT_HOOK_VIEW_CYCLE function: the list's position, previous position and entry count (0 = ok; non-zero outside the hook or for a list that does not check out: count 1..32, positions < count).
 int api_view_cycle(GtMod *self, GtModCtx *ctx, std::uint32_t *position, std::uint32_t *previous, std::uint32_t *count);
 // Moves the position (< count): the game applies that entry's camera when the mod calls call_original (the step copies it into the previous position afterwards). 0 = ok.

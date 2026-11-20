@@ -241,6 +241,19 @@ int api_replay_active(GtMod *self, GtModCtx *ctx) {
     return 0;
 }
 
+int api_camera_projection(GtMod *self, GtModCtx *ctx, float *focal_x, float *focal_y) {
+    if (!camera_ok(self, "camera_projection") || ctx == nullptr || focal_x == nullptr || focal_y == nullptr || g_view_ctx != ctx) return 1;
+    psprecomp::Runtime &rt = *ctx->rt;
+    if (!rt.memory().contains(kGuObject + kGuBlock + kGuProjection, 4u)) return 1;
+    const std::uint32_t p = rt.memory().load32(kGuObject + kGuBlock + kGuProjection);
+    if (p == 0u || !rt.memory().contains(p, 64u)) return 1;
+    const float m0 = load_f(rt, p), m5 = load_f(rt, p + 4u * 5u), m11 = load_f(rt, p + 4u * 11u);
+    if (!std::isfinite(m0) || !std::isfinite(m5) || std::fabs(m11 + 1.0f) > 1e-3f || m0 == 0.0f || m5 == 0.0f) return 1;
+    *focal_x = 240.0f * std::fabs(m0);
+    *focal_y = 136.0f * std::fabs(m5);
+    return 0;
+}
+
 namespace {
 // The list of the view-cycle hook this call is for, validated; false outside the hook (the address is the hooked function's) or for a list that does not check out.
 bool view_list(GtMod *self, GtModCtx *ctx, std::uint32_t *list, std::uint32_t *position, std::uint32_t *previous, std::uint32_t *count, const char *what) {

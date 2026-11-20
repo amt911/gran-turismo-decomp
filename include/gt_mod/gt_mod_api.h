@@ -305,6 +305,9 @@ typedef struct GtModApi {
     int (*view_cycle)(GtMod *self, GtModCtx *ctx, uint32_t *position, uint32_t *previous, uint32_t *count);
     /* Sets the position (< count) the game applies when the function calls call_original. 0 = ok. */
     int (*view_cycle_set)(GtMod *self, GtModCtx *ctx, uint32_t position);
+    /* In a GT_HOOK_CAMERA function: the focal lengths in pixels (of the 480 x 272 picture) of the 3D projection the game has loaded: x_pixel = 240 + focal_x * x_view / -z_view, y_pixel = 136 - focal_y * y_view / -z_view
+     * (view space: x right, y up, camera looking along -z; the pose of camera_get in the physics frame maps to it with the basis rows). 0 = ok; non-zero outside a camera function or when no perspective projection is loaded. */
+    int (*camera_projection)(GtMod *self, GtModCtx *ctx, float *focal_x, float *focal_y);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

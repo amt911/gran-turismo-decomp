@@ -42,12 +42,17 @@ void view_load(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.pc = ctx.gpr[31];
 }
 float g_eye_seen[3], g_basis_seen[9];
+int camera_proj_fn_status = 0;
+bool g_proj_probe = false;
+int g_proj_status = -9;
+float g_focal[2];
 int g_get_status = -1, g_set_status = -1;
 const float *g_set_eye = nullptr, *g_set_basis = nullptr;
 GtMod *g_mod = nullptr;
 void camera_fn(GtModCtx *c) {
     const GtModApi &api = mod_api(GT_MOD_API_VERSION_9);
     g_get_status = api.camera_get(g_mod, c, g_eye_seen, g_basis_seen);
+    if (g_proj_probe) g_proj_status = api.camera_projection(g_mod, c, &g_focal[0], &g_focal[1]);
     if (g_set_eye != nullptr) g_set_status = api.camera_set(g_mod, c, g_set_eye, g_set_basis);
 }
 
@@ -218,6 +223,28 @@ int main() {
         bool same = g_set_status == 0;
         for (int i = 0; i < 16; ++i) same = same && near(g_loaded[i], expect[i]);
         check(same, "camera_set reaches the game's load");
+        // the projection: focal lengths from the GU object's projection pointer; an orthographic one (the HUD's) and a missing one are refused
+        {
+            const std::uint32_t proj = 0x09400000u, gu = camera::kGuObject + camera::kGuBlock + camera::kGuProjection;
+            float p[16] = {};
+            p[0] = 1.2f; p[5] = -2.1f; p[10] = -1.0f; p[11] = -1.0f;
+            write_matrix(rt, proj, p);
+            rt.memory().store32(gu, proj);
+            camera_proj_fn_status = -9;
+            g_set_eye = nullptr;
+            g_proj_probe = true;
+            write_matrix(rt, scratch, view);
+            load(scratch);
+            check(g_proj_status == 0 && near(g_focal[0], 240.0f * 1.2f) && near(g_focal[1], 136.0f * 2.1f), "camera_projection: focal lengths of the loaded perspective projection");
+            p[11] = 0.0f;  // orthographic
+            write_matrix(rt, proj, p);
+            load(scratch);
+            check(g_proj_status != 0, "camera_projection: an orthographic projection is refused");
+            rt.memory().store32(gu, 0u);
+            load(scratch);
+            check(g_proj_status != 0, "camera_projection: no projection loaded is refused");
+            g_proj_probe = false;
+        }
         // a matrix that is not the scratch (another layer's, the HUD's): the hook does not run, the game gets the matrix as it was
         g_get_status = -2;
         const std::uint32_t other = SP + 0x400u;
