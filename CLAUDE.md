@@ -144,6 +144,11 @@ import above. Add below only what applies to Claude Code alone. -->
     order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead. Before each lock-taking or gate
     job they run `~/repos/gt-ops/wait_verdicts.sh`, so a waiting verdict goes first. It goes ahead anyway after 45 min.
     Keep at most one queued lock job per agent.
+  - **Verdicts get CPU priority:** `~/repos/gt-ops/prio.sh` runs all the time and every 30 s renices to 19 every heavy
+    process of this project that is not in a `gt-verify*` worktree. That covers builds, gates and delegate sessions.
+    Without it, verdict routes timed out under the load of five delegate sessions and three agents.
+  - **Never edit a running script in place.** Bash reads a script while it runs, so an in-place edit broke
+    `tools/delegate.sh` at the end of live sessions. Write a new file and `mv` it over the old one.
   - **Waiting.** Use `~/repos/gt-ops/job.sh NAME CMD…` and `waitjob.sh NAME`, never `pgrep -f` loops. Kill only your own
     PIDs. The Bash tool is zsh, so put loops inside `bash -c`.
   - **No wait may be unbounded** (user, 2026-11-20), whether it is Claude's, an agent's or the delegate's. Every wait
