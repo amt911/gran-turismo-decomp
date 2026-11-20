@@ -13,6 +13,8 @@
 # Exit 3 when the session hit GT_DELEGATE_TIMEOUT (seconds, default 14400: a batch with gates waits for locks): not an
 # outage, the work so far is in DIR. GT_DELEGATE_MODEL overrides the model.
 set -uo pipefail
+# A flag left by an out-of-credit session stops new sessions at once (exit 2) until the user tops up and removes it.
+[ -f "${GT_DELEGATE_NOCREDIT:-/tmp/claude-1000/delegate-no-credit}" ] && [ "${GT_DELEGATE_FORCE:-0}" != 1 ] && { echo "delegate: out of credit ($(cat "${GT_DELEGATE_NOCREDIT:-/tmp/claude-1000/delegate-no-credit}")); remove the flag after topping up" >&2; exit 2; }
 dir=$PWD title="gt-delegate"
 while getopts "C:t:" o; do case $o in C) dir=$OPTARG ;; t) title=$OPTARG ;; *) exit 64 ;; esac; done
 shift $((OPTIND - 1))
@@ -37,6 +39,12 @@ echo "$(date '+%F %T') END   pid=$$ rc=$rc title=$title" >> "$log"
 [ $rc -eq 124 ] && { echo "delegate session timed out; its work so far is in $dir" >&2; exit 3; }
 if [ $rc -ne 0 ] || [ -z "${out//[[:space:]]/}" ]; then
   echo "delegate unavailable (exit $rc): $(tail -3 "$err" | tr '\n' ' ')" >&2
+  # Out of credit (OpenRouter 402 / "insufficient credits"): flag it so every loop stops starting sessions.
+  if grep -qiE '402|insufficient|credit|balance|quota|payment' "$err" <<<"$out"; then
+    echo "$(date '+%F %T') $(tail -2 "$err" | tr '\n' ' ')" > "${GT_DELEGATE_NOCREDIT:-/tmp/claude-1000/delegate-no-credit}"
+    echo "$(date '+%F %T') NOCREDIT title=$title" >> "$log"
+  fi
   exit 2
 fi
+[ -f "${GT_DELEGATE_NOCREDIT:-/tmp/claude-1000/delegate-no-credit}" ] && rm -f "${GT_DELEGATE_NOCREDIT:-/tmp/claude-1000/delegate-no-credit}"
 printf '%s\n' "$out"
