@@ -141,7 +141,10 @@ import above. Add below only what applies to Claude Code alone. -->
       desktop.
     - **Never** wait for either one to come back.
   - **Shared locks.** Agents never wrap `tools.decomp_gate` in `tools/cpu_lock.sh`: that took the locks in the opposite
-    order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead. Before each lock-taking or gate
+    order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead, and only on the runs that
+    are real time (the route gates: `fast`, `full`, route `sabotage`). Synthetic runs (`synth`, `coverage --synth`,
+    `sabotage --synth`) are CPU-bound, not paced, and run at nice 19 under `prio.sh`. They take no CPU lock and no
+    verdict wait, and run in parallel (user, 2026-11-20: verification was the bottleneck). Before each lock-taking or gate
     job they run `~/repos/gt-ops/wait_verdicts.sh`, so a waiting verdict goes first. It goes ahead anyway after 45 min.
     Keep at most one queued lock job per agent.
   - **Verdicts get CPU priority:** `~/repos/gt-ops/prio.sh` runs all the time and every 30 s renices to 19 every heavy
