@@ -62,6 +62,10 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   verified that way is re-checked in its verdict with the same variable. The variable takes a comma-separated list
   (the routes run side by side): verdicts run `GT_SYNTH_ROUTE=dealer,race,save_garage,circuit,buy,options` and `garage,challenge,dirt,manual,challenge2` (`GT_VERIFY_SYNTH_GROUPS`), every
   route some function was verified after.
+  **Generator v2 (spec `2026-11-19-synthetic-pointer-graphs-design.md`):** after the 8 v1 cases each function gets `GT_SYNTH_V2` more (default 8, 0 = today's
+  run exactly) whose arena words are only arena pointers, tables, zero, small ints and floats, so a chain of dereferences stays valid; optional
+  `config/synth_shapes.txt` lays out a register's struct. The report prints `v2 cases: compared N, equal M` per function;
+  `.venv/bin/python -m tools.synth_v2 OFF.log ON.log` gives the per-file before/after table. v1 inputs are hash-pinned in `host/tests/synth_case_test.cpp`.
   **Corpus (spec `2026-11-11-coverage-guided-synthetic-inputs-design.md`):** `config/synth_corpus/<ADDRESS>.txt` holds recipes (a generated case plus
   mutations, no game bytes) that earlier searches found to reach new branches; the synthetic gate replays them after each function's
   normal cases (`GT_SYNTH_CORPUS=off` disables, another directory replaces). `tools.decomp_gate coverage TAG --only ... --synth --search N`

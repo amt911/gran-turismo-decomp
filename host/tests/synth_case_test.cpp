@@ -1,5 +1,6 @@
 // Unit tests for the synthetic-case input generator (host/synth_case.cpp). Plain executable, run by CTest.
 #include "synth_case.hpp"
+#include "synth_report.hpp"
 
 #include <cstdio>
 #include <string>
@@ -210,6 +211,138 @@ int main() {
             const gt::SynthInputs ok = gt::make_recipe_case(0x08810010u, cur, rl);
             check(ok.arena.size() == rl.arena_bytes / 4u, "mutated case keeps the arena size");
         }
+    }
+
+    // v1 stability (spec 2026-11-19-synthetic-pointer-graphs-design.md): the inputs of 200 cases of 20 addresses hash to the value
+    // recorded with the pre-change host/synth_case.* (commit 8ef9ae7; those files are identical in origin/main bdb8a56). Changing it changes every existing comparison and corpus recipe.
+    {
+        gt::SynthLayout stable = layout;
+        stable.live_objects = {0x09D00010u, 0x09D00200u};
+        stable.class_instances[0x08900040u] = {0x09D00010u};
+        std::uint64_t h = 1469598103934665603ull;
+        const auto mix = [&](std::uint32_t v) { h ^= v; h *= 1099511628211ull; };
+        for (unsigned f = 0; f < 20u; ++f)
+            for (unsigned i = 0; i < 200u; ++i) {
+                const gt::SynthInputs in = gt::make_synth_case(0x08900000u + f * 0x20u, i, 1u, stable);
+                for (const std::uint32_t v : in.gpr) mix(v);
+                for (const std::uint32_t v : in.fpr) mix(v);
+                for (const std::uint32_t v : in.arena) mix(v);
+            }
+        // Recipes, mutations, scene pokes and hot offsets (the corpus replay path) over stored recipes.
+        const char *recipes[] = {"08900000 3 1", "08900020 5 1 reg:0=arena:0x40 word:0x10=imm:0x7", "08900040 9 1 block:2=77 reg:1=live:1",
+                                 "08900060 12 1 reg:0=class:0 word:0x20=arena:0x100"};
+        for (const char *text : recipes) {
+            std::uint32_t function = 0u;
+            gt::Recipe recipe;
+            if (!gt::parse_recipe(text, function, recipe)) { check(false, "stored recipe parses"); continue; }
+            const gt::SynthInputs in = gt::make_recipe_case(function, recipe, stable);
+            for (const std::uint32_t v : in.gpr) mix(v);
+            for (const std::uint32_t v : in.arena) mix(v);
+            for (const std::uint32_t o : gt::hot_offsets(in, stable)) mix(o);
+            gt::MutationRandom random{0x1234u + function};
+            for (unsigned k = 0; k < 6u; ++k) {
+                const gt::Recipe child = gt::mutate_recipe(function, recipe, random, stable, gt::hot_offsets(in, stable));
+                const std::string line = gt::format_recipe(function, child);
+                for (const char c : line) mix(static_cast<unsigned char>(c));
+                const gt::SynthInputs again = gt::make_recipe_case(function, child, stable);
+                for (const std::uint32_t v : again.arena) mix(v);
+            }
+        }
+        for (const std::uint32_t function : {0x08945F6Cu, 0x08900000u})
+            for (unsigned i = 0; i < 4u; ++i)
+                for (const gt::ScenePoke &poke : gt::scene_pokes(function, i)) { mix(poke.address); mix(poke.value); }
+        check(h == 0xB981C03D8D73F9D2ull, "v1 inputs, recipes, mutations, pokes and hot offsets are bit-for-bit what they were before v2");
+    }
+
+    // v2: pointer closure. Every word is zero, a small int, a float, a leaf function (table), or a 16-byte-aligned pointer into the arena.
+    {
+        const std::uint32_t floats[] = {0x00000000u, 0x3F800000u, 0xBF800000u, 0x3F000000u, 0x40000000u, 0x42C80000u, 0x3A83126Fu, 0x447A0000u};
+        unsigned bad = 0u, pointers = 0u, words = 0u;
+        for (unsigned index = 0u; index < 16u; ++index) {
+            const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, index, 1u, layout, nullptr);
+            check(in.arena.size() == layout.arena_bytes / 4u, "v2 arena has the same size");
+            check(in_arena(layout, in.gpr[0]), "v2 a0 is an arena pointer");
+            for (const std::uint32_t w : in.arena) {
+                ++words;
+                bool known = w <= 16u;
+                for (const std::uint32_t f : floats) known = known || w == f;
+                for (const std::uint32_t l : layout.leaf_functions) known = known || w == l;
+                if (in_arena(layout, w)) { known = (w - layout.arena_base) % 16u == 0u; ++pointers; }
+                if (!known) ++bad;
+            }
+        }
+        check(bad == 0u, "v2 words are only pointers into the arena, small ints, floats or leaf functions");
+        check(pointers * 100u > words * 60u, "v2 draws mostly pointers");
+        const gt::SynthInputs a2 = gt::make_synth_case_v2(0x08912340u, 3u, 1u, layout, nullptr);
+        const gt::SynthInputs b2 = gt::make_synth_case_v2(0x08912340u, 3u, 1u, layout, nullptr);
+        check(a2.gpr == b2.gpr && a2.arena == b2.arena, "v2 is deterministic");
+        const gt::SynthInputs v1 = gt::make_synth_case(0x08912340u, 3u, 1u, layout);
+        check(v1.arena != a2.arena, "v2 draws from its own stream");
+    }
+
+    // shapes file
+    {
+        std::string error;
+        const auto shapes = gt::parse_shapes("# comment\n08912340 reg:a1=struct:64 field:+0x10=ptr field:+0x14=int:0..8\n", &error);
+        check(error.empty() && shapes.size() == 1u, "a shapes line parses");
+        const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, 0u, 1u, layout, &shapes);
+        const std::uint32_t base = in.gpr[1];
+        check(in_arena(layout, base), "the shaped register points into the arena");
+        const std::uint32_t at = (base - layout.arena_base) / 4u;
+        check(in_arena(layout, in.arena[at + 4u]), "the ptr field holds an arena pointer");
+        check(in.arena[at + 5u] <= 8u, "the int field is within its range");
+        std::string bad_error;
+        gt::parse_shapes("08912340 reg:q9=struct:64\n", &bad_error);
+        check(!bad_error.empty(), "a malformed shapes line is reported");
+    }
+
+    // shapes: hardening
+    {
+        const auto rejects = [&](const char *text, const char *why) { std::string e; gt::parse_shapes(text, &e); check(!e.empty(), why); };
+        rejects("08912340 reg:a0=struct:64 field:+0=int:0..4294967295\n", "a full-range int field is rejected (no zero span)");
+        rejects("08912340 reg:a0=struct:64 field:+0=int:5..2\n", "an empty int range is rejected");
+        rejects("08912340 reg:a0=struct:64\n08912340 reg:a1=struct:64\n", "a duplicate address is rejected");
+        rejects("08912340 reg:a0=struct:64 reg:a1=struct:64\n", "a second reg: word is rejected");
+        rejects("1089123400 reg:a0=struct:64\n", "an address above 32 bits is rejected");
+        rejects("08912340 reg:a0=struct:64 field:+0x1zz=ptr\n", "garbage in a number is rejected");
+        rejects("08912340 reg:a0=struct:0\n", "a zero-size struct is rejected");
+        rejects("08912340 reg:a0=struct:4096\n", "a struct larger than a block is rejected");
+        rejects("08912340 reg:a0=struct:010 field:+0=ptr\n08912341 reg:a0=struct:abc\n", "a non-numeric size is rejected");
+        std::string ok_error;
+        const auto ok = gt::parse_shapes("08912340 reg:a0=struct:010 field:+4=int:0x10..0x20\n", &ok_error);
+        check(ok_error.empty() && ok.at(0x08912340u).size == 10u && ok.at(0x08912340u).fields[0].high == 0x20u, "decimal sizes (010 is ten, not octal) and 0x ranges parse");
+        // a shape struct never overlaps a table block
+        gt::SynthLayout big = layout;
+        const auto shapes2 = gt::parse_shapes("08912340 reg:a2=struct:1024 field:+0=ptr\n", &ok_error);
+        for (unsigned index = 0u; index < 64u; ++index) {
+            const gt::SynthInputs in = gt::make_synth_case_v2(0x08912340u, index, 1u, big, &shapes2);
+            const std::uint32_t first = (in.gpr[2] - big.arena_base) / 1024u;
+            const std::uint32_t last = (in.gpr[2] - big.arena_base + 1023u) / 1024u;
+            check(first == last && first % 8u != 7u, "a shape struct sits inside one block that is not a table");
+        }
+    }
+    {
+        unsigned n = 99u;
+        check(gt::parse_case_count("8", 64u, n) && n == 8u, "a case count parses");
+        check(gt::parse_case_count("1000", 64u, n) && n == 64u, "a case count is clamped");
+        check(!gt::parse_case_count("abc", 64u, n) && !gt::parse_case_count("", 64u, n) && !gt::parse_case_count("-1", 64u, n) && !gt::parse_case_count("8x", 64u, n),
+              "a non-numeric case count is rejected");
+    }
+    // child report: a v2 kill keeps the v1 results
+    {
+        const std::string v1 = "8 8 0 0 3\nfirst\nskip\n";
+        const gt::ChildReport whole = gt::parse_child_report(v1 + "[v1-end]\n[v2] 5 5 0 3 1\n", false, true);
+        check(whole.ok && !whole.v2_lost && whole.compared == 13u && whole.equal == 13u && whole.v2_compared == 5u && whole.informative == 4u, "v1 + v2 reports add up");
+        const gt::ChildReport hung = gt::parse_child_report(v1 + "[v1-end]\n", true, true);
+        check(hung.ok && hung.v2_lost && hung.compared == 8u && hung.equal == 8u && hung.v2_compared == 0u, "killed during v2: the v1 results are kept");
+        const gt::ChildReport early = gt::parse_child_report("8 8 0 0", true, true);
+        check(!early.ok, "killed during v1: nothing kept, as before");
+        const gt::ChildReport off = gt::parse_child_report(v1, false, false);
+        check(off.ok && !off.v2_lost && off.compared == 8u, "with v2 off the report is the old format");
+        const gt::ChildReport off_killed = gt::parse_child_report(v1 + "[v1-end]\n", true, false);
+        check(!off_killed.ok, "with v2 off a kill loses everything, as before");
+        const gt::ChildReport mism = gt::parse_child_report(v1 + "[v1-end]\n[v2] 2 1 1 0 0\n[v2-mismatch] s0 differs\n08912340 1 2 3\n", false, true);
+        check(mism.mismatched == 1u && mism.first_mismatch == "first" && mism.other_lines.size() == 1u, "v2 mismatch lines are carried");
     }
     return failures == 0 ? 0 : 1;
 }
