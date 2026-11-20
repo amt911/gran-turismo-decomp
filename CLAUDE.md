@@ -116,6 +116,8 @@ import above. Add below only what applies to Claude Code alone. -->
   - **If the delegate stops working**, ask the user, and meanwhile do the work with Claude. That covers money running out
     (it is billed per API call), auth, rate limits, network or outage. `tools/delegate.sh` exits 2 with the reason in all
     these cases. When the user says it is back, delegate again.
+    Running out of credit also leaves the flag `/tmp/claude-1000/delegate-no-credit`. Every later call then stops at
+    once, until the user tops up and the flag is removed. The main session tells the user as soon as the flag appears.
 - **How the work is organised (the setup to reuse in future sessions).**
   - **Team: the main session plus three agents.** One agent works on mods, one on structured rewrites and one on
     decompiling new functions (user, 2026-11-19: "tiene que haber 3"). Each agent has its own worktree, and claim
