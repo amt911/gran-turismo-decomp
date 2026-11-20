@@ -140,6 +140,19 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Claude's role:** the main session supervises and handles exceptions only: stalls, merge conflicts, broken
     scripts, the pool running out, and reports to the user. It starts subagents only for work that is not mechanical
     (structured rewrites that need judgement, mods, investigating a fault), and only when the user asks for them.
+  - **Grouped PRs** (user, 2026-11-20 night: "aplica los cambios"). Verified single batches are grouped into PRs of
+    about 80 functions, so one verdict covers several batches. `groupprs.sh NAME PR...` builds the combined branch from
+    main, unions `config/synth_shapes.txt`, refuses duplicate registrations, builds, and opens the group PR. It then
+    closes the absorbed PRs with a pointer and swaps them in `queue.txt`. `grouploop.sh` does this every 20 min with
+    the singles waiting in the queue.
+  - **Reachability probe before drafting** (same decision). `probe.sh` registers an empty stub for each free candidate
+    and runs the synthetic scenes. A stub that gets compared means the gate can verify a real draft of that function.
+    The draft loops (`draftloop3.sh`, `POOL=drafts/reach_cands.txt` built by `mkreach.sh`) take only reachable
+    candidates; the unreachable ones wait in `drafts/unreach_pool.txt` for new scenes or Phase B. This cuts the
+    drafting spent on functions the gate can never compare (about two thirds before).
+  - **Nothing a stopped producer leaves is lost.** `vauto.sh` verifies every finished draft branch. Draft commits that
+    a prune rewrote are pinned under `refs/drafts/*`, and `drafts/all_drafts_index.txt` maps each drafted function to a
+    commit. A failed or timed-out gate run is retried, never counted as "nothing compared".
   - **The bottleneck is the verdict:** about 1.5–2 h per PR, one at a time per machine. More functions per PR, up to
     the decomp workflow's ~80, or another machine, raise throughput; more drafting does not.
 - **How the work is organised (the setup to reuse in future sessions).**
