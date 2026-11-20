@@ -32,8 +32,13 @@ limits='Hard limits (they bind you exactly like they bind Claude in this repo; A
 Task:
 '
 err=$(mktemp); trap 'rm -f "$err"' EXIT
-echo "$(date '+%F %T') START pid=$$ dir=$dir title=$title model=$model" >> "$log"
-out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-14400}" opencode run --standalone --auto -m "$model" --title "$title" "$limits$1" 2>"$err")
+echo "$(date '+%F %T') START pid=$$ dir=$dir title=$title model=$([ "${GT_DELEGATE_ENGINE:-opencode}" = claude ] && echo "claude/${GT_DELEGATE_CLAUDE_MODEL:-sonnet}" || echo $model)" >> "$log"
+if [ "${GT_DELEGATE_ENGINE:-opencode}" = claude ]; then
+  # Claude as a drafter (user, 2026-11-20): same draft-only dynamic as the fast delegate, via the Claude Code CLI.
+  out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-14400}" claude -p --model "${GT_DELEGATE_CLAUDE_MODEL:-sonnet}" --dangerously-skip-permissions "$limits$1" 2>"$err")
+else
+  out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-14400}" opencode run --standalone --auto -m "$model" --title "$title" "$limits$1" 2>"$err")
+fi
 rc=$?
 echo "$(date '+%F %T') END   pid=$$ rc=$rc title=$title" >> "$log"
 [ $rc -eq 124 ] && { echo "delegate session timed out; its work so far is in $dir" >&2; exit 3; }

@@ -107,6 +107,11 @@ import above. Add below only what applies to Claude Code alone. -->
       back. Each batch takes the next free candidates under a lock on the claims files and ships its input shapes.
     - Verification checks the batch branches out in other worktrees, never in a draft loop's worktree.
     - Keep about 5 drafting sessions alive in total across the team.
+  - **Claude drafts the same way** (user, 2026-11-20: "con Claude también la misma dinámica… sin mirar, que decompile
+    rápido"). When the delegate is stopped or out of credit, the same loops draft with Claude:
+    `GT_DELEGATE_ENGINE=claude` (model `GT_DELEGATE_CLAUDE_MODEL`, default `sonnet`) makes `tools/delegate.sh` run
+    `claude -p` in the worktree with the same draft-only task. It is draft-only with no review, in batches of 60–80,
+    and the scripts verify. Claude's usage limit stops it like an outage (exit 2).
   - **Batch size depends on the drafter's speed.** The user says which providers are fast and which are slow. Fast
     drafters get **60–80 functions per PR**: the verdict costs about the same hour whatever the batch size, and it is
     the bottleneck. DeepSeek V4.1 Flash is fast (user, 2026-11-20). Slow drafters keep the old 15–25: Claude writing by
