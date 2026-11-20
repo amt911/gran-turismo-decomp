@@ -231,6 +231,7 @@ int main() {
             write_matrix(rt, proj, p);
             rt.memory().store32(gu, proj);
             camera_proj_fn_status = -9;
+            const float *saved_eye = g_set_eye;
             g_set_eye = nullptr;
             g_proj_probe = true;
             write_matrix(rt, scratch, view);
@@ -244,6 +245,7 @@ int main() {
             load(scratch);
             check(g_proj_status != 0, "camera_projection: no projection loaded is refused");
             g_proj_probe = false;
+            g_set_eye = saved_eye;
         }
         // a matrix that is not the scratch (another layer's, the HUD's): the hook does not run, the game gets the matrix as it was
         g_get_status = -2;
