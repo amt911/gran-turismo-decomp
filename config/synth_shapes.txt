@@ -52,3 +52,31 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# lw a3,0(a0); lw a0,0(a3): table pointer
+# lw t0,0(a0); lw a0,0(t0): table pointer, stores into the element
+# lw a0,0x18(a0) is passed to the callee
+0x0888B670 reg:a0=struct:32 field:+0x18=ptr
+# lw v0,0x7C(a0); lw v1,0x78(a0) compared
+0x088D09E8 reg:a0=struct:128 field:+0x78=int:0..3 field:+0x7C=int:0..3
+# sw -1,0x248(s0) after the callee
+0x0891FEF0 reg:a0=struct:592
+# lw v0,0(a0); lw v1,0(v0) selects the argument order
+# sw v0,8(s0): result stored at +8
+0x08A61714 reg:a0=struct:16
+# sb 5,4(a0); sw vtable,0(a0)
+0x08A65128 reg:a0=struct:16
+# sw vtable,0(a0); sw 0,4(a0)
+0x08C55D4C reg:a0=struct:16
+# lw v1,4(s1) = +0x5C: member with a virtual, lw a1,0x58(s0)
+0x088A3544 reg:a0=struct:96 field:+0x58=int:0..16 field:+0x5C=ptr
+# lw v0,0(s1): object, lw a1,0x4C0(v0)
+# lw v1,0x130(a0): record with the pair at +0x40/+0x44
+0x088DB018 reg:a0=struct:320 field:+0x130=ptr
+# lw a0,0(a0): object whose vtable slot 0x50 is called
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x089A1214 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x089F8674 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x08A05884 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
