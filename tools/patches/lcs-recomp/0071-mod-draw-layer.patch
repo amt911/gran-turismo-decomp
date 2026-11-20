@@ -1,0 +1,517 @@
+diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index 4d4a8e4..4c6b917 100644
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -196,6 +196,41 @@ bool settings_overlay_copy(std::uint64_t version, std::uint8_t *rgba, std::size_
+ // Tests: rasterize on the calling thread instead (the request then returns the picture of this very view).
+ void settings_overlay_set_synchronous(bool synchronous) noexcept;
+ 
++// GT patch 0071: the mod draw layer (include/gt_mod/gt_mod_api.h, v8). A mod's draw calls become a command list in a 480 x 272
++// logical space; the list is rasterized on its own worker (like the UI picture above) at the size of the shown game rectangle and
++// composited over the game, under the F9 / F10 panels. Straight-alpha pixels, anti-aliased shapes, the UI font for text.
++inline constexpr std::uint32_t kDrawLogicalWidth = 480u;
++inline constexpr std::uint32_t kDrawLogicalHeight = 272u;
++inline constexpr std::size_t kDrawTextCapacity = 96u;
++enum class HostDrawKind : std::uint8_t { Text, Rect, Line };
++struct HostDrawCmd {
++    HostDrawKind kind{HostDrawKind::Rect};
++    // Text: a = x, b = y (top of the line), c = size. Rect: a, b = x, y; c, d = w, h. Line: a, b = x0, y0; c, d = x1, y1; e = width.
++    float a{0}, b{0}, c{0}, d{0}, e{0};
++    std::uint8_t rgba[4]{255, 255, 255, 255};
++    char text[kDrawTextCapacity]{};
++};
++// Replaces the list drawn (an empty one removes the layer). Any thread.
++void host_draw_submit(const HostDrawCmd *commands, std::size_t count) noexcept;
++// True while a non-empty list is submitted.
++[[nodiscard]] bool host_draw_active() noexcept;
++// The newest finished picture of the list for `size` (the shown game rectangle's pixels); version 0: none yet / no layer. Same contract as
++// settings_overlay_request / settings_overlay_copy.
++SettingsOverlayPicture host_draw_request(SettingsOverlaySize size) noexcept;
++bool host_draw_copy(std::uint64_t version, std::uint8_t *rgba, std::size_t capacity) noexcept;
++// The size of the draw picture for a game rectangle of `width` pixels: 480 x 272 scaled uniformly.
++[[nodiscard]] inline SettingsOverlaySize host_draw_size(float width) noexcept {
++    if (width < 1.0f) width = 1.0f;
++    const auto w = static_cast<std::uint32_t>(width + 0.5f);
++    return {w, static_cast<std::uint32_t>(static_cast<float>(w) * kDrawLogicalHeight / kDrawLogicalWidth + 0.5f)};
++}
++// Rasterizes `commands` into `rgba` (width x height, straight alpha, cleared first) on the calling thread. Text is skipped when the UI
++// font is missing. Tests, frame dumps.
++void host_draw_rasterize(const HostDrawCmd *commands, std::size_t count, std::uint8_t *rgba, std::uint32_t width,
++                         std::uint32_t height) noexcept;
++// Tests: rasterize on the calling thread instead.
++void host_draw_set_synchronous(bool synchronous) noexcept;
++
+ inline constexpr std::uint32_t kFpsOverlayWidth = 192u;
+ inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
+ 
+diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index ea92082..a45db51 100644
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -671,6 +671,139 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {
+     w.synchronous = synchronous;
+ }
+ 
++// GT patch 0071: the mod draw layer's worker: the same shape as the UI picture's (one slot for the newest request, one finished picture).
++namespace {
++
++struct DrawWorker {
++    std::mutex mutex;
++    std::condition_variable wake;
++    bool synchronous = false;
++    bool started = false;
++    bool pending = false;
++    std::vector<HostDrawCmd> list;        // the list submitted
++    std::uint64_t list_generation = 0;    // bumped by each submit
++    std::vector<HostDrawCmd> wanted;
++    std::uint64_t wanted_generation = 0;  // the list generation `wanted` was copied at
++    SettingsOverlaySize wanted_size{};
++    bool have_last = false;               // the (generation, size) last taken, to skip an identical request
++    std::uint64_t last_generation = 0;
++    SettingsOverlaySize last_size{};
++    std::vector<std::uint8_t> picture;
++    SettingsOverlayPicture info{};
++    std::uint64_t versions = 0;
++};
++
++DrawWorker &draw_worker() {
++    static DrawWorker *worker = new DrawWorker();  // never destroyed: the detached thread may still hold it at exit
++    return *worker;
++}
++
++// `generation` is the list's generation when the request was taken: a result for a list that was replaced (or cleared) meanwhile is dropped, so a stale
++// picture never becomes the newest one.
++void draw_rasterize(DrawWorker &w, const std::vector<HostDrawCmd> &list, SettingsOverlaySize size, std::uint64_t generation, std::unique_lock<std::mutex> &lock) {
++    lock.unlock();
++    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(size.width) * size.height * 4u);
++    host_style_rasterize_draw(list.data(), list.size(), pixels.data(), size.width, size.height);
++    lock.lock();
++    if (generation != w.list_generation || w.list.empty()) return;
++    w.picture.swap(pixels);
++    w.info = SettingsOverlayPicture{size.width, size.height, ++w.versions};
++}
++
++void draw_thread() {
++    DrawWorker &w = draw_worker();
++    std::unique_lock<std::mutex> lock(w.mutex);
++    for (;;) {
++        w.wake.wait(lock, [&w] { return w.pending; });
++        const std::vector<HostDrawCmd> list = w.wanted;
++        const SettingsOverlaySize size = w.wanted_size;
++        const std::uint64_t generation = w.wanted_generation;
++        w.pending = false;
++        draw_rasterize(w, list, size, generation, lock);
++    }
++}
++
++}  // namespace
++
++static bool same_commands(const HostDrawCmd &a, const HostDrawCmd &b) {
++    return a.kind == b.kind && a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d && a.e == b.e && std::memcmp(a.rgba, b.rgba, sizeof a.rgba) == 0 &&
++           std::strncmp(a.text, b.text, kDrawTextCapacity) == 0;
++}
++
++void host_draw_submit(const HostDrawCmd *commands, std::size_t count) noexcept {
++    DrawWorker &w = draw_worker();
++    std::lock_guard<std::mutex> lock(w.mutex);
++    if (commands == nullptr) count = 0u;
++    if (count != 0u && count == w.list.size() && std::equal(commands, commands + count, w.list.begin(), same_commands)) return;  // the same list: keep the picture
++    w.list.assign(commands, commands + count);
++    ++w.list_generation;
++    if (count == 0u) {  // no layer: forget the picture so a later list is rasterized afresh
++        w.info = SettingsOverlayPicture{};
++        w.picture.clear();
++        w.pending = false;
++        w.have_last = false;
++    }
++}
++
++bool host_draw_active() noexcept {
++    DrawWorker &w = draw_worker();
++    std::lock_guard<std::mutex> lock(w.mutex);
++    return !w.list.empty();
++}
++
++SettingsOverlayPicture host_draw_request(SettingsOverlaySize size) noexcept {
++    DrawWorker &w = draw_worker();
++    std::unique_lock<std::mutex> lock(w.mutex);
++    if (w.list.empty() || size.width == 0u || size.height == 0u) return SettingsOverlayPicture{};
++    const bool repeat = w.have_last && w.last_generation == w.list_generation && w.last_size.width == size.width && w.last_size.height == size.height;
++    if (!repeat) {
++        w.have_last = true;
++        w.last_generation = w.list_generation;
++        w.last_size = size;
++        if (w.synchronous) {
++            const std::vector<HostDrawCmd> list = w.list;
++            draw_rasterize(w, list, size, w.list_generation, lock);
++        } else {
++            w.wanted = w.list;
++            w.wanted_generation = w.list_generation;
++            w.wanted_size = size;
++            w.pending = true;
++            if (!w.started) {
++                w.started = true;
++                try {
++                    std::thread(draw_thread).detach();
++                } catch (...) {  // no thread: rasterize here
++                    w.synchronous = true;
++                    w.pending = false;
++                    const std::vector<HostDrawCmd> list = w.list;
++                    draw_rasterize(w, list, size, w.list_generation, lock);
++                }
++            }
++            w.wake.notify_one();
++        }
++    }
++    return w.info;
++}
++
++bool host_draw_copy(std::uint64_t version, std::uint8_t *rgba, std::size_t capacity) noexcept {
++    DrawWorker &w = draw_worker();
++    std::lock_guard<std::mutex> lock(w.mutex);
++    if (version == 0u || w.info.version != version || rgba == nullptr || capacity < w.picture.size()) return false;
++    std::memcpy(rgba, w.picture.data(), w.picture.size());
++    return true;
++}
++
++void host_draw_rasterize(const HostDrawCmd *commands, std::size_t count, std::uint8_t *rgba, std::uint32_t width,
++                         std::uint32_t height) noexcept {
++    host_style_rasterize_draw(commands, count, rgba, width, height);
++}
++
++void host_draw_set_synchronous(bool synchronous) noexcept {
++    DrawWorker &w = draw_worker();
++    std::lock_guard<std::mutex> lock(w.mutex);
++    w.synchronous = synchronous;
++}
++
+ void rasterize_fps_overlay(std::uint8_t *rgba, std::uint32_t width,
+                            std::uint32_t height) noexcept {
+     if (rgba == nullptr || width == 0u || height == 0u) return;
+diff --git a/lcs/host/lcs_host_style.cpp b/lcs/host/lcs_host_style.cpp
+index 6ba5498..edb5b77 100644
+--- a/lcs/host/lcs_host_style.cpp
++++ b/lcs/host/lcs_host_style.cpp
+@@ -565,4 +565,45 @@ bool host_style_rasterize(const HostSettingsView &view, std::uint8_t *rgba, std:
+     return true;
+ }
+ 
++void host_style_rasterize_draw(const HostDrawCmd *commands, std::size_t count, std::uint8_t *rgba, std::uint32_t width,
++                               std::uint32_t height) noexcept {
++    if (rgba == nullptr || width == 0u || height == 0u) return;
++    std::memset(rgba, 0, static_cast<std::size_t>(width) * height * 4u);
++    if (commands == nullptr) return;
++    Style &s = style();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    const bool fonts = ensure_fonts(s);
++    const Canvas c{rgba, static_cast<int>(width), static_cast<int>(height), s, static_cast<float>(width) / static_cast<float>(kDrawLogicalWidth)};
++    for (std::size_t i = 0; i < count; ++i) {
++        const HostDrawCmd &cmd = commands[i];
++        const Rgb color{cmd.rgba[0], cmd.rgba[1], cmd.rgba[2]};
++        const float alpha = static_cast<float>(cmd.rgba[3]) / 255.0f;
++        switch (cmd.kind) {
++        case HostDrawKind::Rect: {  // anti-aliased edges: each pixel's coverage = the overlap of its box with the rectangle
++            const float sx = cmd.a * c.S, sy = cmd.b * c.S, ex = (cmd.a + cmd.c) * c.S, ey = (cmd.b + cmd.d) * c.S;
++            const float x0 = std::min(sx, ex), x1 = std::max(sx, ex), y0 = std::min(sy, ey), y1 = std::max(sy, ey);
++            const int ix0 = std::max(0, static_cast<int>(std::floor(x0))), ix1 = std::min(c.w, static_cast<int>(std::ceil(x1)));
++            const int iy0 = std::max(0, static_cast<int>(std::floor(y0))), iy1 = std::min(c.h, static_cast<int>(std::ceil(y1)));
++            for (int y = iy0; y < iy1; ++y) {
++                const float cy = std::min(y1, static_cast<float>(y + 1)) - std::max(y0, static_cast<float>(y));
++                for (int x = ix0; x < ix1; ++x) {
++                    const float cx = std::min(x1, static_cast<float>(x + 1)) - std::max(x0, static_cast<float>(x));
++                    c.blend(x, y, color, cx * cy * alpha);
++                }
++            }
++            break;
++        }
++        case HostDrawKind::Line: c.line(cmd.a, cmd.b, cmd.c, cmd.d, cmd.e, color, alpha); break;
++        case HostDrawKind::Text:
++            if (fonts && cmd.c > 0.0f) {
++                char text[kDrawTextCapacity];
++                std::memcpy(text, cmd.text, sizeof text);
++                text[sizeof text - 1] = '\0';
++                c.text(kFontMedium, cmd.c, cmd.a, cmd.b + cmd.c * 0.8f, text, color, alpha);  // `b` is the top of the line, the pen is at its baseline
++            }
++            break;
++        }
++    }
++}
++
+ }  // namespace lcs
+diff --git a/lcs/host/lcs_host_style.hpp b/lcs/host/lcs_host_style.hpp
+index e41614b..69fd9bc 100644
+--- a/lcs/host/lcs_host_style.hpp
++++ b/lcs/host/lcs_host_style.hpp
+@@ -47,6 +47,10 @@ struct Layout {
+ // the caller falls back to the 5x7 look.
+ bool host_style_rasterize(const HostSettingsView &view, std::uint8_t *rgba, std::uint32_t width, std::uint32_t height) noexcept;
+ 
++// GT patch 0071: the mod draw layer's rasterizer (see host_draw_rasterize in lcs_display_menu.hpp). Logical 480 x 272 -> width x height.
++void host_style_rasterize_draw(const HostDrawCmd *commands, std::size_t count, std::uint8_t *rgba, std::uint32_t width,
++                               std::uint32_t height) noexcept;
++
+ // Rasterizations actually done (a frame whose view and size equal the last one's is copied from a cache): test hook.
+ [[nodiscard]] unsigned long host_style_raster_count() noexcept;
+ 
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+index 43c6be4..9060105 100644
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -315,7 +315,7 @@ struct VulkanState {
+     VkPipelineLayout present_layout{};
+     VkDescriptorSetLayout present_set_layout{};
+     VkDescriptorPool present_pool{};
+-    std::array<VkDescriptorSet, 4> present_sets{};
++    std::array<VkDescriptorSet, 5> present_sets{};
+     VkSampler game_sampler{};
+     VkSampler overlay_sampler{};
+     VkSampler settings_sampler{};  // GT patch 0069: linear, the 2x host UI is scaled to the window
+@@ -328,6 +328,8 @@ struct VulkanState {
+     GpuImage fps_overlay{};
+     GpuImage settings_overlay{};
+     std::uint64_t settings_overlay_version = 0;  // GT patch 0070: the UI picture in settings_overlay (uploaded once per change)
++    GpuImage mod_draw{};                         // GT patch 0071: the mods' draw layer, over the game rectangle
++    std::uint64_t mod_draw_version = 0;
+     GpuImage guest_image{};
+     VkBuffer present_staging{};
+     VkDeviceMemory present_staging_memory{};
+@@ -1680,6 +1682,7 @@ constexpr std::size_t kPresentGame = 0u;
+ constexpr std::size_t kPresentFps = 1u;
+ constexpr std::size_t kPresentSettings = 2u;
+ constexpr std::size_t kPresentGuest = 3u;
++constexpr std::size_t kPresentModDraw = 4u;  // GT patch 0071
+ 
+ VkDeviceSize align_upload(VkDeviceSize value) noexcept {
+     return (value + 255u) & ~VkDeviceSize{255u};
+@@ -1793,6 +1796,8 @@ void destroy_present_device(VulkanState &s) noexcept {
+     s.present_staging_bytes = 0u;
+     destroy_image(s, s.fps_overlay);
+     destroy_image(s, s.settings_overlay);
++    destroy_image(s, s.mod_draw);
++    s.mod_draw_version = 0u;
+     destroy_image(s, s.guest_image);
+     s.swap_format = VK_FORMAT_UNDEFINED;
+     s.swap_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+@@ -2041,22 +2046,22 @@ bool ensure_present_pipeline(VulkanState &s, VkFormat format, std::string &error
+         error = "Vulkan present pipeline layout failed";
+         return false;
+     }
+-    VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4u};
++    VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5u};
+     VkDescriptorPoolCreateInfo pool{};
+     pool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+-    pool.maxSets = 4u;
++    pool.maxSets = 5u;
+     pool.poolSizeCount = 1u;
+     pool.pPoolSizes = &pool_size;
+     if (vkCreateDescriptorPool(s.device, &pool, nullptr, &s.present_pool) != VK_SUCCESS) {
+         error = "Vulkan present descriptor pool failed";
+         return false;
+     }
+-    const VkDescriptorSetLayout layouts[4]{s.present_set_layout, s.present_set_layout, s.present_set_layout,
+-                                           s.present_set_layout};
++    const VkDescriptorSetLayout layouts[5]{s.present_set_layout, s.present_set_layout, s.present_set_layout,
++                                           s.present_set_layout, s.present_set_layout};
+     VkDescriptorSetAllocateInfo alloc{};
+     alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+     alloc.descriptorPool = s.present_pool;
+-    alloc.descriptorSetCount = 4u;
++    alloc.descriptorSetCount = 5u;
+     alloc.pSetLayouts = layouts;
+     if (vkAllocateDescriptorSets(s.device, &alloc, s.present_sets.data()) != VK_SUCCESS) {
+         error = "Vulkan present descriptor sets failed";
+@@ -2478,7 +2483,7 @@ void draw_present_layer(VulkanState &s, VkDescriptorSet set, std::int32_t x, std
+ 
+ void cmd_present_pass(VulkanState &s, std::uint32_t image_index, VkDescriptorSet source,
+                       std::uint32_t source_width, std::uint32_t source_height, bool draw_fps,
+-                      bool draw_settings) {
++                      bool draw_settings, bool draw_mods) {
+     const DisplayConfiguration &display = lcs_render_configuration().display;
+     const PresentationRectangle fitted = calculate_presentation_rectangle(
+         s.swap_width, s.swap_height, source_width, source_height, display.aspect_mode,
+@@ -2495,6 +2500,8 @@ void cmd_present_pass(VulkanState &s, std::uint32_t image_index, VkDescriptorSet
+     vkCmdBeginRenderPass(s.command, &begin, VK_SUBPASS_CONTENTS_INLINE);
+     vkCmdBindPipeline(s.command, VK_PIPELINE_BIND_POINT_GRAPHICS, s.present_pipeline);
+     draw_present_layer(s, source, fitted.x, fitted.y, fitted.width, fitted.height, true);
++    if (draw_mods)  // GT patch 0071: the mods' layer, over the game, under the host's own overlays
++        draw_present_layer(s, s.present_sets[kPresentModDraw], fitted.x, fitted.y, fitted.width, fitted.height, false);
+     if (draw_fps) {
+         const std::int32_t panel_h = std::max(28, static_cast<std::int32_t>(s.swap_height / 28u));
+         const std::int32_t panel_w = panel_h * static_cast<std::int32_t>(kFpsOverlayWidth / kFpsOverlayHeight);
+@@ -2605,6 +2612,45 @@ SettingsPlan plan_settings_overlay(VulkanState &s, const Dx12FramePresentDecisio
+     return plan;
+ }
+ 
++struct ModDrawPlan {  // GT patch 0071
++    std::uint64_t version = 0;
++    std::uint32_t width = 0, height = 0;
++    bool upload = false;
++};
++
++// The mods' draw picture for this frame (rasterized by the worker at the size of the shown game rectangle), uploaded only when it changed.
++ModDrawPlan plan_mod_draw(VulkanState &s, std::uint32_t source_width, std::uint32_t source_height) {
++    ModDrawPlan plan;
++    if (!host_draw_active()) return plan;
++    const DisplayConfiguration &display = lcs_render_configuration().display;
++    const PresentationRectangle fitted = calculate_presentation_rectangle(s.swap_width, s.swap_height, source_width, source_height,
++                                                                          display.aspect_mode, display.integer_scale);
++    const SettingsOverlayPicture picture = host_draw_request(host_draw_size(static_cast<float>(fitted.width)));
++    if (picture.version == 0u) return plan;
++    plan.version = picture.version;
++    plan.width = picture.width;
++    plan.height = picture.height;
++    plan.upload = picture.version != s.mod_draw_version || s.mod_draw.image == VK_NULL_HANDLE || s.mod_draw.width != picture.width ||
++                  s.mod_draw.height != picture.height;
++    return plan;
++}
++
++// Copies the picture into the staging area when it must be uploaded; true when the layer is drawn this frame.
++bool prepare_mod_draw(VulkanState &s, const ModDrawPlan &plan, VkDeviceSize offset, bool &upload, std::string &error) {
++    upload = false;
++    if (plan.version == 0u) return false;
++    if (plan.upload) {
++        auto *mapped = static_cast<std::uint8_t *>(s.present_staging_mapped);
++        if (mapped != nullptr && ensure_overlay_image(s, s.mod_draw, plan.width, plan.height, error) &&
++            host_draw_copy(plan.version, mapped + offset, static_cast<std::size_t>(plan.width) * plan.height * 4u)) {
++            upload = true;
++        } else {
++            s.mod_draw_version = 0u;  // a newer picture replaced it (or no image): ask again next frame
++        }
++    }
++    return s.mod_draw.image != VK_NULL_HANDLE && (upload || s.mod_draw_version != 0u);
++}
++
+ bool record_swapchain_present(VulkanState &s, VkImageView source, std::uint32_t source_width,
+                               std::uint32_t source_height, std::string &error) {
+     if (source == VK_NULL_HANDLE || s.present_lost) return false;
+@@ -2615,7 +2661,10 @@ bool record_swapchain_present(VulkanState &s, VkImageView source, std::uint32_t
+     const VkDeviceSize settings_bytes = settings.upload ? static_cast<VkDeviceSize>(settings.width) * settings.height * 4u : 0u;
+     const VkDeviceSize fps_offset = 0u;
+     const VkDeviceSize settings_offset = align_upload(fps_bytes);
+-    if (!ensure_present_staging(s, settings_offset + settings_bytes, error)) return false;
++    const ModDrawPlan mod_plan = plan_mod_draw(s, source_width, source_height);
++    const VkDeviceSize mod_offset = align_upload(settings_offset + settings_bytes);
++    const VkDeviceSize mod_bytes = mod_plan.upload ? static_cast<VkDeviceSize>(mod_plan.width) * mod_plan.height * 4u : 0u;
++    if (!ensure_present_staging(s, mod_offset + mod_bytes, error)) return false;
+     host_fps_note_presented_frame();
+     bool draw_fps = false;
+     bool draw_settings = false;
+@@ -2623,8 +2672,14 @@ bool record_swapchain_present(VulkanState &s, VkImageView source, std::uint32_t
+     if (!prepare_overlay_uploads(s, decision, fps_offset, settings_offset, settings, draw_fps, draw_settings, upload_settings,
+                                  error))
+         return false;
++    bool upload_mods = false;
++    const bool draw_mods = prepare_mod_draw(s, mod_plan, mod_offset, upload_mods, error);
+     std::uint32_t index = 0u;
+     if (!acquire_swap_image(s, index, error)) return false;
++    if (upload_mods) {
++        cmd_upload_image(s, s.mod_draw, mod_offset, mod_plan.width, mod_plan.height);
++        s.mod_draw_version = mod_plan.version;
++    }
+     if (draw_fps)
+         cmd_upload_image(s, s.fps_overlay, fps_offset, kFpsOverlayWidth, kFpsOverlayHeight);
+     if (upload_settings) {
+@@ -2634,8 +2689,9 @@ bool record_swapchain_present(VulkanState &s, VkImageView source, std::uint32_t
+     write_present_set(s, kPresentGame, source, s.game_sampler);
+     if (draw_fps) write_present_set(s, kPresentFps, s.fps_overlay.view, s.overlay_sampler);
+     if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.settings_sampler);
++    if (draw_mods) write_present_set(s, kPresentModDraw, s.mod_draw.view, s.settings_sampler);
+     cmd_present_pass(s, index, s.present_sets[kPresentGame], source_width, source_height, draw_fps,
+-                     draw_settings);
++                     draw_settings, draw_mods);
+     s.present_image_index = index;
+     s.present_recorded = true;
+     return true;
+@@ -2808,7 +2864,10 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+     const VkDeviceSize settings_bytes = settings.upload ? static_cast<VkDeviceSize>(settings.width) * settings.height * 4u : 0u;
+     const VkDeviceSize fps_offset = align_upload(static_cast<VkDeviceSize>(guest_bytes));
+     const VkDeviceSize settings_offset = align_upload(fps_offset + fps_bytes);
+-    if (!ensure_present_staging(s, settings_offset + settings_bytes, error)) return false;
++    const ModDrawPlan mod_plan = plan_mod_draw(s, width, height);  // GT patch 0071
++    const VkDeviceSize mod_offset = align_upload(settings_offset + settings_bytes);
++    const VkDeviceSize mod_bytes = mod_plan.upload ? static_cast<VkDeviceSize>(mod_plan.width) * mod_plan.height * 4u : 0u;
++    if (!ensure_present_staging(s, mod_offset + mod_bytes, error)) return false;
+     std::memcpy(s.present_staging_mapped, rgba.data(), guest_bytes);
+     host_fps_note_presented_frame();
+     bool draw_fps = false;
+@@ -2817,6 +2876,8 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+     if (!prepare_overlay_uploads(s, decision, fps_offset, settings_offset, settings, draw_fps, draw_settings, upload_settings,
+                                  error))
+         return false;
++    bool upload_mods = false;
++    const bool draw_mods = prepare_mod_draw(s, mod_plan, mod_offset, upload_mods, error);
+     std::uint32_t index = 0u;
+     if (!acquire_swap_image(s, index, error)) return false;
+     VkCommandBufferBeginInfo begin{};
+@@ -2829,6 +2890,10 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+         return false;
+     }
+     cmd_upload_image(s, s.guest_image, 0u, width, height);
++    if (upload_mods) {
++        cmd_upload_image(s, s.mod_draw, mod_offset, mod_plan.width, mod_plan.height);
++        s.mod_draw_version = mod_plan.version;
++    }
+     if (draw_fps) cmd_upload_image(s, s.fps_overlay, fps_offset, kFpsOverlayWidth, kFpsOverlayHeight);
+     if (upload_settings) {
+         cmd_upload_image(s, s.settings_overlay, settings_offset, settings.width, settings.height);
+@@ -2837,7 +2902,8 @@ bool present_guest_image(VulkanState &s, std::span<const std::byte> rgba, std::u
+     write_present_set(s, kPresentGuest, s.guest_image.view, s.game_sampler);
+     if (draw_fps) write_present_set(s, kPresentFps, s.fps_overlay.view, s.overlay_sampler);
+     if (draw_settings) write_present_set(s, kPresentSettings, s.settings_overlay.view, s.settings_sampler);
+-    cmd_present_pass(s, index, s.present_sets[kPresentGuest], width, height, draw_fps, draw_settings);
++    if (draw_mods) write_present_set(s, kPresentModDraw, s.mod_draw.view, s.settings_sampler);
++    cmd_present_pass(s, index, s.present_sets[kPresentGuest], width, height, draw_fps, draw_settings, draw_mods);
+     if (vkEndCommandBuffer(s.command) != VK_SUCCESS) {
+         vkResetCommandBuffer(s.command, 0u);
+         retire_acquired_present(s);
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index 8e713cd..4a49eaa 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -347,6 +347,38 @@ void paint_host_panel(SDL_Renderer *renderer) noexcept {
+     SDL_RenderCopy(renderer, texture, nullptr, &destination);
+ }
+ 
++// GT patch 0071: the mods' draw layer over the game rectangle (rasterized on its worker at that rectangle's size).
++void paint_mod_draw(SDL_Renderer *renderer, const SDL_Rect &game) noexcept {
++    if (renderer == nullptr || game.w <= 0 || game.h <= 0 || !host_draw_active()) return;
++    static SDL_Renderer *owner = nullptr;
++    static SDL_Texture *texture = nullptr;
++    static std::uint32_t texture_w = 0u, texture_h = 0u;
++    static std::uint64_t shown = 0u;
++    static std::vector<std::uint8_t> pixels;
++    const SettingsOverlayPicture picture = host_draw_request(host_draw_size(static_cast<float>(game.w)));
++    if (picture.version == 0u) return;
++    if (owner != renderer || texture == nullptr || texture_w != picture.width || texture_h != picture.height) {
++        if (texture != nullptr && owner == renderer) SDL_DestroyTexture(texture);
++        texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
++                                    static_cast<int>(picture.width), static_cast<int>(picture.height));
++        owner = renderer;
++        shown = 0u;
++        texture_w = picture.width;
++        texture_h = picture.height;
++        if (texture == nullptr) return;
++        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
++        SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);
++    }
++    if (picture.version != shown) {
++        pixels.resize(static_cast<std::size_t>(picture.width) * picture.height * 4u);
++        if (host_draw_copy(picture.version, pixels.data(), pixels.size())) {
++            SDL_UpdateTexture(texture, nullptr, pixels.data(), static_cast<int>(picture.width * 4u));
++            shown = picture.version;
++        }
++    }
++    if (shown != 0u) SDL_RenderCopy(renderer, texture, nullptr, &game);
++}
++
+ // GT patch 0069: F9 / F10 and the host panel share one rasterized look (lcs_host_style.cpp).
+ void paint_host_settings(SDL_Renderer *renderer) noexcept { paint_host_panel(renderer); }
+ 
+@@ -370,6 +402,7 @@ void present_game_texture(std::uint32_t source_width, std::uint32_t source_heigh
+     const SDL_Rect destination = game_texture_destination(source_width, source_height);
+     if (destination.w > 0 && destination.h > 0)
+         SDL_RenderCopy(g_renderer, g_texture, nullptr, &destination);
++    paint_mod_draw(g_renderer, destination);  // GT patch 0071
+     paint_fps(g_renderer);
+     paint_host_settings(g_renderer);
+     SDL_RenderPresent(g_renderer);
