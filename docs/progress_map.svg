@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="sans-serif">
 <rect width="1200" height="760" fill="#1d2129"/>
 <text x="6" y="16" fill="#e6e8ec" font-size="13" font-weight="bold">Gran Turismo (PSP) — decompilation progress</text>
-<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: 16971 / 23208 (73.13 %) · bytes: 2371384 / 4175084 (56.80 %) · each rectangle is a function, sized by its bytes · green = by hand, teal = template, grey = to do</text>
+<text x="6" y="32" fill="#a9b0bc" font-size="10">Funciones: 16974 / 23208 (73.14 %) · bytes: 2372440 / 4175084 (56.82 %) · each rectangle is a function, sized by its bytes · green = by hand, teal = template, grey = to do</text>
 <g transform="translate(0,40)">
 <rect x="0.0" y="0.0" width="324.6" height="720.0" fill="#262b35" stroke="#12151b" stroke-width="1"/>
 <rect class="f" x="1.0" y="14.0" width="37.8" height="34.0" fill="#4a5260"/>
@@ -387,7 +387,7 @@
 <rect class="f" x="140.3" y="270.7" width="9.8" height="9.9" fill="#3fa65a"/>
 <rect class="f" x="150.2" y="270.7" width="9.8" height="9.9" fill="#3fa65a"/>
 <rect class="f" x="160.0" y="270.7" width="9.8" height="9.9" fill="#3fa65a"/>
-<rect class="f" x="169.8" y="270.7" width="9.7" height="9.9" fill="#4a5260"/>
+<rect class="f" x="169.8" y="270.7" width="9.7" height="9.9" fill="#3fa65a"/>
 <rect class="f" x="179.5" y="270.7" width="9.7" height="9.9" fill="#4a5260"/>
 <rect class="f" x="189.3" y="270.7" width="9.7" height="9.9" fill="#3fa65a"/>
 <rect class="f" x="199.0" y="270.7" width="9.7" height="9.9" fill="#3fa65a"/>
@@ -428,7 +428,7 @@
 <rect class="f" x="212.1" y="280.6" width="9.3" height="9.5" fill="#3fa65a"/>
 <rect class="f" x="221.4" y="280.6" width="9.3" height="9.5" fill="#3fa65a"/>
 <rect class="f" x="230.8" y="280.6" width="9.3" height="9.5" fill="#4a5260"/>
-<rect class="f" x="240.1" y="280.6" width="9.3" height="9.5" fill="#4a5260"/>
+<rect class="f" x="240.1" y="280.6" width="9.3" height="9.5" fill="#3fa65a"/>
 <rect class="f" x="249.4" y="280.6" width="9.3" height="9.5" fill="#4a5260"/>
 <rect class="f" x="258.8" y="280.6" width="9.3" height="9.5" fill="#4a5260"/>
 <rect class="f" x="268.1" y="280.6" width="9.3" height="9.5" fill="#4a5260"/>
@@ -2383,7 +2383,7 @@
 <rect class="f" x="101.3" y="569.5" width="5.3" height="5.2" fill="#3fa65a"/>
 <rect class="f" x="101.3" y="574.6" width="5.3" height="5.2" fill="#3fa65a"/>
 <rect class="f" x="101.3" y="579.8" width="5.3" height="5.2" fill="#3fa65a"/>
-<rect class="f" x="101.3" y="584.9" width="5.3" height="5.2" fill="#4a5260"/>
+<rect class="f" x="101.3" y="584.9" width="5.3" height="5.2" fill="#3fa65a"/>
 <rect class="f" x="101.3" y="590.1" width="5.3" height="5.2" fill="#3fa65a"/>
 <rect class="f" x="101.3" y="595.2" width="5.3" height="5.2" fill="#3fa65a"/>
 <rect class="f" x="101.3" y="600.4" width="5.3" height="5.2" fill="#3fa65a"/>
@@ -6238,7 +6238,7 @@
 <rect class="f" x="320.3" y="718.0" width="1.6" height="1.0" fill="#4a5260"/>
 <rect class="f" x="322.0" y="717.0" width="1.6" height="1.0" fill="#4a5260"/>
 <rect class="f" x="322.0" y="718.0" width="1.6" height="1.0" fill="#4a5260"/>
-<text x="3.0" y="10.0" fill="#e6e8ec" font-size="9">SDK and libraries 54.5 %</text>
+<text x="3.0" y="10.0" fill="#e6e8ec" font-size="9">SDK and libraries 54.6 %</text>
 <rect x="324.6" y="0.0" width="214.4" height="240.3" fill="#262b35" stroke="#12151b" stroke-width="1"/>
 <rect class="f" x="325.6" y="14.0" width="44.5" height="28.7" fill="#4a5260"/>
 <rect class="f" x="370.1" y="14.0" width="37.4" height="28.7" fill="#3fa65a"/>
