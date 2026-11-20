@@ -4,7 +4,7 @@
 # GT_MOD_CAMS_VIEW=wheel|roof|tv|heli (the checks have no keyboard).
 #   tools/mod_cameras_check.sh [--decomp off|on] [--seconds N] [--others] [--idle] [--wheel] [--roof] [--tv] [--heli] [--without-mod|--sabotage-offset]
 #   (default)    off (mod installed, switched off) + idle (enabled, no extra view: every frame identical to off) + the wheel, roof and TV views. PASS only if every judge passes.
-#   --cycle      the route's three SELECT presses with no forced view: the extra views come after the game's four (the third press reaches the Wheel view), the game's list stays on its first view
+#   --cycle      the `cycle` route's five SELECT presses with no forced view: the extra views come after the game's four (the fourth press reaches Wheel, the fifth Roof), the game's list stays on its first view
 #   --heli       the `circuit` route (race, leave from the pause menu, the replay plays) with the helicopter camera: the eye stays above and behind the car in the replay
 #   --others     every other mod enabled too (the run must still pass)
 #   Each of these must FAIL: --without-mod (no mod installed: no CAM lines), --sabotage-cycle (-DCAMS_SABOTAGE=2: the presses are not followed; with --cycle), --sabotage-offset (-DCAMS_SABOTAGE=1: the pose set is the game's own: the car is not where the view says)
@@ -32,6 +32,7 @@ done
 [ -z "$want" ] && want=" idle wheel roof tv"
 has() { case "$want" in *" $1"*) return 0;; *) return 1;; esac; }
 route=config/pad_routes/chase.pad
+has cycle && { route=config/pad_routes/cycle.pad; [ "$seconds" = 170 ] && seconds=450; }
 has heli && { route=config/pad_routes/circuit.pad; [ "$seconds" = 170 ] && seconds=330; }
 [ -f "$route" ] || { echo "mod_cameras_check: no pad route $route" >&2; exit 2; }
 mkdir -p "$out" || exit 2

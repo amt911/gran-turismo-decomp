@@ -7,7 +7,7 @@ Judged here:
   idle      the mod enabled with no extra view selected: every frame byte-identical to the run with the mod switched off;
   view      (wheel | roof | tv) CAM lines exist for the view; the eye is where the view puts it relative to the car (distance range per view); the game drew the car where the pose says:
             the median over the DRAW lines of |seen - expected| per component under DRAW_TOL (the car's model origin is not exactly its body origin); and the frames differ from the idle run's;
-  cycle     (`chase` route, no forced view) the SELECT presses move a virtual position over the game's four views and the three extra ones (the game's own list stays on its first view while an extra is shown), and the view reached is drawn as judged for `view`;
+  cycle     (`cycle` route, no forced view) the SELECT presses move a virtual position over the game's four views and the three extra ones (the game's own list stays on its first view while an extra is shown), and the view reached is drawn as judged for `view`;
   heli      (replay) the replay's CAM lines say `heli`, replay=1, and the eye stays above the car (>= HELI_MIN_UP m, after HELI_SETTLE_S of lines) and behind it.
 """
 import math
@@ -140,8 +140,8 @@ def judge_cycle(run_dir):
     list stays on its first view while an extra view is shown, and the extra view is what the game then draws (judge_view: eye distance and the car drawn where the pose says)."""
     text = read(os.path.join(run_dir, "run.log"))
     presses = [(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)), m.group(6)) for m in CYCLE.finditer(text)]
-    if len(presses) < 3:
-        return False, f"only {len(presses)} SELECT presses followed (the route presses it 3 times): the cycle hook never saw them"
+    if len(presses) < 5:
+        return False, f"only {len(presses)} SELECT presses followed (the route presses it 5 times): the cycle hook never saw them"
     if any(p[1] != 1 for p in presses):
         return False, "a press read as backwards"
     for before, after in zip(presses, presses[1:]):
