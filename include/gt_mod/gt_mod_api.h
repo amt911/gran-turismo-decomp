@@ -36,9 +36,11 @@ extern "C" {
 /* v7 (docs/superpowers/specs/2026-11-18-rollover-physics-design.md): what a rigid-body mod needs: the car's dimensions, the ground under each wheel,
  * one named call that writes a whole pose, and the tilt switch. The v7 functions refuse a mod that declared api < 7. */
 #define GT_MOD_API_VERSION_7 7
-/* v8 is the mod draw API (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md, PR #667): its functions sit between tilt_free and camera_get below once that PR merges.
- * v9 (docs/superpowers/specs/2026-11-18-extra-cameras-design.md): the player camera's pose, readable and replaceable (GT_HOOK_CAMERA, camera_get, camera_set) and
- * replay_active. The v9 functions refuse a mod that declared api < 9. */
+/* v8 (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md): 2D drawing over the game (on_overlay, draw_text / draw_rect / draw_line) and a
+ * whole-image colour grade (scene_grade). The v8 functions refuse a mod that declared api < 8. */
+#define GT_MOD_API_VERSION_8 8
+/* v9 (docs/superpowers/specs/2026-11-18-extra-cameras-design.md): the player camera's pose, readable and replaceable (GT_HOOK_CAMERA, camera_get, camera_set), replay_active and the game's
+ * SELECT view list (GT_HOOK_VIEW_CYCLE, view_cycle, view_cycle_set). The v9 functions refuse a mod that declared api < 9. */
 #define GT_MOD_API_VERSION_9 9
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
@@ -80,6 +82,10 @@ typedef void (*GtMenuActivateFn)(GtMod *self, int direction);
 /* v4. An action: runs on the vblank tick (call_guest allowed, as in a tick) after its hotkey or its menu entry fired it, at most
  * once per vblank, never while its mod is switched off. */
 typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
+/* v8. Runs once per game vblank on the vblank tick thread, after every mod's tick (ctx may read game state; call_guest is allowed), never while
+ * its mod is switched off. The draw_* calls are valid only inside it: the host keeps what was drawn until the next pass, so a pass that draws
+ * nothing clears the mod's overlay. */
+typedef void (*GtOverlayFn)(GtMod *self, GtModCtx *ctx);
 
 
 /* v5. Named hook points: the host maps each to the guest function it researched (docs/MODS.md names the evidence). */
@@ -265,12 +271,27 @@ typedef struct GtModApi {
      * only the clamp and the Euler-angle wrap read the lifted flag, never the dormant flip machine. Takes effect at the next physics step; undone
      * when the mod is switched off in the menu. 0 = ok; non-zero for a null handle. */
     int (*tilt_free)(GtMod *self, GtModCtx *ctx, uint32_t car, int on);
-    /* ---- v8 (PR #667, the draw API): these slots are reserved so the v9 fields below keep their offsets when #667 merges. NULL until then; the host refuses `api = 8`. ---- */
-    int (*reserved_v8_on_overlay)(GtMod *self, void *fn);
-    void (*reserved_v8_draw_text)(GtMod *self, float x, float y, float size, uint32_t rgba, const char *text);
-    void (*reserved_v8_draw_rect)(GtMod *self, float x, float y, float w, float h, uint32_t rgba);
-    void (*reserved_v8_draw_line)(GtMod *self, float x0, float y0, float x1, float y1, float width, uint32_t rgba);
-    int (*reserved_v8_scene_grade)(GtMod *self, float r, float g, float b, float brightness, float saturation);
+    /* ---- v8 (appended). Only valid for a mod that declared `api = 8`. ---- */
+    /* Registers the overlay callback (during gt_mod_init only; one per mod). 0 = ok. */
+    int (*on_overlay)(GtMod *self, GtOverlayFn fn);
+    /* 2D drawing in a 480 x 272 logical space (origin top-left, scaled to the shown game picture, anti-aliased, sharp at any output size), drawn over
+     * the game and under the host's menus. Valid only inside the on_overlay callback (other calls are ignored and logged once); at most 4096 commands
+     * per pass, later ones are dropped. `rgba` is 0xRRGGBBAA, straight alpha. Draw order = call order. Non-finite coordinates drop the command.
+     * draw_text: (x, y) is the top-left of the text line, `size` its height in logical units (the host UI font, UTF-8, cut at 95 bytes);
+     * draw_line: round caps, `width` in logical units. */
+    void (*draw_text)(GtMod *self, float x, float y, float size, uint32_t rgba, const char *text);
+    void (*draw_rect)(GtMod *self, float x, float y, float w, float h, uint32_t rgba);
+    void (*draw_line)(GtMod *self, float x0, float y0, float x1, float y1, float width, uint32_t rgba);
+    /* A colour grade of the whole game picture (not of the draw_* layer or the host's menus): per channel, c' = clamp(mix(luma(c * (r, g, b)), c * (r, g, b),
+     * saturation) * brightness) with c in 0..1 and luma = Rec.709. (1, 1, 1, 1, 1) is neutral: no grade at all, frames byte-identical to a run without it.
+     * r, g, b, brightness and saturation must be finite and are clamped to 0..4. It stays until the mod sets another one or is switched off in the menu;
+     * several mods' grades multiply (a product within 1e-4 of neutral counts as neutral). To clear its grade a mod calls scene_grade(1, 1, 1, 1, 1); it is also dropped
+     * when the mod is switched off or unloaded. Call it during gt_mod_init or from a tick / overlay (a mod that only sets a grade must still be loaded active: the host
+     * publishes grades on the vblank tick, installed whenever any mod registered something or set a grade in init). Callable from hooks, ticks and the overlay.
+     * 0 = ok, non-zero for a non-finite value. Only tint * brightness (clamped to 1) is guaranteed on every backend: the GPU window applies all five numbers,
+     * the SDL software window has no saturation and cannot brighten past 1; frame dumps (GT_FRAME_DUMP) apply all of it. Do not rely on saturation or brightness > 1 being visible everywhere. The picture shown includes the game's own HUD:
+     * the grade cannot tell the HUD from the 3D scene yet (docs/FACTS.md "Scene grade"). */
+    int (*scene_grade)(GtMod *self, float r, float g, float b, float brightness, float saturation);
     /* ---- v9 (appended after v8). Only valid for a mod that declared `api = 9`. ---- */
     /* In a GT_HOOK_CAMERA function: the camera's pose in the PHYSICS frame (Z up, the frame of car_state): `eye` and `basis` = three rows (forward, right, up), the car's convention
      * (left-handed rows). 0 = ok; non-zero outside a camera hook or for a matrix that is not finite. */

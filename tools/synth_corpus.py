@@ -2,7 +2,7 @@
 
 One recipe per line, as host/synth_case.cpp's `format_recipe` writes it: `ADDRESS INDEX SEED [reg:R=V] [word:OFFSET=V] [block:I=SEED]`
 with V = imm:N | arena:OFFSET | live:K | class:K. A recipe holds no game bytes: values are small constants, arena-relative
-offsets or indices. Files: config/synth_corpus/<ADDRESS>.txt, first line `# layout N` (the arena layout the recipes assume; a
+offsets or indices. Files: config/synth_corpus/<ADDRESS>.txt, first line `# layout N`, optional second `# generator N` (the case generator, default 1; spec 2026-11-19) (the arena layout the recipes assume; a
 file of another layout is skipped by the reader here and by the host).
 
   .venv/bin/python -m tools.synth_corpus merge config/synth_corpus recomp/analysis/gt_diff_TAG_dealer.log
@@ -16,6 +16,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 LAYOUT_VERSION = 1  # arena 64 KiB, 1 KiB blocks (host/synth_case.cpp)
+GENERATOR_VERSION = 1  # the case generator the recipes' INDEX/SEED refer to: v1 (`# generator 1`, also when the line is missing); v2 recipes are written only once v2 cases are searched
 DEFAULT_CAP = 16  # recipes kept per function
 
 _NUMBER = r"(?:0[xX][0-9A-Fa-f]{1,8}|\d{1,10})"
@@ -77,7 +78,7 @@ def write_corpus(directory: Path, lines: Iterable[str]) -> None:
         by_address.setdefault(address_of(line), []).append(line)
     directory.mkdir(parents=True, exist_ok=True)
     for address, recipes in by_address.items():
-        (directory / f"{address:08X}.txt").write_text(f"# layout {LAYOUT_VERSION}\n" + "\n".join(recipes) + "\n")
+        (directory / f"{address:08X}.txt").write_text(f"# layout {LAYOUT_VERSION}\n# generator {GENERATOR_VERSION}\n" + "\n".join(recipes) + "\n")
 
 
 def read_corpus(directory: Path) -> list[str]:
@@ -88,6 +89,8 @@ def read_corpus(directory: Path) -> list[str]:
         rows = path.read_text().splitlines()
         if not rows or rows[0] != f"# layout {LAYOUT_VERSION}":
             continue
+        if len(rows) > 1 and rows[1].startswith("# generator ") and rows[1] != f"# generator {GENERATOR_VERSION}":
+            continue  # recipes of another case generator: their INDEX / SEED mean other inputs
         lines.extend(row for row in rows[1:] if valid_recipe(row))
     return lines
 

@@ -81,3 +81,14 @@ coverage of cases that compare, and these never do.
 ## Out of scope
 
 Game-state holders (stay on scene routes), record/replay of real arguments (option D), instrumenting the recompiled original, changing what "verified" means.
+
+## Implementation notes (Claude, 2026-11-19, review of the implementing PR)
+
+- The v2 cases run after the v1 cases, the corpus and the search, in the same child but after the v1 report was sent (`[v1-end]` marker): a kill during
+  the v2 cases loses only them (`host/synth_report.*`, tested). With `GT_SYNTH_V2=0` the pipe format and the log are today's.
+- `GT_SYNTH_V2` is decimal digits only, clamped to 64; shapes: sizes 1..1024, int ranges at most 65535 wide, decimal or `0x` numbers, one `reg:` word,
+  duplicate addresses and parse errors fail the run, an unreadable `GT_SYNTH_SHAPES` fails the run; a shape struct sits inside one non-table block.
+- Corpus files may carry `# generator N` after `# layout N` (missing = 1); files of another generator are skipped by the host and `tools.synth_corpus`.
+- Item 6 is a pytest with an allow-list (`tools/tests/test_registrations_are_functions.py`): the four Adhoc natives that sit inside larger functions of
+  `functions.tsv` are listed with their reasons.
+- "Needs a scene" (item 4) is printed by `tools.synth_v2` (tiny-address first faults), not by the host.

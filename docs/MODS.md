@@ -213,6 +213,36 @@ Pruebas: `ctest --test-dir build -R "game_state|tilt_free|mod_loader"`; evidenci
 
 El mod no toca nunca `+0x6FC` ni `0x08CF2F08`. `GT_HOOK_CAR_DRAW` permite reescribir el pose justo antes de dibujar (la velocidad se deja como la dejó el paso, para que el golpe contra la barrera siga visible en el siguiente).
 
+## API v8: dibujo 2D sobre el juego y gradación de color (spec `docs/superpowers/specs/2026-11-18-mod-draw-api-design.md`)
+
+Un mod que declara `api = 8` puede dibujar y colorear la imagen sin tocar la lista GE (el 7 es el SDK de física de vuelcos).
+Un mod `api = 8` recibe también las llamadas v7.
+
+| Llamada | Qué hace |
+| --- | --- |
+| `on_overlay(self, fn)` | (solo en `gt_mod_init`, una por mod) `fn(self, ctx)` corre una vez por vblank del juego en el hilo del tic, después de los tics de todos los mods; `ctx` lee estado y permite `call_guest`. Un mod apagado en el menú no dibuja |
+| `draw_text(x, y, tamaño, 0xRRGGBBAA, texto)` | texto UTF-8 (hasta 95 bytes) con la fuente de la UI del host; `(x, y)` = esquina superior izquierda de la línea, `tamaño` = alto de línea |
+| `draw_rect(x, y, w, h, rgba)`, `draw_line(x0, y0, x1, y1, ancho, rgba)` | rectángulo con bordes suavizados / segmento con extremos redondos |
+| `scene_grade(r, g, b, brillo, saturación)` | `c' = clamp(mezcla(luma(c·(r,g,b)), c·(r,g,b), saturación)·brillo)` sobre la imagen del juego (no sobre lo dibujado con `draw_*` ni sobre los menús del host); `(1,1,1,1,1)` = neutro = nada (fotogramas idénticos byte a byte). Valores finitos, acotados a 0..4; los grados de varios mods se multiplican; se quita al apagar el mod |
+
+- Espacio lógico 480×272 (origen arriba a la izquierda) escalado al rectángulo de imagen del juego; el dibujo se rasteriza en el host
+  a la resolución real de salida (nítido a cualquier tamaño) en el hilo de imagen del parche 0070, y se sube a la GPU solo cuando cambia.
+  Orden de dibujo = orden de llamadas, como máximo 4096 órdenes por pasada; coordenadas no finitas descartan la orden. Se dibuja **sobre
+  el juego y bajo F9/F10 y el panel del cheat device**. Llamar a `draw_*` fuera de `on_overlay` se ignora (se avisa una vez).
+- Lo que se dibuja se queda hasta la siguiente pasada: una pasada que no dibuja nada borra la capa del mod.
+- Ventana Vulkan: la gradación se aplica entera en el shader de presentación (incluye el renderizador por software, que presenta por la misma
+  vía); ventana SDL por software: solo `tinte·brillo` (máximo 1, sin saturación); los volcados (`GT_FRAME_DUMP`) llevan la gradación entera y la capa.
+  La imagen graduada incluye el HUD del propio juego (FACTS "Scene grade").
+- Parches lcs: `0071-mod-draw-layer`, `0072-scene-grade`. Código: `host/mod_services.cpp` (lista, gradación por mod), `host/play_backends.cpp` (enlace con la ventana y los volcados).
+
+### Comprobar el dibujo (`tools/mod_draw_check.sh`)
+
+Mod de prueba `tools/mod_draw_probe/probe.cpp` (no se distribuye). Ruta `chase`, volcados de fotogramas. Cuatro ejecuciones: línea base (sonda instalada y apagada),
+`idle` (encendida sin dibujar: idéntica byte a byte en los fotogramas del mismo cuadro de juego), `draw` (rectángulo rojo exacto, línea verde exacta, rectángulo azul
+semitransparente, texto blanco en su caja) y `grade` (`scene_grade(0.5, 0.5, 0.5, 1, 1)`: la mitad de brillo píxel a píxel, ±2). Sabotajes que **deben fallar**:
+`--sabotage-flush` (`-DGT_DRAW_SABOTAGE_NO_FLUSH=ON`: la lista no llega a la ventana) y `--sabotage-grade` (`-DGT_GRADE_SABOTAGE_IGNORE=ON`).
+Pruebas unitarias: `ctest --test-dir build -R "mod_services|mod_draw_raster"` (`mod_draw_raster_tests bench` mide el coste de 200 primitivas).
+
 ## `mod.toml`
 
 ```toml
@@ -395,7 +425,7 @@ Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `
 ## API v9: cámara (spec `docs/superpowers/specs/2026-11-18-extra-cameras-design.md`)
 
 Un mod que declara `api = 9` puede leer y sustituir la pose de la cámara del jugador sin direcciones del juego (`host/mod_camera.cpp`, `host/tests/mod_camera_test.cpp`).
-**Debe fusionarse después de #667 (API v8, dibujo 2D):** los campos v9 de `GtModApi` van tras los v8; mientras #667 no esté, el host rechaza `api = 8`.
+Los campos v9 de `GtModApi` van tras los v8 (API v8, dibujo 2D, #667 ya fusionado).
 
 - `hook_point(GT_HOOK_CAMERA, fn)`: `fn` corre delante de la carga de la matriz de vista (`0x08B568DC`, una vez por capa del bucle del renderizador `0x08AF1524`) **solo para la cámara
   del jugador** (la cámara activa del objeto de escena `S`, que nombra `0x08928A80`; la matriz que se carga debe ser su vista dentro de las tolerancias del mod orbit-camera, así que

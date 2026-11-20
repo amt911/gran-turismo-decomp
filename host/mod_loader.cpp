@@ -80,7 +80,7 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
             skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
-        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_9 || manifest->api == 8) {  // 8 is the draw API (PR #667): its table is not in this host yet
+        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_9) {
             skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + " to " +
                  std::to_string(GT_MOD_API_VERSION_9) + ")");
             continue;

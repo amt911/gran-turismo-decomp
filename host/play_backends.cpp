@@ -9,6 +9,8 @@
 #include "mod_store.hpp"
 #endif
 #include "display_window.hpp"
+#include "draw_composite.hpp"
+#include "frame_dump.hpp"
 #include "frontend.hpp"
 #include "ge_gpu_backend.hpp"
 #include "lcs_audio_output.hpp"
@@ -25,7 +27,11 @@
 #include "pad_menu.hpp"
 #include "pad_script.hpp"
 
+#include <cstddef>
 #include <cstdio>
+#include <cstring>
+#include <mutex>
+#include <vector>
 #include <filesystem>
 #include <optional>
 #include <cstdlib>
@@ -39,6 +45,61 @@ namespace lcs {
 void lcs_install_lang(psprecomp::Runtime &) {}
 
 } // namespace lcs
+
+namespace {
+
+// The mod draw layer (API v8): the command list of each pass goes to lcs' worker (lcs patch 0071) and, for the frame dumps, is kept to be
+// rasterized at the dump's size (the dump has no GPU present to composite it).
+using DC = gt::mods::services::DrawCommand;
+static_assert(sizeof(DC) == sizeof(lcs::HostDrawCmd) && offsetof(DC, kind) == offsetof(lcs::HostDrawCmd, kind) && offsetof(DC, a) == offsetof(lcs::HostDrawCmd, a) &&
+              offsetof(DC, b) == offsetof(lcs::HostDrawCmd, b) && offsetof(DC, c) == offsetof(lcs::HostDrawCmd, c) && offsetof(DC, d) == offsetof(lcs::HostDrawCmd, d) &&
+              offsetof(DC, e) == offsetof(lcs::HostDrawCmd, e) && offsetof(DC, rgba) == offsetof(lcs::HostDrawCmd, rgba) && offsetof(DC, text) == offsetof(lcs::HostDrawCmd, text) &&
+              sizeof(DC::text) == sizeof(lcs::HostDrawCmd::text), "DrawCommand mirrors lcs::HostDrawCmd field by field (lcs patch 0071); the copy below is per field anyway");
+std::mutex g_draw_mutex;
+std::vector<lcs::HostDrawCmd> g_draw_last;
+
+void draw_sink(const gt::mods::services::DrawCommand *commands, std::size_t count) {
+#ifdef GT_DRAW_SABOTAGE_NO_FLUSH  // verification only: the list never reaches the window or the dumps
+    (void)commands, (void)count;
+    return;
+#endif
+    std::vector<lcs::HostDrawCmd> list(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        lcs::HostDrawCmd &out = list[i];
+        out.kind = static_cast<lcs::HostDrawKind>(commands[i].kind);
+        out.a = commands[i].a, out.b = commands[i].b, out.c = commands[i].c, out.d = commands[i].d, out.e = commands[i].e;
+        std::memcpy(out.rgba, commands[i].rgba, sizeof out.rgba);
+        std::memcpy(out.text, commands[i].text, sizeof out.text);
+    }
+    lcs::host_draw_submit(list.data(), list.size());
+    std::lock_guard<std::mutex> lock(g_draw_mutex);
+    g_draw_last = std::move(list);
+}
+
+void grade_sink(const gt::mods::services::SceneGrade &grade) {
+#ifdef GT_GRADE_SABOTAGE_IGNORE  // verification only: the grade is dropped
+    (void)grade;
+    return;
+#endif
+    lcs::host_scene_grade_set(lcs::HostSceneGrade{grade.r, grade.g, grade.b, grade.brightness, grade.saturation});
+}
+
+// The frame dumps show what the window shows: the game picture graded, the mods' layer over it (ungraded).
+void frame_composer(std::vector<std::uint8_t> &rgb, std::uint32_t width, std::uint32_t height) {
+    lcs::host_scene_grade_apply_rgb(lcs::host_scene_grade(), rgb.data(), static_cast<std::size_t>(width) * height);  // neutral: untouched
+    std::vector<lcs::HostDrawCmd> list;
+    {
+        std::lock_guard<std::mutex> lock(g_draw_mutex);
+        list = g_draw_last;
+    }
+    if (list.empty() || width == 0u || height == 0u) return;
+    // The logical space is 480 x 272: a dump of another size scales it (as the window does with the game rectangle).
+    std::vector<std::uint8_t> layer(static_cast<std::size_t>(width) * height * 4u);
+    lcs::host_draw_rasterize(list.data(), list.size(), layer.data(), width, height);
+    gt::blend_rgba_over_rgb(rgb, layer.data(), width, height);
+}
+
+} // namespace
 
 // Settings come from gt_play.ini next to the executable (config/gt_play.ini, copied by CMake;
 // PSPRECOMP_CONFIG overrides; lcs-recomp's format).
@@ -320,6 +381,9 @@ void gt::frontend_load_mods(psprecomp::Runtime &runtime, const char *argv0, bool
     }
 #endif
     gt::mods::services::set_menu_open_query(&overlay_open);
+    gt::mods::services::set_draw_sink(&draw_sink);
+    gt::mods::services::set_grade_sink(&grade_sink);
+    gt::set_frame_composer(&frame_composer);
     gt::mods::services::set_action_held_query([](const std::string &id) {
         return device().pad_held(id) || (!any_overlay_open() && device_ns::key_held(device().key_binding(id)));
     });

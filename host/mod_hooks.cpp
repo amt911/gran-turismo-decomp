@@ -185,12 +185,13 @@ const GtModApi &mod_api(int version) {
                         services::api_model_runs, services::api_run_vertex, services::api_run_set_vertex, services::api_on_switch_off, services::api_blob_runs, services::api_draw_matrix,
                         services::api_run_normal, services::api_run_set_normal, services::api_action_held,
                         services::api_car_dimensions, services::api_car_wheel_contacts, services::api_car_set_pose, tilt::api_tilt_free,
-                        nullptr, nullptr, nullptr, nullptr, nullptr,  // v8 (PR #667): reserved slots
+                        services::api_on_overlay, services::api_draw_text, services::api_draw_rect, services::api_draw_line,
+                        services::api_scene_grade,
                         camera::api_camera_get, camera::api_camera_set, camera::api_replay_active, camera::api_view_cycle, camera::api_view_cycle_set};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
-                          v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5), v6 = table(GT_MOD_API_VERSION_6), v7 = table(GT_MOD_API_VERSION_7),
-                          v9 = table(GT_MOD_API_VERSION_9);
+                          v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5), v6 = table(GT_MOD_API_VERSION_6),
+                          v7 = table(GT_MOD_API_VERSION_7), v8 = table(GT_MOD_API_VERSION_8), v9 = table(GT_MOD_API_VERSION_9);
     switch (version) {
     case GT_MOD_API_VERSION: return v1;
     case GT_MOD_API_VERSION_2: return v2;
@@ -199,6 +200,7 @@ const GtModApi &mod_api(int version) {
     case GT_MOD_API_VERSION_5: return v5;
     case GT_MOD_API_VERSION_6: return v6;
     case GT_MOD_API_VERSION_7: return v7;
+    case GT_MOD_API_VERSION_8: return v8;
     default: return v9;
     }
 }
