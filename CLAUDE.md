@@ -120,6 +120,10 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Report progress as the `tools.progress` percentage** after each merge, not only as rewrite counts.
   - **Verdicts are serialised, one at a time.** Two at once made every route time out. The ops scripts live outside the
     repo, in `~/repos/gt-ops/`:
+    - **Where verdicts run:** while the helper laptop is lent, every verdict runs there (`lqueue2.sh`), and the desktop
+      only verifies the agents' and the delegate's batches. Desktop verdicts kept timing out: agents' synthetic runs
+      sit in systemd scopes with the same CPU weight as a verdict's routes, so niceness does not protect them.
+      Without the laptop, `dqueue.sh` on the desktop takes over.
     - `lqueue2.sh` is the same for the helper laptop: it reads `queue_laptop.txt` (`PR BRANCH`), runs the verdict
       there and lands the PR from the desktop.
     - `dqueue.sh` reads `queue.txt` (`PR BRANCH TREE` per line, editable while it runs). Put PRs that raise the
