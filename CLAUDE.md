@@ -122,10 +122,19 @@ import above. Add below only what applies to Claude Code alone. -->
     session updates them after merges.
   - **Shared locks.** Agents never wrap `tools.decomp_gate` in `tools/cpu_lock.sh`: that took the locks in the opposite
     order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead. Before each lock-taking or gate
-    job they run `until ! ~/repos/gt-ops/verdict_waiting.sh; do sleep 60; done`, so a waiting verdict goes first. Keep
-    at most one queued lock job per agent.
+    job they run `~/repos/gt-ops/wait_verdicts.sh`, so a waiting verdict goes first. It goes ahead anyway after 45 min.
+    Keep at most one queued lock job per agent.
   - **Waiting.** Use `~/repos/gt-ops/job.sh NAME CMD…` and `waitjob.sh NAME`, never `pgrep -f` loops. Kill only your own
     PIDs. The Bash tool is zsh, so put loops inside `bash -c`.
+  - **No wait may be unbounded** (user, 2026-11-20), whether it is Claude's, an agent's or the delegate's. Every wait
+    loop has a limit: `wait_verdicts.sh` 45 min, `cpu_lock.sh` 30 min, `tools/delegate.sh` 4 h. The main session runs
+    `~/repos/gt-ops/stalls.sh` every 30 min or so and acts on each line it prints:
+    - a wait loop or lock wait older than 45 min;
+    - two `decomp_gate` runs with the same tag (the delegate did this, and their logs collide);
+    - an opencode session whose worktree has not changed in 45 min.
+
+    Kill orphaned waits (a wait for a `.done` of a job that was killed). Restart or finish stuck work. Tell the user what
+    was stuck and why.
   - **Stalls.** When load is near 0 and a verdict does not move, read `/proc/<pid>/wchan`
     (`locks_lock_inode_wait`) and the holders of `/tmp/claude-1000/gt-heavy*.lock` and `cpu-heavy.lock`. When the load is
     high, find which session's processes cause it and ask that session to cap them.
