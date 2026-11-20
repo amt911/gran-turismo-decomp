@@ -422,6 +422,23 @@ tools/mod_rollover_check.sh --without-mod         # física original, el mod sol
 
 Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
 
+## Construir e instalar `weather`
+
+README de `gt-mods` (`weather/`, `api = 8`, `enabled = false` por defecto). Spec `docs/superpowers/specs/2026-11-18-weather-mod-design.md`. Usa `scene_grade` (hora del día: presets `noon` / `afternoon` / `sunset` / `dusk`, o `progressive` por los pasos de física
+del coche humano), `on_overlay` + `draw_line` (lluvia: rayas en el espacio 480 x 272, deterministas por vblank, desplazadas con la guiñada del coche) y, solo con `grip_loss` > 0 (apagado por defecto), `car_set_state`. Filas `Time of day` y `Rain`
+en la página Race del dispositivo de trucos.
+
+La comprobación aprovecha que el volcado de fotogramas aplica el grade (API 8): un fotograma con grade se **predice** del fotograma base de la misma presentación con la fórmula del host
+(`c' = clamp(mix(luma(c * tinte), c * tinte, saturación) * brillo)`) y se compara píxel a píxel; dos ejecuciones de la misma ruta son deterministas (los fotogramas del mismo present son idénticos byte a byte).
+
+```bash
+GT_MODS_REPO=../gt-mods-weather tools/mod_weather_check.sh [--decomp off|on] [--others]   # off / idle (noon, sin lluvia: fotogramas idénticos) / dusk (la predicción) / progressive (el brillo baja sin subir) / rain (rayas sobre el grade de lluvia)
+tools/mod_weather_check.sh --dusk --sabotage-nograde     # el grade se calcula y se registra pero no se aplica: debe FALLAR
+tools/mod_weather_check.sh --rain --sabotage-norain      # la lluvia no dibuja nada: debe FALLAR
+tools/mod_weather_check.sh --dusk --without-mod          # debe FALLAR
+```
+Límites: el grade también tiñe el HUD (FACTS «Scene grade»); no se investigaron las tablas de niebla / luz por pista del juego (fase 2 de la spec) ni se baja el plano lejano con lluvia; el recorte de agarre no está comprobado en el juego.
+
 ## Descargador de mods (en construcción)
 
 Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):
