@@ -11,7 +11,7 @@ Judged here:
   repair    (front hit, repair at REPAIR_K) the acceleration is lower during the damage, and after the repair it is back to the undamaged car's at the same speed;
   cap       (hard rear hit) the speed after the hit never exceeds the severe-damage cap while the undamaged run goes past it;
   pull      (hard side hit) the mean yaw rate after the hit is the signed bias: right hit pulls right (negative yaw rate), left hit left, 0.02..0.1 rad/s from the undamaged run;
-  replay    (circuit route) the same HIT live and in the replay, and the replayed car's speed at HIT_K + REPLAY_WINDOW within REPLAY_SPEED_TOL of the live one;
+  replay    (circuit route) the same HIT live and in the replay, and the replayed car's speed at REPLAY_KS within REPLAY_SPEED_TOL of the live one (the car must be moving);
   toggle    the mod switched off from the F9 menu logs nothing afterwards.
 """
 import math
@@ -47,8 +47,9 @@ CAP_TO = 900
 PULL_BIAS = (0.02, 0.10)   # rad/s: mean yaw rate after the hit minus the undamaged run's, at full alignment damage (bias 0.06)
 PULL_FROM = HIT_K + 20
 PULL_TO = HIT_K + 170
-REPLAY_WINDOW = 300
+REPLAY_KS = (HIT_K + 30, HIT_K + 70, HIT_K + 120)   # steps since the accelerator was pressed at which live and replay speeds are compared: before the circuit route's first real collision (~220 steps after the hit)
 REPLAY_SPEED_TOL = 1.0
+REPLAY_MIN_SPEED = 3.0   # the car must be moving for the comparison to say anything
 
 
 def read(path):
@@ -215,12 +216,14 @@ def judge_replay(text):
     if [round(h["dv"], 2) for h in live_hits[:1]] != [round(h["dv"], 2) for h in rep_hits[:1]] or round(live_hits[0]["engine"], 2) != round(rep_hits[0]["engine"], 2):
         return False, f"the hit differs: live {live_hits[0]}, replay {rep_hits[0]}"
     lk, rk = by_k(live), by_k(rep)
-    k = HIT_K + REPLAY_WINDOW
-    if k not in lk or k not in rk:
-        return False, f"step {k} after the car moves is missing (live {k in lk}, replay {k in rk})"
-    dv = abs(lk[k]["v"] - rk[k]["v"])
-    ok = dv <= REPLAY_SPEED_TOL
-    return ok, f"the same hit live and in the replay (engine {live_hits[0]['engine']:.2f}); speed {REPLAY_WINDOW} steps after it: live {lk[k]['v']:.2f}, replay {rk[k]['v']:.2f} m/s (|diff| {dv:.2f}, limit {REPLAY_SPEED_TOL})"
+    if any(k not in lk or k not in rk for k in REPLAY_KS):
+        return False, f"steps {REPLAY_KS} after the accelerator is missing (live {[k in lk for k in REPLAY_KS]}, replay {[k in rk for k in REPLAY_KS]})"
+    if lk[REPLAY_KS[-1]]["v"] < REPLAY_MIN_SPEED:
+        return False, f"the live car is at {lk[REPLAY_KS[-1]]['v']:.2f} m/s at step {REPLAY_KS[-1]}: too slow for the comparison to mean anything"
+    diffs = [abs(lk[k]["v"] - rk[k]["v"]) for k in REPLAY_KS]
+    ok = max(diffs) <= REPLAY_SPEED_TOL
+    return ok, (f"the same hit live and in the replay (engine {live_hits[0]['engine']:.2f}); speeds at steps {REPLAY_KS}: live {[round(lk[k]['v'], 2) for k in REPLAY_KS]}, "
+                f"replay {[round(rk[k]['v'], 2) for k in REPLAY_KS]} m/s (max |diff| {max(diffs):.2f}, limit {REPLAY_SPEED_TOL})")
 
 
 def judge_toggle(text):

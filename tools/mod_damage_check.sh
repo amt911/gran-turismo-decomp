@@ -25,7 +25,7 @@ want=""  # the modes asked for; empty = all of the route ones
 while [ $# -gt 0 ]; do
   case $1 in
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --others) others=1;;
-    --power|--repair|--cap|--pull|--replay|--toggle-off) want="$want ${1#--}";;
+    --idle|--power|--repair|--cap|--pull|--replay|--toggle-off) want="$want ${1#--}";;
     --without-mod) without=1;; --sabotage-scale0) scale=0;; --sabotage-liveonly) sab=1;;
     *) echo "mod_damage_check: unknown argument $1" >&2; exit 2;;
   esac
