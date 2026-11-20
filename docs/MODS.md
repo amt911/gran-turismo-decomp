@@ -266,6 +266,14 @@ Una clave repetida (en la raíz o en `[settings]`) es un error con su número de
 (0 = bien) y registra ganchos con `api->hook(self, direccion, fn)`. Dentro de un gancho: `gpr`/`set_gpr`, `read8/16/32/f`,
 `write8/16/32/f`, `call_original`, `config`, `log`. Un gancho decide si llama al original antes, después o nunca.
 
+## Regla de los ganchos: los argumentos se leen ANTES de `call_original` (medido 2026-11-20)
+
+Con `--decomp off` `call_original` vuelve **antes** de que corra el cuerpo recompilado (la unidad sigue por un salto interno); con `--decomp on` la función decompilada corre **entera dentro** de `call_original` y deja
+otros valores en `a0`-`a3`. Un mod que leía `world = gpr(ctx, 4)` *después* de `call_original` funcionaba con `--decomp off` y con `on` leía basura: **extra-cameras nunca tomó una instantánea del coche con `--decomp on`**
+(el contador `CAMDBG` del mod: `invalid=28799 de 28800`, `snap_vb=0`; el gancho de cámara del host sí funcionaba: `matched=64359`, el argumento de la carga coincidía con el scratch del bucle, 16 alineado o no).
+Dos defensas: el host restaura `a0`-`a3` al volver `call_original` (`host/tests/mod_hooks_test.cpp`: `call_original_restores_a0_to_a3`; sin la restauración el test falla), y los mods leen los argumentos antes
+(extra-cameras y ghost-any-mode lo hacían al revés; corregido). `tools/mod_cameras_check.sh --decomp on` es la comprobación.
+
 ## Límite: solo ven las llamadas que pasan por el despachador
 
 Un gancho sustituye la función en la tabla de direcciones del runtime. El código recompilado solo mira esa tabla cuando llama a una

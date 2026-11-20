@@ -27,7 +27,8 @@ std::vector<Hook> &hooks() {
     return v;
 }
 // Guest threads are scheduled cooperatively on one OS thread; plain statics (as the tilt module).
-std::uint32_t g_scene = 0, g_loop_scratch = 0;
+std::uint32_t g_scene = 0, g_loop_scratch = 0, g_loop_scratch_aligned = 0;
+std::uint32_t g_last_view = 0, g_last_sp = 0;  // GT_MOD_CAMERA_DEBUG: the latest view-load argument and layer-loop sp
 std::atomic<std::uint32_t> g_world{0};
 // The view the host is handing to the mods right now (valid only inside a camera hook).
 const GtModCtx *g_view_ctx = nullptr;
@@ -70,17 +71,22 @@ void on_scene_refresh(GtModCtx *c) {
 // NOT a "while inside" flag: call_original returns before the recompiled loop body has run its calls (FACTS "Camera"); only the latest entry's scratch address is kept.
 void on_scene_render(GtModCtx *c) {
     ++g_counters.renders;
+    // The recompiled loop (`--decomp off`) uses sp - 0x140 as it is; the decompiled one (`--decomp on`) takes its frame with GuestFrame, which rounds the new sp down to 16 (host/guest_call.hpp): a PSP stack
+    // pointer that is only 8-aligned puts its scratch matrix 8 bytes lower. Both are accepted.
+    g_last_sp = c->ctx->gpr[29];
     g_loop_scratch = c->ctx->gpr[29] - kLoopFrame + kLoopScratch;
+    g_loop_scratch_aligned = ((c->ctx->gpr[29] - kLoopFrame) & ~15u) + kLoopScratch;
     call_next(c);
 }
 
 void on_view_load(GtModCtx *c) {
     psprecomp::Runtime &rt = *c->rt;
     if (debug_on() && ++g_counters.loads % 600u == 0u)
-        std::fprintf(stderr, "[camera] loads=%u scratch_ok=%u camera_ok=%u matched=%u refresh_calls=%u render_calls=%u scene=%08x scratch=%08x\n", g_counters.loads, g_counters.scratch, g_counters.camera, g_counters.matched,
-                     g_counters.scenes, g_counters.renders, g_scene, g_loop_scratch);
+        std::fprintf(stderr, "[camera] loads=%u scratch_ok=%u camera_ok=%u matched=%u refresh_calls=%u render_calls=%u scene=%08x scratch=%08x aligned=%08x last_view=%08x last_sp=%08x\n", g_counters.loads, g_counters.scratch, g_counters.camera,
+                     g_counters.matched, g_counters.scenes, g_counters.renders, g_scene, g_loop_scratch, g_loop_scratch_aligned, g_last_view, g_last_sp);
     const std::uint32_t view_address = c->ctx->gpr[4];
-    if (g_loop_scratch == 0u || view_address != g_loop_scratch || g_scene == 0u || !rt.memory().contains(view_address, 64u) || !rt.memory().contains(g_scene + kSceneCamera, 4u)) {
+    g_last_view = view_address;
+    if (g_loop_scratch == 0u || (view_address != g_loop_scratch && view_address != g_loop_scratch_aligned) || g_scene == 0u || !rt.memory().contains(view_address, 64u) || !rt.memory().contains(g_scene + kSceneCamera, 4u)) {
         call_next(c);
         return;
     }
@@ -310,7 +316,7 @@ void forget(const GtMod *mod) {
 
 void clear_for_tests() {
     hooks().clear();
-    g_scene = g_loop_scratch = 0u;
+    g_scene = g_loop_scratch = g_loop_scratch_aligned = 0u;
     g_world.store(0u);
     g_view_ctx = nullptr;
     g_view_address = 0u;

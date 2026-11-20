@@ -110,7 +110,13 @@ int api_hook_point(GtMod *self, GtHookPoint point, GtHookFn fn) {
 void api_call_original(GtModCtx *c) {
     const auto it = chains().find(c->address);
     if (it == chains().end()) return;
+    // a0-a3 come back as they were when the hook called: the caller's convention lets a callee clobber them, and a decompiled function does (`--decomp on` runs the whole body inside this call, `--decomp off`
+    // returns from it before the recompiled body has run), so a mod that read `world = gpr(ctx, 4)` AFTER call_original saw another value in one build and the right one in the other (extra-cameras, 2026-11-20:
+    // no pose was ever set with `--decomp on`). The game's code after the call does not read them.
+    std::uint32_t args[4];
+    for (unsigned i = 0; i < 4; ++i) args[i] = c->ctx->gpr[4 + i];
     run_chain(*c->rt, *c->ctx, it->second, c->address, c->link + 1);
+    for (unsigned i = 0; i < 4; ++i) c->ctx->gpr[4 + i] = args[i];
 }
 
 std::uint32_t api_gpr(GtModCtx *c, unsigned reg) { return c->ctx->gpr[reg & 31u]; }
