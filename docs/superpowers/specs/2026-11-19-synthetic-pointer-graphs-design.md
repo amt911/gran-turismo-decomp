@@ -92,3 +92,25 @@ Game-state holders (stay on scene routes), record/replay of real arguments (opti
 - Item 6 is a pytest with an allow-list (`tools/tests/test_registrations_are_functions.py`): the four Adhoc natives that sit inside larger functions of
   `functions.tsv` are listed with their reasons.
 - "Needs a scene" (item 4) is printed by `tools.synth_v2` (tiny-address first faults), not by the host.
+
+## Addendum: global holders (user decision, 2026-11-20)
+
+Item 4 above ("v2 does not invent game state") is relaxed by the user, on Claude's proposal. Most functions that never
+compare first read a **global holder** that is null in every scene: a class-descriptor slot in `.bss`, the allocator's
+pool descriptor, an id registry or a list head. One 43-instruction template alone accounts for 37 of 108 such
+functions in the main session's batches 3 and 4 (an analysis by DeepSeek, `holders.tsv`).
+
+- **Shape syntax:** a shape line may also set globals for a function. A word `global:0xADDR=struct:SIZE` (repeatable)
+  makes the 4-byte guest word at ADDR point to a fresh arena slot of SIZE bytes. The `field:` words that follow it
+  apply to that slot, until the next `reg:` or `global:` word. The same pointer-closed v2 rules apply: fields are
+  pointers into the arena, small ints or zero.
+- **Scope:** only the v2 cases of that function. The harness saves the original word before the case and writes it
+  back after the case, for the original run and for the decompiled run alike. v1 cases, corpus recipes and every
+  other function are untouched; the v1 hash test still holds.
+- **Reported apart:** functions compared only thanks to a global shape are reported on their own line
+  ("v2 global cases: compared N, equal M"). The verified count says "verified with synthetic global state"; that is
+  weaker evidence than a scene, so it is counted separately from v1 and plain v2. A sabotage must still be pinned on
+  each function.
+- **Evidence next to the line:** each `global:` word carries a comment with the asm that reads it, as for every shape.
+- **Limits:** at most 4 globals per function, and ADDR must lie in `.data`/`.bss` of the ELF; anything else is a
+  parse error.
