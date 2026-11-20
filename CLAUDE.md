@@ -120,6 +120,8 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Report progress as the `tools.progress` percentage** after each merge, not only as rewrite counts.
   - **Verdicts are serialised, one at a time.** Two at once made every route time out. The ops scripts live outside the
     repo, in `~/repos/gt-ops/`:
+    - `lqueue2.sh` is the same for the helper laptop: it reads `queue_laptop.txt` (`PR BRANCH`), runs the verdict
+      there and lands the PR from the desktop.
     - `dqueue.sh` reads `queue.txt` (`PR BRANCH TREE` per line, editable while it runs). Put PRs that raise the
       percentage first.
     - `vland_locked.sh` runs `origin/main`'s `tools/verdict.sh` under `verdict.lock`, then `landpr.sh`.
@@ -131,6 +133,13 @@ import above. Add below only what applies to Claude Code alone. -->
       head except what main brought, then comment and merge.
   - **Batch PRs of new functions do not touch the README or the progress map.** Every batch conflicted on them; the main
     session updates them after merges.
+  - **When the user takes a resource back, Claude carries on alone** (user, 2026-11-20).
+    - **The delegate:** `tools/delegate.sh` exits 2. Claude drafts and verifies itself, in hand-written batches of
+      15–25, and tells the user. It goes back to delegating when the user says so.
+    - **The helper laptop:** `~/repos/gt-ops/lqueue2.sh` notices after 10 min without an answer. It moves the current
+      PR and the rest of `queue_laptop.txt` to the front of the desktop queue and exits. Every verdict then runs on the
+      desktop.
+    - **Never** wait for either one to come back.
   - **Shared locks.** Agents never wrap `tools.decomp_gate` in `tools/cpu_lock.sh`: that took the locks in the opposite
     order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead. Before each lock-taking or gate
     job they run `~/repos/gt-ops/wait_verdicts.sh`, so a waiting verdict goes first. It goes ahead anyway after 45 min.
