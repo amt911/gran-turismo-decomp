@@ -422,6 +422,23 @@ tools/mod_rollover_check.sh --without-mod         # física original, el mod sol
 
 Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
 
+## Construir e instalar `ghost-any-mode`
+
+README de `gt-mods` (`ghost-any-mode/`, `api = 9`: necesita la cabecera v9 de #681; `enabled = false` por defecto). Spec `docs/superpowers/specs/2026-11-18-ghost-any-mode-design.md`. Graba cada paso de física del coche humano; una vuelta
+acaba cuando el coche cruza su línea de salida (el punto donde empezó a moverse, cruzada hacia delante tras alejarse 60 m): **no se investigó el evento de vuelta del propio juego** (paso 0.1 de la spec), se usó la alternativa que la spec permitía,
+así que solo vale para circuitos. La mejor vuelta (menos pasos) se muestra en las siguientes como un fantasma a la misma hora de vuelta.
+
+**Desviación de la spec:** el fantasma es una **caja del tamaño del coche dibujada con líneas del overlay** (`draw_line`) y proyectada con la cámara del jugador (`camera_get` + `camera_projection`, API 9), no el modelo del coche: `draw_car_pose` no está en la API 8
+fusionada (la investigación de FACTS «Car draw replay: WORKS» fue una sonda desechable). Persistencia opcional (`persist = true`) en `<mods>/ghost-any-mode/<hash>.lap`.
+
+```bash
+GT_SDK_DIR=../gt-mods-host/include GT_MODS_REPO=../gt-mods-ghost tools/mod_ghost_check.sh [--decomp off|on] [--others]   # off / idle (fantasma oculto: fotogramas idénticos) / ghost (vueltas contadas, el fantasma repite lo grabado y se queda atrás, la caja está donde cambian los píxeles, mezcla translúcida)
+tools/mod_ghost_check.sh --ghost --sabotage-current      # el fantasma se dibuja en la pose actual: debe FALLAR
+tools/mod_ghost_check.sh --ghost --without-mod           # debe FALLAR
+```
+Las rutas no pueden dar una vuelta: el mod hace un límite de vuelta cada N pasos desde que el coche se mueve (`GT_MOD_GHOST_FAKE_LAP=m90`; el coche se arrastra a 1-3 m/s antes de la salida, así que el fantasma de la vuelta 2 queda ~2 m detrás, entre la cámara de persecución y el coche).
+La detección real de la línea tiene pruebas unitarias en el mod (`ghost_test`).
+
 ## Descargador de mods (en construcción)
 
 Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):
