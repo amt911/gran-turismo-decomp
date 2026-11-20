@@ -91,20 +91,6 @@ private:
 
 // 0x08B340D0: a counter at 0x08D69274: while it is positive, the block (0x08CB54FC, 0x02415822, &local, 4, 0, 0) is finished by
 // 0x08C7A820 and the counter's value is released by 0x08C7A9C0, then the counter is cleared.
-void func_08B340D0(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kCounter = 0x08D69274u;
-    SavedRegisters saved(ctx, 1u);  // s0
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[16] = high_half(kCounter);  // s0: the relocated lui half, used only for the counter
-    const s32 count = static_cast<s32>(word(rt, kCounter));
-    ctx.gpr[2] = static_cast<u32>(count);
-    if (count > 0) {
-        put(rt, frame.at(0u), static_cast<u32>(count));
-        call(rt, ctx, 0x08C7A820u, {0x08CB54FCu, 0x02415822u, frame.at(0u), 4u, 0u, 0u});
-        call(rt, ctx, 0x08C7A9C0u, {word(rt, kCounter)});
-        put(rt, kCounter, 0u);
-    }
-}
 
 // 0x08B3EA88 (a0 = object, a1 = a value): index = trunc(100 * a1 / word(a0 + 0x644)) clamped to [.., count - 1], 1 when not
 // positive; v0 / v1 = the pair at a0 + 0x320 + index * 8 (the arithmetic is the FPU's: divide, multiply, truncate toward zero).
@@ -169,22 +155,6 @@ void func_08B8DA64(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x08C15DB8 (a0 = this): constructor - vtable word 0x08CD04B0, field +0x14 cleared, two members set up (0x08B28BE0 at +0xD8 and
 // +0xAC), 0x08A1A9A0 at +0x18, the base (0x08A2A4B0), and a release of 0x1B0 bytes with alignment 4 as a tail call.
-void func_08C15DB8(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    {
-        SavedRegisters saved(ctx, 1u);  // s0
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[16] = self;
-        put(rt, self, 0x08CD04B0u);
-        ctx.gpr[2] = 0x08CD04B0u;
-        put(rt, self + 0x14u, 0u);  // the store in the first call's delay slot
-        call(rt, ctx, 0x08B28BE0u, {self + 0xD8u});
-        call(rt, ctx, 0x08B28BE0u, {self + 0xACu});
-        call(rt, ctx, 0x08A1A9A0u, {self + 0x18u});
-        call(rt, ctx, 0x08A2A4B0u, {self});
-    }
-    tail_call(ctx, 0x08A5BC54u, {self, 0x000001B0u, 4u});
-}
 
 // 0x08C47150 (a0 = container with an end pointer at +4, a1 = an element): when the container's end is not a1 + 4, the range
 // [a1 + 4, end) is moved down over a1 (0x08B79BAC), then the end shrinks by one element; v0 = a1.
@@ -205,34 +175,6 @@ void func_08C47150(Runtime &rt, AllegrexContext &ctx) {
 // 0x08C4AD04 (a0 = source, a1 = end, a2 = destination): copies records of 0x70 bytes from [a0, a1) to a2 and answers the end of
 // the destination. A null destination skips its first record (the asm tests the destination at the loop head only once) and
 // writes from 0x70 on; v0 = a2 + records * 0x70.
-void func_08C4AD04(Runtime &rt, AllegrexContext &ctx) {
-    u32 source = ctx.gpr[4];
-    const u32 end = ctx.gpr[5];
-    u32 destination = ctx.gpr[6];
-    if (source == end) {
-        ctx.gpr[2] = destination;
-        return;
-    }
-    for (;;) {
-        const u32 source_end = source + 0x70u;
-        if (destination != 0u) {
-            for (u32 offset = 0u; offset < 0x70u; offset += 0x10u) {
-                const u32 w0 = word(rt, source + offset);
-                const u32 w1 = word(rt, source + offset + 4u);
-                const u32 w2 = word(rt, source + offset + 8u);
-                const u32 w3 = word(rt, source + offset + 0xCu);
-                put(rt, destination + offset, w0);
-                put(rt, destination + offset + 4u, w1);
-                put(rt, destination + offset + 8u, w2);
-                put(rt, destination + offset + 0xCu, w3);
-            }
-        }
-        destination += 0x70u;
-        source = source_end;
-        if (end == source_end) break;
-    }
-    ctx.gpr[2] = destination;
-}
 
 // An adjustor call: 0x08C5477C(self + the vtable's -0xC word, 0xA) answers a value that 0x08B5FB4C(self, a1, a2, value) gets as
 // its fourth argument (a tail call).
@@ -251,8 +193,6 @@ void adjusted_tail(Runtime &rt, AllegrexContext &ctx, u32 tail_target) {
     }
     tail_call(ctx, tail_target, {self, second, third, adjusted});
 }
-void func_08C555D8(Runtime &rt, AllegrexContext &ctx) { adjusted_tail(rt, ctx, 0x08B5FB4Cu); }
-void func_08C572C8(Runtime &rt, AllegrexContext &ctx) { adjusted_tail(rt, ctx, 0x08C57080u); }
 
 // A table lookup by key: 0x08B5C2B0(key) answers an index; `self` holds the entries at +4 and the count at +8. The entry is
 // answered when the index is in range and set, otherwise 0x08B5A9FC throws (the original has no code after it).
@@ -297,31 +237,11 @@ void call_through_pair(Runtime &rt, AllegrexContext &ctx, u32 target) {
     ctx.gpr[2] = ctx.gpr[16];
     ctx.gpr[3] = word(rt, frame.at(4u));
 }
-void func_08C670F8(Runtime &rt, AllegrexContext &ctx) { call_through_pair(rt, ctx, 0x08C66DACu); }
-void func_08C67778(Runtime &rt, AllegrexContext &ctx) { call_through_pair(rt, ctx, 0x08C67404u); }
-void func_08C67EE0(Runtime &rt, AllegrexContext &ctx) { call_through_pair(rt, ctx, 0x08C67BD8u); }
 
 // --- 96-byte functions ----------------------------------------------------------------------------------------------
 
 // 0x0880BAD8 (a0 = object, a1 = a slot, a2 = a slot, f12 = a scale): 0x08B344E0 locks the object, 0x08869BB4(self + 0x30, the
 // words at a1 and a2) gets the scale as f12, and 0x08B3457C unlocks it (a tail call). f20 carries the scale over the calls.
-void func_0880BAD8(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 first = ctx.gpr[5];
-    const u32 second = ctx.gpr[6];
-    const float value = ctx.fpr[12];
-    SavedRegisters saved(ctx, 7u);  // s0, s1, s2
-    SavedFloat saved_f20(ctx, 20u);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.fpr[20] = value;
-    ctx.gpr[16] = self;
-    ctx.gpr[17] = first;
-    ctx.gpr[18] = second;
-    call(rt, ctx, 0x08B344E0u, {self});
-    ctx.fpr[12] = ctx.fpr[20];
-    call_keeping(rt, ctx, 0x08869BB4u, {self + 0x30u, word(rt, first), word(rt, second)}, {ctx.fpr[20]});
-    tail_call(ctx, 0x08B3457Cu, {self});
-}
 
 // Three functions (a0 unused, a1 = a slot, a2 = a slot): 0x088297A8 fills a local smart pointer; the object it holds is
 // 0x088294D0's argument, the local is released (0x08A5B9EC), and the object goes through a converter and then the function's own
@@ -338,9 +258,6 @@ void slot_conversion(Runtime &rt, AllegrexContext &ctx, u32 convert, u32 finish)
     call(rt, ctx, convert, {found});
     call(rt, ctx, finish, {ctx.gpr[2]});
 }
-void func_08829D98(Runtime &rt, AllegrexContext &ctx) { slot_conversion(rt, ctx, 0x0885EDF8u, 0x088E0C50u); }
-void func_08829DF8(Runtime &rt, AllegrexContext &ctx) { slot_conversion(rt, ctx, 0x0885EE70u, 0x08891574u); }
-void func_0882A278(Runtime &rt, AllegrexContext &ctx) { slot_conversion(rt, ctx, 0x0885E710u, 0x08917E90u); }
 
 // Three functions (a0 = destination slot, a1 = a count, a2 = a key): for a positive count the key goes through 0x0883B848 or
 // 0x0883B950 (which answers a pair in v0/v1), the pair through the row lookup, and the result is wrapped into a local that the
@@ -361,7 +278,6 @@ void keyed_lookup(Runtime &rt, AllegrexContext &ctx, u32 pair_of, u32 lookup) {
     }
 }
 void func_0883D8C8(Runtime &rt, AllegrexContext &ctx) { keyed_lookup(rt, ctx, 0x0883B848u, 0x08930E28u); }
-void func_0883D988(Runtime &rt, AllegrexContext &ctx) { keyed_lookup(rt, ctx, 0x0883B848u, 0x08930DD8u); }
 void func_0883F8E8(Runtime &rt, AllegrexContext &ctx) { keyed_lookup(rt, ctx, 0x0883B950u, 0x0893067Cu); }
 
 // 0x088824F8 (a0 = object with a handler at +0xC, a1 = a block of four floats or 0): bit 0x10 of the handler's word 0x16E0 is set
@@ -441,7 +357,6 @@ void float_field_copy(Runtime &rt, AllegrexContext &ctx, u32 selector, u32 field
     ctx.gpr[2] = holder;
     ctx.fpr[0] = float_at(rt, holder + field);
 }
-void func_088BBCF8(Runtime &rt, AllegrexContext &ctx) { float_field_copy(rt, ctx, 1u, 0x1Cu); }
 void func_088BBD58(Runtime &rt, AllegrexContext &ctx) { float_field_copy(rt, ctx, 0u, 0x18u); }
 
 // 0x088D2BC8 (a0 = holder, f12 = a scale): 0x088DB5C4(word(a0)) decides; when it answers, 0x088DB5C4(word(a0)) is called again
@@ -481,22 +396,6 @@ void func_088DE874(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x088E4754 (a0 = object holding a lock at +0, a1 = an offset): the lock at word(self) + 0x1C8 is taken (0x08B344E0), the signed
 // byte at a1 + word(self) + 0x460 is read and cleared, the lock is released (0x08B3457C); v0 = that byte, sign-extended.
-void func_088E4754(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 offset = ctx.gpr[5];
-    SavedRegisters saved(ctx, 7u);  // s0, s1, s2
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[17] = self;
-    ctx.gpr[16] = offset;
-    const u32 inner = word(rt, self);
-    call(rt, ctx, 0x08B344E0u, {inner + 0x1C8u});
-    const u32 slot = offset + inner;
-    const s32 value = sign_extend8(rt.memory().load8(slot + 0x460u));
-    ctx.gpr[18] = static_cast<u32>(value);  // s2, read back at the end
-    rt.memory().store8(slot + 0x460u, 0u);
-    call(rt, ctx, 0x08B3457Cu, {word(rt, self) + 0x1C8u});
-    ctx.gpr[2] = static_cast<u32>(value);
-}
 
 // 0x088F2D38 (a0 = an array header {unused, rows at +4, first index at +8 as a halfword}): walks the rows of 64 bytes: a row's
 // product of its floats at +0xC and +0x10 replaces the smallest so far (start 1e7) and the row's index is the answer; the next
@@ -547,42 +446,9 @@ void func_08905F54(Runtime &rt, AllegrexContext &ctx) {
 // 0x08978080 (a1 = a count, a2 = a slot): a count of zero or less answers 1. Otherwise the object at word(a2) - assert
 // 0x08CA2F84 when it is null - answers its virtual +0x54 as a number of minutes: v0 = trunc(f0 * 60), which 0x089C4558 gets
 // as its argument (a tail call).
-void func_08978080(Runtime &rt, AllegrexContext &ctx) {
-    const s32 count = static_cast<s32>(ctx.gpr[5]);
-    const u32 slot = ctx.gpr[6];
-    u32 minutes = 1u;
-    {
-        SavedRegisters saved(ctx, 1u);  // s0
-        GuestFrame frame(ctx, 0x10u);
-        if (count > 0) {
-            ctx.gpr[16] = word(rt, slot);
-            const u32 object = ctx.gpr[16];
-            if (object == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08CA2F84u});
-            const u32 function = word(rt, word(rt, object) + 0x54u);
-            call_indirect(rt, ctx, function, {object});
-            minutes = static_cast<u32>(trunc_w_s(psp_mul(ctx.fpr[0], 60.0f)));
-            ctx.fpr[0] = std::bit_cast<float>(minutes);  // `trunc.w.s` leaves the integer's bits in f0 (`mfc1`)
-        }
-    }
-    tail_call(ctx, 0x089C4558u, {minutes});
-}
 
 // 0x08A4CD1C (a0 = object): 0x08B2EEB8(0x08CF68F0) sets a resource up, 0x08B62344(0x2C) answers a block that 0x08A50A7C
 // initializes and the object keeps at +0x78, then 0x08A50400 runs it and 0x08B6461C(0x1000) answers a second block kept at +0x98.
-void func_08A4CD1C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[16] = self;
-    call(rt, ctx, 0x08B2EEB8u, {0x08CF68F0u});
-    const u32 block = call(rt, ctx, 0x08B62344u, {0x0000002Cu});
-    ctx.gpr[17] = block;
-    call(rt, ctx, 0x08A50A7Cu, {block});
-    put(rt, self + 0x78u, block);
-    call(rt, ctx, 0x08A50400u, {block});
-    ctx.gpr[2] = call(rt, ctx, 0x08B6461Cu, {0x00001000u});
-    put(rt, self + 0x98u, ctx.gpr[2]);
-}
 
 // 0x08AA6178 (a0 = object, a1 = a slot): 0x08AA5E90(self, word(word(slot) - 0xC)) runs first; then the word at
 // word(slot) - 0xC is the third argument of the tail call 0x08AA5D2C(self, word(slot), it). A zero third argument answers 0.
@@ -607,133 +473,22 @@ void func_08AA6178(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x08AC7428 (a0 = object, a1 = an argument): the lock is taken (0x08B344E0(self)), 0x08C7AB58(word(self + 0x2C), a1) decides:
 // a negative answer marks the object (byte +0x28 = 1) and answers 0, anything else answers 1; the lock is released.
-void func_08AC7428(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[17] = self;
-    ctx.gpr[16] = argument;
-    call(rt, ctx, 0x08B344E0u, {self});
-    const s32 answer = static_cast<s32>(call(rt, ctx, 0x08C7AB58u, {word(rt, self + 0x2Cu), argument}));
-    u32 result = 1u;
-    if (answer < 0) {
-        rt.memory().store8(self + 0x28u, 1u);
-        ctx.gpr[2] = 1u;
-        result = 0u;
-    }
-    call(rt, ctx, 0x08B3457Cu, {self});
-    ctx.gpr[2] = result;
-}
 
 // 0x08B098A8 (a0 = object): while the word at 0x08D4744C is nonzero, 0x08B2EFDC(-1, -1) runs and, if the word is still nonzero,
 // 0x08B09824(self) runs; the word is the loop's only condition.
-void func_08B098A8(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kFlag = 0x08D4744Cu;
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[16] = high_half(kFlag);
-    ctx.gpr[17] = self;
-    u32 flag = word(rt, kFlag);
-    ctx.gpr[2] = flag;
-    while (flag != 0u) {
-        call(rt, ctx, 0x08B2EFDCu, {0xFFFFFFFFu, 0xFFFFFFFFu});
-        flag = word(rt, kFlag);
-        ctx.gpr[2] = flag;
-        if (flag == 0u) break;
-        call(rt, ctx, 0x08B09824u, {self});
-        flag = word(rt, kFlag);
-        ctx.gpr[2] = flag;
-    }
-}
 
 // 0x08B2DD88: a handle at 0x08CE0C78 that is not negative is closed (0x08C7AF68) and set to -1, then a positive counter at
 // 0x08D68D64 is released (0x08C7A9C0) and cleared.
-void func_08B2DD88(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kHandle = 0x08CE0C78u;
-    constexpr u32 kCount = 0x08D68D64u;
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[16] = high_half(kHandle);
-    ctx.gpr[17] = high_half(kCount);
-    const s32 handle = static_cast<s32>(word(rt, kHandle));
-    ctx.gpr[2] = static_cast<u32>(handle);
-    if (handle >= 0) {
-        call(rt, ctx, 0x08C7AF68u, {static_cast<u32>(handle)});
-        put(rt, kHandle, 0xFFFFFFFFu);
-        ctx.gpr[3] = 0xFFFFFFFFu;
-    }
-    const s32 count = static_cast<s32>(word(rt, kCount));
-    ctx.gpr[2] = static_cast<u32>(count);
-    if (count > 0) {
-        call(rt, ctx, 0x08C7A9C0u, {static_cast<u32>(count)});
-        put(rt, kCount, 0u);
-    }
-}
 
 // 0x08B343D0: 0x08B3433C(&local) fills a 16-byte block; for a negative answer v0 / v1 = -1, otherwise v0 / v1 is a 64-bit
 // product of the block's words (word +8 * word +0xC, then that low word times word +4 with word +0xC * the high word added).
-void func_08B343D0(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x20u);
-    const s32 answer = static_cast<s32>(call(rt, ctx, 0x08B3433Cu, {frame.at(0u)}));
-    u32 low = 0xFFFFFFFFu;
-    u32 high = 0xFFFFFFFFu;
-    if (answer >= 0) {
-        const u32 first = word(rt, frame.at(8u));
-        const u32 second = word(rt, frame.at(0xCu));
-        const u32 third = word(rt, frame.at(4u));
-        const std::uint64_t product = static_cast<std::uint64_t>(first) * second;
-        const u32 partial_low = static_cast<u32>(product);
-        const u32 partial_high = static_cast<u32>(product >> 32);
-        const std::uint64_t scaled = static_cast<std::uint64_t>(partial_low) * third;
-        // LO = the second product's high word, HI still holds it, then HI:LO += third * partial_high.
-        const std::uint64_t accumulator = (static_cast<std::uint64_t>(partial_high) << 32) |
-                                          static_cast<std::uint64_t>(static_cast<u32>(scaled >> 32));
-        low = static_cast<u32>(scaled);
-        high = static_cast<u32>(accumulator + static_cast<std::uint64_t>(third) * partial_high);
-    }
-    ctx.gpr[2] = low;   // `addu v0, a0, zero`
-    ctx.gpr[3] = high;  // `addu v1, a1, zero`
-    ctx.gpr[4] = low;
-    ctx.gpr[5] = high;
-}
 
 // 0x08B58E84 (a0 = object or 0): 0x08C7AAD8(a0) and 0x08C7AC48(0) set the graphics state up; the object is the argument's, or the
 // one at 0x08D6CE00 + 0x2D4 when it is null. 0x08C7AC40(word(object + 8), 0, word(0x08D6CE00 + 0x30), 0) answers a handle that
 // 0x08D6CE00 + 0x34 keeps.
-void func_08B58E84(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kGuState = 0x08D6CE00u;
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x10u);
-    const u32 argument = ctx.gpr[4];
-    ctx.gpr[16] = high_half(kGuState);  // s0: the lui half until the addiu at the first call's delay slot
-    u32 object = argument;
-    if (object == 0u) object = word(rt, kGuState + 0x2D4u);
-    ctx.gpr[17] = object;
-    call(rt, ctx, 0x08C7AAD8u, {});
-    ctx.gpr[16] = kGuState;  // `addiu s0, s0, -0x3200` in the call's delay slot
-    call(rt, ctx, 0x08C7AC48u, {0u});
-    ctx.gpr[2] = call(rt, ctx, 0x08C7AC40u, {word(rt, object + 8u), 0u, word(rt, kGuState + 0x30u), 0u});
-    put(rt, kGuState + 0x34u, ctx.gpr[2]);
-}
 
 // 0x08BDDC68 (a0 = first record, a1 = end): each 16-byte record of [a0, a1) is handed to 0x08BDD7D8(word +4, word +8, &local)
 // and the record's word +4, when it is still set, released by 0x08B35254.
-void func_08BDDC68(Runtime &rt, AllegrexContext &ctx) {
-    u32 current = ctx.gpr[4];
-    const u32 end = ctx.gpr[5];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[17] = end;
-    while (current != end) {
-        ctx.gpr[16] = current;
-        call(rt, ctx, 0x08BDD7D8u, {word(rt, current + 4u), word(rt, current + 8u), frame.at(0u)});
-        const u32 held = word(rt, current + 4u);
-        current += 0x10u;
-        if (held != 0u) call(rt, ctx, 0x08B35254u, {held});
-    }
-}
 
 // Five functions (a0 = the list's sentinel): every node before the sentinel has its object at +8 released (0x08A5B9EC) and the
 // node itself freed by 0x08A5BC54(node, 0xC, 4), until the walk returns to the sentinel.
@@ -755,84 +510,15 @@ void destroy_list_nodes(Runtime &rt, AllegrexContext &ctx) {
         next = word(rt, node);
     }
 }
-void func_08BF8B64(Runtime &rt, AllegrexContext &ctx) { destroy_list_nodes(rt, ctx); }
-void func_08C1F510(Runtime &rt, AllegrexContext &ctx) { destroy_list_nodes(rt, ctx); }
-void func_08C2AF5C(Runtime &rt, AllegrexContext &ctx) { destroy_list_nodes(rt, ctx); }
-void func_08C2F9F0(Runtime &rt, AllegrexContext &ctx) { destroy_list_nodes(rt, ctx); }
-void func_08C35220(Runtime &rt, AllegrexContext &ctx) { destroy_list_nodes(rt, ctx); }
 
 // 0x08C0E814 (a0 = first element, a1 = end, a2 = an element to skip): every 12-byte element of [a0, a1) except a2 goes to
 // 0x08C0E654(element, a2); v0 = the end of the walk.
-void func_08C0E814(Runtime &rt, AllegrexContext &ctx) {
-    u32 current = ctx.gpr[4];
-    const u32 end = ctx.gpr[5];
-    const u32 skip = ctx.gpr[6];
-    SavedRegisters saved(ctx, 7u);  // s0, s1, s2
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[18] = end;
-    ctx.gpr[17] = skip;
-    ctx.gpr[16] = current;
-    if (current != end) {
-        for (;;) {
-            if (current != skip) call(rt, ctx, 0x08C0E654u, {current, skip});
-            const u32 next = current + 0xCu;
-            if (next == end) break;
-            current = next;
-            ctx.gpr[16] = current;
-        }
-    }
-    ctx.gpr[2] = current;
-}
 
 // 0x08C30DAC (a0 = first source word, a1 = end, a2 = destination or 0): each source word goes to 0x08B88F44(destination, word)
 // and the destination advances by four regardless; v0 = a2 + 4 * words.
-void func_08C30DAC(Runtime &rt, AllegrexContext &ctx) {
-    u32 source = ctx.gpr[4];
-    const u32 end = ctx.gpr[5];
-    u32 destination = ctx.gpr[6];
-    SavedRegisters saved(ctx, 7u);  // s0, s1, s2
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[18] = end;
-    ctx.gpr[17] = source;
-    ctx.gpr[16] = destination;
-    if (source != end) {
-        for (;;) {
-            const u32 at = source;
-            const u32 out = destination;
-            source += 4u;
-            ctx.gpr[17] = source;
-            if (destination != 0u) call(rt, ctx, 0x08B88F44u, {out, at});
-            destination += 4u;
-            ctx.gpr[16] = destination;
-            if (end == source) break;
-        }
-    }
-    ctx.gpr[2] = destination;
-}
 
 // 0x08C3EB78 (a0 = first slot, a1 = end, a2 = an argument): each 8-byte slot's object at +0 answers its first virtual, called
 // with (object, a2); v0 = a2.
-void func_08C3EB78(Runtime &rt, AllegrexContext &ctx) {
-    u32 current = ctx.gpr[4];
-    const u32 end = ctx.gpr[5];
-    const u32 argument = ctx.gpr[6];
-    SavedRegisters saved(ctx, 7u);  // s0, s1, s2
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[18] = end;
-    ctx.gpr[17] = argument;
-    ctx.gpr[16] = current;
-    if (current != end) {
-        for (;;) {
-            const u32 object = word(rt, current);
-            const u32 function = word(rt, word(rt, object));
-            call_indirect(rt, ctx, function, {object, argument});
-            current += 8u;
-            if (end == current) break;
-            ctx.gpr[16] = current;
-        }
-    }
-    ctx.gpr[2] = argument;
-}
 
 // 0x08C4B568 (a0 = first record, a1 = end, a2 = destination or 0): copies records of 0x18 bytes from [a0, a1) to a2 (a null
 // destination skips the copy of its first record) and answers the end of the destination.
@@ -884,8 +570,6 @@ void container_step(Runtime &rt, AllegrexContext &ctx, u32 target) {
     ctx.gpr[2] = leftover;  // `lw v0, 0x4(sp)` before the release branch
     if (leftover != 0u) call(rt, ctx, 0x08B35254u, {leftover});
 }
-void func_08C4B740(Runtime &rt, AllegrexContext &ctx) { container_step(rt, ctx, 0x08C498B4u); }
-void func_08C4B7A0(Runtime &rt, AllegrexContext &ctx) { container_step(rt, ctx, 0x08C498C4u); }
 void func_08C4B800(Runtime &rt, AllegrexContext &ctx) { container_step(rt, ctx, 0x08C498D4u); }
 void func_08C4B860(Runtime &rt, AllegrexContext &ctx) { container_step(rt, ctx, 0x08C499B0u); }
 
@@ -916,71 +600,15 @@ void func_08C769D8(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x08805B1C (a0 = object, a1 = an argument): 0x08B2E434(self, a1), then 0x08B36264(word(self), a1), then 0x08805C70(),
 // 0x08B19FA4() and 0x08B19F10(its answer, &local, 0) with two cleared words in front of it.
-void func_08805B1C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[16] = self;
-    ctx.gpr[17] = argument;
-    call(rt, ctx, 0x08B2E434u, {self, argument});
-    call(rt, ctx, 0x08B36264u, {word(rt, self), argument});
-    call(rt, ctx, 0x08805C70u, {});
-    const u32 state = call(rt, ctx, 0x08B19FA4u, {});
-    put(rt, frame.at(0u), 0u);
-    put(rt, frame.at(4u), 0u);
-    call(rt, ctx, 0x08B19F10u, {state, frame.at(0u), 0u});
-}
 
 // 0x08805C0C: the teardown sequence 0x08B1F12C, 0x08AD0878, 0x08B0EC2C, 0x08AD0830, 0x08B340D0, 0x08B336F0, 0x08B2DD88,
 // 0x08B33294, 0x08AD0828, 0x08AD08D0, then 0x08AD096C as a tail call - all of them without arguments.
-void func_08805C0C(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kSteps[] = {0x08B1F12Cu, 0x08AD0878u, 0x08B0EC2Cu, 0x08AD0830u, 0x08B340D0u,
-                              0x08B336F0u, 0x08B2DD88u, 0x08B33294u, 0x08AD0828u, 0x08AD08D0u};
-    {
-        GuestFrame frame(ctx, 0x10u);
-        for (const u32 step : kSteps) call(rt, ctx, step, {});
-    }
-    tail_call(ctx, 0x08AD096Cu, {});
-}
 
 // 0x0881B950 (a0, a1 = two objects, a2, a3 = two output words): 0x0881B820(first, second, 1) is stored at a2 and
 // 0x0881B820(second, first, 1) at a3.
-void func_0881B950(Runtime &rt, AllegrexContext &ctx) {
-    const u32 first = ctx.gpr[4];
-    const u32 second = ctx.gpr[5];
-    const u32 out_first = ctx.gpr[6];
-    const u32 out_second = ctx.gpr[7];
-    SavedRegisters saved(ctx, 15u);  // s0, s1, s2, s3
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[18] = out_first;
-    ctx.gpr[19] = out_second;
-    ctx.gpr[17] = first;
-    ctx.gpr[16] = second;
-    put(rt, out_first, call(rt, ctx, 0x0881B820u, {first, second, 1u}));
-    put(rt, out_second, call(rt, ctx, 0x0881B820u, {second, first, 1u}));
-}
 
 // 0x0884D550 (a0 passed on, a1 = a slot): 0x0884D3D8(a0, a1) answers an object; the slot's object - assert 0x08C9D158 when
 // null - answers its virtual +0xDC with (object, 0), and the pair (the first answer, that one) goes to 0x088972BC as a tail call.
-void func_0884D550(Runtime &rt, AllegrexContext &ctx) {
-    const u32 slot = ctx.gpr[5];
-    u32 container;
-    u32 value;
-    {
-        SavedRegisters saved(ctx, 3u);  // s0, s1
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[16] = slot;
-        container = call(rt, ctx, 0x0884D3D8u, {ctx.gpr[4], slot});
-        const u32 object = word(rt, slot);
-        ctx.gpr[16] = object;
-        if (object == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08C9D158u});
-        const u32 function = word(rt, word(rt, object) + 0xDCu);
-        value = call_indirect(rt, ctx, function, {object, 0u});
-        ctx.gpr[17] = container;
-    }
-    tail_call(ctx, 0x088972BCu, {container, value});
-}
 
 // 0x0885ECF4 (a0 = object, a1 = an argument, a2 = an index; negative when not given): a negative index is looked up first by
 // 0x088F8A14(word(word(self) + 0x5B4)) and a still negative one answers 0. 0x088F8D0C(that, a1, index) then answers the entry;
@@ -1044,8 +672,6 @@ void destroy_held_object(Runtime &rt, AllegrexContext &ctx) {
     put(rt, self, 0x08CBF428u);
     ctx.gpr[2] = 0x08CBF428u;
 }
-void func_08885EB0(Runtime &rt, AllegrexContext &ctx) { destroy_held_object(rt, ctx); }
-void func_08885F14(Runtime &rt, AllegrexContext &ctx) { destroy_held_object(rt, ctx); }
 
 // 0x0889722C (a0 = holder, a1 and a2 = two values): a1 lands at word(a0) + 0xAB and a2 at +0xA8, each 10 below 10, its low
 // byte below 201 and 200 from 201 on (the `movn` pair); the six bytes between the two are cleared.
@@ -1176,43 +802,9 @@ void func_0891C840(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x089405AC (a0, a1, a2 passed on): 0x0894052C(a0, a1, a2), 0x08940328(a0, a1, a2), 0x08940290(a0, a1), then
 // 0x08940218(a0, a1, 1) as a tail call.
-void func_089405AC(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    const u32 third = ctx.gpr[6];
-    {
-        SavedRegisters saved(ctx, 7u);  // s0, s1, s2
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[18] = argument;
-        ctx.gpr[17] = self;
-        ctx.gpr[16] = third;
-        call(rt, ctx, 0x0894052Cu, {self, argument, third});
-        call(rt, ctx, 0x08940328u, {self, argument, third});
-        call(rt, ctx, 0x08940290u, {self, argument});
-    }
-    tail_call(ctx, 0x08940218u, {self, argument, 1u});
-}
 
 // 0x08961310 (a0 = a list's sentinel): every node before the sentinel hands its object at +8 to that object's virtual +0x10
 // (called with the object), then 0x08BBC0A0(sentinel) runs and the sentinel is made an empty list.
-void func_08961310(Runtime &rt, AllegrexContext &ctx) {
-    const u32 sentinel = ctx.gpr[4];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[17] = sentinel;
-    u32 node = word(rt, sentinel);
-    ctx.gpr[16] = node;
-    while (node != sentinel) {
-        const u32 object = word(rt, node + 8u);
-        const u32 function = word(rt, word(rt, object) + 0x10u);
-        call_indirect(rt, ctx, function, {object});
-        node = word(rt, node);
-        ctx.gpr[16] = node;
-    }
-    call(rt, ctx, 0x08BBC0A0u, {sentinel});
-    put(rt, sentinel + 4u, sentinel);
-    put(rt, sentinel, sentinel);
-}
 
 // 0x08974E9C (a0 = object): vtable word 0x08CCCF88, second vtable word 0x08CCD174 at +0x38, 0x08BE5BC0(word +0xA8, word +0xAC,
 // &local), the word at +0xA8 released by 0x08B35254 when it is set, then 0x089D8D30(self).
@@ -1247,8 +839,6 @@ void assign_from_local(Runtime &rt, AllegrexContext &ctx, u32 fill, u32 assert_t
         call(rt, ctx, 0x08A5BAD8u, {destination, word(rt, object + offset)});
     call(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
 }
-void func_0898E41C(Runtime &rt, AllegrexContext &ctx) { assign_from_local(rt, ctx, 0x0898E170u, 0x08CA3CB8u, 0x12Cu); }
-void func_08A35978(Runtime &rt, AllegrexContext &ctx) { assign_from_local(rt, ctx, 0x08A354ECu, 0x08CACF04u, 0x14u); }
 
 // 0x0899315C (a0 = this): destructor - vtable word 0x08CCC098, second vtable word 0x08CCC2F0 at +0x38, the members at +0x130
 // and +0x12C released by 0x08A5B930 when set, then 0x08A0DD40(self) as a tail call.
@@ -1272,85 +862,16 @@ void func_0899315C(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x08A23F00 (a0 = this): vtable word 0x08CD06F8, the base setup 0x08A23A2C(self), the helper held at +0x18 (with the word at
 // +0x14) released through its first virtual and both words cleared, then 0x08A780B0(self) as a tail call.
-void func_08A23F00(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    {
-        SavedRegisters saved(ctx, 3u);  // s0, s1
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[17] = self + 0x14u;
-        ctx.gpr[16] = self;
-        put(rt, self, 0x08CD06F8u);
-        ctx.gpr[2] = 0x08CD06F8u;
-        call(rt, ctx, 0x08A23A2Cu, {self});
-        const u32 holder = self + 0x14u;
-        const u32 held = word(rt, holder + 4u);
-        ctx.gpr[3] = held;
-        if (held != 0u) {
-            const u32 function = word(rt, word(rt, held));
-            call_indirect(rt, ctx, function, {held, word(rt, holder)});
-            put(rt, holder + 4u, 0u);
-            put(rt, holder, 0u);
-        }
-    }
-    tail_call(ctx, 0x08A780B0u, {self});
-}
 
 // 0x08A4D37C: the singleton at 0x08CF68E8, when it is set: 0x08A4DD4C(it), the word is cleared and the instance (read again)
 // goes to 0x08A4D308 and then to 0x08B64654 as a tail call (the release chain).
-void func_08A4D37C(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kSingleton = 0x08CF68E8u;
-    u32 instance;
-    {
-        SavedRegisters saved(ctx, 3u);  // s0, s1
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[17] = high_half(kSingleton);
-        instance = word(rt, kSingleton);
-        ctx.gpr[2] = instance;
-        if (instance == 0u) return;
-        call(rt, ctx, 0x08A4DD4Cu, {instance});
-        instance = word(rt, kSingleton);
-        ctx.gpr[16] = instance;
-        put(rt, kSingleton, 0u);
-        call(rt, ctx, 0x08A4D308u, {instance});
-    }
-    tail_call(ctx, 0x08B64654u, {instance});
-}
 
 // 0x08A6538C (a0 = this, a2 passed on): the class word 7 is stored at +4 and the table word 0x08CD29A8 at +0, then the members at
 // +8 (0x08A6972C) and +0xC (0x08A75D04 with a2) are set up and 0x08A5D438(self + 0x18) is the tail call.
-void func_08A6538C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[6];
-    {
-        SavedRegisters saved(ctx, 3u);  // s0, s1
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[17] = argument;
-        ctx.gpr[16] = self;
-        rt.memory().store8(self + 4u, 7u);
-        put(rt, self, 0x08CD29A8u);
-        ctx.gpr[2] = 0x08CD29A8u;
-        put(rt, self + 4u, static_cast<u32>(static_cast<u8>(word(rt, self + 4u))));  // `ins v1, zero, 8, 24` keeps the low byte
-        call(rt, ctx, 0x08A6972Cu, {self + 8u});
-        call(rt, ctx, 0x08A75D04u, {self + 0xCu, argument});
-    }
-    tail_call(ctx, 0x08A5D438u, {self + 0x18u});
-}
 
 // 0x08A78D20 (a0 = a destination slot, a1 = a slot holding the object): the object at word(a1) - assert 0x08CB0E38 when null -
 // goes to 0x08A77444(&local, object); the destination receives the local's word unless it is the local itself, and the local is
 // released.
-void func_08A78D20(Runtime &rt, AllegrexContext &ctx) {
-    const u32 destination = ctx.gpr[4];
-    SavedRegisters saved(ctx, 3u);  // s0, s1
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[17] = destination;
-    const u32 object = word(rt, ctx.gpr[5]);
-    ctx.gpr[16] = object;
-    if (object == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08CB0E38u});
-    call(rt, ctx, 0x08A77444u, {frame.at(0u), object});
-    if (destination != frame.at(0u)) call(rt, ctx, 0x08A5BAD8u, {destination, word(rt, frame.at(0u))});
-    call(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
-}
 
 // 0x08AA5D2C (a0 = holder, a1 and a2 passed on): the object at word(holder) - assert 0x08CB2EB8 when null - answers its virtual
 // +0x10C, which is the tail call with (object, a1, a2); v0 = the virtual's address, as the `jr $t9` leaves it.
@@ -1399,83 +920,36 @@ void func_08AC4398(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW13(address, name, kind) GT_DECOMP(address, gt::game::new_batch_13::name, gt::ReturnKind::kind)
-NEW13(0x08B340D0u, func_08B340D0, Word);
 NEW13(0x08B3EA88u, func_08B3EA88, DoubleWord);
 NEW13(0x08B4257Cu, func_08B4257C, Word);
 NEW13(0x08B8DA64u, func_08B8DA64, Word);
-NEW13(0x08C15DB8u, func_08C15DB8, Word);
 NEW13(0x08C47150u, func_08C47150, Word);
-NEW13(0x08C4AD04u, func_08C4AD04, Word);
-NEW13(0x08C555D8u, func_08C555D8, Word);
-NEW13(0x08C572C8u, func_08C572C8, Word);
 NEW13(0x08C5AC7Cu, func_08C5AC7C, Word);
 NEW13(0x08C5AD90u, func_08C5AD90, Word);
 NEW13(0x08C5ADECu, func_08C5ADEC, Word);
-NEW13(0x08C670F8u, func_08C670F8, DoubleWord);
-NEW13(0x08C67778u, func_08C67778, DoubleWord);
-NEW13(0x08C67EE0u, func_08C67EE0, DoubleWord);
-NEW13(0x0880BAD8u, func_0880BAD8, Word);
-NEW13(0x08829D98u, func_08829D98, Word);
-NEW13(0x08829DF8u, func_08829DF8, Word);
-NEW13(0x0882A278u, func_0882A278, Word);
 NEW13(0x0883D8C8u, func_0883D8C8, Word);
-NEW13(0x0883D988u, func_0883D988, Word);
 NEW13(0x0883F8E8u, func_0883F8E8, Word);
 NEW13(0x088824F8u, func_088824F8, Word);
 NEW13(0x088909BCu, func_088909BC, Word);
 NEW13(0x08893DD0u, func_08893DD0, Word);
-NEW13(0x088BBCF8u, func_088BBCF8, Float);
 NEW13(0x088BBD58u, func_088BBD58, Float);
 NEW13(0x088D2BC8u, func_088D2BC8, Float);
 NEW13(0x088DE874u, func_088DE874, Word);
-NEW13(0x088E4754u, func_088E4754, Word);
 NEW13(0x088F2D38u, func_088F2D38, Word);
 NEW13(0x08905F54u, func_08905F54, Word);
-NEW13(0x08978080u, func_08978080, Word);
-NEW13(0x08A4CD1Cu, func_08A4CD1C, Word);
 NEW13(0x08AA6178u, func_08AA6178, Word);
-NEW13(0x08AC7428u, func_08AC7428, Word);
-NEW13(0x08B098A8u, func_08B098A8, Word);
-NEW13(0x08B2DD88u, func_08B2DD88, Word);
-NEW13(0x08B343D0u, func_08B343D0, DoubleWord);
-NEW13(0x08B58E84u, func_08B58E84, Word);
-NEW13(0x08BDDC68u, func_08BDDC68, Word);
-NEW13(0x08BF8B64u, func_08BF8B64, Word);
-NEW13(0x08C0E814u, func_08C0E814, Word);
-NEW13(0x08C1F510u, func_08C1F510, Word);
-NEW13(0x08C2AF5Cu, func_08C2AF5C, Word);
-NEW13(0x08C2F9F0u, func_08C2F9F0, Word);
-NEW13(0x08C30DACu, func_08C30DAC, Word);
-NEW13(0x08C35220u, func_08C35220, Word);
-NEW13(0x08C3EB78u, func_08C3EB78, Word);
 NEW13(0x08C4B568u, func_08C4B568, Word);
-NEW13(0x08C4B740u, func_08C4B740, Word);
-NEW13(0x08C4B7A0u, func_08C4B7A0, Word);
 NEW13(0x08C4B800u, func_08C4B800, Word);
 NEW13(0x08C4B860u, func_08C4B860, Word);
 NEW13(0x08C769D8u, func_08C769D8, Word);
-NEW13(0x08805B1Cu, func_08805B1C, Word);
-NEW13(0x08805C0Cu, func_08805C0C, Word);
-NEW13(0x0881B950u, func_0881B950, Word);
-NEW13(0x0884D550u, func_0884D550, Word);
 NEW13(0x0885ECF4u, func_0885ECF4, Word);
 NEW13(0x08860AD8u, func_08860AD8, Word);
-NEW13(0x08885EB0u, func_08885EB0, Word);
-NEW13(0x08885F14u, func_08885F14, Word);
 NEW13(0x0889722Cu, func_0889722C, Word);
 NEW13(0x088B0754u, func_088B0754, Word);
 NEW13(0x088F9C80u, func_088F9C80, Word);
 NEW13(0x088FD9F0u, func_088FD9F0, Word);
 NEW13(0x0891C840u, func_0891C840, Word);
-NEW13(0x089405ACu, func_089405AC, Word);
-NEW13(0x08961310u, func_08961310, Word);
 NEW13(0x08974E9Cu, func_08974E9C, Word);
-NEW13(0x0898E41Cu, func_0898E41C, Word);
 NEW13(0x0899315Cu, func_0899315C, Word);
-NEW13(0x08A23F00u, func_08A23F00, Word);
-NEW13(0x08A35978u, func_08A35978, Word);
-NEW13(0x08A4D37Cu, func_08A4D37C, Word);
-NEW13(0x08A6538Cu, func_08A6538C, Word);
-NEW13(0x08A78D20u, func_08A78D20, Word);
 NEW13(0x08AA5D2Cu, func_08AA5D2C, Word);
 NEW13(0x08AC4398u, func_08AC4398, Word);
