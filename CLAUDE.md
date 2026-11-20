@@ -95,3 +95,33 @@ import above. Add below only what applies to Claude Code alone. -->
   - **If the delegate stops working**, ask the user, and meanwhile do the work with Claude. That covers money running out
     (it is billed per API call), auth, rate limits, network or outage. `tools/delegate.sh` exits 2 with the reason in all
     these cases. When the user says it is back, delegate again.
+- **How the work is organised (the setup to reuse in future sessions).**
+  - **Team: the main session plus three agents.** One agent works on mods, one on structured rewrites and one on
+    decompiling new functions (user, 2026-11-19: "tiene que haber 3"). Each agent has its own worktree, and claim
+    files in `~/repos/gt-ops/claims/` keep two agents off the same functions. The main session orchestrates: verdicts,
+    merges, the README and reports to the user. It may also decompile, and delegate to DeepSeek in its own worktree
+    (user, 2026-11-20).
+  - **Delegation:** every decomp agent, and the main session, hands drafting to DeepSeek with `tools/delegate.sh`, as above.
+  - **Report progress as the `tools.progress` percentage** after each merge, not only as rewrite counts.
+  - **Verdicts are serialised, one at a time.** Two at once made every route time out. The ops scripts live outside the
+    repo, in `~/repos/gt-ops/`:
+    - `dqueue.sh` reads `queue.txt` (`PR BRANCH TREE` per line, editable while it runs). Put PRs that raise the
+      percentage first.
+    - `vland_locked.sh` runs `origin/main`'s `tools/verdict.sh` under `verdict.lock`, then `landpr.sh`.
+    - `landpr.sh` checks pytest and ctest, the gate, the boot check, route timeouts and the known synthetic mismatches
+      (FINDINGS #645, issue #682). It then posts the verdict comment, runs `gh pr merge --merge` and deletes the remote
+      branch.
+    - When `landpr.sh` stops on "real conflict", merge `origin/main` into the branch by hand. Regenerate the README
+      counts with `tools.progress` and the map with `tools.progress_map`, check that no source differs from the verdict
+      head except what main brought, then comment and merge.
+  - **Batch PRs of new functions do not touch the README or the progress map.** Every batch conflicted on them; the main
+    session updates them after merges.
+  - **Shared locks.** Agents never wrap `tools.decomp_gate` in `tools/cpu_lock.sh`: that took the locks in the opposite
+    order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead. Before each lock-taking or gate
+    job they run `until ! ~/repos/gt-ops/verdict_waiting.sh; do sleep 60; done`, so a waiting verdict goes first. Keep
+    at most one queued lock job per agent.
+  - **Waiting.** Use `~/repos/gt-ops/job.sh NAME CMD…` and `waitjob.sh NAME`, never `pgrep -f` loops. Kill only your own
+    PIDs. The Bash tool is zsh, so put loops inside `bash -c`.
+  - **Stalls.** When load is near 0 and a verdict does not move, read `/proc/<pid>/wchan`
+    (`locks_lock_inode_wait`) and the holders of `/tmp/claude-1000/gt-heavy*.lock` and `cpu-heavy.lock`. When the load is
+    high, find which session's processes cause it and ask that session to cap them.
