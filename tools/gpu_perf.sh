@@ -27,7 +27,7 @@ InternalResolutionMode=Scale
 InternalScale=$scale
 EOF
 pad=$(grep -v '^#' config/pad_routes/race.pad)
-flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G \
+flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=11G -p MemoryMax=12G \
   -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$out/gt_play.ini" GT_SAVEDATA_DIR="$out/savedata" \
   GT_PERF_LOG=1 ${GPU_PERF_ENV:-} GT_PAD="$pad" timeout $((seconds + 120)) "$build/gt_play" --max-seconds "$seconds" > "$out/run.log" 2>&1
 rc=$?
