@@ -77,3 +77,84 @@ import above. Add below only what applies to Claude Code alone. -->
   parallel with the desktop: repo in `~/repos/gran-turismo-decomp`, verdict worktree `~/repos/gt-verify` (with the user's
   `game_files/`, hash-checked). Jobs there run detached (`setsid nohup`; the wifi drops) and the `gt-heavy.slice` limits are
   set with `--runtime` (gone after a reboot: set them again). Installing the repo, its tools and builds there is allowed.
+
+## User decisions, 2026-11-20 (asked to be kept in this file)
+
+- **Decompilation is delegated to another provider's LLM**, which is faster: DeepSeek V4.1 Flash through OpenRouter,
+  called with `tools/delegate.sh [-C DIR] [-t TITLE] "<task>"` (opencode, model `openrouter/deepseek/deepseek-v4.1-flash-1017`;
+  override with `GT_DELEGATE_MODEL`). This applies to new functions and to structured rewrites, at any time.
+  - **The delegate works as Claude would: full access**, like Claude. It runs in the caller's worktree (`-C`), may read
+    and edit the repo and run the tools, gates and builds (`opencode run --auto`), and reads `AGENTS.md` like any agent.
+    The hard limits are prepended to every task: never merge, never push main, never force-push, the memory cgroup,
+    the gate locks, kill only its own processes, no game data in git.
+  - **Its result is still checked like Claude's own work:** the caller reads the diff against the asm and makes sure every
+    gate passed (fast or synthetic compare, `sabotage` pinned on each function, `frame_audit`, `literal_check`, `sp_loads`,
+    `arg_reads`) before committing or opening a PR. A function is decompiled only when its gate says so.
+  - **Fast models only write code; Claude verifies (user, 2026-11-20), for the most throughput.** This applies to every
+    model the user names as fast; so far that is DeepSeek V4.1 Flash. Its tasks are draft-only: write the functions,
+    build, run the static audits (`frame_audit`, `literal_check`, `sp_loads`, `arg_reads`), commit locally, and take the
+    next batch at once.
+    - It runs **no gates of any kind**: no `tools.decomp_gate` fast, full, synth, coverage or corpus search, no
+      sabotage, no in-game checks and no verdicts. It never waits on a lock.
+    - Claude (the agents and the main session) reviews the diff against the asm and runs the corpus search, the
+      synthetic or fast compare and `sabotage`. Claude drops what fails and opens the PR. Verdicts run on the desktop
+      and on the helper laptop.
+    - `tools/delegate.sh` prepends this limit to every task. Slow models (Claude itself) keep doing both drafting and
+      verification.
+  - **Batch size depends on the drafter's speed.** The user says which providers are fast and which are slow. Fast
+    drafters get **60–80 functions per PR**: the verdict costs about the same hour whatever the batch size, and it is
+    the bottleneck. DeepSeek V4.1 Flash is fast (user, 2026-11-20). Slow drafters keep the old 15–25: Claude writing by
+    hand is slow. Either way a batch stays within the decomp workflow's ~80.
+  - **Tell the user whenever an opencode session is open.** Every session is logged with its start and end in
+    `~/repos/gt-ops/out/opencode-sessions.log`; the orchestrating session watches that file and says so in the chat.
+  - **If the delegate stops working**, ask the user, and meanwhile do the work with Claude. That covers money running out
+    (it is billed per API call), auth, rate limits, network or outage. `tools/delegate.sh` exits 2 with the reason in all
+    these cases. When the user says it is back, delegate again.
+- **How the work is organised (the setup to reuse in future sessions).**
+  - **Team: the main session plus three agents.** One agent works on mods, one on structured rewrites and one on
+    decompiling new functions (user, 2026-11-19: "tiene que haber 3"). Each agent has its own worktree, and claim
+    files in `~/repos/gt-ops/claims/` keep two agents off the same functions. The main session orchestrates: verdicts,
+    merges, the README and reports to the user. It may also decompile, and delegate to DeepSeek in its own worktree
+    (user, 2026-11-20).
+  - **Delegation:** every decomp agent, and the main session, hands drafting to DeepSeek with `tools/delegate.sh`, as above.
+  - **Report progress as the `tools.progress` percentage** after each merge, not only as rewrite counts.
+  - **Verdicts are serialised, one at a time.** Two at once made every route time out. The ops scripts live outside the
+    repo, in `~/repos/gt-ops/`:
+    - `lqueue2.sh` is the same for the helper laptop: it reads `queue_laptop.txt` (`PR BRANCH`), runs the verdict
+      there and lands the PR from the desktop.
+    - `dqueue.sh` reads `queue.txt` (`PR BRANCH TREE` per line, editable while it runs). Put PRs that raise the
+      percentage first.
+    - `vland_locked.sh` runs `origin/main`'s `tools/verdict.sh` under `verdict.lock`, then `landpr.sh`.
+    - `landpr.sh` checks pytest and ctest, the gate, the boot check, route timeouts and the known synthetic mismatches
+      (FINDINGS #645, issue #682). It then posts the verdict comment, runs `gh pr merge --merge` and deletes the remote
+      branch.
+    - When `landpr.sh` stops on "real conflict", merge `origin/main` into the branch by hand. Regenerate the README
+      counts with `tools.progress` and the map with `tools.progress_map`, check that no source differs from the verdict
+      head except what main brought, then comment and merge.
+  - **Batch PRs of new functions do not touch the README or the progress map.** Every batch conflicted on them; the main
+    session updates them after merges.
+  - **When the user takes a resource back, Claude carries on alone** (user, 2026-11-20).
+    - **The delegate:** `tools/delegate.sh` exits 2. Claude drafts and verifies itself, in hand-written batches of
+      15–25, and tells the user. It goes back to delegating when the user says so.
+    - **The helper laptop:** `~/repos/gt-ops/lqueue2.sh` notices after 10 min without an answer. It moves the current
+      PR and the rest of `queue_laptop.txt` to the front of the desktop queue and exits. Every verdict then runs on the
+      desktop.
+    - **Never** wait for either one to come back.
+  - **Shared locks.** Agents never wrap `tools.decomp_gate` in `tools/cpu_lock.sh`: that took the locks in the opposite
+    order to the verdict and deadlocked it. They set `GT_GATE_CPU_LOCK="<desc>"` instead. Before each lock-taking or gate
+    job they run `~/repos/gt-ops/wait_verdicts.sh`, so a waiting verdict goes first. It goes ahead anyway after 45 min.
+    Keep at most one queued lock job per agent.
+  - **Waiting.** Use `~/repos/gt-ops/job.sh NAME CMD…` and `waitjob.sh NAME`, never `pgrep -f` loops. Kill only your own
+    PIDs. The Bash tool is zsh, so put loops inside `bash -c`.
+  - **No wait may be unbounded** (user, 2026-11-20), whether it is Claude's, an agent's or the delegate's. Every wait
+    loop has a limit: `wait_verdicts.sh` 45 min, `cpu_lock.sh` 30 min, `tools/delegate.sh` 4 h. The main session runs
+    `~/repos/gt-ops/stalls.sh` every 30 min or so and acts on each line it prints:
+    - a wait loop or lock wait older than 45 min;
+    - two `decomp_gate` runs with the same tag (the delegate did this, and their logs collide);
+    - an opencode session whose worktree has not changed in 45 min.
+
+    Kill orphaned waits (a wait for a `.done` of a job that was killed). Restart or finish stuck work. Tell the user what
+    was stuck and why.
+  - **Stalls.** When load is near 0 and a verdict does not move, read `/proc/<pid>/wchan`
+    (`locks_lock_inode_wait`) and the holders of `/tmp/claude-1000/gt-heavy*.lock` and `cpu-heavy.lock`. When the load is
+    high, find which session's processes cause it and ask that session to cap them.
