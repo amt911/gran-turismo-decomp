@@ -100,7 +100,7 @@ A rule is edited in its document, not here and there at once — except for its 
   decompiling. A function is *done* only when its differential test passes against the recompiled
   original and the game still boots to the reference state; recompiler output is never "decompiled".
   Functions land in **batches of ~80** (hand-written singletons with synthetic cases: **15–25 per PR**): fast gate (`GT_DECOMP_ONLY` + uncapped) while iterating,
-  sabotage (s0 flipped at entry), full gate before the PR, routes in parallel (§ Working in batches).
+  sabotage (s0 flipped at entry), the full gate in the PR verdict only (user, 2026-11-20), routes in parallel (§ Working in batches).
 - **Toolchain** → [docs/agents/toolchain.md](docs/agents/toolchain.md), before installing or calling a
   tool. Every tool pinned (version or commit) and fetched by `tools/setup.sh`, never vendored; compilers
   never committed.
@@ -140,21 +140,21 @@ thousands of lines), the full differential suite, splat, `decomp-permuter`, the 
 workers, anything that spawns workers — runs under a kernel-enforced memory ceiling:
 
 ```bash
-systemctl --user set-property --runtime gt-heavy.slice MemoryHigh=5G MemoryMax=6G MemorySwapMax=0
+systemctl --user set-property --runtime gt-heavy.slice MemoryHigh=11G MemoryMax=12G MemorySwapMax=0
 systemd-run --user --scope --quiet --slice=gt-heavy.slice -- <command>
 ```
 
-**One slice caps all heavy jobs together**, so up to **two** may run at once (two slots,
-`tools.decomp_gate.HeavySlot`; `tools.decomp_gate` does all of this itself). Measured 2026-10-13:
+**One slice caps all heavy jobs together**, so up to **four** may run at once (four slots since 2026-11-20;
+`GT_HEAVY_SLOTS` overrides; `tools.decomp_gate.HeavySlot`; `tools.decomp_gate` does all of this itself). Measured 2026-10-13:
 an incremental clang build at `-j4` peaks at 0.86 GB, a fresh **gcc** build at `-j8` at 3.76 GB
 (~470 MB/job — **configure builds with clang**, `-DCMAKE_CXX_COMPILER=clang++`, as `docs/COMPILAR.md`
-does), `tools.recomp` at **3.8 GB** (so it takes both slots: `HeavySlot(exclusive=True)`), a gate route
+does), `tools.recomp` at **3.8 GB** (so it takes every slot: `HeavySlot(exclusive=True)`), a gate route
 ~0.5 GB (506 MB, 2026-10-21; the full gate keeps at most 7 alive, `MAX_PARALLEL_ROUTES`: memory-bound; each uses ~0.65 cores since 2026-11-05). Two gates need two worktrees (the build dir is exclusive). The slice holds (a 7 GB
 allocation stalled at 5.4 GB) — but **at `MemoryHigh` it throttles, and a throttled gate's real-time
 routes time out**: a gcc build + recomp + a gate together made every route of a full gate exit 124. A
 route that times out or prints no report is a gate failure (`route_problem`), never a pass.
 
-**6 GB is the standing ceiling on this machine** (raised from 4 GB by the user on 2026-08-11); don't
+**12 GB is the standing ceiling on this machine** (user, 2026-11-20; was 6 GB); don't
 exceed it without being told to. `MemoryHigh` throttles and reclaims, `MemoryMax` is the hard stop,
 `MemorySwapMax=0` keeps the job from thrashing swap instead of respecting either. Verify it is
 actually in force rather than assuming:
@@ -321,7 +321,7 @@ tools/setup.sh [--with-ghidra]          # pinned tools → tools/, .venv/; idemp
 # .venv/bin/python -m tools.disasm 08B54FB8 [ADDR:N]   asm of a function: relocations applied, branches as `-> ADDRESS` (read targets here, never count them by hand)
 # .venv/bin/python -m tools.frame_audit [FILE.cpp ...]   body GuestFrame sizes vs the original prologue (the gate can't see them)
 # Ghidra 12.1.3 + ghidra-allegrex, headless (~154 s, inside the memory cgroup):
-systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- \
+systemd-run --user --scope -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- \
   env JAVA_HOME=/usr/lib/jvm/java-27-openjdk MAXMEM=4G \
   tools/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless ghidra gt -import extracted/EBOOT.elf \
   -overwrite -max-cpu 4 -scriptPath tools/ghidra_scripts -postScript Phase1Probe.java
@@ -398,7 +398,7 @@ Detail and the incidents behind each one: [lessons](docs/agents/lessons.md).
 
 - **Heavy or parallel jobs run inside a memory cgroup** — never launch a build, Ghidra analysis or a
   permuter fan-out on a bare estimate; wrap it in
-  `systemd-run --user --scope -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- <command>`
+  `systemd-run --user --scope -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- <command>`
   and cap the tool's own concurrency too.
 - **Use superpowers skills whenever they apply** — invoke via `Skill` before acting; process skills
   before implementation skills.

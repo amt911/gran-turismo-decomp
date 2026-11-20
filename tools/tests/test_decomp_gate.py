@@ -719,3 +719,18 @@ def test_search_environment_sets_the_variables():
     env = gate.search_environment(200, 8)
     assert env == {"GT_SYNTH_SEARCH": "200", "GT_SYNTH_SEARCH_SECONDS": "8"}
     assert gate.search_environment(0, 8) == {}
+
+
+def test_heavy_slots_default_to_four_lock_files():
+    # User, 2026-11-20: the slice ceiling went from 6 GB to 12 GB, so four heavy jobs fit where two did.
+    assert len(gate.SLOTS) == 4
+    assert gate.SLOTS[0] == Path("/tmp/claude-1000/gt-heavy.lock")
+    assert gate.SLOTS[1] == Path("/tmp/claude-1000/gt-heavy-2.lock")  # the first two names are unchanged: old worktrees share them
+    assert len(set(gate.SLOTS)) == 4
+
+
+def test_heavy_slot_count_follows_the_environment(monkeypatch):
+    monkeypatch.setenv("GT_HEAVY_SLOTS", "3")
+    assert len(gate.heavy_slots()) == 3
+    monkeypatch.setenv("GT_HEAVY_SLOTS", "0")
+    assert len(gate.heavy_slots()) == 1  # never fewer than one
