@@ -5,6 +5,8 @@
 # The delegate works like Claude does: full access, in DIR (default: the current directory, normally the caller's own
 # worktree), with permissions auto-approved (`opencode run --auto`). It reads AGENTS.md there like any agent; the hard
 # limits below are prepended to every prompt as well. Its result is still a draft until the caller's gates pass.
+# --standalone: a private server per session, so ending this script ends the session. Without it the session ran on
+# in the shared opencode background service after its client was killed, and kept running gates and committing.
 # Every session is logged (start and end) to $GT_DELEGATE_LOG so the orchestrating session can tell the user when one is open.
 # Exit status: the answer on stdout with 0; 2 when the delegate is unavailable (no credit, auth, rate limit, network,
 # empty answer): the caller stops delegating, asks the user, and does the work itself.
@@ -29,7 +31,7 @@ Task:
 '
 err=$(mktemp); trap 'rm -f "$err"' EXIT
 echo "$(date '+%F %T') START pid=$$ dir=$dir title=$title model=$model" >> "$log"
-out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-14400}" opencode run --auto -m "$model" --title "$title" "$limits$1" 2>"$err")
+out=$(cd "$dir" && timeout "${GT_DELEGATE_TIMEOUT:-14400}" opencode run --standalone --auto -m "$model" --title "$title" "$limits$1" 2>"$err")
 rc=$?
 echo "$(date '+%F %T') END   pid=$$ rc=$rc title=$title" >> "$log"
 [ $rc -eq 124 ] && { echo "delegate session timed out; its work so far is in $dir" >&2; exit 3; }

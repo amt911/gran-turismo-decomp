@@ -150,6 +150,9 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Verdicts get CPU priority:** `~/repos/gt-ops/prio.sh` runs all the time and every 30 s renices to 19 every heavy
     process of this project that is not in a `gt-verify*` worktree. That covers builds, gates and delegate sessions.
     Without it, verdict routes timed out under the load of five delegate sessions and three agents.
+  - **Stopping a delegate session:** `tools/delegate.sh` runs each session on its own server (`--standalone`), so
+    killing the script ends the session. Sessions started on the shared `opencode serve` service kept running after
+    their client was killed. List them with `opencode session list` and stop them with `opencode session delete <id>`.
   - **Never edit a running script in place.** Bash reads a script while it runs, so an in-place edit broke
     `tools/delegate.sh` at the end of live sessions. Write a new file and `mv` it over the old one.
   - **Waiting.** Use `~/repos/gt-ops/job.sh NAME CMD…` and `waitjob.sh NAME`, never `pgrep -f` loops. Kill only your own
