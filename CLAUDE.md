@@ -101,6 +101,12 @@ import above. Add below only what applies to Claude Code alone. -->
       and on the helper laptop.
     - `tools/delegate.sh` prepends this limit to every task. Slow models (Claude itself) keep doing both drafting and
       verification.
+  - **Drafting never stops** (user, 2026-11-20: "que se acumule el trabajo si hace falta, pero que la decompilación siga").
+    Fast drafters keep writing even while verification lags behind, and the backlog of drafts is fine.
+    - `~/repos/gt-ops/draftloop.sh WORKTREE` keeps one delegate session drafting batches of 80 in that worktree, back to
+      back. Each batch takes the next free candidates under a lock on the claims files and ships its input shapes.
+    - Verification checks the batch branches out in other worktrees, never in a draft loop's worktree.
+    - Keep about 5 drafting sessions alive in total across the team.
   - **Batch size depends on the drafter's speed.** The user says which providers are fast and which are slow. Fast
     drafters get **60–80 functions per PR**: the verdict costs about the same hour whatever the batch size, and it is
     the bottleneck. DeepSeek V4.1 Flash is fast (user, 2026-11-20). Slow drafters keep the old 15–25: Claude writing by
