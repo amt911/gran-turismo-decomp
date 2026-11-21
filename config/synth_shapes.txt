@@ -52,3 +52,19 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x088CCE44: lw a0,0x63C(a0) is the controller object whose vtable +0x14/+0x18 methods answer
+# (0x63C + 4 -> 0x640, capped at 1024). Not expressible here: a1's vtable (+0x18) and t1's (+0x20).
+0x088CCE44 reg:a0=struct:1024
+# 0x089EE49C: lbu v0,0xA68(a0) gates the body, the int at +0x22C switches over 0..3 and the word at
+# +0x230 is compared with 1 (0xA6C capped at 1024); +0x240/+0x244 are released through 0x08A5BAD8.
+# Not expressible here: a1's vtable slot 0x108.
+0x089EE49C reg:a0=struct:1024 field:+0x22C=int:0..4 field:+0x230=int:0..2 field:+0x240=ptr field:+0x244=ptr
+# 0x08C174D4: a0 is the array of 44-byte elements (words at 0x0/0x4, floats 0x8..0x24, word at 0x28).
+# Not expressible here: a3 (the element copied into the hole) and t0 (the comparator, whose words at
+# +0x3C/+0x40 are the begin/end of the vector 0x08C15F9C copies).
+0x08C174D4 reg:a0=struct:48
+# 0x08B452EC: a3 is the descriptor: lh +0x8 and lh +0xA are the two keys, lh +0xC and the byte at
+# +0xE are read, +0x10/+0x14 are copied out. Not expressible here: a0's tables at +0x154/+0x454 and
+# the object at +0x8DC (0x8E0 capped at 1024).
+0x08B452EC reg:a3=struct:32 field:+0x8=int:0..255 field:+0xC=int:0..255
