@@ -176,37 +176,9 @@ void func_08890C38(Runtime &rt, AllegrexContext &ctx) {
 }
 
 // 0x08ACC944 (a0 = this): 0x08ACC6B4(this) decides: a nonzero answer is returned, zero goes on in 0x08ACC93C(this) (a tail call).
-void func_08ACC944(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    u32 answer;
-    {
-        SavedRegisters saved(ctx);
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[16] = self;
-        answer = call(rt, ctx, 0x08ACC6B4u, {self});
-    }
-    if (answer == 0u) tail_call(ctx, 0x08ACC93Cu, {self});
-}
 
 // 0x089C69FC (a0 = this): the vtable word 0x08CCD338 is stored; the object at this + 0x240, unless it is the one at this + 0x4D0, is
 // released through its vtable's first virtual (called with this + 0x240); 0x08B22AF0(this + 0x208) runs and 0x08978B04(this) finishes.
-void func_089C69FC(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    {
-        SavedRegisters saved(ctx);
-        GuestFrame frame(ctx, 0x10u);
-        ctx.gpr[16] = self;
-        put(rt, self, 0x08CCD338u);
-        const u32 member = self + 0x240u;
-        ctx.gpr[2] = 0x08CCD338u;
-        if (member != 0u && member != self + 0x4D0u) {
-            const u32 function = word(rt, word(rt, self + 0x240u));
-            call_indirect(rt, ctx, function, {member});
-        }
-        call(rt, ctx, 0x08B22AF0u, {self + 0x208u});
-    }
-    tail_call(ctx, 0x08978B04u, {self});
-}
 
 // 0x0886A348 (a0 = this): the vtable word 0x08CBF680 is stored; a helper object held at this + 8 is released through its vtable's first
 // virtual (with the word at this + 4) and both fields are cleared. v0 = the call's result, or the vtable word when there is no helper.
@@ -305,9 +277,7 @@ void func_0886FF94(Runtime &rt, AllegrexContext &ctx) { release_between_vtables(
 void func_08870140(Runtime &rt, AllegrexContext &ctx) { release_between_vtables(rt, ctx, 0x08CBF8E0u, 0xCu, 0x08CBF428u); }
 void func_088716C4(Runtime &rt, AllegrexContext &ctx) { release_between_vtables(rt, ctx, 0x08CBF9A0u, 0xCu, 0x08CBF428u); }
 void func_08880918(Runtime &rt, AllegrexContext &ctx) { release_between_vtables(rt, ctx, 0x08CC12A0u, 0xCu, 0x08CBF428u); }
-void func_08809FDC(Runtime &rt, AllegrexContext &ctx) { release_with_two_vtables_then_tail(rt, ctx, 0x08CB9C78u, 0x118u, 0x08CB9ED0u, 0x08A0298Cu); }
 void func_0880AE58(Runtime &rt, AllegrexContext &ctx) { release_with_two_vtables_then_tail(rt, ctx, 0x08CBA3A0u, 0xE8u, 0x08CBA5D8u, 0x0896BC0Cu); }
-void func_0880BD5C(Runtime &rt, AllegrexContext &ctx) { release_with_two_vtables_then_tail(rt, ctx, 0x08CBA148u, 0xE8u, 0x08CBA380u, 0x0896BC0Cu); }
 void func_0880F55C(Runtime &rt, AllegrexContext &ctx) { release_with_two_vtables_then_tail(rt, ctx, 0x08CB97A8u, 0xE8u, 0x08CB99E0u, 0x0896BC0Cu); }
 
 } // namespace
@@ -325,8 +295,6 @@ NEW8(0x08AE18A0u, func_08AE18A0, Float);
 NEW8(0x08AE18E0u, func_08AE18E0, Float);
 NEW8(0x08927AC0u, func_08927AC0, Word);
 NEW8(0x08890C38u, func_08890C38, Word);
-NEW8(0x08ACC944u, func_08ACC944, Word);
-NEW8(0x089C69FCu, func_089C69FC, Word);
 NEW8(0x0886A348u, func_0886A348, Word);
 NEW8(0x0880A7C4u, func_0880A7C4, Word);
 NEW8(0x0886FA90u, func_0886FA90, Word);
@@ -336,8 +304,6 @@ NEW8(0x0886FF94u, func_0886FF94, Word);
 NEW8(0x08870140u, func_08870140, Word);
 NEW8(0x088716C4u, func_088716C4, Word);
 NEW8(0x08880918u, func_08880918, Word);
-NEW8(0x08809FDCu, func_08809FDC, Word);
 NEW8(0x0880AE58u, func_0880AE58, Word);
-NEW8(0x0880BD5Cu, func_0880BD5C, Word);
 NEW8(0x0880F55Cu, func_0880F55C, Word);
 NEW8(0x0882C16Cu, func_0882C16C, Word);
