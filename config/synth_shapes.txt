@@ -52,3 +52,12 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# Shapes for main-session batch 139 (src/game/unsorted/new_batch_main_139.cpp): one line per function, asm evidence above.
+# 0x08948324: 8C940008 lw s4,0x8(a0) (read at +0x5F4/+0x5F8/+0x5F9/+0x530/+0x534/+0x538/+0x58E/+0x579) and
+# 8C82000C lw v0,0xC(a0) (the unit block, read at +0x270+0xA8); a1 is never read. Highest offset 0xC + 4 -> 0x10.
+0x08948324 reg:a0=struct:16 field:+0x8=ptr field:+0xC=ptr
+# 0x08B456D0: 8CB10010 lw s1,0x10(a1) is the record (its +0x14 id, +0x8, +0xC and the entry it returns are read and written) and
+# 8E50000C lw s0,0xC(a1) is passed to the handlers as a2; a0 holds `this`, whose word at +0 is the vtable (slots +0x90 / +0xA0), but a
+# function takes one shape line, so a1 gets it. Highest offset 0x10 + 4 -> 0x14 -> 0x20.
+0x08B456D0 reg:a1=struct:32 field:+0xC=ptr field:+0x10=ptr
