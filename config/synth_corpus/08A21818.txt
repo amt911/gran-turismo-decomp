@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-08A21818 117 1 block:30=1062589135

@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-08B93AE8 68 1 word:0x7C50=imm:0x78

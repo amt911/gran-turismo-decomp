@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-088418B4 165 1 word:0xC82C=imm:0x1

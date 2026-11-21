@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-08A12150 227 1 word:0xBA94=arena:0xE310

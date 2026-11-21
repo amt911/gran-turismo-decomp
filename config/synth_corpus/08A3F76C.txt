@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-08A3F76C 189 1 reg:1=arena:0x178

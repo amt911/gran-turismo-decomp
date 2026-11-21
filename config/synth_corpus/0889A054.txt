@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-0889A054 233 1 block:23=1073787906

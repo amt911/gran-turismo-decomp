@@ -1,3 +1,0 @@
-# layout 1
-# generator 1
-08A5DCF8 232 1 word:0xDCB8=imm:0x400000
