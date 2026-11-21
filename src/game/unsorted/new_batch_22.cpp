@@ -139,8 +139,6 @@ void add_source_to_sums(Runtime &rt, AllegrexContext &ctx, u32 first_byte, u32 s
     put_half(rt, sums + 0x10Cu, static_cast<u16>(second));
     ctx.gpr[2] = first;
 }
-void func_0892CF9C(Runtime &rt, AllegrexContext &ctx) { add_source_to_sums(rt, ctx, 0x7u, 0x8u, 0x0u, 0x2u); }
-void func_0892D1C0(Runtime &rt, AllegrexContext &ctx) { add_source_to_sums(rt, ctx, 0x9u, 0xAu, 0x4u, 0x6u); }
 
 // 0x08C3D12C (a0 = a begin/end/capacity container, a1 = the insertion position, a2 = a pointer to the value): with the
 // end word +4 short of the capacity word +8, the in-place path moves one word up (the end's word -4 into the end, the word
@@ -187,26 +185,6 @@ void func_0892D1C0(Runtime &rt, AllegrexContext &ctx) { add_source_to_sums(rt, c
 // points at, 0x20 bytes from a1 + 0x60 to block + 0x60 (word by word; the original's lwl/lwr and swl/swr are its
 // unaligned carries), then the two bytes a1 + 0x80 to block + 0x80; 0x088EF51C(block + 0x82) and 0x088D4800() finish.
 // v0 = the source plus 0x88... 0x088D4800 answers 0x90, so v0 = a1 + 0x90, the end of what was copied.
-void func_088D57A0(Runtime &rt, AllegrexContext &ctx) {
-    const u32 holder = ctx.gpr[4];
-    const u32 source = ctx.gpr[5];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x10u);
-    ctx.gpr[16] = source;  // s0
-    u32 destination = word(rt, holder);
-    for (u32 offset = 0u; offset < 0x60u; offset += 4u) {
-        put(rt, destination + offset, word(rt, source + offset));
-    }
-    destination = word(rt, holder);
-    for (u32 offset = 0u; offset < 0x20u; offset += 4u) {
-        put(rt, destination + 0x60u + offset, word(rt, source + 0x60u + offset));
-    }
-    put_byte(rt, destination + 0x80u, byte_at(rt, source + 0x80u));
-    put_byte(rt, destination + 0x81u, byte_at(rt, source + 0x81u));
-    call(rt, ctx, 0x088EF51Cu, {word(rt, holder) + 0x82u});
-    const u32 length = call(rt, ctx, 0x088D4800u, {});
-    ctx.gpr[2] = source + length;
-}
 
 // 0x08866B40 (a0 = this, a1 = a pointer to two words): 0x0890B3D8 and 0x0890B56C get the object at this + 0x98, which then
 // gets 0x0890B3E0(object, word a1+4, 0, 1.0f); 0x08AF2640(this + 0x4524) and 0x08916C58(this + 0x45DC, word a1) run (its
@@ -221,41 +199,6 @@ void func_088D57A0(Runtime &rt, AllegrexContext &ctx) {
 // nothing); 0x089C5850(&other, key) answers a source that (with the holder's word 0) is assigned through its +0xC virtual
 // into a local, and 0x089C9F24(source, &local, &assigned, count) runs; then the assigned block, the destination (when it is
 // not the first local) and the other local are released.
-void func_089CA118(Runtime &rt, AllegrexContext &ctx) {
-    const u32 destination = ctx.gpr[4];
-    const u32 key = ctx.gpr[5];
-    const u32 kind = ctx.gpr[6];
-    const u32 holder = ctx.gpr[7];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x40u);
-    ctx.gpr[20] = frame.at(8u);    // s4
-    ctx.gpr[21] = destination;     // s5
-    ctx.gpr[16] = kind;            // s0
-    ctx.gpr[19] = holder;          // s3
-    call(rt, ctx, 0x089B395Cu, {frame.at(8u), 0x08CF6ED8u});
-    if (static_cast<s32>(kind) <= 0) {
-        call(rt, ctx, 0x08A5B9ECu, {frame.at(8u)});
-        return;
-    }
-    ctx.gpr[23] = frame.at(0xCu);  // s7
-    call(rt, ctx, 0x089C5850u, {frame.at(0xCu), key});
-    u32 count = 1u;  // s6
-    if (kind == 2u) {
-        const u32 object = word(rt, holder + 4u);
-        if (object == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08CA6304u});
-        count = call_indirect(rt, ctx, word(rt, word(rt, object) + 0x30u), {object});
-    }
-    const u32 source = word(rt, frame.at(0xCu));
-    if (source == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08CA63A0u});
-    const u32 object = word(rt, holder);
-    if (object == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08CA6304u});
-    call_indirect(rt, ctx, word(rt, word(rt, object) + 0xCu), {frame.at(4u), object});
-    call(rt, ctx, 0x089C9F24u, {source, frame.at(8u), frame.at(4u), count});
-    release_counted(rt, ctx, word(rt, frame.at(4u)), frame.at(0u));
-    if (destination != frame.at(8u)) call(rt, ctx, 0x08A5BAD8u, {destination, word(rt, frame.at(8u))});
-    call(rt, ctx, 0x08A5B9ECu, {frame.at(0xCu)});
-    call(rt, ctx, 0x08A5B9ECu, {frame.at(8u)});
-}
 
 // One element of the 0xC-byte ranges 0x089DBCE8 destroys: `release(word, word + 4, marker)` and then 0x08B35254 for the
 // element's first word when it is not null.
@@ -296,7 +239,6 @@ void destroy_similar_object(Runtime &rt, AllegrexContext &ctx) {
     }
     call(rt, ctx, 0x0896BC0Cu, {self});
 }
-void func_089DBCE8(Runtime &rt, AllegrexContext &ctx) { destroy_similar_object(rt, ctx); }
 
 // 0x08B2D61C (a0 = an argument kept in s1, a1 and a2 = two words stored in the module's state 0x08D68D00): clears the
 // state block (0x08D68D00, 0x40 bytes, through 0x08B36018) ands its words +0x40, +0x44, +0x48, +0x4C, +0x50, +0x54, +0x58
@@ -310,49 +252,6 @@ void func_089DBCE8(Runtime &rt, AllegrexContext &ctx) { destroy_similar_object(r
 // 0x08B35DA0(word sp+0x10) when a2 is zero (and this's byte +4 becomes 1) or the answer is 0 when the limit is smaller than
 // that word; 0x08B100D0(&output, a1, &record-with-both-counts, 1) fills 0x3C bytes at sp + 0xC0 that are copied to sp + 0x40,
 // a non-zero first word there answers 0, else 0x08B48A68(this, count) runs and the answer is 1.
-void func_08B48A74(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    const u32 count_input = ctx.gpr[6];
-    const u32 limit = ctx.gpr[7];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x120u);
-    ctx.gpr[17] = self;
-    ctx.gpr[21] = argument;
-    ctx.gpr[19] = count_input;
-    ctx.gpr[20] = limit;
-    if (word(rt, self) != 0u) {
-        ctx.gpr[2] = 1u;
-        return;
-    }
-    call(rt, ctx, 0x08B0EC60u, {frame.at(0x80u), argument, count_input, limit});
-    for (u32 offset = 0u; offset < 0x3Cu; offset += 4u) {
-        put(rt, frame.at(offset), word(rt, frame.at(0x80u + offset)));
-    }
-    const u32 count = word(rt, frame.at(0x10u));  // s2
-    ctx.gpr[18] = count;
-    u32 first = count_input;  // s3
-    if (count_input == 0u) {
-        first = call(rt, ctx, 0x08B35DA0u, {count});
-        ctx.gpr[19] = first;
-        put_byte(rt, self + 4u, 1u);
-    } else if (static_cast<s32>(limit) < static_cast<s32>(count)) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    put(rt, frame.at(4u), count);
-    put(rt, frame.at(0u), first);
-    call(rt, ctx, 0x08B100D0u, {frame.at(0xC0u), argument, frame.at(0u), 1u});
-    for (u32 offset = 0u; offset < 0x3Cu; offset += 4u) {
-        put(rt, frame.at(0x40u + offset), word(rt, frame.at(0xC0u + offset)));
-    }
-    if (word(rt, frame.at(0x40u)) != 0u) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    call(rt, ctx, 0x08B48A68u, {self, first});
-    ctx.gpr[2] = 1u;
-}
 
 // The free-list head 0x08BB2340 uses: the pool's word +0x34 while its word +0x10 is `size`, else 0x08BB1D0C(pool + 0x24,
 // pool + 0x28, &size, 0x08BB1B40) answers a node whose word +0 is the new head (also stored back into pool + 0x34).
@@ -385,52 +284,6 @@ void link_into_pool(Runtime &rt, u32 head, u32 object) {
 // cleared and its old bit 2 handed to 0x089AF5E8(a1, bit) and 0x089AB114(a1, 0); with this + 0x164 set, three locals are
 // built (0x08A76AA0 twice, 0x08A76AAC with the a1), the second is assigned the third's word into a1 (0x08A5BAD8) and
 // released, and the object's virtual +0xCC(second, 1, third) runs.
-void func_0899FD68(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x40u);
-    ctx.gpr[17] = self;              // s1
-    ctx.gpr[18] = argument;          // s2
-    ctx.gpr[19] = frame.at(8u);      // s3
-    ctx.gpr[20] = frame.at(0xCu);    // s4
-    call(rt, ctx, 0x08A36C3Cu, {frame.at(8u)});
-    ctx.gpr[16] = word(rt, frame.at(8u));  // s0
-    if (ctx.gpr[16] == 0u) {
-        call(rt, ctx, 0x08A5BB7Cu, {0x08CA4A0Cu});
-        ctx.gpr[16] = 0u;
-    }
-    call(rt, ctx, 0x08A34DA8u, {ctx.gpr[16], 0x08CA4A14u});
-    call(rt, ctx, 0x08A5B9ECu, {frame.at(8u)});
-    u32 flags = word(rt, self + 0x13Cu);
-    if ((flags & 0x10u) != 0u) {
-        call(rt, ctx, 0x0899D06Cu, {self}, {float_at(rt, self + 0x150u)});
-        call(rt, ctx, 0x0899D0D0u, {self}, {float_at(rt, self + 0x120u)});
-        call(rt, ctx, 0x0899D108u, {self}, {float_at(rt, self + 0x120u)});
-        flags = word(rt, self + 0x13Cu);
-    }
-    const u32 cleared = flags & ~8u;
-    put(rt, self + 0x13Cu, cleared);
-    call(rt, ctx, 0x089AF5E8u, {argument, (cleared >> 2) & 1u});
-    call(rt, ctx, 0x089AB114u, {argument, 0u});
-    if (word(rt, self + 0x164u) != 0u) {
-        const u32 first = frame.at(0xCu);   // s4
-        const u32 second = frame.at(0x10u); // s3
-        const u32 third = frame.at(4u);     // s0
-        call(rt, ctx, 0x08A76AA0u, {first});
-        call(rt, ctx, 0x08A76AA0u, {second});
-        put(rt, frame.at(0u), argument);
-        call(rt, ctx, 0x08A76AACu, {third, frame.at(0u)});
-        if (second != third) call(rt, ctx, 0x08A5BAD8u, {second, word(rt, third)});
-        call(rt, ctx, 0x08A5B9ECu, {third});
-        const u32 object = word(rt, self + 0x164u);
-        if (object == 0u) call(rt, ctx, 0x08A5BB7Cu, {0x08CA485Cu});
-        const u32 function = word(rt, word(rt, object) + 0xCCu);
-        call_indirect(rt, ctx, function, {object, first, 1u, second});
-        call(rt, ctx, 0x08A5B9ECu, {second});
-        call(rt, ctx, 0x08A5B9ECu, {first});
-    }
-}
 
 // 0x089D0BE0 (a0 = a destination object, a1 = passed on, a2 = a kind, a3 = a pointer to a pointer): 0x089CD62C(&local)
 // runs first. Kind 0: the local's object, 0x089CD884(&local, object) and 0x08A6D2D4(&other, &local), then the other is
@@ -469,43 +322,6 @@ void release_list_block(Runtime &rt, AllegrexContext &ctx, u32 pointer, u32 mark
 // of the four slots (0x088D6218(a2 + 4, index)'s answer read as a fixed-point word) that is not negative gets
 // 0x088FB144(t0, value, this + 4, this + 0) and, when that answers positively and the slot's word +0x184 of this is
 // 0x481907FF, 0x088FB17C(t0, ...) with this's byte +0x5A set and 0x088D0C80(this, a3), whose answer becomes that word.
-void func_088D0DC4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 source = ctx.gpr[6];
-    const u32 holder = ctx.gpr[7];
-    const u32 object = ctx.gpr[8];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x40u);
-    ctx.gpr[16] = self;    // s0
-    ctx.gpr[18] = object;  // s2
-    ctx.gpr[21] = holder;  // s5
-    if (byte_at(rt, holder) == 0u) return;
-    float limit = static_cast<float>(std::bit_cast<s32>(float_at(rt, self + 0x1Cu)));
-    const float first_scale = call(rt, ctx, 0x088FB028u, {object});
-    limit = psp_mul(limit, first_scale);
-    const float reference = static_cast<float>(std::bit_cast<s32>(float_at(rt, self + 0x18u)));
-    limit = limit + float_at(rt, self + 0x20u);  // the second call's delay slot
-    const float second_scale = call(rt, ctx, 0x088FB028u, {object});
-    const float measured = reference * second_scale + float_at(rt, self);
-    if (measured < limit) return;
-    ctx.gpr[20] = source + 4u;  // s4
-    for (u32 index = 0u; index != 4u; ++index) {
-        ctx.gpr[19] = index;
-        ctx.gpr[17] = self + index * 4u;  // s1
-        const u32 raw = call(rt, ctx, 0x088D6218u, {source + 4u, index});
-        const float value = static_cast<float>(std::bit_cast<s32>(raw));
-        if (value < 0.0f) continue;
-        const s32 answer = static_cast<s32>(call(rt, ctx, 0x088FB144u, {object},
-                                                 {value, float_at(rt, self + 4u), float_at(rt, self)}));
-        if (answer <= 0) continue;
-        if (word(rt, self + index * 4u + 0x184u) != 0x481907FFu) continue;
-        const float scaled = call(rt, ctx, 0x088FB17Cu, {object},
-                                  {static_cast<float>(answer), float_at(rt, self + 4u), float_at(rt, self)});
-        put_byte(rt, self + 0x5Au, 1u);
-        const u32 next = call(rt, ctx, 0x088D0C80u, {self, holder}, {scaled});
-        put(rt, self + index * 4u + 0x184u, next);
-    }
-}
 
 // 0x088F9F00 (a0 = this): the object at this's word 0 holds two vectors of 4-byte elements: the first (words +0x10/+0x14)
 // has each element's word released through 0x08B03A40(object + 0x1C, element) and the second (words +4/+8) each element's
@@ -520,47 +336,6 @@ void func_088D0DC4(Runtime &rt, AllegrexContext &ctx) {
 // (0x08A5BAB8(&local, 0x08CF6ED8), 0x08B88F44(&other, key), 0x089FE2F0(&third, &local), 0x08BF76A8(this + 0x16C, record,
 // &other)) whose other is released and whose third is released after its block. The record's word +0x14 is finally
 // assigned the output's word unless that is the same address.
-void func_089A54A0(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 key = ctx.gpr[5];
-    const u32 output = ctx.gpr[6];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x40u);
-    ctx.gpr[16] = self;    // s0
-    ctx.gpr[19] = key;     // s3
-    ctx.gpr[20] = output;  // s4
-    if (word(rt, output) == 0u) return;
-    const u32 map = self + 0x16Cu;  // s2
-    ctx.gpr[18] = map;
-    if (self + 0x170u != call(rt, ctx, 0x08BF63A8u, {map})) return;
-    const u32 found = call(rt, ctx, 0x08BF6308u, {map, key});
-    ctx.gpr[22] = found;  // s6
-    u32 member = found + 0x14u;  // s5
-    if (self + 0x170u != found) {
-        const u32 key_block = word(rt, key);
-        const u32 key_count = word(rt, key_block - 0xCu);
-        const u32 record_block = word(rt, found + 0x10u);
-        const u32 record_count = word(rt, record_block - 0xCu);
-        const u32 smaller = record_count < key_count ? record_count : key_count;
-        ctx.gpr[21] = found;  // s5
-        s32 difference = static_cast<s32>(key_count - record_count);
-        const u32 grown = call(rt, ctx, 0x08B36170u, {key_block, record_block, smaller});
-        if (grown != 0u) difference = static_cast<s32>(grown);
-        if (difference < 0) {
-            const u32 local = frame.at(4u);      // s5
-            const u32 other = frame.at(0x10u);   // s1
-            call(rt, ctx, 0x08A5BAB8u, {local, 0x08CF6ED8u});
-            call(rt, ctx, 0x08B88F44u, {other, key});
-            call(rt, ctx, 0x089FE2F0u, {frame.at(0x14u), local});
-            const u32 inserted = call(rt, ctx, 0x08BF76A8u, {map, found, other});
-            call(rt, ctx, 0x08A5B9ECu, {frame.at(0x14u)});
-            release_counted(rt, ctx, word(rt, frame.at(0x10u)), frame.at(0u));
-            call(rt, ctx, 0x08A5B9ECu, {local});
-            member = inserted + 0x14u;
-        }
-    }
-    if (output != member) call(rt, ctx, 0x08A5BAD8u, {member, word(rt, output)});
-}
 
 // 0x089AA1C0 (a0 = this, a1 = a row of 8-byte entries, a2 = a count, a3 = an argument, t0 = a holder, f12 = a scale):
 // two short busy waits, then, when the holder's word 0 is set, 0x089E4BC4(word, &local, 0) and this's byte +0x118 becomes
@@ -581,60 +356,6 @@ void func_089A54A0(Runtime &rt, AllegrexContext &ctx) {
 // succeeding, 0x08AD542C(block) and 0x08ADC988(block + 0x10, &local) answer an entry, the block is appended to the record's
 // list at +0x30 (0x08C3D12C when it is full), 0x08AC963C(record, block + 0x10, &local, entry, 0, 0) runs and the record
 // gets this at +0x28 and itself at +0x2C. v0 = record + 0x28, or 0.
-void func_08AC9B54(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x830u);
-    ctx.gpr[19] = self;      // s3
-    ctx.gpr[17] = argument;  // s1
-    const u32 value = word(rt, argument);
-    const u32 existing = call(rt, ctx, 0x08AC99A4u, {value, value >> 31});  // sra $a1, $a1, 31
-    ctx.gpr[16] = existing;
-    if (existing != 0u) {
-        ctx.gpr[2] = existing + 0x28u;
-        return;
-    }
-    const u32 key = word(rt, argument);
-    const u32 record = call(rt, ctx, 0x08AC99F4u, {key, key >> 31});
-    ctx.gpr[16] = record;  // s0
-    const u32 block = call(rt, ctx, 0x08B62344u, {0x14u});
-    ctx.gpr[18] = block;   // s2
-    call(rt, ctx, 0x08AD5590u, {block});
-    if (call(rt, ctx, 0x08AD5524u, {block, argument}) == 0u) {
-        if (block != 0u) call_indirect(rt, ctx, word(rt, word(rt, block) + 4u), {block});
-        call(rt, ctx, 0x08AC9240u, {record});
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    call(rt, ctx, 0x08AD542Cu, {block});
-    ctx.gpr[20] = word(rt, block + 0x10u);  // s4
-    ctx.gpr[21] = frame.at(4u);             // s5
-    const u32 entry = call(rt, ctx, 0x08ADC988u, {word(rt, block + 0x10u), frame.at(4u)});
-    ctx.gpr[17] = entry;  // s1
-    put(rt, frame.at(0u), block);
-    const u32 list = record + 0x30u;
-    if (word(rt, list + 4u) == word(rt, list + 8u)) {
-        call(rt, ctx, 0x08C3D12Cu, {list, word(rt, list + 4u), frame.at(0u)});
-    } else {
-        u32 end = word(rt, list + 4u);
-        if (end == 0u) {
-            end = 4u;  // `beql $a1, $zero` runs `$a1 += 4` and skips the store
-        } else {
-            put(rt, end, block);
-            end = word(rt, list + 4u) + 4u;
-        }
-        put(rt, list + 4u, end);
-    }
-    call(rt, ctx, 0x08AC963Cu, {record, word(rt, block + 0x10u), frame.at(4u), entry, 0u, 0u});
-    if (record != 0u) {
-        put(rt, record + 0x28u, self);
-        put(rt, record + 0x2Cu, record);
-        ctx.gpr[2] = record + 0x28u;
-        return;
-    }
-    ctx.gpr[2] = 0u;
-}
 
 // 0x088619A8 (a0 = this, a1 = a name kept aside, a2 = a name, a3 = an argument, t0 = a pointer that is optional): the
 // objects at this's word + 0x3F88 and + 0x3F90 are looked up (0x08894098, 0x08893C40), a state at sp is opened
@@ -659,58 +380,6 @@ void func_08AC9B54(Runtime &rt, AllegrexContext &ctx) {
 // every 0x08BAFF30(object) call (the word -4's sign says one is needed), a leading '/' skips the '~' check that would else
 // run 0x08BAFD74(object, 0, 0x08CA0A24, 10); while the last character (0x08B99E48(object, length - 1, 0) shortens the
 // string) is '/' or ' ' the object is trimmed, and any other character answers the object itself.
-void func_088B0AA0(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 source = ctx.gpr[5];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[17] = self;        // s1
-    ctx.gpr[18] = 0x08D75298u; // s2
-    put(rt, self, 0x08D752A4u);
-    if (source == 0u) {
-        ctx.gpr[2] = self;
-        return;
-    }
-    call(rt, ctx, 0x088B04F4u, {frame.at(4u), source});
-    call(rt, ctx, 0x08B957D8u, {self, frame.at(4u)});
-    release_list_block(rt, ctx, word(rt, frame.at(4u)), frame.at(0u));
-    u32 text = word(rt, self);
-    if (static_cast<s32>(word(rt, text - 4u)) >= 0) {
-        call(rt, ctx, 0x08BAFF30u, {self});
-        text = word(rt, self);
-    }
-    if (signed_byte_at(rt, text) != '/') {
-        if (static_cast<s32>(word(rt, text - 4u)) >= 0) {
-            call(rt, ctx, 0x08BAFF30u, {self});
-            text = word(rt, self);
-        }
-        if (signed_byte_at(rt, text) != '~') {
-            call(rt, ctx, 0x08BAFD74u, {self, 0u, 0x08CA0A24u, 0xAu});
-            text = word(rt, self);
-        }
-    }
-    u32 last = word(rt, text - 0xCu) - 1u;  // s0
-    if (static_cast<s32>(word(rt, text - 4u)) >= 0) {
-        call(rt, ctx, 0x08BAFF30u, {self});
-        text = word(rt, self);
-    }
-    for (;;) {
-        const s8 character = signed_byte_at(rt, text + last);
-        if (character != '/') {
-            if (character != ' ') {
-                ctx.gpr[2] = self;
-                return;
-            }
-        }
-        call(rt, ctx, 0x08B99E48u, {self, word(rt, text - 0xCu) - 1u, 0u});
-        text = word(rt, self);
-        last = word(rt, text - 0xCu) - 1u;
-        if (static_cast<s32>(word(rt, text - 4u)) >= 0) {
-            call(rt, ctx, 0x08BAFF30u, {self});
-            text = word(rt, self);
-        }
-    }
-}
 
 // 0x08AE1D6C (a0 = an argument the callback gets, a1 = a limit kept aside, a2 = an end position, a3 = a table, t0 = a
 // count, t1 = a start position, t2 = a length, t3 = a flags word that may be null): when both a1 and a2 are zero they
@@ -718,59 +387,6 @@ void func_088B0AA0(Runtime &rt, AllegrexContext &ctx) {
 // every table entry (0xC bytes apart, its word +4) at or after t1 and before start + span is reported through
 // 0x08AE0CD8(a0, index) while the table, the span and the count are all positive, and when a2 was -1 and the span reaches
 // it the start is either the a1 limit (with bit 8 set in the t3 word) or the span's end. v0 = the final start.
-void func_08AE1D6C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 callback_argument = ctx.gpr[4];
-    u32 from = ctx.gpr[5];
-    u32 end = ctx.gpr[6];
-    const u32 table = ctx.gpr[7];
-    const u32 count = ctx.gpr[8];
-    u32 start = ctx.gpr[9];
-    const u32 length = ctx.gpr[10];
-    const u32 flags = ctx.gpr[11];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x50u);
-    ctx.gpr[30] = count;   // fp
-    ctx.gpr[22] = length;  // s6
-    ctx.gpr[21] = end;     // s5
-    ctx.gpr[20] = start;   // s4
-    if ((from | end) == 0u) {
-        from = 0xFFFFFFFFu;
-        end = 0xFFFFFFFFu;
-    }
-    if (static_cast<s32>(length) > 0) {
-        u32 position = 0u;  // s7
-        const u32 endIsUnset = end == 0xFFFFFFFFu ? 1u : 0u;  // nor + srl 31
-        const u32 hasTable = table != 0u ? 1u : 0u;           // sltu zero, table
-        const u32 hasCount = static_cast<s32>(count) > 0 ? 1u : 0u;
-        do {
-            u32 span = length - position;
-            if (static_cast<s32>(end) >= 0) {
-                const u32 room = end - start;
-                if (static_cast<s32>(room) < static_cast<s32>(span)) span = room;  // min
-            }
-            const u32 span_end = start + span;  // s3
-            if (hasTable != 0u && static_cast<s32>(span) > 0 && hasCount != 0u) {
-                for (u32 index = 0u; static_cast<s32>(index) < static_cast<s32>(count); ++index) {
-                    const u32 value = word(rt, table + 4u + index * 0xCu);
-                    if (static_cast<s32>(value) >= static_cast<s32>(start) &&
-                        static_cast<s32>(value) < static_cast<s32>(span_end)) {
-                        call(rt, ctx, 0x08AE0CD8u, {callback_argument, index});
-                    }
-                }
-            }
-            u32 next = span_end;
-            if (endIsUnset != 0u && static_cast<s32>(span_end) >= static_cast<s32>(end) && flags != 0u) {
-                put(rt, flags, word(rt, flags) | 0x100u);
-                next = from;
-            }
-            start = next;
-            ctx.gpr[20] = start;
-            position += span;
-            if (!(static_cast<s32>(position) < static_cast<s32>(length))) break;
-        } while (true);
-    }
-    ctx.gpr[2] = start;
-}
 
 // 0x08AE6268 (a0 = this, a1 = an argument): the node at this + 0x18 (when its word +8 is negative) walks its chain through
 // word +4: for each node, this + 0x10's float +0xFC scaled by 0x08CB6130 is truncated and taken off the node's word +0x4C,
@@ -877,47 +493,6 @@ void destroy_entry_array(Runtime &rt, AllegrexContext &ctx) {
 // from the stack and filled by 0x088F8BAC(word + 0x94, buffer, count), then for every entry 0x08890C5C(this + 8, index),
 // 0x08890B20(this + 8, index) and 0x08896040(entry, answer, answer) run; the object at word +0x94 gets its virtual +0x1C,
 // this's byte +0xA0 becomes 1 and 0x088910B8(this + 0x14) runs. v0 = 1 (0 when there was nothing to do).
-void func_08891F04(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x40u);
-    ctx.gpr[30] = ctx.gpr[29];  // fp = sp
-    ctx.gpr[18] = self;
-    u32 result = 0u;
-    if (word(rt, self) != 0u) {
-        call(rt, ctx, 0x088F8BACu, {word(rt, self + 0x94u), 0u, 0u});
-        const u32 count = call(rt, ctx, 0x0888F53Cu, {self + 8u, word(rt, self), word(rt, self + 4u)});
-        ctx.gpr[22] = count;      // s6
-        ctx.gpr[21] = self + 8u;  // s5
-        const u32 last = byte_at(rt, self + 0x10u) != 0u ? 0u : 0xFFFFFFFFu;
-        call(rt, ctx, 0x0888FBF8u, {self + 8u, word(rt, self + 0x8Cu), word(rt, self + 0x90u), word(rt, self + 0x94u),
-                                    word(rt, self + 0x98u), word(rt, self + 0x9Cu), count, last});
-        const u32 size = ((count << 2) + 0x1Eu) & ~15u;
-        {
-            GuestFrame array(ctx, size);
-            const u32 base = array.at(0u);
-            call(rt, ctx, 0x088F8BACu, {word(rt, self + 0x94u), base, count});
-            if (static_cast<s32>(count) > 0) {
-                u32 element = base;
-                for (u32 index = 0u; index != count; ++index) {
-                    const u32 first = word(rt, element);
-                    ctx.gpr[19] = element;
-                    call(rt, ctx, 0x08890C5Cu, {self + 8u, index});
-                    const u32 second = call(rt, ctx, 0x08890B20u, {self + 8u, index});
-                    ctx.gpr[16] = second;
-                    call(rt, ctx, 0x08896040u, {first, second, second});
-                    element += 4u;
-                }
-            }
-        }
-        const u32 listener = word(rt, self + 0x94u);
-        call_indirect(rt, ctx, word(rt, word(rt, listener) + 0x1Cu), {listener});
-        put_byte(rt, self + 0xA0u, 1u);
-        call(rt, ctx, 0x088910B8u, {self + 0x14u});
-        result = 1u;
-    }
-    ctx.gpr[2] = result;
-}
 
 // 0x08A9C1C0 (a0 = a destination object, a1 = a source object, a2 and a3 = pointers to two objects, t0, t1 and t2 =
 // three arguments): 0x08A76AA0(a0) runs first; with the object at (a2's object) + 0x30 holding a non-empty list (+0x1C to
@@ -932,37 +507,6 @@ void func_08891F04(Runtime &rt, AllegrexContext &ctx) {
 // viewport: 0, 0, 1440, 272, 0, 0, 1, 1) run, then this + 0x27C's +0x18 and this + 0xD4's +0x3C(0, 0) with
 // 0x08AF5040(this + 0xD4, ...) the same. 0x08B344E0(0x08D470C4) runs, this's byte +0x427 takes the flag and
 // 0x08B3457C(0x08D470C4) finishes (a tail call).
-void func_08AF5164(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 flag = ctx.gpr[5] & 0xFFu;
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[18] = flag;  // s2
-    ctx.gpr[17] = self;  // s1
-    if (byte_at(rt, self + 0x426u) != 0u) {
-        if (flag == 0u) {
-            const u32 first = word(rt, self + 0x1A8u);
-            call_indirect(rt, ctx, word(rt, first + 0x14u), {self + 0x1A8u});
-            const u32 second = word(rt, self + 0x27Cu);
-            call_indirect(rt, ctx, word(rt, second + 0x14u), {self + 0x27Cu});
-        }
-    } else if (flag != 0u) {
-        call(rt, ctx, 0x08AFAD8Cu, {self + 0x1A8u, 0x1E0u, 0x110u, 3u, 0u, 0u});
-        call(rt, ctx, 0x08AFAD8Cu, {self + 0x27Cu, 0x1E0u, 0x110u, 3u, 0u, 0u});
-        const u32 first = word(rt, self + 0x1A8u);
-        call_indirect(rt, ctx, word(rt, first + 0x18u), {self + 0x1A8u});
-        call_indirect(rt, ctx, word(rt, word(rt, self) + 0x3Cu), {self, 0u, 0u});
-        call(rt, ctx, 0x08AF5040u, {self, 0u, 0u}, {0.0f, 0.0f, 1440.0f, 272.0f, 0.0f, 0.0f, 1.0f, 1.0f});
-        const u32 second = word(rt, self + 0x27Cu);
-        call_indirect(rt, ctx, word(rt, second + 0x18u), {self + 0x27Cu});
-        const u32 third = word(rt, self + 0xD4u);
-        call_indirect(rt, ctx, word(rt, third + 0x3Cu), {self + 0xD4u, 0u, 0u});
-        call(rt, ctx, 0x08AF5040u, {self + 0xD4u, 0u, 0u}, {0.0f, 0.0f, 1440.0f, 272.0f, 0.0f, 0.0f, 1.0f, 1.0f});
-    }
-    call(rt, ctx, 0x08B344E0u, {0x08D470C4u});
-    put_byte(rt, self + 0x427u, static_cast<u8>(flag));
-    tail_call(ctx, 0x08B3457Cu, {0x08D470C4u});
-}
 
 // 0x08B0BB3C (a0 = this, a1 = passed on, a2 = an object): when this's byte +8 is set, 0x08B0C9AC(object, a1, &header,
 // this + 0x10) with the header {1, this + 0xC, this + 0x10} runs, else 0x08B0C99C(object, a1, 0, 0); a non-zero word +4 of
@@ -1114,17 +658,3 @@ void put_identity_matrix(Runtime &rt, u32 address) {
 } // namespace gt::game
 
 #define NEW22(address, name, kind) GT_DECOMP(address, gt::game::new_batch_22::name, gt::ReturnKind::kind)
-NEW22(0x08891F04u, func_08891F04, Word);
-NEW22(0x088B0AA0u, func_088B0AA0, Word);
-NEW22(0x088D0DC4u, func_088D0DC4, Word);
-NEW22(0x088D57A0u, func_088D57A0, Word);
-NEW22(0x0892CF9Cu, func_0892CF9C, Word);
-NEW22(0x0892D1C0u, func_0892D1C0, Word);
-NEW22(0x0899FD68u, func_0899FD68, Word);
-NEW22(0x089A54A0u, func_089A54A0, Word);
-NEW22(0x089CA118u, func_089CA118, Word);
-NEW22(0x089DBCE8u, func_089DBCE8, Word);
-NEW22(0x08AC9B54u, func_08AC9B54, Word);
-NEW22(0x08AE1D6Cu, func_08AE1D6C, Word);
-NEW22(0x08AF5164u, func_08AF5164, Word);
-NEW22(0x08B48A74u, func_08B48A74, Word);
