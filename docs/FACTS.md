@@ -810,6 +810,18 @@ The inverse is unique for pitch in [-pi/2, pi/2]; at the pole (forward vertical)
   and **three times with `ra = 0x08927E1C` (the call inside `0x08927D14`), one per press** (list `0x09415F84`); `0x08927D14` itself logged no position change, i.e. it is reached in-unit (no hook sees it). So the mod hooks `0x089274C8`: `pos != prev` is a press.
   (The probe's `vblank_index` was 0 because a v1 probe has no tick; the correspondence press <-> call is by count and by `ra`, confirmed by the mod's `CYCLE` lines in `tools/mod_cameras_check.sh --cycle`.)
 
+## Mechanical damage: what moves the car (measured 2026-11-19, mechanical-damage mod, `rollover` route, `--decomp off`; runtime addresses)
+
+Evidence: the mod's per-step log (`GT_MOD_DAMAGE_LOG=1`, `tools/mod_damage_check.sh`); the route holds the accelerator from the race start (the pedal reaches 1.0 at step ~767).
+- **The pedal float `K'+0x530` is ramped between world steps**: the logged value before and after each step is the same, and it moves 1/15 per step toward 0 or 1 (0.200, 0.267, ... 1.000 on a press; 1.000, 0.933, ... 0.000 on a release).
+  Written scaled (x 0.62) before a step with `car_set_state` it changes **nothing**: speed at steps 850 / 1000 / 1090 identical to the undamaged run to 3 decimals. The drive chain (`0x0894E9C0`, the block at `0x0894FD00-0x0894FDE0`
+  that stores `+0x534` from `+0x530`, the speed `+0x6C4` / `+0x6C0` and the table at `word(unit)+0x3A8..0x3B0`) derives its own effective throttle `+0x534` inside the step. A scaled pedal left in place compounds: the ramp adds 1/15 to the
+  scaled value, scaling again pins it (0.62^n -> 0.175 measured).
+- **Velocity and speed written BEFORE the step are integrated** (the cheats mod's nitro does it): bleeding `(1 - s) x` the previous step's engine gain before each step gives the net gain `s x` the undamaged one.
+- **Sign of the yaw rate:** `+0x6F8` > 0 turns the car to ITS LEFT (forward = (-sin yaw, cos yaw); at yaw 1.571 forward = -x and right = +y, so a positive rate moves the car toward -y); the mod subtracts the bias for a hit from the right.
+- **A yaw-rate bias added after the step persists**: `rates[4]` (`+0x6F8`) + bias x gain / 60 per step (bias 0.06, gain 6) gave 0.026 / 0.035 rad/s at 11 / 17 m/s with full alignment damage (the mod uses gain 10).
+- **A speed cap written after each step holds**: with cap 25 m/s the logged speed sits at 25.04 (the engine's gain of the next step, 0.04 m/s, on top).
+- The undamaged run is deterministic step for step (the same speed at the same step number in two runs, `--decomp off`): comparisons are by steps since the accelerator was pressed.
 ## Mod draw API: Step 0 research (2026-11-18, spec `2026-11-18-mod-draw-api-design.md`; runtime addresses)
 
 Probes (research-only, raw guest addresses, deleted after use: not kept in the repo as mod examples; see git history of PR 667); `tools/mod_draw_probe/probe.cpp` is the API probe, runs of the `chase` route (`--decomp off`, vblank 18500 = chase view,

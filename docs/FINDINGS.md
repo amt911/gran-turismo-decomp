@@ -3460,3 +3460,9 @@ counters show `scratch == aligned`).
 **Cause.** The mod's world-step hook did `call_original(ctx); world = gpr(ctx, 4);`. Recompiled (`--decomp off`) `call_original` returns before the body has run, so `a0` was still the world; the decompiled step runs inside `call_original` and leaves another
 value in `a0`, `race_cars` found no human car, the snapshot never became valid (`CAMDBG invalid=28799 of 28800`, `snap_vb=0`) and the camera function returned at once.
 **Fix.** The host restores `a0`-`a3` when `call_original` returns (test `call_original_restores_a0_to_a3`); mods read their arguments first. **Lesson:** a mod check must run with `--decomp on` too, and diagnostics that count *why* a function returned early (`GT_MOD_CAMERA_DEBUG`, `CAMDBG`) find this in one run.
+- **A decompiled setjmp breaks every diff route; the synthetic gate does not notice (2026-11-21).** `0x08B7B2E4` stores
+  s0–s7, sp, fp, ra and f20–f31 into a record and returns 0. Its body compared equal in its synthetic cases, but
+  installed in `--decomp diff` every route stopped: "diff harness sentinel reached without a pending continuation"
+  (exit 3), or locally a guest access outside RAM at `0x08B12CCC`, and the fast gate compared 387 of a 5711 floor.
+  Before drafting, leave setjmp/longjmp-like functions (register save/restore into a record) as recompiled code. A
+  verdict with any route exiting 3+ or a `FLOOR:` line is a failure even when "0 mismatched" is printed.

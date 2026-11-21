@@ -2,6 +2,7 @@
 // drafted from `tools.disasm` with a register-level emitter (pipeline/bodyg.py: labels and gotos over the same register-level operations as bodyx), read against the asm and verified
 // by synthetic cases.
 // No names: none has evidence.
+// 0x08C72194 are rewritten as structured C from the disassembly (structured rewrites, batch 90) and registered: the synthetic gate compares them in the garage / challenge / dirt / manual / challenge2 scenes.
 #include "decomp_registry.hpp"
 #include "gt/game/hot_common.hpp"
 #include "guest_call.hpp"
@@ -419,7 +420,43 @@ void func_08B2D314(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     store8(kBusy, 0u);
     ctx.gpr[2] = 0u;
 }
-void func_08C72194(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x18u), G[31]); G[17] = G[4]; G[4] = frame.at(0u); G[16] = sext(G[5] & 0xFFu, 8); G[5] = G[17]; call_here(rt, ctx, 0x08C70314u); G[2] = load8(frame.at(0x0u)); if (G[2] != 0u) { G[2] = word(rt, G[17] + 0x0u); goto L_08C72264; } G[3] = word(rt, frame.at(0x4u)); L_08C721C8: ; G[2] = word(rt, G[3] + 0x0u); G[4] = word(rt, G[2] + 0xFFFFFFF4u); G[3] = G[3] + G[4]; G[2] = word(rt, G[3] + 0xCu); G[2] = G[2] & 0x2000u; { const bool tk = G[2] != 0u; if (tk) goto L_08C721FC; } L_08C721E4: ; G[2] = G[17]; L_08C721E8: ; goto exit_; L_08C721FC: ; call_here(rt, ctx, 0x08B62318u); { const bool tk = G[2] != 0u; G[2] = word(rt, frame.at(0x4u)); if (tk) goto L_08C721E4; } G[3] = word(rt, G[2] + 0x0u); G[4] = word(rt, G[3] + 0xFFFFFFF4u); G[2] = G[2] + G[4]; G[4] = word(rt, G[2] + 0x78u); { const bool tk = G[4] == 0u; G[2] = G[17]; if (tk) goto L_08C721E8; } G[3] = word(rt, G[4] + 0x0u); G[2] = word(rt, G[3] + 0x18u); { const std::uint32_t tg = G[2]; call_here(rt, ctx, tg); } G[3] = 0xFFFFFFFFu; if (G[2] != G[3]) { G[2] = G[17]; goto L_08C721E8; } G[4] = word(rt, frame.at(0x4u)); G[2] = word(rt, G[4] + 0x0u); G[3] = word(rt, G[2] + 0xFFFFFFF4u); G[4] = G[4] + G[3]; G[5] = word(rt, G[4] + 0x14u); G[5] = G[5] | 0x1u; call_here(rt, ctx, 0x08C54CFCu); G[2] = G[17]; goto L_08C721E8; L_08C72264: ; G[3] = word(rt, G[2] + 0xFFFFFFF4u); G[3] = G[17] + G[3]; G[4] = word(rt, G[3] + 0x78u); G[3] = word(rt, G[4] + 0x14u); G[2] = word(rt, G[4] + 0x18u); G[2] = G[3] < G[2] ? 1u : 0u; { const bool tk = G[2] == 0u; G[5] = sext(G[16] & 0xFFu, 8); if (tk) goto L_08C722C4; } store8(G[3] + 0x0u, G[5]); G[5] = G[5] & 0xFFu; G[2] = word(rt, G[4] + 0x14u); G[2] = G[2] + 0x1u; put(rt, G[4] + 0x14u, G[2]); L_08C72298: ; G[2] = 0xFFFFFFFFu; { const bool tk = G[5] != G[2]; G[3] = word(rt, frame.at(0x4u)); if (tk) goto L_08C721C8; } G[2] = word(rt, G[17] + 0x0u); G[4] = word(rt, G[2] + 0xFFFFFFF4u); G[4] = G[17] + G[4]; G[5] = word(rt, G[4] + 0x14u); G[5] = G[5] | 0x1u; call_here(rt, ctx, 0x08C54CFCu); G[3] = word(rt, frame.at(0x4u)); goto L_08C721C8; L_08C722C4: ; G[3] = word(rt, G[4] + 0x0u); G[2] = word(rt, G[3] + 0x34u); { const std::uint32_t tg = G[2]; G[5] = G[5] & 0xFFu; call_here(rt, ctx, tg); } G[5] = G[2]; goto L_08C72298;  exit_: ; G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); } } if (tail != 0u) jump(ctx, tail); } }
+// 0x08C72194 (a0 = the stream, a1 = a character (low byte, sign-extended); v0 = a0): `ostream::put`. A sentry is built on the stack by 0x08C70314(frame, stream) (byte at frame + 0 = ok, the
+// stream pointer it keeps at frame + 4). When it is ok the stream buffer (word at stream + virtual-base offset + 0x78; the offset is word(vtable - 0xC)) takes the byte: room (put pointer +0x14
+// below the end +0x18) stores it and moves the pointer, otherwise the buffer's virtual +0x34 (overflow) answers, and -1 sets the error bit with 0x08C54CFC(stream part, state | 1).
+// Then, like the sentry's destructor: with the unit-buffer flag (0x2000 of the flags word at +0xC) set and no 0x08B62318() exception, the buffer's virtual +0x18 (sync) answers and -1 sets the error bit too.
+void func_08C72194(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 stream = ctx.gpr[4];
+    const u32 character = sext(ctx.gpr[5], 8u);
+    GuestFrame frame(ctx, 0x20u);
+    SavedRegisters saved(rt, ctx, frame, {{17u, 0x14u}, {16u, 0x10u}, {31u, 0x18u}});
+    ctx.gpr[17] = stream;
+    ctx.gpr[16] = character;
+    const auto stream_part = [&](u32 object) { return object + word(rt, word(rt, object) - 0xCu); };
+    const auto set_error = [&](u32 part) { call_set(rt, ctx, 0x08C54CFCu, {part, word(rt, part + 0x14u) | 1u}); };
+    call_set(rt, ctx, 0x08C70314u, {frame.at(0u), stream});
+    ctx.gpr[2] = load8(frame.at(0u));
+    if (load8(frame.at(0u)) != 0u) {
+        const u32 buffer = word(rt, stream_part(stream) + 0x78u);
+        const u32 put_pointer = word(rt, buffer + 0x14u);
+        const u32 end_pointer = word(rt, buffer + 0x18u);
+        bool end_of_file = false;
+        if (put_pointer < end_pointer) {
+            store8(put_pointer, character);
+            put(rt, buffer + 0x14u, word(rt, buffer + 0x14u) + 1u);
+        } else {
+            ctx.gpr[5] = character & 0xFFu;
+            end_of_file = call_virtual(rt, ctx, word(rt, word(rt, buffer) + 0x34u), {buffer, character & 0xFFu}) == 0xFFFFFFFFu;
+        }
+        if (end_of_file) set_error(stream_part(stream));
+    }
+    const u32 kept = word(rt, frame.at(4u));
+    ctx.gpr[2] = stream;
+    if ((word(rt, stream_part(kept) + 0xCu) & 0x2000u) != 0u && call_set(rt, ctx, 0x08B62318u, {}) == 0u) {
+        const u32 buffer = word(rt, stream_part(word(rt, frame.at(4u))) + 0x78u);
+        if (buffer != 0u && call_virtual(rt, ctx, word(rt, word(rt, buffer) + 0x18u), {buffer}) == 0xFFFFFFFFu) set_error(stream_part(word(rt, frame.at(4u))));
+    }
+    ctx.gpr[2] = stream;
+}
 // 0x088F6C78 (a0 = a vector (x, y, z) updated in place, a1 / a2 / a3 / t0 = float records, f12 = a scale, f13 = a step; v0 = 1 when the vector was reset to zero or is
 // already at rest): the horizontal length of (x, z) with y cleared; zero returns 1 with nothing changed. A limit f1 = [a3] * f12 * [t0 + 0x10] * f13 at or above that length
 // leaves (0, 0, 0) and 1. Otherwise (x, z) shrink along themselves by the limit times the step (a component whose product with its shrunk value turns negative goes to 0);
@@ -762,7 +799,7 @@ HOT320(0x08C696CCu, func_08C696CC, Word);
 HOT320(0x089B7CF8u, func_089B7CF8, Word);
 HOT320(0x08AA9BECu, func_08AA9BEC, Word);
 HOT320(0x08B2D314u, func_08B2D314, Word);
-// HOT320(0x08C72194u, func_08C72194, Word);  // no comparable synthetic case yet
+HOT320(0x08C72194u, func_08C72194, Word);
 HOT320(0x088F6C78u, func_088F6C78, Word);
 HOT320(0x08926AE0u, func_08926AE0, Word);
 HOT320(0x0893EEC4u, func_0893EEC4, Word);
