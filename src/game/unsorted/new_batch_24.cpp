@@ -381,58 +381,6 @@ void release_string(Runtime &rt, AllegrexContext &ctx, u32 text, u32 frame_base)
     call_set(rt, ctx, 0x08B93554u, {rep, frame_base});
 }
 
-// func_08879190(self = a0): decodes the bit string func_08AB856C builds from the two words at 0x08C8981C (with self and 2
-// through func_08875658) into self's target: func_0886B2F4(self[0]) -> func_0886A950(name 0x08CA008C) ->
-// func_0886A9A0 gives the object; the byte count at frame +0x14 must be 2 or more, then for every bit up to frame +8 a
-// character of the string (word frame +4, index >> 2) is decoded from hex/letters (digit, A-F, a-f) and its bit (index & 3)
-// is passed to func_088852D0(object, string + index, bit); a zero character ends it, a negative word frame +4 calls
-// func_088852C4(object, frame +8 != 0) instead. The temporary string at frame +0xC is released at the end.
-void func_08879190(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x30u);
-    ctx.gpr[16] = frame.at(0xCu);
-    ctx.gpr[17] = self;
-    call_set(rt, ctx, 0x08AB85F0u, {frame.at(0xCu)});
-    put(rt, frame.at(4u), word(rt, 0x08C8981Cu));
-    put(rt, frame.at(8u), word(rt, 0x08C89820u));
-    call_set(rt, ctx, 0x08875658u, {self, frame.at(4u), frame.at(0xCu), 2u});
-    const u32 bits = call_set(rt, ctx, 0x08AB856Cu, {frame.at(0xCu)});
-    ctx.gpr[18] = bits;
-    if (signed_of(word(rt, frame.at(0x14u))) >= 2) {
-        u32 object = call_set(rt, ctx, 0x0886B2F4u, {word(rt, self)});
-        const GuestResult looked_up = call_keep(rt, ctx, 0x0886A950u, {object, 0x08CA008Cu});
-        if (object != 0u && looked_up.v0 != 0u) {
-            // func_0886A9A0 indexes with a1 as the callee left it (the original passes that register on)
-            object = call_set(rt, ctx, 0x0886A9A0u, {looked_up.v0, looked_up.a1});
-            ctx.gpr[17] = object;
-            if (signed_of(word(rt, frame.at(4u))) < 0) {
-                call_set(rt, ctx, 0x088852C4u, {object, word(rt, frame.at(8u)) != 0u ? 1u : 0u});
-            } else if (signed_of(word(rt, frame.at(8u))) > 0) {
-                u32 character = sext8(byte_u(rt, bits));
-                u32 index = 0u;
-                while (character != 0u) {
-                    const u32 position = word(rt, frame.at(4u)) + index;
-                    const u32 digit = character - 0x30u;
-                    const bool is_digit = digit < 0xAu;
-                    const u32 lower = character - 0x61u;
-                    const bool is_hex = is_digit || (character - 0x41u) < 6u || lower < 6u;
-                    if (is_hex) {
-                        const u32 shift = lower < 0x1Au ? 0u : 0x20u;  // `movz v0, zero, v1`
-                        const u32 value = is_digit ? digit : character - shift - 0x37u;
-                        call_set(rt, ctx, 0x088852D0u, {object, position, (value >> (index & 3u)) & 1u});
-                    }
-                    ++index;
-                    const u32 next = static_cast<u32>(signed_of(index) >> 2);
-                    if (!(signed_of(index) < signed_of(word(rt, frame.at(8u))))) break;
-                    character = sext8(byte_u(rt, bits + next));
-                }
-            }
-        }
-    }
-    release_string(rt, ctx, word(rt, frame.at(0xCu)), frame.at(0u));
-}
-
 // func_08880BAC(self = a0): releases the two objects at self + 4 and self + 8 through their virtual slot 0x2C (each field
 // cleared), func_08880874(self), the shared object at self + 0x34, stores the vtable word 0x08CBF368 at self + 0x20 and
 // releases the shared object at self + 0x18; the shared object at self + 0x10 then loses one use, and when that was the
@@ -1134,7 +1082,6 @@ void func_08A4C580(Runtime &rt, AllegrexContext &ctx) {
 NEW24(0x08BAFD74u, func_08BAFD74, Word);
 NEW24(0x08C2B298u, func_08C2B298, Word);
 NEW24(0x08C3548Cu, func_08C3548C, Word);
-NEW24(0x08879190u, func_08879190, Word);
 NEW24(0x08C72614u, func_08C72614, Word);
 NEW24(0x08C75FF8u, func_08C75FF8, Word);
 NEW24(0x08B27C28u, func_08B27C28, Word);
