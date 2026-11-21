@@ -52,3 +52,6 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 08B00E90: lh 0xEC(a0) cursor (negative returns early), lhu 0xE2(a0) mask; a1 (+0x0, +0x44 pointers) is left to the generator (one reg per function)
+0x08B00E90 reg:a0=struct:240 field:+0xEC=int:0..3
