@@ -52,3 +52,66 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x08AE7618: word(a0 + 0x10) is the node whose +8 word, +0x11 flags byte and +0x20/+0x22 signed halves fill the block
+# (a0 itself is only read there; a1 is passed on, a2/a3 are the lookup key and mode).
+0x08AE7618 reg:a0=struct:32 field:+0x10=ptr
+# 0x08B53258: self is read at +0 (the patch base), +4 (the 8-byte entry table) and +0xC (the u16 entry count, re-read
+# every pass); a1 is dereferenced at +0 only for kind 2 (word(list), which then goes to 0x08B531FC), a3 and t0 are
+# absolute bases and t1 a stride, none read through an offset.
+0x08B53258 reg:a0=struct:16
+# 0x08A473D0: lw a1 is the source string's data pointer (its cell header sits at data-0xC).
+0x08A473D0 reg:a1=struct:16 field:+0x0=ptr
+# 0x088FA60C (a0 = the object): only +0x4 is dereferenced here (the segment list 088FAD1C walks). Its other pointer
+# arguments are a1 = the out block (3 floats + 0x0C..0x18 written), a2 = the origin point (3 floats read) and a3 = the target
+# point (3 floats read, through the 08BAC270/08BAC428 pair), which the one-register format cannot describe at the same time.
+0x088FA60C reg:a0=struct:16 field:+0x4=ptr
+# 0x08AE5878 (a0 = the object): +0x34 is the handler called twice, +0x10 the holder whose +0x10 -> +0x8 chain receives the
+# packed opcode. The signed bytes at +0x88 / +0x89 bound the index, the halves at +0x56 / +0x58 are the action bit fields and
+# +0x5C + a1 is the per-index byte; a1 itself is an index, not a pointer.
+0x08AE5878 reg:a0=struct:160 field:+0x10=ptr field:+0x34=ptr
+# 0x08A2BA74: a0 is stored at fp+0x24 and moved from at the end (0x08A5BAD8(word(fp+0x24), object)) unless it is the
+# frame's temporary slot; a writable block is what the move needs.
+0x08A2BA74 reg:a0=struct:16
+# 0x08BAFA9C / 0x08C335FC / 0x08C4ECB0: a0 is the tree: +0x04 the header node the hint is compared with, +0x0C a
+# node, +0x10 the rightmost node (its key at +0x10 is compared with the key), +0x14 the element count (0 skips the
+# rightmost comparison entirely, so it is drawn 1..3 to take that path).
+0x08BAFA9C reg:a0=struct:32 field:+0xC=ptr field:+0x10=ptr field:+0x14=int:1..3
+0x08C335FC reg:a0=struct:32 field:+0xC=ptr field:+0x10=ptr field:+0x14=int:1..3
+0x08C4ECB0 reg:a0=struct:32 field:+0xC=ptr field:+0x10=ptr field:+0x14=int:1..3
+# 0x08BBB178: a0 is the vector {begin, finish, end of storage}: (end - finish) / 32 decides whether the insert grows,
+# and the three words are swapped for the new block at the end, so all three are pointers.
+0x08BBB178 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
+# 0x08C4DC48: a0 is the box {type tag, value pointer}: the tag is compared with each type singleton and the pointer is
+# read by the matching arm's conversion; both words are pointers (a tag never matches, so no arm writes out).
+0x08C4DC48 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x08C52F8C: a0 is the 4x4 matrix 0x08B4E734 copies with four `lv.q` (0x40 bytes read), so the whole block must be in
+# the arena: nothing else of it is read by this body.
+0x08C52F8C reg:a0=struct:64
+# 0x08B39148: a0 = the tokenizer state. The tokenizer 0x08B38938 reads word(+0) (an object whose byte +0xC is tested),
+# word(+4) (compared with word(+8) - 1 by the '^' case) and word(+8) (the text pointer, its first byte read); the
+# dispatch pushes nodes into the holder at +0x10. Highest offset 0x10 -> 0x14 -> size 0x18.
+0x08B39148 reg:a0=struct:0x18 field:+0x0=ptr field:+0x8=ptr field:+0x4=int:0..16
+# 0x08AC48D0: a0 = the buffered stream. The 64-bit position at +0x120 / +0x124, the window's 64-bit start at +0x128 /
+# +0x12C and its byte count at +0x130 are compared; the bytes at +0x134 are the source of the copy. Small values keep the
+# position inside the window (the useful path); the struct is capped at 0x400 (the byte area is written, not laid out).
+0x08AC48D0 reg:a0=struct:0x400 field:+0x120=int:0..64 field:+0x124=int:0..1 field:+0x128=int:0..64 field:+0x12C=int:0..1 field:+0x130=int:0..64
+# 0x08B477D4: a0 = the connection. word(+0) is the vtable (slots 0x14, 0x18, 0x3C, 0x80, 0x94, 0xA4) and the byte at +0x8C
+# is the "connected" flag read first: a zero word there makes every case return 0 at once, so the shape forces its most
+# significant byte (big-endian offset +0x8C) to 1. t0 / t1 (a4) are plain words, not structs.
+0x08B477D4 reg:a0=struct:0x90 field:+0x0=ptr field:+0x8C=int:16777216..16777216
+# 0x08A30594: word(a3) is the HObject asked through slot 0x3C (a0 is the output holder, written only).
+0x08A30594 reg:a3=struct:16 field:+0x0=ptr
+# 0x089DC808: word(a3) is the HObject whose slot 0x7C (mode 1) and slot 0x84 are used (a0 is the output holder).
+0x089DC808 reg:a3=struct:16 field:+0x0=ptr
+# 0x089BAF40: word(a1) is the counted block; its header is read 0xC bytes before it (inside the arena slot before the
+# pointer), so a zero header (the early path) and a live one are both reachable.
+0x089BAF40 reg:a1=struct:16 field:+0x0=ptr
+# 0x34/0x38, 0x3C/0x40) are released; +0x10 is the lock the tail call unlocks and the bytes +8, +9, +0x0C are cleared.
+# The pair words come from the arena (v2: mostly pointers, so a released object's vtable slot lands on a slot pointer and
+# the case may fault in the original — that is "not comparable", and the counter paths still compare).
+0x088FE6BC reg:a0=struct:32 field:+0x0=ptr
+# object handed to 0x0896A35C / 0x08969B98 (which read its +0x4C, +0xE0 and +0x70..+0x7C floats, so the anchor has to be
+# a real object: the field is a pointer). `other` (a1) needs no shape of its own — the generator's v2 register draws are
+# slot pointers, and every field the callees read (0x4C, 0xE0, 0x70..0x7C) stays inside the 64 KiB arena block.
+0x089966DC reg:a0=struct:320 field:+0x12C=int:0..3 field:+0x130=ptr
