@@ -52,3 +52,20 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x088951FC: lbu 0x18(a0) is a flag (0 runs on), lw 0x0(a0) is passed to 0x08894B60, lw 0x8/0x24/0x28/0x2C(a0) are counters compared with the queue's, lw 0x1C(a0) is the record pointer dereferenced (+4, +0x24, +0x40).
+0x088951FC reg:a0=struct:48 field:+0x0=ptr field:+0x8=int:0..8 field:+0x18=int:0..2 field:+0x1C=ptr field:+0x24=int:0..3 field:+0x28=int:0..64 field:+0x2C=int:0..64
+# 0x08892C28: lh 0x4(a0) and lh 0x6(a0) are cell counts (the low half of the word at +4 is the first count), lh 0x558/0x560 first slots, lw 0x18/0x28 + 4*slot cell words; real struct > 0x1B00, capped at 1024.
+0x08892C28 reg:a0=struct:1024 field:+0x4=int:0..3
+# 0x0896AD58: lw 0xA0(a0) is the object whose virtuals take the floats at +0xAC..+0xC4 (and +0xA4, +0xA8), lw 0xE0(a0) is the flag word.
+0x0896AD58 reg:a0=struct:240 field:+0xA0=ptr
+# 0x08806C44: a3 holds seven object pointers at +0x0..+0x18, each asked through its vtable (slots 0x3C / 0x40 / 0x50).
+0x08806C44 reg:a3=struct:32 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr field:+0x14=ptr field:+0x18=ptr
+# 0x08A4AFB4: lw s0,0x0(a2) is the object whose virtual +0xC fills the block (a0 is the output string, a1 the count).
+0x08A4AFB4 reg:a2=struct:16 field:+0x0=ptr
+# 0x088C2724: lw 0x24(a0) is the record (halves/bytes/floats up to +0x78), lw 0x4/0x8/0xC(a0) are objects the members at this+4.. point at, lw 0x0(a0) the owner, lw 0x1C(a0) the follower, +0x10 an index.
+0x088C2724 reg:a0=struct:48 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=int:0..4 field:+0x1C=ptr field:+0x24=ptr
+# 0x089F2028: lwc1 0x18/0x1C(a2) are the two weights; a3 / t0 are the weight tables (+0x0..+0x14), a1 the sink with the vtable at +0.
+0x089F2028 reg:a2=struct:32
+# 0x08904A8C: lwc1 4(a2) and lwc1 0(a2) are the input floats (first access), lw 0x60(a1) is the record table and lhu 0x3C(a1) the record count; real struct 0x70.
+0x08904A8C reg:a1=struct:112 field:+0x3C=int:1..4 field:+0x60=ptr
