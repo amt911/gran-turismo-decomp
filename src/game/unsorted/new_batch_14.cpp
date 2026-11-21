@@ -470,17 +470,6 @@ void func_08B0C650(psprecomp::Runtime &rt, AllegrexContext &ctx) {
 // 0x08B6594C (a0 = an answer, a1 = an object, a2 = a value): the member at object + 0x6C is set up (0x08B5C450(a0, member)),
 // takes the value (0x08B5D1E0(member, value)), the object is flagged (0x08B6534C(object, 1)). v0 = a0.
 
-// 0x08B7B2E4 (a0 = a record): the callee-saved integer registers s0-s7, sp, fp and ra and the floats f20-f31 are stored in
-// the record (0xA to 0x58) and v0 = 0.
-void func_08B7B2E4(psprecomp::Runtime &rt, AllegrexContext &ctx) {
-    const u32 record = ctx.gpr[4];
-    for (unsigned index = 0u; index < 8u; ++index) put(rt, record + index * 4u, ctx.gpr[16u + index]);
-    put(rt, record + 0x20u, ctx.gpr[29]);
-    put(rt, record + 0x24u, ctx.gpr[30]);
-    put(rt, record + 0x28u, ctx.gpr[31]);
-    for (unsigned index = 0u; index < 12u; ++index) put_float(rt, record + 0x2Cu + index * 4u, ctx.fpr[20u + index]);
-    ctx.gpr[2] = 0u;
-}
 
 // 0x08B85860 (a0 = this, a1 = holder): the holder's object (its word) must exist (0x08C97BA4); its virtual at vtable +0x5C
 // fills a record on the stack with (sp, object), the member at this + 0x14 takes it (0x08A6A23C) and the record is released
@@ -702,7 +691,6 @@ NEW14(0x08A563E8u, func_08A563E8, Word);
 NEW14(0x08AC0290u, func_08AC0290, Word);
 NEW14(0x08AC03E0u, func_08AC03E0, Word);
 NEW14(0x08B0C650u, func_08B0C650, Word);
-NEW14(0x08B7B2E4u, func_08B7B2E4, Word);
 NEW14(0x08B85860u, func_08B85860, Word);
 NEW14(0x08C4130Cu, func_08C4130C, Word);
 NEW14(0x08C41374u, func_08C41374, Word);
