@@ -1,0 +1,5 @@
+# layout 1
+0886FDE8 35 1 reg:2=imm:0x24
+0886FDE8 35 1 reg:2=imm:0x24 reg:0=live:15241
+0886FDE8 204 1 word:0x54C4=imm:0xFFFFFFFF
+0886FDE8 227 1 reg:1=imm:0x7FFFFFFF
