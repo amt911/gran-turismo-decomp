@@ -52,3 +52,6 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x08B5D788: stores a1 at +0 of a0, constants at +4/+8/+0xC/+0x10, then reads the words at +0x10 and +0xC and writes through them.
+0x08B5D788 reg:a0=struct:32 field:+0xC=ptr field:+0x10=ptr
