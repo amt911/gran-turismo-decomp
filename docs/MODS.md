@@ -422,6 +422,33 @@ tools/mod_rollover_check.sh --without-mod         # física original, el mod sol
 
 Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
 
+## Construir e instalar `mechanical-damage`
+
+README de `gt-mods` (`mechanical-damage/`, `api = 5`, `enabled = false` por defecto; no necesita ninguna función nueva del host: usa `car_impact`, `car_state` / `car_set_state` y el punto `GT_HOOK_WORLD_STEP`).
+Los golpes fuertes (los mismos `car_impact` y el mismo `StepFilter` que usa deformation, con un umbral más alto) dañan tres piezas según dónde caen: delantero = motor y dirección, trasero = transmisión,
+costados = dirección. Efectos sobre el coche humano (en vivo y en su repetición): hasta -40 % de empuje del motor, un tirón constante hacia un lado (velocidad de guiñada) y un tope de velocidad si el daño es grave.
+El host guarda ahora **un `ImpactTracker` por mod** (`car_impact` compara con la llamada anterior: con uno global, el segundo mod que lo pedía en un paso veía `dv = 0`; deformation y mechanical-damage a la vez perdían golpes; `host/tests/mod_services_test.cpp`).
+El daño de motor reduce la aceleración (no la velocidad máxima de arrastre: ahí la ganancia neta ya es ~0); el tope de velocidad es lo que la baja. El tope se alcanza a 0,5 m/s por paso (un salto de velocidad de un paso se leería como un golpe frontal).
+Fila en el dispositivo de trucos (categoría Car, `Damage: engine X% ...`, Intro repara) y acción `mechanical-damage.repair`.
+
+**Hallazgos de la investigación (paso 0 de la spec, medidos 2026-11-19, ruta `rollover`, `--decomp off`; FACTS «Mechanical damage»):**
+- La palanca `+0x530` (pedal) **no sirve** para escalar la potencia: escrita (escalada) antes del paso con `car_set_state` el coche acelera exactamente igual (velocidad idéntica a 3 decimales durante 300 pasos). El juego rampa
+  el pedal ENTRE pasos (1/15 por paso hacia su objetivo) y el paso deriva su propio acelerador efectivo (`+0x534`, `0x0894FD00..0x0894FDE0`); además un pedal escalado y dejado puesto se compone (0,62^n lo clavó en 0,175).
+- Lo que sí funciona, igual que el nitro de cheats: escribir velocidad y `speed` **antes** del paso (se integra). El mod resta antes de cada paso `(1 - escala) x` la ganancia que dio el motor en el paso anterior
+  (medida desde donde empezó ese paso, así no se compone): la ganancia neta por paso es `escala` veces la original.
+- Un sesgo constante en la velocidad de guiñada (`rates[4]`, `+0x6F8`) sumado tras el paso persiste (la guiñada medida sube con la velocidad: ~0,043 rad/s a 11 m/s con daño completo y `yaw_gain` 10).
+- El tope de velocidad, escrito tras cada paso, se mantiene (la velocidad medida queda en el tope + ~0,04 m/s).
+
+```bash
+GT_MODS_REPO=../gt-mods-damage tools/mod_damage_check.sh [--decomp off|on] [--others]   # off / idle (sin golpe: fotogramas idénticos antes del primero) / front (empuje) / repair / rear (tope) / right, left (tirón)
+tools/mod_damage_check.sh --replay                    # ruta circuit con un golpe falso: el daño se reconstruye en la repetición (mismo golpe, misma velocidad)
+tools/mod_damage_check.sh --toggle-off                # F9 apaga el mod tras un golpe: no registra nada después
+tools/mod_damage_check.sh --without-mod               # debe FALLAR (sin HIT, nada cambia)
+tools/mod_damage_check.sh --sabotage-scale0           # effect_scale = 0: el golpe se registra pero no cambia nada: debe FALLAR
+tools/mod_damage_check.sh --sabotage-liveonly         # -DDAMAGE_SABOTAGE=1: ignora la repetición: con --replay debe FALLAR
+```
+Los golpes son falsos (`GT_MOD_DAMAGE_FAKE=m30:25:f`: 25 m/s desde delante, 30 pasos tras pisar el acelerador; `b` trasero, `r` derecho, `l` izquierdo) porque el golpe real de la ruta (la barrera, paso ~1850) llega demasiado tarde para medir su efecto.
+
 ## Descargador de mods (en construcción)
 
 Spec: `docs/superpowers/specs/2026-11-08-mod-downloader-design.md`. Hecho el núcleo (sin interfaz todavía):
