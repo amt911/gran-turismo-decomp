@@ -52,3 +52,6 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x0895077C: a0 = state record read at +0x12C..+0x176 (bytes, halfwords, flags); a1/a2 are output/settings records written/read as flat blocks.
+0x0895077C reg:a0=struct:384
