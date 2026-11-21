@@ -196,21 +196,6 @@ void update_through_vtable(Runtime &rt, AllegrexContext &ctx, u32 slot, bool sin
     call(rt, ctx, 0x08C54CFCu, {base, word(rt, base + 0x14u) | 1u});
     ctx.gpr[2] = self;
 }
-void func_08C70FE8(Runtime &rt, AllegrexContext &ctx) {
-    update_through_vtable(rt, ctx, 0x8u, true, ctx.gpr[5] & 0xFFu, 0u);
-}
-void func_08C71D00(Runtime &rt, AllegrexContext &ctx) {
-    update_through_vtable(rt, ctx, 0x24u, true, ctx.gpr[5], 0u);
-}
-void func_08C71544(Runtime &rt, AllegrexContext &ctx) {
-    update_through_vtable(rt, ctx, 0x18u, false, ctx.gpr[6], ctx.gpr[7]);
-}
-void func_08C717C8(Runtime &rt, AllegrexContext &ctx) {
-    update_through_vtable(rt, ctx, 0x1Cu, false, ctx.gpr[6], ctx.gpr[7]);
-}
-void func_08C71A7C(Runtime &rt, AllegrexContext &ctx) {
-    update_through_vtable(rt, ctx, 0x20u, false, ctx.gpr[6], ctx.gpr[7]);
-}
 
 // --- two constructors of one object (a0 = this) ------------------------------------------------------------------------
 // 0x08C77004 and 0x08C771D4 hold the same code: two vtable words are stored in turn, the members at +0x1C and +0x24 are set up
@@ -304,98 +289,12 @@ void func_08C548C4(Runtime &rt, AllegrexContext &ctx) {
 // 0x08AD17C4 fills four rows of a local matrix with the caller's four floats, hands each row to 0x08B4A6A0 with its component
 // scaled by -2 (a rotation row), adds 1 to the three diagonal terms, zeroes the three top-right terms and the bottom row's first
 // three, and gives that matrix with the record at this + 0x80 + this[0x1C0] * 80 to 0x08B4E994.
-void func_08AD17C4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 source = ctx.gpr[5];
-    SavedRegisters saved(ctx);
-    SavedFloats floats(ctx, 20, 1);
-    GuestFrame frame(ctx, 0x60u);
-    const float w = float_at(rt, source);
-    const float x = float_at(rt, source + 4u);
-    const float y = float_at(rt, source + 8u);
-    const float z = float_at(rt, source + 0xCu);
-    ctx.fpr[20] = -2.0f;  // `lui $at, 0xC000; mtc1`
-    for (u32 row = 0u; row < 0x40u; row += 0x10u) {
-        put_float(rt, frame.at(row), w);
-        put_float(rt, frame.at(row + 4u), x);
-        put_float(rt, frame.at(row + 8u), y);
-        put_float(rt, frame.at(row + 0xCu), z);
-    }
-    call_float(rt, ctx, 0x08B4A6A0u, {frame.at(0u)}, {psp_mul(w, ctx.fpr[20])});
-    call_float(rt, ctx, 0x08B4A6A0u, {frame.at(0x10u)}, {psp_mul(x, ctx.fpr[20])});
-    call_float(rt, ctx, 0x08B4A6A0u, {frame.at(0x20u)}, {psp_mul(y, ctx.fpr[20])});
-    call_float(rt, ctx, 0x08B4A6A0u, {frame.at(0x30u)}, {psp_mul(z, ctx.fpr[20])});
-    const u32 matrix = self + 0x40u;
-    put_float(rt, matrix + 0x00u, float_at(rt, frame.at(0x00u)) + 1.0f);
-    put_float(rt, matrix + 0x04u, float_at(rt, frame.at(0x04u)));
-    put_float(rt, matrix + 0x08u, float_at(rt, frame.at(0x08u)));
-    put_float(rt, matrix + 0x0Cu, 0.0f);
-    put_float(rt, matrix + 0x10u, float_at(rt, frame.at(0x10u)));
-    put_float(rt, matrix + 0x14u, float_at(rt, frame.at(0x14u)) + 1.0f);
-    put_float(rt, matrix + 0x18u, float_at(rt, frame.at(0x18u)));
-    put_float(rt, matrix + 0x1Cu, 0.0f);
-    put_float(rt, matrix + 0x20u, float_at(rt, frame.at(0x20u)));
-    put_float(rt, matrix + 0x24u, float_at(rt, frame.at(0x24u)));
-    put_float(rt, matrix + 0x28u, float_at(rt, frame.at(0x28u)) + 1.0f);
-    put_float(rt, matrix + 0x2Cu, 0.0f);
-    put_float(rt, matrix + 0x30u, float_at(rt, frame.at(0x30u)));
-    put_float(rt, matrix + 0x34u, float_at(rt, frame.at(0x34u)));
-    put_float(rt, matrix + 0x38u, float_at(rt, frame.at(0x38u)));
-    put_float(rt, matrix + 0x3Cu, 1.0f);
-    const u32 index = word(rt, self + 0x1C0u);
-    call(rt, ctx, 0x08B4E994u, {self, matrix, self + index * 80u + 0x80u});
-}
 
 // --- the graphics library's state block set up (no arguments) -----------------------------------------------------------
 // 0x08B5A344: a flag at 0x08D6E0F0 and the block at 0x08D6CE00 cleared with 0x08B36018, the fields 0x400/density/table of the
 // display list filled, a loop writing 0xC0..0xCB as bytes 0xC0..0xCB of 0x08D6D048 (an index table at +0x3C of each 4-byte
 // word), four more commands (0x08C7AC00, 0x08C7AC40, 0x08C7AC30, 0x08C7AC50, 0x08C7AAB0, 0x08B84B5C, 0x08C7AC38), and two
 // buffers handed to 0x08B56B70 and 0x08B59C90 with the second one's word +0x2C rounded up to a multiple of 0x2000.
-void func_08B5A344(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kState = 0x08D6CE00u;
-    constexpr u32 kTable = 0x08D6D048u;
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    rt.memory().store8(0x08D6E0F0u, 1u);
-    call(rt, ctx, 0x08C7A9B0u, {0u, 0x4000u});
-    call(rt, ctx, 0x08B36018u, {kState, 0u, 0x12F0u});
-    const float density = float_at(rt, 0x08CB620Cu);
-    put(rt, kState + 0x70u, 0x20u);
-    put(rt, kState + 0xC0u, 4u);
-    put_float(rt, kState + 0x13Cu, density);
-    put(rt, kState + 0x78u, 2u);
-    put(rt, kState + 0xF8u, 1u);
-    put(rt, kState + 0xFCu, 0u);
-    put(rt, kState + 0x64u, 0u);
-    put_float(rt, kState + 0xC4u, density);
-    put(rt, kState + 0x138u, 0u);
-    put(rt, kState + 0x74u, 0u);
-    for (u32 index = 0xC0u; index != 0xCCu; ++index) put(rt, kTable + (index - 0xC0u) * 4u, index << 24);
-    rt.memory().store8(kState + 0x25Du, static_cast<std::uint8_t>(-1));  // `addiu $v1, $zero, -1`
-    rt.memory().store8(kState + 0x255u, 1u);
-    put(rt, kState + 0x278u, 0u);
-    put(rt, kState + 0x27Cu, 0u);
-    put(rt, kState + 0x12E0u, 0u);
-    put(rt, kState + 0x12E4u, 0u);
-    call(rt, ctx, 0x08C7AC00u, {0u, 0x1E0u, 0x110u});
-    call(rt, ctx, 0x08C7AC40u, {0x08C95980u, 0u, 0xFFFFFFFFu, 0u});
-    put(rt, kState + 0x2Cu, call(rt, ctx, 0x08C7AC30u));
-    put(rt, kState + 0x28u, call(rt, ctx, 0x08C7AC50u));
-    put(rt, kState + 0x4Cu, 1u);
-    call(rt, ctx, 0x08C7AAB0u, {kState, 0x08CB5774u, 0x300u, 0u, 0u});
-    put(rt, kState + 0x20u, 0u);
-    put(rt, kState + 0x24u, 0u);
-    call(rt, ctx, 0x08B84B5Cu, {0u, 0x08B5A330u, kState});
-    put(rt, frame.at(0u), 0x08B5A2F8u);
-    put(rt, frame.at(4u), kState);
-    put(rt, frame.at(8u), 0x08B5A314u);
-    put(rt, frame.at(0xCu), kState);
-    put(rt, kState + 0x30u, call(rt, ctx, 0x08C7AC38u, {frame.at(0u)}));
-    call(rt, ctx, 0x08B56B70u, {0x08D6D0E0u});
-    s32 span = static_cast<s32>(word(rt, kState + 0x2Cu));
-    if (span < 0) span += 0x1FFFu;  // `slti` + `movn`
-    call(rt, ctx, 0x08B59C90u, {0x08D6DE70u, word(rt, kState + 0x28u), static_cast<u32>(span >> 13) - 1u});
-}
 
 // --- one object's teardown (a0 = this) ----------------------------------------------------------------------------------
 // 0x089AE3C4: the vtable word 0x08CBB598, two members released (0x08B35254 at +0xB0 and +0x58), the container at +0x178
@@ -413,28 +312,6 @@ void dispose_vector(Runtime &rt, AllegrexContext &ctx, u32 vector, u32 scratch) 
     const s32 count = static_cast<s32>(word(rt, vector + 8u) - begin) >> 2;
     if (begin != 0u) call(rt, ctx, 0x08A5BC54u, {begin, static_cast<u32>(count) << 2, 4u});
 }
-void func_089AE3C4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    put(rt, self, 0x08CBB598u);
-    call(rt, ctx, 0x08B35254u, {word(rt, self + 0xB0u)});
-    call(rt, ctx, 0x08B35254u, {word(rt, self + 0x58u)});
-    call(rt, ctx, 0x08BF8B64u, {self + 0x178u});
-    const u32 vector = self + 0x12Cu;  // s0
-    call(rt, ctx, 0x08BF919Cu, {word(rt, vector), word(rt, vector + 4u), frame.at(3u)});
-    const u32 begin = word(rt, vector);
-    const s32 count = static_cast<s32>(word(rt, vector + 8u) - begin) >> 2;
-    if (begin != 0u) call(rt, ctx, 0x08A5BC54u, {begin, static_cast<u32>(count) << 2, 4u});
-    call(rt, ctx, 0x08A5B9ECu, {self + 0xB8u});
-    call(rt, ctx, 0x08A5B9ECu, {self + 0x68u});
-    for (u32 offset = 0x54u; offset >= 0x40u; offset -= 4u) release_if_held(rt, ctx, self + offset);
-    dispose_vector(rt, ctx, self + 0x30u, frame.at(2u));
-    dispose_vector(rt, ctx, self + 0x24u, frame.at(1u));
-    dispose_vector(rt, ctx, self + 0x18u, frame.at(0u));
-    call(rt, ctx, 0x08A780B0u, {self});
-    call(rt, ctx, 0x08A5BC54u, {self, 0x180u, 4u});
-}
 
 // --- the flag words of a pad object written from its two virtuals (a0 = this, a1 = object, a2 = a byte) ------------------
 // 0x08916AC0 asks the object's virtual +0x5C for a status word: bit 0x400 or a zero byte gate the writes, and a second virtual
@@ -443,124 +320,15 @@ void func_089AE3C4(Runtime &rt, AllegrexContext &ctx) {
 void write_pad_flag(Runtime &rt, AllegrexContext &ctx, u32 state, u32 index, bool enabled, u32 flags, u32 mask) {
     call(rt, ctx, 0x0890B030u, {state, index, (enabled && (flags & mask) != 0u) ? 1u : 0u});
 }
-void func_08916AC0(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 object = ctx.gpr[5];
-    const u32 byte = ctx.gpr[6] & 0xFFu;
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    const u32 state = self + 4u;
-    ctx.gpr[17] = state;  // s1
-    ctx.gpr[21] = self;   // s5
-    ctx.gpr[18] = byte;   // s2
-    call(rt, ctx, 0x0890AEC4u, {state});
-    const u32 status = call_indirect(rt, ctx, word(rt, word(rt, object) + 0x5Cu), {object});
-    const bool enabled = (status & 0x400u) == 0u && byte != 0u;
-    ctx.gpr[22] = status & 1u;  // s6, the delay slot of the test above
-    ctx.gpr[19] = status;       // s0
-    ctx.gpr[16] = enabled ? 1u : 0u;  // s3
-    ctx.gpr[20] = enabled ? 1u : 0u;  // s4
-    const u32 flags = call_indirect(rt, ctx, word(rt, word(rt, object) + 0x50u), {object});
-    call(rt, ctx, 0x0890B030u, {state, 0u, (flags >> 1) & 1u});
-    call(rt, ctx, 0x0890B030u, {state, 4u, enabled ? 1u : 0u});
-    write_pad_flag(rt, ctx, state, 2u, enabled, flags, 1u);
-    write_pad_flag(rt, ctx, state, 7u, enabled, flags, 4u);
-    write_pad_flag(rt, ctx, state, 3u, enabled, flags, 8u);
-    write_pad_flag(rt, ctx, state, 0xAu, enabled, flags, 0x10u);
-    write_pad_flag(rt, ctx, state, 0xBu, enabled, flags, 0x20u);
-    call(rt, ctx, 0x0890AEACu, {state, enabled ? 1u : 0u, status & 1u});
-    rt.memory().store8(self + 0x15u, call(rt, ctx, 0x0890B014u, {state, 2u}));
-}
 // --- a placement object rebuilt in place (a0 = this) ----------------------------------------------------------------------
 // 0x08A4037C asks 0x08B85EB8 for the item named 0x08CADA50 and calls the virtual at word(vptr + 0x108) with it; the block that
 // came back is released (0x08B60804 + 0x08B8542C, skipping 0x08D74FD0), a replacement from 0x08A76A94 takes the place of the
 // object held at +0x38 (0x08A5BA08 / 0x08A5B930) and eight handlers are registered on it.
-void func_08A4037C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    const u32 handler = word(rt, word(rt, self) + 0x108u);
-    call(rt, ctx, 0x08B85EB8u, {frame.at(4u), 0x08CADA50u, frame.at(1u)});
-    call_indirect(rt, ctx, handler, {self, word(rt, frame.at(4u))});
-    const u32 block = word(rt, frame.at(4u));
-    const u32 object = block - 0xCu;
-    if (object != 0x08D74FD0u && call(rt, ctx, 0x08B60804u, {block - 4u, 0xFFFFFFFFu}) <= 0) {
-        call(rt, ctx, 0x08B8542Cu, {object, frame.at(0u)});
-    }
-    const u32 replacement = call(rt, ctx, 0x08A76A94u);
-    if (replacement != 0u) call(rt, ctx, 0x08A5BA08u, {replacement});
-    const u32 held = word(rt, self + 0x38u);
-    if (held != 0u) call(rt, ctx, 0x08A5B930u, {held});
-    put(rt, self + 0x38u, replacement);
-    call(rt, ctx, 0x08B8850Cu, {self, 0x08CF6F14u, 0x08A40294u});
-    call(rt, ctx, 0x08B87108u, {self, 0x08CADA94u, 0x08A3F7ACu});
-    call(rt, ctx, 0x08B878E8u, {self, 0x08CADA9Cu, 0x08A3FC30u, 0x08A40A54u});
-    call(rt, ctx, 0x08B8D51Cu, {self, 0x08CADAA8u, 0x08A3FCB0u, 0u});
-    call(rt, ctx, 0x08B8D51Cu, {self, 0x08CADAB0u, 0x08A3FD58u, 0u});
-    call(rt, ctx, 0x08B8D51Cu, {self, 0x08CADAB8u, 0x08A3FE08u, 0u});
-    call(rt, ctx, 0x08B86FB0u, {self, 0x08CADAC0u, 0x08A3F6C4u});
-    call(rt, ctx, 0x08B86FB0u, {self, 0x08CADAD8u, 0x08A3F258u});
-}
 
 // --- a curved value and its scale from a table entry (a0 = this, a1 = key, a2, a3 = two output floats) ---------------------
 // 0x0893B160 looks the entry up (0x08955300), takes the float at table[0x328 + 4 * (byte at +0x10C)] and interpolates the word at
 // +0x34..+0x38 of 0x08CF2990, then builds a scale from the entry's |+0x34| (relative to 100, squared, times +0x3C) interpolated
 // over +0x44..+0x4C above +0x40 and capped at +0x50. A byte at +0x10C of zero gives 0x08CF29D8 and 0 to the two outputs.
-void func_0893B160(Runtime &rt, AllegrexContext &ctx) {
-    constexpr u32 kCurve = 0x08CF2990u;
-    constexpr u32 kFlat = 0x08CF29D8u;
-    const float kLowerEdge = std::bit_cast<float>(0x3E0A3D71u);
-    const float kUpperEdge = std::bit_cast<float>(0x3EB5C290u);
-    const float kEdgeSpan = std::bit_cast<float>(0x3E6147AFu);
-    const float kHundred = std::bit_cast<float>(0x42C80000u);
-    const u32 self = ctx.gpr[4];
-    const u32 out_scale = ctx.gpr[6];
-    const u32 out_value = ctx.gpr[7];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    const u32 table = word(rt, self + 0xCu);
-    const u32 entry = call(rt, ctx, 0x08955300u, {self});
-    const u32 mode = rt.memory().load8(entry + 0x10Cu);
-    if (mode == 0u) {
-        put_float(rt, out_value, float_at(rt, kFlat));
-        put(rt, out_scale, 0u);
-        return;
-    }
-    ctx.gpr[2] = mode << 2;  // `sll v0, mode, 2` (v0 is not the result of this call)
-    const float input = float_at(rt, table + mode * 4u + 0x328u);
-    const float low = float_at(rt, kCurve + 0x34u);
-    const float high = float_at(rt, kCurve + 0x38u);
-    float axis;
-    if (input < kLowerEdge) {
-        axis = low;
-    } else if (kUpperEdge < input) {
-        axis = high;
-    } else {
-        axis = low + ((input - kLowerEdge) * (high - low)) / kEdgeSpan;
-    }
-    const float distance = std::fabs(float_at(rt, entry + 0x34u));
-    const float normalized = distance / kHundred;
-    const float gain = axis * ((normalized * normalized) * float_at(rt, kCurve + 0x3Cu));
-    const float upper = float_at(rt, kCurve + 0x40u);
-    float value;
-    if (distance < upper) {
-        value = float_at(rt, kCurve + 0x48u);
-    } else {
-        const float lower = float_at(rt, kCurve + 0x44u);
-        if (lower < distance) {
-            value = float_at(rt, kCurve + 0x4Cu);
-        } else {
-            const float start = float_at(rt, kCurve + 0x48u);
-            const float end = float_at(rt, kCurve + 0x4Cu);
-            value = start + ((distance - upper) * (end - start)) / (lower - upper);
-        }
-    }
-    const float cap = float_at(rt, kCurve + 0x50u);
-    float scale = gain;
-    if (cap < gain) scale = cap;
-    put_float(rt, out_scale, scale);
-    put_float(rt, out_value, value);
-}
 
 } // namespace
 } // namespace new_batch_23
@@ -568,17 +336,6 @@ void func_0893B160(Runtime &rt, AllegrexContext &ctx) {
 
 #define NEW23(address, name, kind) GT_DECOMP(address, gt::game::new_batch_23::name, gt::ReturnKind::kind)
 NEW23(0x08BD48FCu, func_08BD48FC, Word);
-NEW23(0x08C70FE8u, func_08C70FE8, Word);
-NEW23(0x08C71D00u, func_08C71D00, Word);
-NEW23(0x08C71544u, func_08C71544, Word);
-NEW23(0x08C717C8u, func_08C717C8, Word);
-NEW23(0x08C71A7Cu, func_08C71A7C, Word);
 NEW23(0x08C77004u, func_08C77004, Word);
 NEW23(0x08C771D4u, func_08C771D4, Word);
 NEW23(0x08C548C4u, func_08C548C4, Word);
-NEW23(0x08AD17C4u, func_08AD17C4, Word);
-NEW23(0x08B5A344u, func_08B5A344, Word);
-NEW23(0x089AE3C4u, func_089AE3C4, Word);
-NEW23(0x08916AC0u, func_08916AC0, Word);
-NEW23(0x08A4037Cu, func_08A4037C, Word);
-NEW23(0x0893B160u, func_0893B160, Word);
