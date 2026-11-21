@@ -52,3 +52,82 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+# lw a3,0(a0); lw a0,0(a3): table pointer
+# lw t0,0(a0); lw a0,0(t0): table pointer, stores into the element
+# lw a0,0x18(a0) is passed to the callee
+0x0888B670 reg:a0=struct:32 field:+0x18=ptr
+# lw v0,0x7C(a0); lw v1,0x78(a0) compared
+0x088D09E8 reg:a0=struct:128 field:+0x78=int:0..3 field:+0x7C=int:0..3
+# sw -1,0x248(s0) after the callee
+0x0891FEF0 reg:a0=struct:592
+# lw v0,0(a0); lw v1,0(v0) selects the argument order
+# sw v0,8(s0): result stored at +8
+0x08A61714 reg:a0=struct:16
+# sb 5,4(a0); sw vtable,0(a0)
+0x08A65128 reg:a0=struct:16
+# sw vtable,0(a0); sw 0,4(a0)
+0x08C55D4C reg:a0=struct:16
+# lw v1,4(s1) = +0x5C: member with a virtual, lw a1,0x58(s0)
+0x088A3544 reg:a0=struct:96 field:+0x58=int:0..16 field:+0x5C=ptr
+# lw v0,0(s1): object, lw a1,0x4C0(v0)
+# lw v1,0x130(a0): record with the pair at +0x40/+0x44
+0x088DB018 reg:a0=struct:320 field:+0x130=ptr
+# lw a0,0(a0): object whose vtable slot 0x50 is called
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x089A1214 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x089F8674 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x08A05884 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# 0x088951FC: lbu 0x18(a0) is a flag (0 runs on), lw 0x0(a0) is passed to 0x08894B60, lw 0x8/0x24/0x28/0x2C(a0) are counters compared with the queue's, lw 0x1C(a0) is the record pointer dereferenced (+4, +0x24, +0x40).
+0x088951FC reg:a0=struct:48 field:+0x0=ptr field:+0x8=int:0..8 field:+0x18=int:0..2 field:+0x1C=ptr field:+0x24=int:0..3 field:+0x28=int:0..64 field:+0x2C=int:0..64
+# 0x08892C28: lh 0x4(a0) and lh 0x6(a0) are cell counts (the low half of the word at +4 is the first count), lh 0x558/0x560 first slots, lw 0x18/0x28 + 4*slot cell words; real struct > 0x1B00, capped at 1024.
+0x08892C28 reg:a0=struct:1024 field:+0x4=int:0..3
+# 0x0896AD58: lw 0xA0(a0) is the object whose virtuals take the floats at +0xAC..+0xC4 (and +0xA4, +0xA8), lw 0xE0(a0) is the flag word.
+0x0896AD58 reg:a0=struct:240 field:+0xA0=ptr
+# 0x08806C44: a3 holds seven object pointers at +0x0..+0x18, each asked through its vtable (slots 0x3C / 0x40 / 0x50).
+0x08806C44 reg:a3=struct:32 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr field:+0x14=ptr field:+0x18=ptr
+# 0x08A4AFB4: lw s0,0x0(a2) is the object whose virtual +0xC fills the block (a0 is the output string, a1 the count).
+0x08A4AFB4 reg:a2=struct:16 field:+0x0=ptr
+# 0x088C2724: lw 0x24(a0) is the record (halves/bytes/floats up to +0x78), lw 0x4/0x8/0xC(a0) are objects the members at this+4.. point at, lw 0x0(a0) the owner, lw 0x1C(a0) the follower, +0x10 an index.
+0x088C2724 reg:a0=struct:48 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=int:0..4 field:+0x1C=ptr field:+0x24=ptr
+# 0x089F2028: lwc1 0x18/0x1C(a2) are the two weights; a3 / t0 are the weight tables (+0x0..+0x14), a1 the sink with the vtable at +0.
+0x089F2028 reg:a2=struct:32
+# 0x08904A8C: lwc1 4(a2) and lwc1 0(a2) are the input floats (first access), lw 0x60(a1) is the record table and lhu 0x3C(a1) the record count; real struct 0x70.
+0x08904A8C reg:a1=struct:112 field:+0x3C=int:1..4 field:+0x60=ptr
+# 0x08C577F0: lw v1,0(s0) is the stream's vtable, base = this + word(vtable - 0xC); a1 is only the value passed on.
+0x08C577F0 reg:a0=struct:16 field:+0x0=ptr
+# 0x08C57E1C: lw v1,0(s0) is the stream's vtable, base = this + word(vtable - 0xC); a1 is only the value passed on.
+0x08C57E1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08C57F58: lw v1,0(s0) is the stream's vtable, base = this + word(vtable - 0xC); a1 is only the value passed on.
+0x08C57F58 reg:a0=struct:16 field:+0x0=ptr
+# 0x08BFE808: a0 = tree (count word +0x14 incremented); a2 (parent node, word +0x10 compared with the key) and a3 (key words +0 / +4) are left to the default slots.
+0x08BFE808 reg:a0=struct:32 field:+0x14=int:0..8
+# 0x08C25B2C: a0 = tree (count word +0x14 incremented), a2 = parent node (word +0x10 compared with the key), a3 = key (words +0 / +4).
+0x08C25B2C reg:a0=struct:32 field:+0x14=int:0..8
+# 0x088BA534: lw v0,0(a0) is the read cursor (its bytes are copied to a1); the size in a2 picks 1/2/4/8 or the library copy.
+0x088BA534 reg:a0=struct:16 field:+0x0=ptr
+# 0x088F19DC: lw v0,0(a0) is the read cursor (its bytes are copied to a1); the size in a2 picks 1/2/4/8 or the library copy.
+0x088F19DC reg:a0=struct:16 field:+0x0=ptr
+# 0x08BAC46C: a0 is a vector (end at +4), a1 / a2 point at arrays of 0x20-byte elements that are read and written.
+0x08BAC46C reg:a0=struct:16 field:+0x4=ptr
+# 0x08BDB598: a0 is the base of 8-byte heap entries read and written at the hole / parent indices.
+0x08BDB598 reg:a0=struct:1024
+# 0x08B95120: a1 is a tree node: +8 / +0xC children (held at 0 to end the walk), +0x10 / +0x14 strings.
+0x08B95120 reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x10=ptr field:+0x14=ptr
+# 0x08997A4C: a0 is an object: vectors at +0x164 / +0x158, the object at +0x154 (held at 0).
+0x08997A4C reg:a0=struct:400 field:+0x154=int:0..0
+# 0x08A37510: a3 is a holder: lw s0,0(a3) is the object whose vtable slot 0xC runs (only when a2 > 0).
+0x08A37510 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A1EC18: a0 is the buffer (word +0x20 = the reduction), a2 / a3 / t0 / t1 are four output words.
+0x08A1EC18 reg:a0=struct:48 field:+0x20=int:0..8
+# 0x08B9355C: a1 is a tree node: +8 / +0xC children (held at 0), +0x10 a string, +0x18 a shared holder (held at 0).
+0x08B9355C reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x10=ptr field:+0x18=int:0..0
+# 0x0885F46C: lw a0,0(a0) is the object whose byte +0x5AA and word +0x5AC are read.
+0x0885F46C reg:a0=struct:16 field:+0x0=ptr
+# 0x08ABECA0: a0 is an object with 16 records of 0x10 bytes at +0x1C (count +0, block +8, table +0xC).
+0x08ABECA0 reg:a0=struct:336 field:+0x1C=int:0..3 field:+0x24=ptr field:+0x28=ptr field:+0x2C=int:0..3 field:+0x34=ptr field:+0x38=ptr field:+0x3C=int:0..3 field:+0x44=ptr field:+0x48=ptr field:+0x4C=int:0..3 field:+0x54=ptr field:+0x58=ptr field:+0x5C=int:0..3 field:+0x64=ptr field:+0x68=ptr field:+0x6C=int:0..3 field:+0x74=ptr field:+0x78=ptr field:+0x7C=int:0..3 field:+0x84=ptr field:+0x88=ptr field:+0x8C=int:0..3 field:+0x94=ptr field:+0x98=ptr field:+0x9C=int:0..3 field:+0xA4=ptr field:+0xA8=ptr field:+0xAC=int:0..3 field:+0xB4=ptr field:+0xB8=ptr field:+0xBC=int:0..3 field:+0xC4=ptr field:+0xC8=ptr field:+0xCC=int:0..3 field:+0xD4=ptr field:+0xD8=ptr field:+0xDC=int:0..3 field:+0xE4=ptr field:+0xE8=ptr field:+0xEC=int:0..3 field:+0xF4=ptr field:+0xF8=ptr field:+0xFC=int:0..3 field:+0x104=ptr field:+0x108=ptr field:+0x10C=int:0..3 field:+0x114=ptr field:+0x118=ptr
+# 0x0880E0F8: lw s0,0(a0) is a table whose float at +8 picks the row.
+0x0880E0F8 reg:a0=struct:16 field:+0x0=ptr
+# 0x088A2934: a0 is an object: +4 the lock owner, +8 the flag, byte +0x78 picks the copied range; a1 the output block.
+0x088A2934 reg:a0=struct:128 field:+0x4=ptr field:+0x8=int:0..1 field:+0x78=int:0..1
