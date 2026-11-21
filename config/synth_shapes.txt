@@ -52,3 +52,81 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x08AD156C: the count at +0x1C0 decides (below four takes the copy path), the records start at +0x80.
+0x08AD156C reg:a0=struct:1024 field:+0x1C0=int:0..4
+# 0x08B018A4: lw a0,0x0(a0) is the record base, plus 240 bytes per index a1; the container's cursor and storage are
+# at +0x30 / +0x34 (0x34 + 4 -> 0x38 -> 0x40).
+0x08B018A4 reg:a0=struct:64 field:+0x0=ptr field:+0x30=ptr field:+0x34=ptr
+# 0x08B5156C: the object a0 is written at +0 / +4 / +8 / +0xC / +0x14 and +0xC20.
+0x08B5156C reg:a0=struct:1024
+# 0x08AE074C: no shape: a0 is an INDEX into the global object table (08ADDCD4 tests a0 < 0 and a0 <= count - 1),
+# not a pointer. The only globals it reads are the two float constants at 0x08CB60B0 / 0x08CB60B4 in .rodata.
+# 0x08B0957C: a1 is the 0x24-byte source of the copy (nine reads, the last at +0x20); a0 is only written.
+0x08B0957C reg:a1=struct:64
+# 0x08B17570: the object is written from +0 up to +0x19FC; the arena cap (1024) is the whole shape possible here.
+0x08B17570 reg:a0=struct:1024
+# 0x08B4DFF4: the 4x4 matrix at +0x00..+0x3C is read and written in place (0x38 + 4 -> 0x3C -> size 64).
+0x08B4DFF4 reg:a0=struct:64
+# 0x08B95080: a1 is the chain node: +0x8 next (zero stops the chain), +0xC subtree (zero stops the recursion),
+# +0x14 the holder whose refcount 08B60804 reads at holder - 4 and whose cell is holder - 0xC.
+0x08B95080 reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x14=ptr
+# 0x08C5380C / 0x08C538B4 / 0x08C5395C: the object's floats at +0x00..+0x20 are read (0x20 + 4 -> 0x24, size 48);
+# a1 / a2 / a3 are only written (four bytes each).
+0x08C5380C reg:a0=struct:48
+0x08C538B4 reg:a0=struct:48
+0x08C5395C reg:a0=struct:48
+0x08C73C00 reg:a0=struct:16 field:+0x0=ptr
+# --- the conditional copy assignments (14): lw s0, 0x0(a1) is the source object; a0 is the destination holder the
+# callees 0x08A5BAD8 / 0x08A76F20 dereference.
+0x0880A698 reg:a1=struct:16
+0x08835334 reg:a1=struct:16
+0x089BA138 reg:a1=struct:16
+0x089C218C reg:a1=struct:16
+0x089ED128 reg:a1=struct:16
+0x089F5574 reg:a1=struct:16
+0x089F7DB0 reg:a1=struct:16
+0x08A0817C reg:a1=struct:16
+0x08A2D22C reg:a1=struct:16
+# 0x0887AFB4: sw vtable 0x0(a0), sw the record 0x4(s1=a0) and 0x8(s1=a0+4); the globals 0x08D753E8 (byte read) and
+# 0x08D753F0 (word written) cannot be shaped here.
+0x0887AFB4 reg:a0=struct:16
+# 0x08B54104: lwl/lwr read three words at +0x0 / +0x4 / +0x8 of a0; a1 and a2 are 4x4 matrices read 0x40 bytes deep.
+0x08B54104 reg:a0=struct:16
+# 0x08C53A04..0x08C53BFC: a0 is the parameter block of floats read up to +0x28 (0x28 + 4 -> 0x2C -> 48); a1/a2/a3 are
+# the float outputs (stores through them).
+0x08C53A04 reg:a0=struct:48
+0x08C53AAC reg:a0=struct:48
+0x08C53B54 reg:a0=struct:48
+0x08C53BFC reg:a0=struct:48
+# --- the holder-cast template (14 instances): a1 is the source holder, *a1 the object the cast tests; a0 is the
+# output holder the reset writes. The class getter, the instance test and the nil fallback take it from there.
+0x08A2E4C8 reg:a1=struct:4 field:+0x0=ptr
+0x08A52264 reg:a1=struct:4 field:+0x0=ptr
+0x08A5973C reg:a1=struct:4 field:+0x0=ptr
+0x08A59C00 reg:a1=struct:4 field:+0x0=ptr
+0x08A5A0C8 reg:a1=struct:4 field:+0x0=ptr
+0x08A82EC0 reg:a1=struct:4 field:+0x0=ptr
+0x08A8A3B8 reg:a1=struct:4 field:+0x0=ptr
+0x08A8C1EC reg:a1=struct:4 field:+0x0=ptr
+0x08A9B8FC reg:a1=struct:4 field:+0x0=ptr
+# 0x08BBB988: lw a0,0x4(a0) is the entry table and lw a0,0x1C(a0) the owner the lookup runs on; a2 is the output
+# record (stored, not read).
+0x08BBB988 reg:a0=struct:32 field:+0x4=ptr field:+0x1C=ptr
+# 0x08C7366C: lw v1,0x0(a0) is the string the scan indexes and lw v0,-0xC(v1) its length.
+0x08C7366C reg:a0=struct:4 field:+0x0=ptr
+# 0x08B22204: the constructor writes +0..+0x6C of a0 (vtable, members, sub-objects at +4 / +0x34 / +0x40).
+0x08B22204 reg:a0=struct:112
+# 0x08BF7980: a1 is a list node: word at +0xC is the recursive chain, +8 the next node, +0x10 the block and +0x14
+# the holder's object. One node only (both links null) so the free of the node itself is the case, not a chain.
+0x08BF7980 reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x10=ptr field:+0x14=ptr
+# 0888B748: a0's key table is at +4 (the first thing dereferenced) and the reporter at +0x18; a1 is the key.
+0x0888B748 reg:a0=struct:0x20 field:+0x4=ptr field:+0x18=ptr
+# 08BBC804: a1 is the pointer to the holder pointer; pinned null so no previous object is released through its
+# virtual +4 (a call through an arena word) and the allocate-and-copy path runs; a2 is the 0x4AC-byte source.
+0x08BBC804 reg:a1=struct:0x10 field:+0x0=int:0..0
+# 08C491E4: a3 is the sort descriptor — a fixed word offset at +0, the struct holding the record table at +4.
+0x08C491E4 reg:a3=struct:0x8 field:+0x0=int:0..1 field:+0x4=ptr
+# 08C73B40: a0's word 0 is the byte base and its count is the word 12 bytes below it; a1 is a value, a2 the start
+# index, a3 a context (null answers -1 early).
+0x08C73B40 reg:a0=struct:0x10 field:+0x0=ptr
