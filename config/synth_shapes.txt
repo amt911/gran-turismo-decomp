@@ -52,3 +52,44 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x088BD288: `lw a0, 0(a1)` (params) is dereferenced at +0x13CC, +0x328, +0x137C and +0x1350, so that word must be a
+# valid pointer. a0 (holder) is read as bytes at +0x12, +0x28 and a float at +0x1C only — no shape can pin both, and a0
+# is covered by the arena's own pointer draw.
+0x088BD288 reg:a1=struct:16 field:+0x0=ptr
+# 0x088E1808: word(race + 0xC0) is the car-array base and word(race + 0x14C) is an object handed to 0x088F8A84. The
+# session pointer at +0x640 and the slot table at +0x77C are past the 1024-byte cap, so they stay arena data.
+0x088E1808 reg:a0=struct:1024 field:+0xC0=ptr field:+0x14C=ptr
+# 0x08959704 (a0 = emitter object, a1 = state block 0x34 bytes read and written, a2 = source block 0x34 bytes read,
+# a3 = count int). Shaped: a2, the block copied first and the one whose floats at +0x10 (heading), +0x14 and +0x18
+# scale the whole integration (covers +0x30 + 4).
+0x08959704 reg:a2=struct:64
+#
+# 0x0892AE14 (a0 = flag word, a1 = table of two words, a2 = parameter block, a3 = command, t0 = amount, t1 = flag
+# byte). Shaped: a2, the block whose bytes +2 / +7 / +0x14 and float +0x2C the commands write (0x2C + 4).
+0x0892AE14 reg:a2=struct:64
+#
+# 0x08A2EEDC (a0 = destination, a1 = argument of the work object, a2 = count, a3 = key source). No argument register
+# is dereferenced in the body; a1 is handed to 0x08B09F98, so it is shaped to keep that callee's reads valid.
+0x08A2EEDC reg:a1=struct:32
+#
+# 0x088F1588 (a0 = result block written at +0..+0x20, +0x30..+0x3C, a1 = holder {+0, +4, +0x18}, a2 = key). Shaped:
+# a0, the block the state machine and the three float triples live in (+0x3C + 4).
+0x088F1588 reg:a0=struct:64
+# 0x08B036F8: lw v0, 0x1FC(a0) then ext v0, v0, 25, 5 is the candidate count (one byte pair per candidate from +0x1C0);
+# 0x1FC + 4 -> 0x200. Bits 25-29 set once gives exactly one candidate.
+0x08B036F8 reg:a0=struct:512 field:+0x1FC=int:0x2000000..0x2000000
+# 0x08A2FB84: a3's four words are objects reached through their slots 0x50 / 0x3C / 0x30; a0 is only handed to
+# the smart-pointer helpers (never read here), a2 is the argument count and a1 is unused.
+0x08A2FB84 reg:a3=struct:32 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr
+# 0x088AECC8: +0x3DC is the record index (records of 0x28 bytes from +0x280) and +0x3FC the object whose word
+# +0xC the block reads; the floats at +0x8..+0x48 and +0x400..+0x43C are plain data.
+0x088AECC8 reg:a0=struct:1024 field:+0x3DC=int:0..16 field:+0x3FC=ptr
+# conversion (a float, two words, a signed byte/half/word), so it must be a valid pointer. The output pointer a1 is
+# left to the generator's default draw (a 16-byte slot most of the time). The token at +0 cannot be shaped to the
+# runtime token values (they come from the 0x08B9DDB0 family), so the chain's match branches stay on the game routes.
+0x08C4DF20 reg:a0=struct:16 field:+0x4=ptr
+# pointer (the original faults, not comparable), a table entry (a real leaf function: the callback path runs) or zero
+# (the early return), which is what the comparison needs. The later arguments (first at +4/+5, third at +0..+0x10)
+# are pointers too, but the shape format lays out one register per address; a0 is the one whose derefs decide the run.
+0x08B30A6C reg:a0=struct:1024
