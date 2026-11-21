@@ -52,3 +52,41 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# Synthetic-case input shapes, main-session batch 241 (one line per address). Evidence in the comment above each line.
+# 0x0889AD18: lw a2,0x4(a0) is the object whose word 0xB04 is the command target and whose vtable slots answer.
+0x0889AD18 reg:a0=struct:1024 field:+0x4=ptr
+# 0x088C85E4: lw a0,0x4(a0) is the handle 088D2C30 queries; self+8 is the flag the null path clears.
+0x088C85E4 reg:a0=struct:16 field:+0x4=ptr
+# 0x08AC9CC8: a1 is the name string every 08B1CE38 / 08B35FD8 call reads; a0 is only stored, never dereferenced.
+0x08AC9CC8 reg:a1=struct:32
+# 0x08B025D4: lw v0,0x0(a0) is the record array, +0x14/+0x24 the link bases, +0x7C the 6-byte table, +0xC/+0x1C indices.
+0x08B025D4 reg:a0=struct:256 field:+0x0=ptr field:+0xC=int:0..16 field:+0x14=ptr field:+0x1C=int:0..16 field:+0x24=ptr field:+0x7C=ptr
+# 0x088ACFD8: +0x3CC / +0x3D0 pick the 40-byte records, the floats live at +0x3C..+0x48 and +0x42C / +0x430 (past 1024).
+0x088ACFD8 reg:a0=struct:1024 field:+0x3CC=int:0..1 field:+0x3D0=int:0..1
+# 0x08B7394C: a0 is the parser object; word(+0x4D0) selects the record, word(+0x4E0) is copied out and
+# +0x4D4 / +0x4E4 are cleared (all beyond the 1024-byte shape cap, so only the base is pinned valid).
+0x08B7394C reg:a0=struct:1024
+# 0x08BED390: a0 is the vector {begin, end, capacityEnd} of 0x30-byte elements; their first word is a vtable.
+0x08BED390 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
+# 0x089AC2A8: a0 is the renderer object whose first word is the vtable (slots 0x108 / 0x10C are called);
+# a1 (points: four floats), a2 (strip object) and a3 (normalize flag) stay arena values.
+0x089AC2A8 reg:a0=struct:16 field:+0x0=ptr
+# Synthetic-case input shapes for new_batch_main_244 (one line per address).
+# 0x08902884: a1 is the sampled object (word(s3+0x54) = the 40-byte point count, word(s3+0x58) = the point array);
+# a0 is only written and a2 only read as floats (+0 and +4).
+0x08902884 reg:a1=struct:96 field:+0x54=int:1..2 field:+0x58=ptr
+# 0x08A7DF34: a1 is the source vector (the word pair at +0/+4 is its begin/end); the small path is what a synthetic
+# case can lay out (a real begin + 4*n array is not expressible), so the pair is pinned to zero.
+0x08A7DF34 reg:a1=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0
+# 0x08AA6E38: a2 points at the reader's cursor word (lw t0, 0(a2)); the cursor itself must be a pointer
+# because the bytes at it are read one per element and the advanced cursor is written back (sw a2, 0(t5)).
+# a3 holds the destination word the tail reads (lw s0, 0(s5)) - left to the generator.
+0x08AA6E38 reg:a2=struct:16 field:+0x0=ptr
+# 0x08908A14: a1 is the path object: +0x20 is handed to 0x08908260 and the node list head is the word at +0x98
+# (lw s0, 0x98(s5)), so the list pointer is what the shape pins. The node's word at +0 is read as flags (low two
+# bits) and at +4 as a float; a2 is the control array of six floats (0..0x14) and needs no layout.
+0x08908A14 reg:a1=struct:160 field:+0x98=ptr
+# 0x08A15800: a0 = `self`, read at +0x11 (lbu), +0x18 / +0x20 (floats) and +0x34 (word, compared with the blocks' first
+# words). The two blocks (a1, a2) are plain pointers into the arena, so no field shape is needed for them.
+0x08A15800 reg:a0=struct:64
