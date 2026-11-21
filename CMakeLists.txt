@@ -101,6 +101,7 @@ add_library(gt_host_objs OBJECT
     host/main.cpp
     host/diff_harness.cpp
     host/synth_case.cpp
+    host/synth_report.cpp
     host/import_replay.cpp
     host/diff_compare.cpp
     host/probes.cpp
@@ -194,6 +195,7 @@ if(GT_PLAY)
         host/play_backends.cpp
         host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/tilt_free.cpp host/game_state.cpp host/mesh_blob.cpp host/pad_menu.cpp host/ui_row.cpp host/ui_view.cpp
         host/cheat_device/bindings.cpp host/cheat_device/menu.cpp host/cheat_device/device.cpp host/cheat_device/keyboard_sdl.cpp
+        host/draw_composite.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -227,6 +229,16 @@ if(GT_PLAY)
     option(GT_PANEL_SABOTAGE_USE_OVERLAY "sabotage: the cheat device opens as the F9 overlay page, not as the host panel" OFF)
     if(GT_PANEL_SABOTAGE_USE_OVERLAY)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PANEL_SABOTAGE_USE_OVERLAY=1)
+    endif()
+    # Verification only (tools/mod_draw_check.sh --sabotage-flush / --sabotage-grade must FAIL): the draw list is never handed to the window / dump;
+    # the scene grade never reaches the window / dump.
+    option(GT_DRAW_SABOTAGE_NO_FLUSH "sabotage: the mods' draw lists are dropped" OFF)
+    if(GT_DRAW_SABOTAGE_NO_FLUSH)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_DRAW_SABOTAGE_NO_FLUSH=1)
+    endif()
+    option(GT_GRADE_SABOTAGE_IGNORE "sabotage: the scene grade is ignored" OFF)
+    if(GT_GRADE_SABOTAGE_IGNORE)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_GRADE_SABOTAGE_IGNORE=1)
     endif()
     # Verification only: a held-back button released inside its window never reaches the game (mod_reset_check.sh --tap --sabotage-notap, API 4).
     option(GT_PAD_MENU_SABOTAGE_NO_REPLAY "sabotage: the late tap of a held-back button is swallowed" OFF)
@@ -398,7 +410,7 @@ add_test(NAME internal_resolution COMMAND internal_resolution_tests)
 add_executable(pgf_tests host/tests/pgf_test.cpp host/pgf.cpp)
 target_include_directories(pgf_tests PRIVATE host)
 add_test(NAME pgf COMMAND pgf_tests)
-add_executable(synth_case_tests host/tests/synth_case_test.cpp host/synth_case.cpp)
+add_executable(synth_case_tests host/tests/synth_case_test.cpp host/synth_case.cpp host/synth_report.cpp)
 target_include_directories(synth_case_tests PRIVATE host)
 add_test(NAME synth_case COMMAND synth_case_tests)
 add_executable(pad_sequence_tests host/tests/pad_sequence_test.cpp host/pad_sequence.cpp)
@@ -444,6 +456,12 @@ target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2
 foreach(mode menu present f10 f9 extra fps delegated panel styled styled_nofont async_picture)
     add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
 endforeach()
+# The mod draw layer (lcs patch 0071, API v8): rasterizer pixel checks, the picture store, the CPU composite of the frame dumps.
+add_executable(mod_draw_raster_tests host/tests/mod_draw_raster_test.cpp host/draw_composite.cpp
+    "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_host_style.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
+target_include_directories(mod_draw_raster_tests PRIVATE host "${GT_LCS_HOST_DIR}")
+target_link_libraries(mod_draw_raster_tests PRIVATE psprecomp_core PkgConfig::SDL2)
+add_test(NAME mod_draw_raster COMMAND mod_draw_raster_tests)
 # The host UI as PNGs (cheat device Race / Controls capture / F9 MODS / F10): built from the real Device and mod menu code, only
 # our own UI text; `ui_panel_dump <dir>` writes them, the ctest checks they are written and show the colours.
 add_executable(ui_panel_dump host/tests/ui_panel_dump.cpp host/ui_row.cpp host/ui_view.cpp host/cheat_device/bindings.cpp

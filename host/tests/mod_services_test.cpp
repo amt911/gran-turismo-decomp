@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <thread>
+#include <vector>
 
 namespace {
 int failures = 0;
@@ -33,6 +35,43 @@ void label_long(GtMod *, char *out, std::uint32_t capacity) { std::snprintf(out,
 int g_dir = 99;
 void act(GtMod *, int direction) { g_dir = direction; }
 void tick_noop(GtModCtx *) {}
+
+// v8 draw layer: what the sink got, and the overlay callbacks the tests register.
+std::vector<gt::mods::services::DrawCommand> g_sunk;
+int g_sink_calls = 0;
+void sink(const gt::mods::services::DrawCommand *commands, std::size_t count) {
+    ++g_sink_calls;
+    g_sunk.assign(commands, commands + count);
+}
+gt::mods::services::SceneGrade g_graded;
+int g_grade_calls = 0;
+void grade_sink(const gt::mods::services::SceneGrade &g) { g_graded = g; ++g_grade_calls; }
+bool host_is_neutral(const gt::mods::services::SceneGrade &g) { return g.r == 1.0f && g.g == 1.0f && g.b == 1.0f && g.brightness == 1.0f && g.saturation == 1.0f; }
+bool g_draw_now = true;
+const GtModApi *g_api8 = nullptr;
+void overlay_a(GtMod *self, GtModCtx *) {
+    if (!g_draw_now) return;
+    g_api8->draw_rect(self, 10.0f, 20.0f, 30.0f, 40.0f, 0xFF8040C0u);
+    g_api8->draw_text(self, 5.0f, 6.0f, 12.0f, 0x11223344u, "hello");
+}
+void overlay_threads(GtMod *self, GtModCtx *) {
+    std::thread other([self] { g_api8->draw_rect(self, 1.0f, 1.0f, 9.0f, 9.0f, 0xFFFFFFFFu); });  // not the tick thread: rejected
+    other.join();
+    g_api8->draw_rect(self, 2.0f, 2.0f, 5.0f, 5.0f, 0x112233FFu);
+}
+void overlay_clip(GtMod *self, GtModCtx *) {
+    g_api8->draw_rect(self, 500.0f, 10.0f, 5.0f, 5.0f, 0xFFFFFFFFu);                      // wholly right of the screen
+    g_api8->draw_rect(self, -20.0f, 10.0f, 10.0f, 5.0f, 0xFFFFFFFFu);                      // wholly left
+    g_api8->draw_rect(self, 470.0f, 260.0f, 50.0f, 50.0f, 0xFFFFFFFFu);                    // partly visible: kept
+    g_api8->draw_text(self, 10.0f, 10.0f, 1.0e6f, 0xFFFFFFFFu, "big");                     // size clamped
+    g_api8->draw_line(self, 0.0f, 0.0f, 10.0f, 10.0f, 1.0e6f, 0xFFFFFFFFu);               // width clamped
+    g_api8->draw_line(self, 600.0f, 0.0f, 700.0f, 10.0f, 2.0f, 0xFFFFFFFFu);              // wholly off-screen
+}
+void overlay_b(GtMod *self, GtModCtx *) { g_api8->draw_line(self, 0.0f, 0.0f, 480.0f, 272.0f, 2.0f, 0xFFFFFFFFu); }
+void overlay_flood(GtMod *self, GtModCtx *) {
+    for (int i = 0; i < 5000; ++i) g_api8->draw_rect(self, 0.0f, 0.0f, 1.0f, 1.0f, 0xFFFFFFFFu);
+    g_api8->draw_text(self, 0.0f / 0.0f, 0.0f, 12.0f, 0xFFFFFFFFu, "nan");  // dropped: non-finite
+}
 
 }  // namespace
 
@@ -368,6 +407,153 @@ int main() {
         remove_for(&a);
         check(api_car_impact(&a, &ictx, IW, K, &ia) == 0 && ia.dv_magnitude == 0.f, "impact: a removed mod's tracker starts again");
     }
+    {  // v8: the draw layer (on_overlay, draw_text / draw_rect / draw_line)
+        clear_for_tests();
+        clear_hooks_for_tests();
+        GtMod m8a, m8b, m7;
+        m8a.id = "a8", m8a.api_version = GT_MOD_API_VERSION_8;
+        m8b.id = "b8", m8b.api_version = GT_MOD_API_VERSION_8;
+        m7.id = "m6", m7.api_version = GT_MOD_API_VERSION_6;
+        const GtModApi &api8 = gt::mods::mod_api(GT_MOD_API_VERSION_8);
+        g_api8 = &api8;
+        check(api8.version == GT_MOD_API_VERSION_8 && api8.on_overlay != nullptr && api8.draw_text != nullptr, "the v8 table has the draw functions");
+        check(gt::mods::mod_api(GT_MOD_API_VERSION_6).version == GT_MOD_API_VERSION_6, "the v6 table is unchanged");
+        check(api8.on_overlay(&m8a, overlay_a) != 0, "on_overlay refused outside gt_mod_init");
+        begin_init(&m7);
+        check(api8.on_overlay(&m7, overlay_a) != 0, "on_overlay refused to an api-6 mod");
+        end_init();
+        begin_init(&m8a);
+        check(api8.on_overlay(&m8a, overlay_a) == 0, "on_overlay accepted during init");
+        check(api8.on_overlay(&m8a, overlay_a) != 0, "one overlay per mod");
+        check(api8.on_overlay(&m8a, nullptr) != 0, "a null overlay is refused");
+        end_init();
+        begin_init(&m8b);
+        check(api8.on_overlay(&m8b, overlay_b) == 0, "the second mod registers too");
+        end_init();
+        check(any_registered(), "an overlay counts as registered (the host installs the tick)");
+        psprecomp::AllegrexContext regs{};
+        api8.draw_rect(&m8a, 0, 0, 1, 1, 0xFFFFFFFFu);  // outside the callback: ignored
+        g_sink_calls = 0;
+        run_vblank_tick(rt, regs, 1);
+        check(g_sink_calls == 0, "no sink: nothing is submitted (and nothing crashes)");
+        set_draw_sink(&sink);
+        run_vblank_tick(rt, regs, 2);
+        check(g_sink_calls == 1 && g_sunk.size() == 3u, "one submit per pass with every mod's commands (rect, text, line)");
+        if (g_sunk.size() == 3u) {
+            const auto &r = g_sunk[0];
+            check(r.kind == DrawKind::Rect && r.a == 10.0f && r.b == 20.0f && r.c == 30.0f && r.d == 40.0f, "rect geometry");
+            check(r.rgba[0] == 0xFF && r.rgba[1] == 0x80 && r.rgba[2] == 0x40 && r.rgba[3] == 0xC0, "0xRRGGBBAA is unpacked");
+            const auto &t = g_sunk[1];
+            check(t.kind == DrawKind::Text && std::strcmp(t.text, "hello") == 0 && t.c == 12.0f && t.rgba[3] == 0x44, "text command");
+            check(g_sunk[2].kind == DrawKind::Line && g_sunk[2].e == 2.0f, "line command, in load order");
+        }
+        m8a.active.store(false);
+        run_vblank_tick(rt, regs, 3);
+        check(g_sunk.size() == 1u && g_sunk[0].kind == DrawKind::Line, "a switched-off mod's drawing disappears");
+        m8a.active.store(true);
+        g_draw_now = false;
+        m8b.active.store(false);
+        g_sink_calls = 0;
+        run_vblank_tick(rt, regs, 4);
+        check(g_sink_calls == 1 && g_sunk.empty(), "a pass that draws nothing after one that did submits the empty list");
+        run_vblank_tick(rt, regs, 5);
+        check(g_sink_calls == 1, "and then nothing more is submitted while nothing is drawn");
+        g_draw_now = true;
+        m8b.active.store(true);
+        remove_for(&m8b);
+        clear_for_tests();
+        begin_init(&m8a);
+        check(api8.on_overlay(&m8a, overlay_flood) == 0, "flood overlay");
+        end_init();
+        set_draw_sink(&sink);
+        run_vblank_tick(rt, regs, 6);
+        check(g_sunk.size() == kMaxDrawCommands, "at most 4096 commands per pass; a non-finite coordinate is dropped");
+        clear_for_tests();
+        {  // a draw from another thread is rejected, one from the overlay's own thread lands
+            GtMod t1;
+            t1.id = "t1", t1.api_version = GT_MOD_API_VERSION_8;
+            begin_init(&t1);
+            check(api8.on_overlay(&t1, overlay_threads) == 0, "threads overlay");
+            end_init();
+            set_draw_sink(&sink);
+            run_vblank_tick(rt, regs, 20);
+            check(g_sunk.size() == 1u && g_sunk[0].a == 2.0f, "a draw from another thread is rejected; the one from the overlay thread lands");
+            clear_for_tests();
+        }
+        {  // clamps and clipping
+            GtMod c1;
+            c1.id = "c1", c1.api_version = GT_MOD_API_VERSION_8;
+            begin_init(&c1);
+            check(api8.on_overlay(&c1, overlay_clip) == 0, "clip overlay");
+            end_init();
+            set_draw_sink(&sink);
+            run_vblank_tick(rt, regs, 21);
+            check(g_sunk.size() == 3u, "wholly off-screen commands are dropped, the partly visible one is kept");
+            if (g_sunk.size() == 3u) check(g_sunk[0].a == 470.0f && g_sunk[1].c == 300.0f && g_sunk[2].e == 300.0f, "text size and line width clamp at 300");
+            g_sink_calls = 0;
+            run_vblank_tick(rt, regs, 22);
+            check(g_sink_calls == 0, "an unchanged overlay is not submitted again");
+            clear_for_tests();
+        }
+        {  // a grade-only mod still makes the host install the tick (any_registered), and the tick publishes its grade
+            GtMod go;
+            go.id = "go", go.api_version = GT_MOD_API_VERSION_8;
+            check(!any_registered(), "nothing registered");
+            begin_init(&go);
+            check(api8.scene_grade(&go, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f) == 0, "grade in init");
+            end_init();
+            check(any_registered(), "a grade-only mod counts as registered (play_backends installs the tick only then)");
+            clear_for_tests();
+        }
+        {  // the scene grade
+            GtMod g6, ga, gb;
+            g6.id = "g6", g6.api_version = GT_MOD_API_VERSION_6;
+            ga.id = "ga", ga.api_version = GT_MOD_API_VERSION_8;
+            gb.id = "gb", gb.api_version = GT_MOD_API_VERSION_8;
+            check(api8.scene_grade(&g6, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f) != 0, "scene_grade refused to an api-6 mod");
+            check(api8.scene_grade(&ga, 0.0f / 0.0f, 1, 1, 1, 1) != 0 && api8.scene_grade(&ga, 1, 1, 1, 1.0f / 0.0f, 1) != 0, "a non-finite grade is refused");
+            check(effective_scene_grade().r == 1.0f, "refused grades change nothing");
+            set_grade_sink(&grade_sink);
+            g_grade_calls = 0;
+            run_vblank_tick(rt, regs, 10);
+            check(g_grade_calls == 0, "neutral at start: the sink is not called");
+            check(api8.scene_grade(&ga, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f) == 0, "scene_grade accepted");
+            run_vblank_tick(rt, regs, 11);
+            check(g_grade_calls == 1 && g_graded.r == 0.5f && g_graded.brightness == 1.0f, "the tick publishes the grade");
+            run_vblank_tick(rt, regs, 12);
+            check(g_grade_calls == 1, "an unchanged grade is not republished");
+            check(api8.scene_grade(&gb, 1.0f, 2.0f, 9.0f, 0.5f, 3.0f) == 0, "a second mod");
+            run_vblank_tick(rt, regs, 13);
+            check(g_graded.r == 0.5f && g_graded.g == 1.0f && g_graded.b == 2.0f && g_graded.brightness == 0.5f && g_graded.saturation == 3.0f,
+                  "grades multiply (values clamp to 0..4 first)");
+            ga.active.store(false);
+            run_vblank_tick(rt, regs, 14);
+            check(g_graded.r == 1.0f && g_graded.b == 4.0f, "a switched-off mod's grade is dropped");
+            gb.active.store(false);
+            run_vblank_tick(rt, regs, 15);
+            check(g_grade_calls == 4 && g_graded.b == 1.0f && g_graded.brightness == 1.0f, "back to neutral: the sink is told once");
+            check(api8.scene_grade(&ga, 1.00001f, 1.0f, 1.0f, 1.0f, 1.0f) == 0 && api8.scene_grade(&gb, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f) == 0, "near-neutral grades");
+            ga.active.store(true), gb.active.store(true);
+            api8.scene_grade(&ga, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f);
+            run_vblank_tick(rt, regs, 15);
+            check(g_graded.r == 0.5f, "a real grade first");
+            api8.scene_grade(&ga, 1.00001f, 1.0f, 1.0f, 1.0f, 1.0f);
+            g_grade_calls = 0;
+            run_vblank_tick(rt, regs, 16);
+            check(g_grade_calls == 1 && g_graded.r == 1.0f, "a combined grade within 1e-4 of neutral is snapped to exactly neutral");
+            check(api8.scene_grade(&ga, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f) == 0 && api8.scene_grade(&gb, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f) == 0, "0.5 and 2.0");
+            run_vblank_tick(rt, regs, 17);
+            check(host_is_neutral(g_graded), "0.5 * 2.0 = 1: neutral, not 0.99999");
+            check(api8.scene_grade(&ga, 0.25f, 1.0f, 1.0f, 1.0f, 1.0f) == 0, "a grade again");
+            run_vblank_tick(rt, regs, 18);
+            check(g_graded.r == 0.5f, "0.25 * 2.0");
+            remove_for(&ga);  // unload: its grade goes with it
+            run_vblank_tick(rt, regs, 19);
+            check(g_graded.r == 2.0f, "an unloaded mod's grade is gone");
+            clear_for_tests();
+        }
+    }
+
     if (failures == 0) std::puts("mod_services tests passed");
     return failures == 0 ? 0 : 1;
 }

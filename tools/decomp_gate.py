@@ -80,10 +80,19 @@ FULL_TAIL = {"race": 23400}
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
 SLICE = "gt-heavy.slice"
-SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
+SLICE_LIMITS = ("MemoryHigh=11G", "MemoryMax=12G", "MemorySwapMax=0",  # user, 2026-11-20 (was 6 GB)
                 # real-time routes first when other sessions load the machine (their niced jobs still stalled routes)
                 "CPUWeight=10000")
-SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
+def heavy_slots() -> tuple[Path, ...]:
+    """The lock files of the heavy slots: GT_HEAVY_SLOTS of them (default 4: the gt-heavy.slice ceiling is 12 GB since
+    the user's decision of 2026-11-20, was 6 GB with 2 slots). The first two keep their old names, so worktrees on an
+    older checkout still share them."""
+    count = max(1, int(os.environ.get("GT_HEAVY_SLOTS", "4")))
+    return tuple(Path("/tmp/claude-1000/gt-heavy.lock" if i == 0 else f"/tmp/claude-1000/gt-heavy-{i + 1}.lock")
+                 for i in range(count))
+
+
+SLOTS = heavy_slots()
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 # A route keeps ~1 core busy (0.61-0.67 measured on a full gate, 2026-11-05; ~3 before the vblank pacing fix of
 # 2026-10-22); the cap leaves a fifth of the cores the gate may use free so routes keep pace. Those cores are the process's CPU affinity, not the machine's: another session's jobs pinned to
@@ -599,6 +608,13 @@ def raise_floor(path: Path, compared: int) -> int:
     return floor
 
 
+def prebuilt_generated(cmake_cache: str) -> bool:
+    """Whether build/ links a prebuilt libgt_generated.a (GT_PREBUILT_GENERATED, a local-only option): recomp/generated is
+    then never compiled, so the gate skips tools.recomp and its exclusive heavy slot."""
+    match = re.search(r"^GT_PREBUILT_GENERATED:[A-Z]+=(.*)$", cmake_cache, re.MULTILINE)
+    return bool(match and match[1].strip())
+
+
 def coverage_left_configured(cmake_cache: str) -> bool:
     """Whether build/CMakeCache.txt still instruments sources for coverage (a coverage run killed before it could
     put the build back): a normal gate would then build them instrumented."""
@@ -629,13 +645,16 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
               "uncompared (.venv/bin/python -m tools.contract_audit)")
         return 2
     subprocess.run(slice_limits(), check=True)
-    recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
-    recomp.acquire()
-    try:
-        recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
-                                   stdout=subprocess.DEVNULL).returncode == 0
-    finally:
-        recomp.release()
+    if cache.exists() and prebuilt_generated(cache.read_text()):
+        recomp_ok = True  # build/ links a prebuilt generated library: nothing here compiles recomp/generated
+    else:
+        recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
+        recomp.acquire()
+        try:
+            recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
+                                       stdout=subprocess.DEVNULL).returncode == 0
+        finally:
+            recomp.release()
     if not recomp_ok:
         print("recomp failed")
         return 2
