@@ -72,7 +72,7 @@ fetch_verified() {
 # capped CMD... — run a parallel job under the project's memory ceiling (AGENTS.md § memory cgroup)
 capped() {
   if command -v systemd-run >/dev/null; then
-    systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- "$@"
+    systemd-run --user --scope --quiet -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- "$@"
   else
     "$@"
   fi
