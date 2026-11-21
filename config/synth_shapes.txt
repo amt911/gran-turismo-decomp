@@ -52,3 +52,15 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# path) never become garbage: the insert takes the growth path with a size of 0, allocates 4 bytes from the block
+# pool at 0x08D75F5C, copies the (empty) head and tail and skips the free of the old storage. A non-empty vector,
+# the in-place insert and the free need a real vector, not an arena layout.
+0x08BB35FC reg:a0=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0 field:+0x8=int:0..0
+# 0x08B63BEC: a0 is a selector (1), a1 / a2 / a3 plain values, t0 a 0x30-byte header the function reads at t0-0x30 .. t0 and
+# passes as t0, t1 the stream object whose +0x4D0 / +0x4D4 words 0x08B72A14 / 0x08B72A24 / 0x08B72A1C read and write.
+0x08B63BEC reg:t1=struct:1024
+# header is read into, +0x34 the per-type handler table (its record 0 and +4 are dereferenced), +0x38 the typed flag that
+# picks the handler record, +0x2C the size limit (>= 0x40 so the header fits), +0x30 the owned byte (takes the growing
+# path), +0x20 the busy flag (0 so the read happens; 1 is the early error 0xF return), +4 the error code written.
+0x08B15FC0 reg:a1=struct:64 field:+0x8=ptr field:+0x20=int:0..0 field:+0x28=ptr field:+0x2C=int:64..4096 field:+0x30=int:0..1 field:+0x34=ptr field:+0x38=int:0..1
