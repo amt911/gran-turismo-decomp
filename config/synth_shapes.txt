@@ -52,3 +52,48 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# --- one-offs ---------------------------------------------------------------------------------------------
+# 0x08C56A90: a0 is the object; word(a0) is its vtable (read at -0xC for the class offset) and +4 is written.
+0x08C56A90 reg:a0=struct:16
+# 0x0881888C: a0 is the description cell written by 0x08A5BAD8 (a1 = count, a2 = the holder pointer).
+0x0881888C reg:a0=struct:8
+# 0x0888CFCC: a0 holds the table at +4 and the reporter at +0x18, both dereferenced by the callees.
+0x0888CFCC reg:a0=struct:32 field:+0x4=ptr field:+0x18=ptr
+# 0x0892A2C0: a0 is the byte vector {begin, end}; an empty vector (0, 0) takes the grow-by-count path and keeps
+# begin/end values the call itself sets, instead of handing garbage pointers to 0x08BDDBA0.
+0x0892A2C0 reg:a0=struct:8 field:+0x0=int:0..0 field:+0x4=int:0..0
+# 0x08AB1E50: a1 is the destination word 0x08A5BAD8 writes; a3 is the holder pointer whose object answers the divisor.
+0x08AB1E50 reg:a1=struct:8
+0x088777E4 reg:a0=struct:16
+0x088798D0 reg:a0=struct:16
+# 0x08AFB9A4: the constructor writes +0 through +0x28 and hands +0x2C to 0x08B5284C.
+0x08AFB9A4 reg:a0=struct:48
+# 0x08AFC7C8: lw v0,0x1C(a0) is the entry table, lhu s1,0x16(a0) its count; the count is the high half of the word at
+# +0x14, so an int field there keeps it at 0 and the loop on its empty path (a table pointer is set for a real count).
+0x08AFC7C8 reg:a0=struct:32 field:+0x14=int:0..0 field:+0x1C=ptr
+# 0x089ECBAC: lw s0,0x0(a1) is the source whose vtable slot 0x108 answers (a0 only receives the vtable and the fields).
+0x089ECBAC reg:a1=struct:16 field:+0x0=ptr
+# 0x08A641F4: lw s0,0x0(a1) is the source object asked through its vtable slot 0xD0.
+0x08A641F4 reg:a1=struct:16 field:+0x0=ptr
+# 0x08AFAF44: lw v0,0x0(a0) is the vtable whose slots 0x14 / 0x34 answer (0x28 + 4 -> 0x2C).
+0x08AFAF44 reg:a0=struct:48 field:+0x0=ptr
+# 0x08B04C78: lh,0xEC(a1) picks the first entry of the array at word(a0+0x44); a small index keeps the walk on entries.
+0x08B04C78 reg:a1=struct:256 field:+0xEC=int:0..2
+# 0x08B6518C: the two 0x100-byte buffers close at +0x21D; the pointer kept at +0x18 is the caller's (0x21D + 4 -> 0x220).
+0x08B6518C reg:a0=struct:576 field:+0x18=ptr
+# 0x08B6526C: byte-identical body to 0x08B6518C with every argument one register lower.
+0x08B6526C reg:a0=struct:576 field:+0x18=ptr
+# 0x08C65E3C: lw t2,0x0(a1) and lbu v1,0x4(a1) are the two-word source copied to sp+8 / sp+0xC.
+0x08C65E3C reg:a1=struct:16 field:+0x0=ptr
+# 0x08B05500: lh +0x1C / +0x1E are indices, lw +0x24 is a pointer to a table whose first word is the element base
+# (0xF0-byte elements; each element's +0xE8 half indexes the next).
+0x08B05500 reg:a0=struct:64 field:+0x24=ptr
+# 0x088BC21C: a0 is the object; lw +0x24 is the state whose bytes +0xF/+0x6D/+0x6E select the paths and +0xA3 is the
+# count, lw +0x2C is the flagged object (word at +0, floats at +0x14/+0x1C, +0x24 cached set aside) and lw +8 is a
+# second object (floats at +0x10/+0x14). 0x30 bytes cover +0x2C.
+0x088BC21C reg:a0=struct:48 field:+0x8=ptr field:+0x24=ptr field:+0x2C=ptr
+# +0xC98 (unused here) and the 64-entry u16 ring at +0xD2C..+0xDAB. Those fields sit past the parser's 1024-byte cap,
+# so only the base pointer can be laid out; random arena words there still give a valid (if large) length, and the
+# original's own 20 ms synthetic-case deadline ends the cases that scan too long (not comparable, not a mismatch).
+0x08AC30B4 reg:a0=struct:1024
