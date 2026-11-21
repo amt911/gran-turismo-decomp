@@ -52,3 +52,8 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# first matrix) are read the same way at 0x00..0x20 plus 0x24 / 0x2C / 0x38, and a0 is the object written at 0x00..0x1C and
+# 0x40 (the shape format holds one register per address, so only a3 is laid out: the generator always gives a0 a slot pointer,
+# a1/a2 get one in most v2 cases).
+0x088B75D8 reg:a3=struct:64
