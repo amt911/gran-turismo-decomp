@@ -223,3 +223,44 @@ import above. Add below only what applies to Claude Code alone. -->
   - **Stalls.** When load is near 0 and a verdict does not move, read `/proc/<pid>/wchan`
     (`locks_lock_inode_wait`) and the holders of `/tmp/claude-1000/gt-heavy*.lock` and `cpu-heavy.lock`. When the load is
     high, find which session's processes cause it and ask that session to cap them.
+
+## Modes (user, 2026-11-21: "pon otra entrada que sea para decir todos los modos existentes")
+
+Said by the user in the chat; each stays on until another mode or "normal mode" is said. The definitions of the first
+four live in `AGENTS.md` § Mode switch; "modo eficiente" is defined below.
+
+| Mode | What changes |
+| --- | --- |
+| **normal mode** (default) | superpowers on; at most 1 implementation agent at a time, never above Sonnet |
+| **lite mode** | superpowers off |
+| **modo desatendido** | user away: decide alone; push own feature branches and open PRs; merges stay as allowed in the user decisions above |
+| **modo pocos tokens** | same quality and gates, fewer Claude tokens: no subagents, terse, batched calls |
+| **modo eficiente** | maximum decompilation for the fewest Claude tokens, speed second (below) |
+
+## "modo eficiente" (user, 2026-11-21)
+
+The user asked for "la decompilación a tope", unattended, with Claude tokens kept to a minimum and speed second. The
+architecture is:
+- **Drafting:** at most 5 opencode-go DeepSeek V4.1 Flash sessions write the code, never Claude.
+  - Each session is a `~/repos/gt-ops/draftloop5.sh WORKTREE` loop in its own built worktree (`gt-c1..c3`, `gt-d1`,
+    `gt-d2`). `tools/delegate.sh` defaults to `opencode-go/deepseek-v4.1-flash`.
+  - A batch is at most 30 functions and about 6 KB, smallest first, from `drafts/res_cands.txt`. That pool is every
+    emitted function not on main, not in an open PR and not waiting for verification.
+  - When an old draft exists (`drafts/old_draft_commit.txt`), the session starts from it.
+  - Input shapes are required, because most dropped functions were never compared for lack of valid inputs.
+  - Sessions skip setjmp-like functions.
+  - Measured speed: about 0.4 functions per minute per session, against Claude's 1–2.4. That is accepted to save the
+    Claude quota.
+- **Everything after drafting runs as scripts, with no Claude tokens:**
+  - `vauto.sh` verifies, `retryloop.sh` retries failed gate runs, and `unclaim.sh` gives back what a session skipped
+    (a function skipped twice is parked in `drafts/hard_pool.txt`).
+  - `grouploop.sh` groups singles into PRs of about 80 functions.
+  - `dqueue.sh` runs verdicts on the desktop and `lqueue2.sh` on the helper laptop when it is lent. `pauser.sh`
+    freezes pipeline work while a verdict runs its real-time routes.
+  - `requeue.sh` re-queues infrastructure failures, and `landpr.sh` merges only clean verdicts (no route exit 3 or more,
+    no `FLOOR:`, only the known synthetic mismatches).
+- **Claude:**
+  - The main session only handles exceptions, with long monitor intervals.
+  - It runs at most 1 subagent (as `AGENTS.md` says), and only for work that is not mechanical, such as bisecting a
+    verdict failure. Usually it runs none.
+  - Claude never drafts in this mode.
