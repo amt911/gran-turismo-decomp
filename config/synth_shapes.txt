@@ -52,3 +52,17 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md): one line per function, asm evidence above.
+# 0x088E5454: `lw $a0, 0x0($a0)` — a0's first word is the owner block read at +0x548 / +0x54C / +0x114.
+0x088E5454 reg:a0=struct:16 field:+0x0=ptr
+# 0x08902C00 / 0x08905000: `lwc1 $f3, 0x20($a0)`… a1 reads its +0x14, a2 is passed as an object pointer, and a3 / t0
+# are the two geometry blocks read at +0x00..+0x24; a3 carries the largest offsets.
+0x08902C00 reg:a3=struct:48 field:+0x0=int:0..1000 field:+0x8=int:0..1000 field:+0xC=int:0..1000 field:+0x14=int:0..1000 field:+0x18=int:0..1000 field:+0x20=int:0..1000 field:+0x24=int:0..1000
+0x08905000 reg:a3=struct:48 field:+0x0=int:0..1000 field:+0x8=int:0..1000 field:+0xC=int:0..1000 field:+0x14=int:0..1000 field:+0x18=int:0..1000 field:+0x20=int:0..1000 field:+0x24=int:0..1000
+# 0x08B518F4: `lw $a2, 0x1C($a0)` — the command record: lengths at +0x14 / +0x1C, the kind at +0x18, the text at +0x20
+# and the two callbacks at +0x04 / +0x08 / the context at +0x10.
+0x08B518F4 reg:a0=struct:48 field:+0x4=ptr field:+0x8=ptr field:+0x10=ptr field:+0x14=int:0..64 field:+0x18=int:0..4 field:+0x1C=int:0..64 field:+0x20=ptr
+# 0x0893D6A4: `lwc1 $f3, 0x20($a0)` — the curve block's breakpoints +0x18..+0x34; a1 only indexes the weight tables.
+0x0893D6A4 reg:a0=struct:64 field:+0x18=int:0..1000 field:+0x1C=int:0..1000 field:+0x20=int:0..1000 field:+0x24=int:0..1000 field:+0x28=int:0..1000 field:+0x2C=int:0..1000 field:+0x30=int:0..1000 field:+0x34=int:0..1000
+# 0x08977B14: `lw $a0, 0x178($s1)` — the mode word at +0x178; a1 is passed as an object pointer to 0x08977290 / 0x08977270.
+0x08977B14 reg:a0=struct:384 field:+0x178=int:0..4
