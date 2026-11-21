@@ -52,3 +52,69 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x088F9B68: the record a0: +0 gets a vtable, +4 is cleared, +8 receives the allocation (and is read back at the end);
+# +0xC gets a fixed address. The guard byte / object at 0x08D76138 / 0x08D76148 are fixed globals (not expressible).
+0x088F9B68 reg:a0=struct:16
+# 0x08C52A3C / 0x08C52B64 / 0x08C52C8C / 0x08C52DB8: a0 is the four-float input vector (the a1-a3 outputs keep the
+# generator's default arena pointers; the gate also needs `s` (08B499B8's answer) to be exactly 0 for the one-call arm).
+0x08C52A3C reg:a0=struct:16
+0x08C52B64 reg:a0=struct:16
+0x08C52C8C reg:a0=struct:16
+0x08C52DB8 reg:a0=struct:16
+# 0x08905BE0: lw at 0x0(a0) is the previous list word; the 21 initialisers write a0+4 .. a0+0x84 (0x84 + 4 -> 0x88).
+0x08905BE0 reg:a0=struct:136 field:+0x0=ptr
+# 0x08B31D40: lw at 0x0(a0) is the vtable whose slot 0x64 must answer nonzero (a1 / a2 / t0 are the caller's output buffers).
+0x08B31D40 reg:a0=struct:16 field:+0x0=ptr
+# 0x08C64BB4: word(a1) and word(a1+4) are the first of the two word pairs converted (word(a2) / word(a2+4) are the second).
+0x08C64BB4 reg:a1=struct:16
+# 0x08942548: the object's slot floats sit at +0x4A0 + 0x268*i and +8, and the blend reads floats at +0x13D0, +0x3A4 and
+# +0x4B0 and writes a byte at +0x13E2 — all past a 1024-byte slot, so only a0 itself needs a valid address.
+0x08942548 reg:a0=struct:16
+# 0x08965ED4: swc1 ... 0xDC / 0xD8 / 0xD4(a0) on every selector.
+0x08965ED4 reg:a0=struct:16
+# 0x089B439C: a0 is only passed on (func_089B396C, func_08966040, func_089C9C34 reads it); a1's vtable word is loaded and
+# its +8 slot is called, which no arena pointer can satisfy — nothing to pin for a1.
+0x089B439C reg:a0=struct:32
+# (zero) image, which takes the full init path — no shape.
+# 0x08AEF714: a0 (self) is read at +4 and +0x1C only; a2 (scope) is the struct: +0x48 is the node pointer the report
+# reads, and +0x0 / +0x20 / +0x24 / +0x28 / +0x2C / +0x38 / +0x40 / +0x4C are passed to func_08AED98C / func_08AED9D0.
+0x08AEF714 reg:a2=struct:128 field:+0x48=ptr
+# 0x08A4FA18: lhu 0x10 / lhu 0x12(a0) are the two dimensions the record count multiplies, and the zeroed entry array is
+# 8 bytes per lhu 0x10 entry. A word-shaped +0x10 gives lhu 0x10 its value and leaves lhu 0x12 at 0 (the high half), so the
+# count stays 0; the arena's own draw for +0x10 would be a near-2^32 product instead.
+0x08A4FA18 reg:a0=struct:32 field:+0x10=int:0..3
+# 0x08AC50DC: the object spans to +0x25E0 (lw 0x2598..0x25A4, 0x25B1, 0x25B3, 0x25DC, 0x25E0, lw 0x25C0 + 0x8/0xC/0x10/0x14);
+# 1024 is the cap, the rest of the fields land past the slot in the arena.
+0x08AC50DC reg:a0=struct:1024
+# 0x08B51BF8: a0 is the block whose buffer at +0x20 (0x800 bytes) is cleared and filled; the lexer pointer is at +0xC20 (> 1024).
+0x08B51BF8 reg:a0=struct:1024
+# 0x08916AC0: a1's first word is the vtable whose slots +0x5C and +0x50 answer; only the byte at this +0x15 is written.
+0x08916AC0 reg:a1=struct:16 field:+0x0=ptr
+# 0x088F024C: a0 is the object (table object at +0xCC, flag array at +0xD4, gate word at +0xE8), a1 the two-word key it reads.
+0x088F024C reg:a0=struct:1024 field:+0xCC=ptr field:+0xD4=ptr field:+0xE8=ptr
+# 0x08AAC96C: a1 points at the object pointer; the object's size word sits 0xC bytes before the object it holds.
+0x08AAC96C reg:a1=struct:16 field:+0x0=ptr
+#
+# 0x08AA72CC: lw v0,0x0(a1) is the object whose virtual slots 0x50/0x54/0x58 answer (a2 is the destination the
+# 0x08BEED1C at the end writes).
+0x08AA72CC reg:a1=struct:8 field:+0x0=ptr
+# 0x08ADC348: a0 is only read by the callees (0x08ADB278, 0x08ADBE98, 0x08ADBFA4/0x08ADBFE0, 0x08AD83B8); a block of
+# words is all the shape can say about it. The global 0x08CDFB3C bit 0 (the bad-selector report) is never set by the
+# generator: the default selector compares without the 0x08AD83B8 message call.
+0x08ADC348 reg:a0=struct:1024
+# 0x088FEB9C: w = self[0] is the record whose +0x10..+0x1C members are assigned; a1 (the source record) is
+# generator-random (a slot pointer 60 % of the time, so its +0..+0xC stay inside the arena).
+0x088FEB9C reg:a0=struct:8 field:+0x0=ptr
+# 0x08C07E24: other[0] / other[4] are the source begin / end. Both are shaped as arena pointers (16-byte aligned), so
+# their difference stays within the 64 KiB arena and the element count is bounded; this is the vector the body copies.
+0x08C07E24 reg:a1=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x08C070FC: the same 16-byte-element vector (elements of 16 bytes, so the count is (end - begin) >> 4).
+0x08C070FC reg:a1=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x08AE8874: the four 12-byte records end at +0x1A + 0x22 = +0x46 (record 3 at +0x24, its halfword +0x20 at +0x44);
+# the halfwords are generator-random, so the weight / key / row / column take many values. a2 (the four floats) is
+# generator-random.
+0x08AE8874 reg:a1=struct:80
+# 0x08AFF62C: self[0xD8] is the holder whose float +0x60 is the scale (a zero scale ends the function before the
+# matrices); self's own +0x38..+0x94 accumulators are written.
+0x08AFF62C reg:a0=struct:256 field:+0xD8=ptr
