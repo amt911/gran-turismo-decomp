@@ -1,0 +1,4 @@
+# layout 1
+# generator 1
+08AD22D4 48 1 reg:6=live:60142
+08AD22D4 103 1 word:0xDBFC=live:6861

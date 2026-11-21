@@ -77,3 +77,9 @@ import above. Add below only what applies to Claude Code alone. -->
   parallel with the desktop: repo in `~/repos/gran-turismo-decomp`, verdict worktree `~/repos/gt-verify` (with the user's
   `game_files/`, hash-checked). Jobs there run detached (`setsid nohup`; the wifi drops) and the `gt-heavy.slice` limits are
   set with `--runtime` (gone after a reboot: set them again). Installing the repo, its tools and builds there is allowed.
+
+- **Faster verification (user, 2026-11-20).**
+  - **Memory:** the gt-heavy.slice ceiling on the desktop is 12 GB (`MemoryHigh=11G MemoryMax=12G`, was 6 GB), with
+    four heavy slots (`GT_HEAVY_SLOTS`, was two).
+  - **Full gate:** agents no longer run it before opening a PR. The PR verdict runs it from a clean tree anyway. Agents
+    still run the fast or synthetic compare and the sabotage of their own functions, plus the static audits.

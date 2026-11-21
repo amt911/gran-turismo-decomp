@@ -1,6 +1,6 @@
 # Realistic rollover physics — design
 
-**Status:** approved by the user on 2026-11-18 ("me parece bien, continua"). The user asked for this on 2026-11-18: "me gustaría que se implementara una física para los rollovers, algo de 0 que sea realista, que si rebota el coche en la pista, que rebote de forma realista". They skip design questions as a rule, so every decision below marked *(Claude)* is Claude's call.
+**Status:** shipped 2026-11-18 (host #665, gt-mods #32); the sections below were corrected to what shipped (see "What shipped differs" at the end). Approved by the user on 2026-11-18 ("me parece bien, continua"). The user asked for this on 2026-11-18: "me gustaría que se implementara una física para los rollovers, algo de 0 que sea realista, que si rebota el coche en la pista, que rebote de forma realista". They skip design questions as a rule, so every decision below marked *(Claude)* is Claude's call.
 
 ## Why
 
@@ -140,3 +140,14 @@ This layer has no game dependency. Its tests (ctest) pin:
 - The exact hull proportions and the default parameters, within the ranges above.
 - The contact solver details (iteration count, slop).
 - How the barrier impulse is turned into a contact (point and normal from deformation's contact estimate).
+
+
+## What shipped differs from the text above (2026-11-18)
+
+- **No car-draw write.** Research step 1 measured that a pose write at `GT_HOOK_CAR_DRAW` changes nothing on screen (frames byte-identical): the renderer and the camera read the car after the world step, before that hook. The pose is written **before** the step with the clamp lifted by `tilt_free`, so the game's step leaves it almost as written (rates zero); what is drawn is the simulation's pose plus one step of the game's own motion. No post-step hook was found or needed. Step 3 of "Each step while active" and the draw-point sabotage are replaced by "the pose is never sent" (`--sabotage-nopose`) and the `kd` pose check.
+- **No `ground_height`.** `call_guest` is tick-only and the road query is not frame-neutral from a tick (FINDINGS); the ground is a plane through the four wheel records, frozen from takeover to handback/reset.
+- **`car_dimensions` / `car_wheel_contacts` take `world`** as well as the car handle (like `car_impact`); `car_set_pose` zeroes the five rate fields and does not store `angular_velocity`; it refuses right-handed bases.
+- **Takeover at the hit impulse**, not after tilt > 35 degrees and growing: the game's own physics never tips a car past the clamp after a barrier hit, so the simulation takes it at the impulse (`takeover_dv`) and decides itself whether it tips. Other triggers as written (flipped, airborne and spinning).
+- **While simulating**, the game's own velocity change **along the ground** (above `sim_hit_dv`) is a barrier hit; the part along the ground normal is the wheels answering and is ignored. A position jump above 3 m or an up row 0.3 away from the written one ends the simulation (reset).
+- **Hull floor** from the origin's height over the wheels' ground at takeover (0.35 m default), deterministic from the state, so live and replay agree.
+- **Energy budget** in the barrier check is the total mechanical energy (never above the one right after the hit impulse), which includes the rotational part the literal "peak height" text ignores.

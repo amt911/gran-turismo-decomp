@@ -199,6 +199,50 @@ Ruta `config/pad_routes/deformation.pad` (la de `rollover` más tres pulsaciones
 
 **Por qué los fotogramas previos al golpe se juzgan contra la ejecución de fuerza cero y no contra una sin mod (medido 2026-11-15):** con el mod ENCENDIDO (incluso con abollado cero) 122 de 584 fotogramas anteriores al golpe (desde el vblank 13890; con `--decomp on`, 121 de 555 desde el 13050) difieren de una ejecución sin mod en 3 a 77 píxeles, creciendo despacio (la carrera se desplaza respecto al tiempo real). La causa son los ganchos del mod (dibujo del coche, paso del mundo, tic), no el abollado: contra la ejecución de fuerza cero son 0 de 584; con el mod apagado todos son idénticos a la línea base (la ejecución `identity`); con los otros seis mods encendidos el desplazamiento es 0 de 584. La comprobación imprime el desplazamiento como línea `info:`.
 
+## API v7: lo que necesita un mod de cuerpo rígido (spec `docs/superpowers/specs/2026-11-18-rollover-physics-design.md`)
+
+Un mod que declara `api = 7` recibe las llamadas anteriores más estas cuatro; las funciones v7 rechazan (no-cero y aviso en stderr) a un mod que declaró `api < 7`.
+Pruebas: `ctest --test-dir build -R "game_state|tilt_free|mod_loader"`; evidencia en FACTS «Rollover physics research (2026-11-18)».
+
+| Llamada | Qué hace | Evidencia |
+| --- | --- | --- |
+| `car_dimensions(world, car, out)` | distancia entre ejes, vía, posición de los ejes sobre el origen del cuerpo y radio, del registro del coche (`word(car+0xC)`: `+0x18`, `+0x1C`, `+0x40`, `+0x48`, `+0x08`). Lleva `world` (el a0 del paso) como `car_impact`: el handle es `K` y el registro cuelga del objeto coche | FACTS «Rollover body box» |
+| `car_wheel_contacts(world, car, out[4])` | por rueda: punto de la consulta de carretera (x, y en el marco Z-up: y = -z del registro), altura del suelo, tipo de superficie (`+0x2D`), `valid` (byte `+0x2C` = 0: hay suelo, también el terreno fuera de pista) y la carga de la rueda (`K+0x70+0x118*i+0x54`; 0 con la rueda en el aire) | FACTS «Road query and the wheel contact records» |
+| `car_set_pose(car, posición, base, velocidad, velocidad_angular)` | escribe un pose entero y coherente: posición, filas de la base (adelante, derecha, arriba; zurda), los tres ángulos de Euler `+0x6FC/700/704` **derivados de las filas** (el juego reconstruye la base desde ellos: `0x0893C3E4`), velocidad, velocidad escalar `|v|` y **cero en los cinco campos de velocidad angular**. Rechaza (sin escribir) un handle malo, un valor no finito o filas que no son una base ortonormal (1e-2). `velocidad_angular` solo se comprueba: los campos de giro del juego no son componentes en ejes del cuerpo (FACTS «Rollover body box») y cero es el único valor demostrado que deja el pose en paz en el paso siguiente | `host/game_state.cpp` `euler_to_rows` / `rows_to_euler` (ida y vuelta probada con 34 112 ternas, polos incluidos) |
+| `tilt_free(car, on)` | levanta (o restaura) el recorte de ±35° para ese coche: el host engancha el lector de la bandera (`0x0894CCB8`) por cada mod `api >= 7` y devuelve 1 solo a los lectores del paso de cuerpo (`0x08956DC8`) de un coche liberado: el recorte y el ajuste de Euler, **nunca** la máquina de vuelco latente ni el paso de contacto (misma lógica que usó rollover 0.4.0, ahora en el host). Se deshace al apagar el mod | FACTS «Rollovers» |
+
+El mod no toca nunca `+0x6FC` ni `0x08CF2F08`. `GT_HOOK_CAR_DRAW` permite reescribir el pose justo antes de dibujar (la velocidad se deja como la dejó el paso, para que el golpe contra la barrera siga visible en el siguiente).
+
+## API v8: dibujo 2D sobre el juego y gradación de color (spec `docs/superpowers/specs/2026-11-18-mod-draw-api-design.md`)
+
+Un mod que declara `api = 8` puede dibujar y colorear la imagen sin tocar la lista GE (el 7 es el SDK de física de vuelcos).
+Un mod `api = 8` recibe también las llamadas v7.
+
+| Llamada | Qué hace |
+| --- | --- |
+| `on_overlay(self, fn)` | (solo en `gt_mod_init`, una por mod) `fn(self, ctx)` corre una vez por vblank del juego en el hilo del tic, después de los tics de todos los mods; `ctx` lee estado y permite `call_guest`. Un mod apagado en el menú no dibuja |
+| `draw_text(x, y, tamaño, 0xRRGGBBAA, texto)` | texto UTF-8 (hasta 95 bytes) con la fuente de la UI del host; `(x, y)` = esquina superior izquierda de la línea, `tamaño` = alto de línea |
+| `draw_rect(x, y, w, h, rgba)`, `draw_line(x0, y0, x1, y1, ancho, rgba)` | rectángulo con bordes suavizados / segmento con extremos redondos |
+| `scene_grade(r, g, b, brillo, saturación)` | `c' = clamp(mezcla(luma(c·(r,g,b)), c·(r,g,b), saturación)·brillo)` sobre la imagen del juego (no sobre lo dibujado con `draw_*` ni sobre los menús del host); `(1,1,1,1,1)` = neutro = nada (fotogramas idénticos byte a byte). Valores finitos, acotados a 0..4; los grados de varios mods se multiplican; se quita al apagar el mod |
+
+- Espacio lógico 480×272 (origen arriba a la izquierda) escalado al rectángulo de imagen del juego; el dibujo se rasteriza en el host
+  a la resolución real de salida (nítido a cualquier tamaño) en el hilo de imagen del parche 0070, y se sube a la GPU solo cuando cambia.
+  Orden de dibujo = orden de llamadas, como máximo 4096 órdenes por pasada; coordenadas no finitas descartan la orden. Se dibuja **sobre
+  el juego y bajo F9/F10 y el panel del cheat device**. Llamar a `draw_*` fuera de `on_overlay` se ignora (se avisa una vez).
+- Lo que se dibuja se queda hasta la siguiente pasada: una pasada que no dibuja nada borra la capa del mod.
+- Ventana Vulkan: la gradación se aplica entera en el shader de presentación (incluye el renderizador por software, que presenta por la misma
+  vía); ventana SDL por software: solo `tinte·brillo` (máximo 1, sin saturación); los volcados (`GT_FRAME_DUMP`) llevan la gradación entera y la capa.
+  La imagen graduada incluye el HUD del propio juego (FACTS "Scene grade").
+- Parches lcs: `0071-mod-draw-layer`, `0072-scene-grade`. Código: `host/mod_services.cpp` (lista, gradación por mod), `host/play_backends.cpp` (enlace con la ventana y los volcados).
+
+### Comprobar el dibujo (`tools/mod_draw_check.sh`)
+
+Mod de prueba `tools/mod_draw_probe/probe.cpp` (no se distribuye). Ruta `chase`, volcados de fotogramas. Cuatro ejecuciones: línea base (sonda instalada y apagada),
+`idle` (encendida sin dibujar: idéntica byte a byte en los fotogramas del mismo cuadro de juego), `draw` (rectángulo rojo exacto, línea verde exacta, rectángulo azul
+semitransparente, texto blanco en su caja) y `grade` (`scene_grade(0.5, 0.5, 0.5, 1, 1)`: la mitad de brillo píxel a píxel, ±2). Sabotajes que **deben fallar**:
+`--sabotage-flush` (`-DGT_DRAW_SABOTAGE_NO_FLUSH=ON`: la lista no llega a la ventana) y `--sabotage-grade` (`-DGT_GRADE_SABOTAGE_IGNORE=ON`).
+Pruebas unitarias: `ctest --test-dir build -R "mod_services|mod_draw_raster"` (`mod_draw_raster_tests bench` mide el coste de 200 primitivas).
+
 ## `mod.toml`
 
 ```toml
@@ -373,6 +417,10 @@ tools/mod_rollover_check.sh --sabotage-flipflag  # la bandera también para la m
 tools/mod_rollover_check.sh --without-mod         # física original, el mod solo registra (-DROLLOVER_SABOTAGE=5): nada vuelca, debe FALLAR (con --recover: el coche no está boca abajo al reset)
 ```
 
+
+### Comprobar `rollover` 0.5.0 (estilo `realistic`, `tools/mod_rollover_check.sh --sim|--drop|--sim-replay`, juez `tools/mod_rollover_sim_check.py`)
+
+Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
 
 ## Descargador de mods (en construcción)
 
