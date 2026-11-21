@@ -52,3 +52,26 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md): one line per function, asm evidence above.
+# lw a0, 0x0(a0) (the owner object). a1 and a2 are strings whose first byte is tested (lb 0x0).
+0x088756F0 reg:a0=struct:16 field:+0x0=ptr
+# lw a3, 0x0(a0): the source pointer the 0x24-byte copy reads through.
+0x088941A0 reg:a0=struct:16 field:+0x0=ptr
+# lw a0, 0x640(a0) (an object passed on) and lw v1, 0x130(a0) then sb v0, 0x13(v1). 0x643 is over the 1024 cap, so the slot stops there.
+0x088D7158 reg:a0=struct:1024 field:+0x130=ptr
+# lw s0, 0x0(a0): the holder whose +0x178 record is copied out (a1/a2/a3/t0 are the output pointers).
+0x088E4DFC reg:a0=struct:16 field:+0x0=ptr
+# lwc1 0x41C/0x414/0x418/0x4/0x49C/0x4A0/0x4A4(a0) and lwc1 0xC/0x30/0x38(a0); the highest offset is 0x4A7 (over the cap, no fields).
+0x08900350 reg:a0=struct:1024
+# lw v0, 0x8(a0) and 0xC(a0): the cached key pair compared with a2/a3.
+0x0892FCE0 reg:a0=struct:24 field:+0x8=ptr field:+0xC=ptr
+# The eight divide thunks and 0x08A5FE6C: lw s0, 0x0(a3) is the object whose virtual +0x34..+0x4C slot gives the divisor. a0's
+# 0x14 field (the divided count: lh/lb/lhu/lbu/lw) is the second register the body reads.
+0x08A737EC reg:a3=struct:16 field:+0x0=ptr
+0x08A7372C reg:a3=struct:16 field:+0x0=ptr
+0x08A96560 reg:a3=struct:16 field:+0x0=ptr
+0x08A964A0 reg:a3=struct:16 field:+0x0=ptr
+0x08AB06CC reg:a3=struct:16 field:+0x0=ptr
+0x08A5FE6C reg:a3=struct:16 field:+0x0=ptr
+# lw a0, 0x28(a0): the allocator object both 0x08B2CB18 calls take.
+0x08B48398 reg:a0=struct:48 field:+0x28=ptr
