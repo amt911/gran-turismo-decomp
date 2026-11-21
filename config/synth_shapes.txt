@@ -52,3 +52,14 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x08808F2C: lw s1,0x0(a2) is the first object (vtable slots 0xC/0x70 called on it); a2+4/+8/+0xC are copied as smart-pointer slots.
+0x08808F2C reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr
+# 0x088BEC3C: lw s1,0x24(a0) body, lw s6,0x18(a0) tuning, lw a0,0x1C(a0) target object; +8 world (lw a2,0x4(s3)), +0x14 handler, +0xC/+0x10 passed on to 0x088DF13C.
+0x088BEC3C reg:a0=struct:48 field:+0x0=ptr field:+0x8=ptr field:+0xC=int:0..16 field:+0x10=int:0..16 field:+0x14=ptr field:+0x18=ptr field:+0x1C=ptr field:+0x24=ptr
+# 0x088DD144: lw a0,0xC0(a0) car records, +0x130/+0x134/+0x148/+0x14C/+0x14 objects and tables (more fields at +0x598..+0x640 lie past the 1024-byte cap).
+0x088DD144 reg:a0=struct:1024 field:+0x14=ptr field:+0xC0=ptr field:+0x130=ptr field:+0x134=ptr field:+0x148=ptr field:+0x14C=ptr
+# 0x08B5D788: stores a1/14/0/consts at +0/+8/+0x10/+4/+0xC of a0, then lw s0,0xC(s2) after the stores.
+0x08B5D788 reg:a0=struct:32
+# 0x08912F40: lbu v0,0x28(s2) gates the teardown; lw s0,0xD8/0xE0/0xE8/0xF0/0xF8/0x100/0x108/0x110(s2) are counted links released (use count at +4).
+0x08912F40 reg:a0=struct:1024 field:+0x28=int:0..1 field:+0xD8=ptr field:+0xE0=ptr field:+0xE8=ptr field:+0xF0=ptr field:+0xF8=ptr field:+0x100=ptr field:+0x108=ptr field:+0x110=ptr
