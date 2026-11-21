@@ -52,3 +52,21 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x088E6250: word self and word self + 4 are the two objects whose +0x50C / +0x508 / +0x530 / +0x534 are read.
+0x088E6250 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x08C48CDC: first (a1) is an iterator record: its word +4 is the storage base the index is taken against and its
+# word +8 the first node stepped from, both dereferenced.
+0x08C48CDC reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+# 0x08902F00: self + 0x58 is the table of 0x28-byte records the walk indexes (dereferenced), +0x54 its count,
+# +0x14 a float compared with the position. 0x60 bytes covers +0x58.
+0x08902F00 reg:a1=struct:96 field:+0x58=ptr
+# 0x0893ECC4: word(a0 + 0xC) is the profile object and its byte at +0x12 of +0x270 (so +0x282) picks the curve; a0 is
+# never written (0xC + 4 -> 0x10 keeps the struct small).
+0x0893ECC4 reg:a0=struct:16 field:+0xC=ptr
+# 0x08B01934: the vector at +0x44 (begin/end/cap) and the s16 key at +0x50 are read, word(+0x58) is the table object
+# whose word(+0) is indexed by the key (0x58 + 4 -> 0x5C -> 0x60).
+0x08B01934 reg:a0=struct:96 field:+0x58=ptr
+# 0x08B0225C: the same member 0x38 bytes further on: vector +0x7C, key +0x88, table object at +0x90
+# (0x90 + 4 -> 0x94 -> 0xA0).
+0x08B0225C reg:a0=struct:160 field:+0x90=ptr
