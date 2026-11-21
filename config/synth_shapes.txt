@@ -52,3 +52,54 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x08AA22BC: lw s0,0x0(a1) is the holder's object, its word 0 is the vtable and slot 0x54 answers (a0 = out, written
+# by 0x08A76ABC, only as a pointer).
+0x08AA22BC reg:a1=struct:16 field:+0x0=ptr
+# 0x08AA2494: byte-identical body with slot 0x3C instead of 0x54.
+0x08AA2494 reg:a1=struct:16 field:+0x0=ptr
+# 0x08AA3758: same body, 0x08B66D54 in place of 0x08B66524.
+0x08AA3758 reg:a2=struct:16 field:+0x0=ptr
+# 0x08AA3CD8: same body, 0x08B6759C in place of 0x08B66524.
+0x08AA3CD8 reg:a2=struct:16 field:+0x0=ptr
+# 0x08AA3E4C: same body, 0x08B664A0 in place of 0x08B66524.
+0x08AA3E4C reg:a2=struct:16 field:+0x0=ptr
+# 0x08A6081C: word field, slot 0x4C, srlv field >> answer, reports 0x08A5FA8C.
+0x08A6081C reg:a3=struct:16 field:+0x0=ptr
+# 0x08A73628: signed half, slot 0x38, subu field - answer, reports 0x08A85B1C.
+0x08A73628 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A73A4C: signed half, slot 0x38, slt answer,field (signed), reports 0x08A97A6C.
+0x08A73A4C reg:a3=struct:16 field:+0x0=ptr
+# 0x08A74084: signed half, slot 0x4C, srav, reports 0x08A85B1C.
+0x08A74084 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A967C0: signed byte, slot 0x34, slt answer,field (signed), reports 0x08A97A6C.
+0x08A967C0 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A96DF8: signed byte, slot 0x4C, srav, reports 0x08A85B1C.
+0x08A96DF8 reg:a3=struct:16 field:+0x0=ptr
+#
+# The boxed-operator family: a3 is a slot whose word is the box, and the box's vtable entry 0x44/0x48/0x4C answers the
+# right operand (a0 carries the left one at +0x14, which is inside the slot the generator already gives a0).
+0x08AB092C reg:a3=struct:16 field:+0x0=ptr
+0x08AB0DE4 reg:a3=struct:16 field:+0x0=ptr
+0x08AB0E64 reg:a3=struct:16 field:+0x0=ptr
+0x08AB1C8C reg:a3=struct:16 field:+0x0=ptr
+0x08AB20D8 reg:a3=struct:16 field:+0x0=ptr
+0x08AB2590 reg:a3=struct:16 field:+0x0=ptr
+0x08AB2690 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A05908: destructor. begin at +0xA8, end at +0xAC, limit at +0xB0; all zero so the range is empty and the
+# release path (a free of an arena address) is not taken (0xB0 + 4 -> 0xB4).
+0x08A05908 reg:a0=struct:180 field:+0xA8=int:0..0 field:+0xAC=int:0..0 field:+0xB0=int:0..0
+# 0x08918734: constructor, writes +0, +8, +0xC, +0x10, +0x14, +0x18..+0x1B, +0x1C, +0x20 (0x20 + 4 -> 0x24).
+0x08918734 reg:a0=struct:36
+# 0x08ADD674: self->+0x78 and self->+0x70 are flags; +0x70 stays zero so the func_08ADD504 path is one-shot
+# (0x78 + 4 -> 0x7C -> 0x80).
+0x08ADD674 reg:a0=struct:128 field:+0x78=int:0..1 field:+0x70=int:0..0
+# 0x08ADFC64: a0 is the object func_08ADDCD4 looks the record up from (it reads a word at +0); only the record's bytes
+# are dereferenced afterwards.
+0x08ADFC64 reg:a0=struct:16
+# 0x088FAD1C: source->+4 first (nonzero picks func_08900D94), source->+0 is its fallback; both valid pointers so the
+# converter gets a readable object.
+0x088FAD1C reg:a1=struct:16 field:+0x4=ptr field:+0x0=ptr
+# 0x089FA398: the source range at +0 and +4 both zero, so (end - begin) & ~31 is 0: the allocation asks for nothing
+# and the copy covers no element (a nonzero span would copy arena bytes into the fresh buffer and could overrun).
+0x089FA398 reg:a1=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0
