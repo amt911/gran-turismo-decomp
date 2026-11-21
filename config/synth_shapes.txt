@@ -52,3 +52,29 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# Synthetic input shapes for src/game/unsorted/new_batch_main_111.cpp (re-drafts, batch main 111, DRAFT), for host/synth_case.hpp's Shape / parse_shapes.
+# Size = highest offset the function touches + 4, rounded up to 16. `ptr` = the word at that offset is dereferenced again.
+# 0x0892CF9C / 0x0892D1C0: a1 = the sums (bytes +0xBD, +0xC0..+0xCF, halves +0x10A / +0x10C), a2 = the source (bytes/halves up to +0xA).
+0x0892CF9C reg:a1=struct:0x110
+0x0892D1C0 reg:a1=struct:0x110
+# 0x0893B160: lw s1,0xC(a0) is the table base read at +0x328 + 4 * (key >> 1).
+0x0893B160 reg:a0=struct:16 field:+0xC=ptr
+# 0x08959C9C: a0 = two pointers (+0 the first argument, +8 a block whose first byte is read); a1 = the packet (id word, 0x34 bytes).
+0x08959C9C reg:a0=struct:16 field:+0x8=ptr
+# 0x089A54A0: a1 = the key (word +0 is a string), a2 = the output (word +0 read, then assigned).
+0x089A54A0 reg:a1=struct:16 field:+0x0=ptr
+# 0x089CA118: a3 = the holder (words +0 and +4 are objects whose vtables are called).
+0x089CA118 reg:a3=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x089DBCE8: a0 = the object: +0x134 a counted string, six 0xC-byte elements from +0xEC (word +0 a pointer).
+0x089DBCE8 reg:a0=struct:0x150 field:+0x134=ptr field:+0xEC=ptr field:+0xF8=ptr field:+0x104=ptr field:+0x110=ptr field:+0x11C=ptr field:+0x128=ptr
+# 0x08A4037C: a0 = the object: lw v0,0(a0) is its vtable (slot +0x108 called), +0x38 an owned object.
+0x08A4037C reg:a0=struct:0x40 field:+0x0=ptr field:+0x38=ptr
+# 0x08A58394: a1 = the owner: lw s0,0(a1) is an object whose vtable slot +0x120 is called.
+0x08A58394 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A9C340: a0 = this: byte +0x7C, words +0x34 / +0x38 (objects handed on), +0x3C / +0x40 addresses.
+0x08A9C340 reg:a0=struct:0x90 field:+0x34=ptr field:+0x38=ptr
+# 0x08AD17C4: a0 = this (index word +0x1C0), a1 = four floats.
+0x08AD17C4 reg:a0=struct:0x1D0 field:+0x1C0=int:0..3
+# 0x08AE1D6C: a3 = the table (0xC-byte entries, word +4 compared), t3 = the flags word.
+0x08AE1D6C reg:a3=struct:0x100
