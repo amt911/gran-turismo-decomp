@@ -75,6 +75,48 @@ u32 call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 target
     return result.v0;
 }
 
+// Where the prologue of a function stores a callee-saved register: `reg` 0-31 is a general register, 32-63 a floating one (32 + its number).
+struct SavedSlot {
+    unsigned reg;
+    u32 offset;
+};
+
+// The callee-saved registers (s0-s7, fp, f20-f31) a function keeps values in, and the stores of its prologue: the rewrite stores them where the asm
+// does (a callee can read the stack below its caller's frame), sets the registers as the asm does because callees can read them too, and gives
+// the caller's values back when it returns.
+class SavedRegisters {
+public:
+    SavedRegisters(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, GuestFrame &frame, std::initializer_list<SavedSlot> slots) : ctx_(ctx) {
+        for (unsigned i = 0; i < 8; ++i) gpr_[i] = ctx.gpr[16 + i];
+        fp_ = ctx.gpr[30];
+        for (unsigned i = 0; i < 12; ++i) fpr_[i] = ctx.fpr[20 + i];
+        for (const SavedSlot &slot : slots) {
+            if (slot.reg < 32u) put(rt, frame.at(slot.offset), ctx.gpr[slot.reg]);
+            else put_float(rt, frame.at(slot.offset), ctx.fpr[slot.reg - 32u]);
+        }
+    }
+    ~SavedRegisters() {
+        for (unsigned i = 0; i < 8; ++i) ctx_.gpr[16 + i] = gpr_[i];
+        ctx_.gpr[30] = fp_;
+        for (unsigned i = 0; i < 12; ++i) ctx_.fpr[20 + i] = fpr_[i];
+    }
+    SavedRegisters(const SavedRegisters &) = delete;
+    SavedRegisters &operator=(const SavedRegisters &) = delete;
+
+private:
+    psprecomp::AllegrexContext &ctx_;
+    u32 gpr_[8];
+    u32 fp_;
+    float fpr_[12];
+};
+
+u32 signed_byte(psprecomp::Runtime &rt, u32 address) {
+    return static_cast<u32>(static_cast<s32>(static_cast<std::int8_t>(rt.memory().load8(address))));
+}
+u32 signed_half(psprecomp::Runtime &rt, u32 address) {
+    return static_cast<u32>(static_cast<s32>(static_cast<std::int16_t>(rt.memory().load16(address))));
+}
+
 // 0x08A66810: allocates eight bytes (0x08A5BC14), hands the block to 0x08A667EC and returns it.
 void allocate_and_init(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x10u);
@@ -383,7 +425,32 @@ void func_0892FFA0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { fo
 void func_08AC44A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { find_terminator_bounded(rt, ctx); }
 void func_08AD16C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { clear_and_chain(rt, ctx); }
 void func_08B18B58(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { find_dot_or_bracket(rt, ctx); }
-void func_08B1FE38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = word(rt, G[4] + 4u); if (G[2] != 0u) { G[3] = 0u; if (G[5] != 0u) { for (;;) { G[2] = word(rt, G[2] + 8u); G[3] = G[3] + 1u; if (G[2] == 0u) break; if (G[5] == G[3]) break; } } } } }
+// 0x08B1FE38: the node at a0's +4 and then a1 times the word at +8 of each node — a singly linked list walk that
+// returns the node reached (0 when the list ends first; a1 = 0 returns the head). A null head returns 0 at once.
+void func_08B1FE38(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    u32 node = word(rt, ctx.gpr[4] + 0x4u);
+    if (node == 0u) {
+        ctx.gpr[2] = 0u;
+        return;
+    }
+    if (ctx.gpr[5] == 0u) {
+        ctx.gpr[2] = node;
+        return;
+    }
+    u32 index = 0u;
+    for (;;) {
+        node = word(rt, node + 0x8u);
+        if (node == 0u) {
+            ctx.gpr[2] = 0u;
+            return;
+        }
+        ++index;
+        if (ctx.gpr[5] == index) {
+            ctx.gpr[2] = node;
+            return;
+        }
+    }
+}
 void func_08B2E064(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x10u); put(rt, frame.at(0u), G[31]); call_here(rt, ctx, 0x08C7A9E8u); } G[3] = 0x80020064u; G[4] = 0x7D0u; if (G[2] == G[3]) { jump(ctx, 0x08B32A34u); return; } jump(ctx, 0x08C7A988u); } }
 void func_08AD9CD4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { scale_by_code(rt, ctx); }
 void func_08AF8624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = load8(G[4] + 7u); G[3] = G[4]; G[4] = G[5]; G[6] = G[2]; if (G[2] == 0u) return; G[8] = word(rt, G[3]); G[5] = word(rt, G[3] + 0x28u); G[7] = 0xFFFFFFFFu; G[8] = G[8] & 0xFFFu; G[2] = G[8] & 0x80u; G[8] = (G[8] >> 8) & 1u; if (G[2] != 0u) G[7] = load8(G[3] + 6u); jump(ctx, 0x08AFCC0Cu); } }
