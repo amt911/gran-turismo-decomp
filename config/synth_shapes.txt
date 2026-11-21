@@ -52,3 +52,14 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x0894E9C0: lw s2,0x8(a0) and lw s6,0xC(a0) are the settings block and the per-lane arrays.
+0x0894E9C0 reg:a0=struct:16 field:+0x8=ptr field:+0xC=ptr
+# 0x088C5BF0: a1 must hold the magic 0x4E4C4441 ("NLDA") at +0 (lw v1,0x0(a1) / bne against it), then words at +0x14/+0x18; 0x4E4C4441 = 1313425473.
+0x088C5BF0 reg:a1=struct:32 field:+0x0=int:1313425473..1313425473
+# 0x088B5ED4: lwc1 from a0+0..+0x1C, stores +0x20..+0x40 (0x44 -> 0x50); all floats.
+0x088B5ED4 reg:a0=struct:80
+# 0x08B6975C: a2 is the output block, four words stored at +0..+0xC.
+0x08B6975C reg:a2=struct:16
+# 0x08B76AC0: a0: lw v1,0x10(a0) the flags/count word (bit0..2 flags, bits 11.. count), lw a2,0xC(a0) the table pointer, lw v0,0x0(a0) the lowest key.
+0x08B76AC0 reg:a0=struct:32 field:+0xC=ptr field:+0x10=int:0..4095
