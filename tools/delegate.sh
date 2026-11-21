@@ -19,7 +19,7 @@ dir=$PWD title="gt-delegate"
 while getopts "C:t:" o; do case $o in C) dir=$OPTARG ;; t) title=$OPTARG ;; *) exit 64 ;; esac; done
 shift $((OPTIND - 1))
 [ $# -eq 1 ] && [ -n "$1" ] || { echo "usage: tools/delegate.sh [-C DIR] [-t TITLE] PROMPT" >&2; exit 64; }
-model=${GT_DELEGATE_MODEL:-openrouter/deepseek/deepseek-v4.1-flash-1017}
+model=${GT_DELEGATE_MODEL:-opencode-go/deepseek-v4.1-flash}
 log=${GT_DELEGATE_LOG:-/home/andres/repos/gt-ops/out/opencode-sessions.log}
 mkdir -p "$(dirname "$log")"
 limits='Hard limits (they bind you exactly like they bind Claude in this repo; AGENTS.md has the rest):

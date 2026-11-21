@@ -112,6 +112,11 @@ import above. Add below only what applies to Claude Code alone. -->
     `GT_DELEGATE_ENGINE=claude` (model `GT_DELEGATE_CLAUDE_MODEL`, default `sonnet`) makes `tools/delegate.sh` run
     `claude -p` in the worktree with the same draft-only task. It is draft-only with no review, in batches of 60–80,
     and the scripts verify. Claude's usage limit stops it like an outage (exit 2).
+  - **Measured speed, same draft-only prompt (2026-11-21):** Claude Sonnet via `claude -p` took 16 s, DeepSeek V4.1
+    Flash via OpenRouter 31–33 s, and via opencode-go 94–165 s. Yesterday's "DeepSeek is faster" came from comparing
+    draft-only DeepSeek with Claude agents that also ran gates. In draft-only mode Claude is faster (71 functions in
+    4 min), so the user chose Claude as the drafter. DeepSeek (`GT_DELEGATE_MODEL`) stays as a fallback when the
+    Claude quota is short.
   - **Batch size depends on the drafter's speed.** The user says which providers are fast and which are slow. Fast
     drafters get **60–80 functions per PR**: the verdict costs about the same hour whatever the batch size, and it is
     the bottleneck. DeepSeek V4.1 Flash is fast (user, 2026-11-20). Slow drafters keep the old 15–25: Claude writing by
