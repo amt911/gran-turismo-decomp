@@ -52,3 +52,29 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x08B0B748: a0 = list object: byte-swapped count at +0xC (read as one entry here: 0x01000000 swaps to 1), entries of 16 bytes from +0x24
+0x08B0B748 reg:a0=struct:96 field:+0xC=int:0x01000000..0x01000000
+# 0x08B01680: a0 = object with a vector at +0xA8 (end pointer +0xAC written through, limit +0xB0)
+0x08B01680 reg:a0=struct:192 field:+0xAC=ptr field:+0xB0=ptr
+# 0x08B38CF0: a0 = destructor object: shared object pointer at +0x10 (reference count at its +4, vtable at +0)
+0x08B38CF0 reg:a0=struct:32 field:+0x10=ptr
+# 0x08AC1E18: a1 = source header: magic word +0, halfword +8 (0xFFFE), offset word +0xC
+# 0x08A893A8: a0 = destructor object: byte flag +0x144, owned object +0x138, list pointer +0x1C
+0x08A893A8 reg:a0=struct:336 field:+0x1C=ptr field:+0x138=ptr field:+0x144=int:0..1
+# 0x08C52EE4: a0 = vector of floats read at +0x0, +0x10, +0x14, +0x18, +0x20, +0x24, +0x28
+0x08C52EE4 reg:a0=struct:48
+# 0x08AFACCC: a0 = object, its vtable pointer at +0 (virtuals +0x14 and +0x34 are called)
+0x08AFACCC reg:a0=struct:48 field:+0x0=ptr
+# 0x08C52910: a0 = quaternion floats x, y, z, w
+0x08C52910 reg:a0=struct:16
+# 0x0893BCDC: a0 = object, floats read at +0x34 and +0x54
+0x0893BCDC reg:a0=struct:96
+# 0x08922DF4: a1 = position floats +0x0..+0x14
+0x08922DF4 reg:a1=struct:32
+# 0x089DC2C0: a3 = slot holding the object pointer (mode 1: loaded, then its vtable is read)
+0x089DC2C0 reg:a3=struct:16 field:+0x0=ptr
+# 0x088E7BEC: a0 = object: owner pointer +0 (its words +0x5C8 / +0x14C / +0x618 deref'd), indices +0x10 / +0x1C, object +8, countdowns +0x14 / +0x18
+0x088E7BEC reg:a0=struct:32 field:+0x0=ptr field:+0x8=ptr field:+0x10=int:0..3 field:+0x14=int:0..2 field:+0x18=int:0..2 field:+0x1C=int:0..3
+# 0x08A2FE90: a3 = array of object pointers at +0 / +4 / +8
+0x08A2FE90 reg:a3=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
