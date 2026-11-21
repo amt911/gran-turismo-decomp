@@ -52,3 +52,32 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# and a0 + 0x6C is the decoder state 0x08B64C80 indexes a table from. a1-a3 / t0-t2 are the fill byte, destination,
+# source, fill end, copy length and selector (the destination and source must be the generator's pointers, and a huge
+# t0 - t1 length faults in the original too, so those cases stay not comparable).
+0x08C5F3E4 reg:a0=struct:128 field:+0xC=int:0..255 field:+0x6C=ptr
+# inner vector begin / end / capacity at +4 / +8 / +0xC, word +0x10; a1 is the position address and a2 the element
+# count (no dereference of either, but a huge count makes the allocation in the full path oversized, so those cases
+# stay not comparable).
+0x08BBFAAC reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
+# node's key at +0x14 and compares the strings at +0. The element count is (a1 - a0) / 12, so the shape only makes the
+# first entry valid (node pointer at +0x4): a1 is drawn independently, the range is huge and the cases stay not
+# comparable - a range whose ends agree cannot be expressed by a per-register shape.
+0x08C366E8 reg:a0=struct:32 field:+0x4=ptr
+# slots +0x108 and +0x10C are read through word(a1), so a1's first word has to be a table stand-in for the
+# `jalr` to land on code. a0 is only read at +0x11C (a float radius) and a2 / a3 are only handed to the
+# quad copy, so all three are fine as the plain arena pointers.
+0x08A076B4 reg:a1=struct:16 field:+0x0=ptr
+# the read buffer the fill writes through, so it has to be valid; +0x4C is the block size the optimized
+# seek aligns to (0x400 for a regular file). +0x28 (the seek function) is left to the generator on purpose:
+# a table value there makes the `jalr` reach a real leaf function, which the shape's own pointers never do.
+0x08B789A4 reg:a1=struct:88 field:+0x10=ptr field:+0x4C=int:0..0x400
+# 0x0881FEF4: a2 (a1 is only a mode compared with 5, a0 is not read before it is overwritten). *(a2) is the object whose
+# vtable slot +0xC answers and whose word +0 has to be a valid vtable address (field +0x0); a2 +4 / +8 / +0xC / +0x10 are
+# the four source smart pointers 0x08A76ABC reads and stores into the frame slots. 0x14 bytes used.
+0x0881FEF4 reg:a2=struct:32 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr
+# count at 1, so the two walks stay one iteration (unpinned arena pointers would give up to ~16k iterations of guest
+# calls, which the synthetic child would time out on). owner = a0 (struct at +0x20/+0x24, callees read +0x74/+0x78) is
+# left to the default arena layout.
+0x08A8D574 reg:a1=struct:16 field:+0x0=ptr field:+0x4=int:0..0
