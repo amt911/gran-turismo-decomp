@@ -264,3 +264,10 @@ architecture is:
   - It runs at most 1 subagent (as `AGENTS.md` says), and only for work that is not mechanical, such as bisecting a
     verdict failure. Usually it runs none.
   - Claude never drafts in this mode.
+- **Faster verdicts without lowering quality** (user, 2026-11-22: "que no bajen la calidad, muy importante").
+  - Verified batches are grouped into PRs of about 250 functions (`grouploop.sh`, which also regroups the earlier
+    groups). This is an exception to the decomp workflow's ~80; a failing group is bisected by hand.
+  - The verdict build uses a pinned ccache (`tools/setup.sh`, PR #775). Units whose content did not change come from
+    the cache, so the objects are those of a clean build. A prebuilt recompiled library was not used: the boundaries
+    from `src/` change the generated code.
+  - The synthetic groups run beside the full gate on their own CPUs (#775).
