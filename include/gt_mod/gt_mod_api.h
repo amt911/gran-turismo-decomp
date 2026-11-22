@@ -1,4 +1,4 @@
-/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 4).
+/* Gran Turismo PSP decomp - native mod SDK (API versions 1 to 8).
  *
  * A mod is a shared library that exports `gt_mod_init`. The loader calls it once with the host's function table;
  * the mod registers hooks on guest (PSP) addresses through `api->hook` and reads/writes guest state through the
@@ -33,6 +33,12 @@ extern "C" {
 #define GT_MOD_API_VERSION_5 5
 /* v6 (2026-11-16): action_held, so a cheat can last while its button is held (nitro). */
 #define GT_MOD_API_VERSION_6 6
+/* v7 (docs/superpowers/specs/2026-11-18-rollover-physics-design.md): what a rigid-body mod needs: the car's dimensions, the ground under each wheel,
+ * one named call that writes a whole pose, and the tilt switch. The v7 functions refuse a mod that declared api < 7. */
+#define GT_MOD_API_VERSION_7 7
+/* v8 (docs/superpowers/specs/2026-11-18-mod-draw-api-design.md): 2D drawing over the game (on_overlay, draw_text / draw_rect / draw_line) and a
+ * whole-image colour grade (scene_grade). The v8 functions refuse a mod that declared api < 8. */
+#define GT_MOD_API_VERSION_8 8
 
 typedef struct GtModCtx GtModCtx; /* the guest CPU/memory state a hook runs against */
 typedef struct GtMod GtMod;       /* one loaded mod (defined by the loader) */
@@ -73,6 +79,10 @@ typedef void (*GtMenuActivateFn)(GtMod *self, int direction);
 /* v4. An action: runs on the vblank tick (call_guest allowed, as in a tick) after its hotkey or its menu entry fired it, at most
  * once per vblank, never while its mod is switched off. */
 typedef void (*GtActionFn)(GtMod *self, GtModCtx *ctx);
+/* v8. Runs once per game vblank on the vblank tick thread, after every mod's tick (ctx may read game state; call_guest is allowed), never while
+ * its mod is switched off. The draw_* calls are valid only inside it: the host keeps what was drawn until the next pass, so a pass that draws
+ * nothing clears the mod's overlay. */
+typedef void (*GtOverlayFn)(GtMod *self, GtModCtx *ctx);
 
 
 /* v5. Named hook points: the host maps each to the guest function it researched (docs/MODS.md names the evidence). */
@@ -109,6 +119,24 @@ typedef struct GtVertexRun {
     uint32_t run;
     uint32_t count;
 } GtVertexRun;
+
+/* v7. The car's size, in metres, from its car record (FACTS "Rollover body box"). The game keeps no body length, width or height. */
+typedef struct GtCarDimensions {
+    float wheelbase;
+    float track;
+    float front_axle; /* the front axle's offset from the body origin along the car's forward axis (+) */
+    float rear_axle;  /* the rear axle's offset (-) */
+    float radius;     /* the radius the game's car-car pair test uses */
+} GtCarDimensions;
+
+/* v7. One wheel's ground record, in the physics frame (Z up): where the game's road query looked and what it found. */
+typedef struct GtWheelContact {
+    float x, y;          /* the query point on the ground plane */
+    float ground_height; /* the ground's height there; meaningful only when `valid` */
+    int32_t surface;     /* the surface type byte: 0 asphalt, 2 and 3 off-track terrain */
+    int32_t valid;       /* 1 when the query found ground under the wheel (off-track terrain counts: it has a height) */
+    float load;          /* the wheel's load; 0 with the wheel in the air */
+} GtWheelContact;
 
 typedef struct GtModApi {
     uint32_t version; /* GT_MOD_API_VERSION the host implements */
@@ -218,6 +246,43 @@ typedef struct GtModApi {
     /* v6. 1 while the binding of this mod's action `id` (as given to add_action) is held down right now: all its pad buttons, or its key with its
      * modifiers. Pad bindings count only in a race (the host passes those buttons to the game in the menus); 0 for an unknown id or no binding. */
     int (*action_held)(GtMod *self, const char *id);
+    /* ---- v7 (appended). Only valid for a mod that declared `api = 7`. ---- */
+    /* The car's dimensions / the four wheels' ground records (index 0, 1 front, 2, 3 rear). `world` is the a0 of the world-step hook, `car` a handle
+     * of player_car / race_cars. 0 = ok; non-zero when the car is no slot of the world or its records do not check out. */
+    int (*car_dimensions)(GtMod *self, GtModCtx *ctx, uint32_t world, uint32_t car, GtCarDimensions *out);
+    int (*car_wheel_contacts)(GtMod *self, GtModCtx *ctx, uint32_t world, uint32_t car, GtWheelContact out[4]);
+    /* Writes a whole pose consistently (world-step hook, car-draw hook or vblank tick): the position, the three basis rows (forward, right, up: the
+     * game's left-handed rows) and the three Euler angles the game rebuilds its basis from (derived from the rows, so a mod never sees +0x6FC),
+     * the velocity and the speed, and zero in every angular-rate field. `angular_velocity` (world, rad/s) is checked for finiteness and NOT stored (the rate fields are
+     * zeroed; it only lets a mod pass what it has): the game's rate fields are not body-axis components (FACTS "Rollover body box"), so zero is the one value that is proven to make the
+     * game's next step leave the pose alone. 0 = ok; non-zero for a bad handle, a non-finite value rows that are not a rotation, or a right-handed set (the game's rows are left-handed: forward x right . up = -1). */
+    int (*car_set_pose)(GtMod *self, GtModCtx *ctx, uint32_t car, const float position[3], const float basis[9], const float velocity[3],
+                        const float angular_velocity[3]);
+    /* Lifts (on != 0) or restores the game's 35-degree tilt clamp for `car`'s body step, the way the rollover mod always did (FACTS "Rollovers"):
+     * only the clamp and the Euler-angle wrap read the lifted flag, never the dormant flip machine. Takes effect at the next physics step; undone
+     * when the mod is switched off in the menu. 0 = ok; non-zero for a null handle. */
+    int (*tilt_free)(GtMod *self, GtModCtx *ctx, uint32_t car, int on);
+    /* ---- v8 (appended). Only valid for a mod that declared `api = 8`. ---- */
+    /* Registers the overlay callback (during gt_mod_init only; one per mod). 0 = ok. */
+    int (*on_overlay)(GtMod *self, GtOverlayFn fn);
+    /* 2D drawing in a 480 x 272 logical space (origin top-left, scaled to the shown game picture, anti-aliased, sharp at any output size), drawn over
+     * the game and under the host's menus. Valid only inside the on_overlay callback (other calls are ignored and logged once); at most 4096 commands
+     * per pass, later ones are dropped. `rgba` is 0xRRGGBBAA, straight alpha. Draw order = call order. Non-finite coordinates drop the command.
+     * draw_text: (x, y) is the top-left of the text line, `size` its height in logical units (the host UI font, UTF-8, cut at 95 bytes);
+     * draw_line: round caps, `width` in logical units. */
+    void (*draw_text)(GtMod *self, float x, float y, float size, uint32_t rgba, const char *text);
+    void (*draw_rect)(GtMod *self, float x, float y, float w, float h, uint32_t rgba);
+    void (*draw_line)(GtMod *self, float x0, float y0, float x1, float y1, float width, uint32_t rgba);
+    /* A colour grade of the whole game picture (not of the draw_* layer or the host's menus): per channel, c' = clamp(mix(luma(c * (r, g, b)), c * (r, g, b),
+     * saturation) * brightness) with c in 0..1 and luma = Rec.709. (1, 1, 1, 1, 1) is neutral: no grade at all, frames byte-identical to a run without it.
+     * r, g, b, brightness and saturation must be finite and are clamped to 0..4. It stays until the mod sets another one or is switched off in the menu;
+     * several mods' grades multiply (a product within 1e-4 of neutral counts as neutral). To clear its grade a mod calls scene_grade(1, 1, 1, 1, 1); it is also dropped
+     * when the mod is switched off or unloaded. Call it during gt_mod_init or from a tick / overlay (a mod that only sets a grade must still be loaded active: the host
+     * publishes grades on the vblank tick, installed whenever any mod registered something or set a grade in init). Callable from hooks, ticks and the overlay.
+     * 0 = ok, non-zero for a non-finite value. Only tint * brightness (clamped to 1) is guaranteed on every backend: the GPU window applies all five numbers,
+     * the SDL software window has no saturation and cannot brighten past 1; frame dumps (GT_FRAME_DUMP) apply all of it. Do not rely on saturation or brightness > 1 being visible everywhere. The picture shown includes the game's own HUD:
+     * the grade cannot tell the HUD from the 3D scene yet (docs/FACTS.md "Scene grade"). */
+    int (*scene_grade)(GtMod *self, float r, float g, float b, float brightness, float saturation);
 } GtModApi;
 
 /* Entry point every mod exports. Returns 0 on success; non-zero makes the loader skip the mod. */

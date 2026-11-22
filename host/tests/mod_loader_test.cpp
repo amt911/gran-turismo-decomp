@@ -125,7 +125,7 @@ int main() {
         fs::create_directories(root / "a_no_manifest");
         write(root / "b_bad_toml" / "mod.toml", "this is not toml\n");
         make_mod(root, "c_missing_lib", "c", true, "1", "1", (root / "nope.so").string());
-        make_mod(root, "d_api7", "d", true, "1", "7");  // api 6 exists since action_held (v6): 7 is the unsupported one
+        make_mod(root, "d_api9", "d", true, "1", "9");  // api 7 (rollover SDK) and 8 (draw API) exist: 9 is the unsupported one
         write(root / "stray_file.txt", "not a directory");
         const LoadReport r = load_mods(rt, root);
         check(r.loaded.empty(), "loader_skips_broken_mods: nothing loaded");

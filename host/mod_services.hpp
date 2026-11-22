@@ -112,8 +112,41 @@ int api_on_switch_off(GtMod *self, GtVblankFn fn);
 int api_run_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, std::int8_t xyz[3]);
 int api_run_set_normal(GtMod *self, GtModCtx *ctx, std::uint32_t blob, std::uint32_t run, std::uint32_t index, const std::int8_t xyz[3]);
 int api_draw_matrix(GtMod *self, GtModCtx *ctx, float out[12]);
+// v7: dimensions, wheel records and the pose write (host/game_state.hpp).
+int api_car_dimensions(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarDimensions *out);
+int api_car_wheel_contacts(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtWheelContact out[4]);
+int api_car_set_pose(GtMod *self, GtModCtx *ctx, std::uint32_t car, const float position[3], const float basis[9], const float velocity[3],
+                     const float angular_velocity[3]);
 std::uint32_t api_blob_runs(GtMod *self, GtModCtx *ctx, std::uint32_t blob, GtVertexRun *out, std::uint32_t capacity);
 std::uint32_t api_draw_mesh_blob(GtModCtx *ctx);
 void api_draw_mesh_redirect(GtModCtx *ctx, std::uint32_t blob);
+
+// v8: the draw layer (include/gt_mod/gt_mod_api.h). The host (gt_play: play_backends.cpp) sets the sink that takes each pass's command list
+// (lcs patch 0071: HostDrawCmd has this layout); without one the draws are discarded. The list is submitted when it changed: a pass that
+// draws nothing after one that did submits the empty list (the layer goes away).
+constexpr std::size_t kMaxDrawCommands = 4096;
+constexpr std::size_t kDrawTextCapacity = 96;
+enum class DrawKind : std::uint8_t { Text, Rect, Line };
+struct DrawCommand {
+    DrawKind kind{DrawKind::Rect};
+    float a{0}, b{0}, c{0}, d{0}, e{0};  // text: x, y, size. rect: x, y, w, h. line: x0, y0, x1, y1, width
+    std::uint8_t rgba[4]{255, 255, 255, 255};
+    char text[kDrawTextCapacity]{};
+};
+using DrawSink = void (*)(const DrawCommand *commands, std::size_t count);
+void set_draw_sink(DrawSink sink);
+// The scene grade (v8): the product of the active mods' grades, handed to the sink when it changes (and once back to neutral).
+struct SceneGrade {
+    float r{1.0f}, g{1.0f}, b{1.0f}, brightness{1.0f}, saturation{1.0f};
+};
+using GradeSink = void (*)(const SceneGrade &grade);
+void set_grade_sink(GradeSink sink);
+int api_scene_grade(GtMod *self, float r, float g, float b, float brightness, float saturation);
+// The effective grade right now (tests).
+SceneGrade effective_scene_grade();
+int api_on_overlay(GtMod *self, GtOverlayFn fn);
+void api_draw_text(GtMod *self, float x, float y, float size, std::uint32_t rgba, const char *text);
+void api_draw_rect(GtMod *self, float x, float y, float w, float h, std::uint32_t rgba);
+void api_draw_line(GtMod *self, float x0, float y0, float x1, float y1, float width, std::uint32_t rgba);
 
 }  // namespace gt::mods::services

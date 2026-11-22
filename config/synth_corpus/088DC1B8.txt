@@ -1,0 +1,7 @@
+# layout 1
+# generator 1
+088DC1B8 68 1 word:0x104C=live:19966
+088DC1B8 93 1 reg:0=live:41418
+088DC1B8 202 1 reg:0=live:60984
+088DC1B8 224 1 reg:7=arena:0xBB20
+088DC1B8 175 1 word:0x988=arena:0xCF0

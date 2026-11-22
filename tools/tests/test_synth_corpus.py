@@ -62,3 +62,15 @@ def test_main_merges_logs_into_the_directory(tmp_path):
     assert sc.read_corpus(out) == [GOOD]
     assert sc.main(["merge", str(out), str(log)]) == 0  # idempotent
     assert sc.read_corpus(out) == [GOOD]
+
+
+def test_the_generator_header_is_written_and_another_generator_is_skipped(tmp_path):
+    from tools import synth_corpus as sc
+
+    sc.write_corpus(tmp_path, ["08900000 3 1"])
+    text = (tmp_path / "08900000.txt").read_text()
+    assert text.startswith("# layout 1\n# generator 1\n")
+    assert sc.read_corpus(tmp_path) == ["08900000 3 1"]
+    (tmp_path / "08900020.txt").write_text("# layout 1\n# generator 2\n08900020 3 1\n")
+    (tmp_path / "08900040.txt").write_text("# layout 1\n08900040 3 1\n")  # no generator line: v1
+    assert sc.read_corpus(tmp_path) == ["08900000 3 1", "08900040 3 1"]
