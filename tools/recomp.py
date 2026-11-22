@@ -80,8 +80,10 @@ def read_seeds(path: Path, load_base: int = LOAD_BASE) -> list[int]:
 
 
 def regenerate(elf: Path, out_dir: Path, recomp_bin: Path, load_base: int = LOAD_BASE,
-               unit_span: int = UNIT_SPAN, boundaries: Iterable[int] = (), seeds: Iterable[int] = (), runner: Runner = run) -> bool:
-    """Run psp_recomp unless out_dir already holds output for exactly these inputs. True if it ran."""
+               unit_span: int = UNIT_SPAN, boundaries: Iterable[int] = (), seeds: Iterable[int] = (), runner: Runner = run,
+               check_only: bool = False) -> bool:
+    """Run psp_recomp unless out_dir already holds output for exactly these inputs. True if it ran (with check_only: True if
+    it would run; nothing is run or removed)."""
     if not elf.is_file():
         raise RecompError(f"{elf} not found: run `.venv/bin/python -m tools.extract` first")
     if not recomp_bin.is_file():
@@ -93,6 +95,8 @@ def regenerate(elf: Path, out_dir: Path, recomp_bin: Path, load_base: int = LOAD
     if (stamp.is_file() and stamp.read_text().strip() == digest
             and (out_dir / REGISTRY).is_file()):
         return False
+    if check_only:
+        return True
     stamp.unlink(missing_ok=True)
     cmd = [str(recomp_bin), str(elf), "--auto", str(out_dir), f"{load_base:#010x}", f"{unit_span:#x}"]
     if listing:
@@ -117,16 +121,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--extra-seeds", type=Path, default=SEEDS_SOURCE,
                         help="file of ELF vaddrs of functions to emit although nothing reaches them (default: the committed list)")
     parser.add_argument("--no-extra-seeds", action="store_true", help="the baseline generation: no extra seeds")
+    parser.add_argument("--check", action="store_true", help="only report: exit 0 when up to date, 3 when a regeneration is needed")
     args = parser.parse_args(argv)
     try:
         ran = regenerate(args.elf, args.out, RECOMP_BIN, boundaries=decomp_boundaries(REPO / "src"),
-                         seeds=[] if args.no_extra_seeds else read_seeds(args.extra_seeds))
+                         seeds=[] if args.no_extra_seeds else read_seeds(args.extra_seeds), check_only=args.check)
     except RecompError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as e:
         print(f"error: psp_recomp exited with status {e.returncode}", file=sys.stderr)
         return 1
+    if args.check:
+        print(f"{'needs regeneration' if ran else 'up to date'}: {args.out}")
+        return 3 if ran else 0
     print(f"{'regenerated' if ran else 'up to date'}: {args.out}")
     return 0
 

@@ -226,3 +226,19 @@ def test_main_regenerates_with_the_seeds_and_no_extra_seeds_builds_the_baseline(
     assert seen == [[0x08804010], []]
     monkeypatch.setattr(r, "regenerate", lambda *a, **k: (_ for _ in ()).throw(r.RecompError("boom")))
     assert r.main(["--no-extra-seeds"]) == 1
+
+
+def test_check_only_reports_without_running(env):
+    # A gate asks first whether the generated code is current: only a real regeneration needs every heavy slot
+    # (2026-11-20: the slot taken for a no-op check made every gate wait behind every other).
+    elf, out, tool = env
+
+    def must_not_run(cmd):
+        raise AssertionError(f"ran {cmd}")
+
+    assert regenerate(elf, out, tool, BASE, runner=must_not_run, check_only=True) is True   # nothing generated yet
+    assert not (out / ".inputs.sha1").exists()
+    regenerate(elf, out, tool, BASE, runner=FakeRecomp())
+    assert regenerate(elf, out, tool, BASE, runner=must_not_run, check_only=True) is False  # up to date
+    assert regenerate(elf, out, tool, BASE, unit_span=0x4000, runner=must_not_run, check_only=True) is True
+    assert (out / ".inputs.sha1").exists()  # a check never removes the stamp
