@@ -32,6 +32,8 @@ RECOMP_BIN = REPO / "tools/src/lcs-recomp/out/tools/psp_recomp"
 STAMP = ".inputs.sha1"
 REGISTRY = "generated_registry.cpp"
 BOUNDARIES = "decomp_boundaries.txt"
+SEEDS = "extra_seeds.txt"
+SEEDS_SOURCE = REPO / "config" / SEEDS  # committed: ELF vaddrs picked by tools.extra_seeds (no game bytes)
 
 Runner = Callable[[Sequence[str]], None]
 
@@ -44,12 +46,14 @@ def run(cmd: Sequence[str]) -> None:
     subprocess.run(list(cmd), check=True, stdout=subprocess.DEVNULL)
 
 
-def _inputs_digest(elf: Path, recomp_bin: Path, load_base: int, unit_span: int, listing: str) -> str:
+def _inputs_digest(elf: Path, recomp_bin: Path, load_base: int, unit_span: int, listing: str, seeds_listing: str = "") -> str:
     h = hashlib.sha1()
     for path in (elf, recomp_bin):
         h.update(path.read_bytes())
     h.update(f"{load_base:#010x} {unit_span:#x}".encode())
     h.update(listing.encode())
+    if seeds_listing:  # absent seeds leave the digest of a build without the feature unchanged
+        h.update(b"seeds:" + seeds_listing.encode())
     return h.hexdigest()
 
 
@@ -58,25 +62,53 @@ def decomp_boundaries(src: Path) -> list[int]:
     return sorted(PROGRESS_LOAD_BASE + vaddr for vaddr in decompiled_functions(src))
 
 
+def read_seeds(path: Path, load_base: int = LOAD_BASE) -> list[int]:
+    """Runtime addresses of a seeds file (ELF vaddrs in hex, one per line, `#` comments). A missing file is an error: the committed
+    list is part of the build, and silently building without it would prove nothing."""
+    if not path.is_file():
+        raise RecompError(f"seeds file {path} not found (the committed list is config/extra_seeds.txt; --no-extra-seeds builds without)")
+    out = []
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        text = line.split("#", 1)[0].strip()
+        if not text:
+            continue
+        try:
+            out.append(load_base + int(text, 16))
+        except ValueError:
+            raise RecompError(f"{path}:{number}: not a hex address: {text!r}") from None
+    return out
+
+
 def regenerate(elf: Path, out_dir: Path, recomp_bin: Path, load_base: int = LOAD_BASE,
-               unit_span: int = UNIT_SPAN, boundaries: Iterable[int] = (), runner: Runner = run) -> bool:
-    """Run psp_recomp unless out_dir already holds output for exactly these inputs. True if it ran."""
+               unit_span: int = UNIT_SPAN, boundaries: Iterable[int] = (), seeds: Iterable[int] = (), runner: Runner = run,
+               check_only: bool = False) -> bool:
+    """Run psp_recomp unless out_dir already holds output for exactly these inputs. True if it ran (with check_only: True if
+    it would run; nothing is run or removed)."""
     if not elf.is_file():
         raise RecompError(f"{elf} not found: run `.venv/bin/python -m tools.extract` first")
     if not recomp_bin.is_file():
         raise RecompError(f"{recomp_bin} not found: run tools/setup.sh first")
     listing = "".join(f"{address:#010x}\n" for address in sorted(boundaries))
-    digest = _inputs_digest(elf, recomp_bin, load_base, unit_span, listing)
+    seeds_listing = "".join(f"{address:#010x}\n" for address in sorted(set(seeds)))
+    digest = _inputs_digest(elf, recomp_bin, load_base, unit_span, listing, seeds_listing)
     stamp = out_dir / STAMP
     if (stamp.is_file() and stamp.read_text().strip() == digest
             and (out_dir / REGISTRY).is_file()):
         return False
+    if check_only:
+        return True
     stamp.unlink(missing_ok=True)
     cmd = [str(recomp_bin), str(elf), "--auto", str(out_dir), f"{load_base:#010x}", f"{unit_span:#x}"]
     if listing:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / BOUNDARIES).write_text(listing)
         cmd.append(str(out_dir / BOUNDARIES))
+    if seeds_listing:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / SEEDS).write_text(seeds_listing)
+        if not listing:
+            cmd.append("")  # the boundaries slot, empty
+        cmd.append(str(out_dir / SEEDS))
     runner(cmd)
     stamp.write_text(digest + "\n")
     return True
@@ -86,15 +118,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--elf", type=Path, default=REPO / "extracted/EBOOT.elf")
     parser.add_argument("--out", type=Path, default=REPO / "recomp/generated")
+    parser.add_argument("--extra-seeds", type=Path, default=SEEDS_SOURCE,
+                        help="file of ELF vaddrs of functions to emit although nothing reaches them (default: the committed list)")
+    parser.add_argument("--no-extra-seeds", action="store_true", help="the baseline generation: no extra seeds")
+    parser.add_argument("--check", action="store_true", help="only report: exit 0 when up to date, 3 when a regeneration is needed")
     args = parser.parse_args(argv)
     try:
-        ran = regenerate(args.elf, args.out, RECOMP_BIN, boundaries=decomp_boundaries(REPO / "src"))
+        ran = regenerate(args.elf, args.out, RECOMP_BIN, boundaries=decomp_boundaries(REPO / "src"),
+                         seeds=[] if args.no_extra_seeds else read_seeds(args.extra_seeds), check_only=args.check)
     except RecompError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as e:
         print(f"error: psp_recomp exited with status {e.returncode}", file=sys.stderr)
         return 1
+    if args.check:
+        print(f"{'needs regeneration' if ran else 'up to date'}: {args.out}")
+        return 3 if ran else 0
     print(f"{'regenerated' if ran else 'up to date'}: {args.out}")
     return 0
 

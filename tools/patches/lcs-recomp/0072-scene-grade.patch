@@ -1,0 +1,147 @@
+diff --git a/lcs/host/lcs_display_menu.hpp b/lcs/host/lcs_display_menu.hpp
+index 4c6b917..f4df2a1 100644
+--- a/lcs/host/lcs_display_menu.hpp
++++ b/lcs/host/lcs_display_menu.hpp
+@@ -231,6 +231,20 @@ void host_draw_rasterize(const HostDrawCmd *commands, std::size_t count, std::ui
+ // Tests: rasterize on the calling thread instead.
+ void host_draw_set_synchronous(bool synchronous) noexcept;
+ 
++// GT patch 0072: the scene grade (include/gt_mod/gt_mod_api.h, v8): c' = clamp(mix(luma(c * tint), c * tint, saturation) * brightness), per
++// channel in 0..1, luma = Rec.709. Neutral (every field 1) is the identity and is never applied (byte-identical frames). The Vulkan present
++// shader and the CPU function below compute the same formula; the SDL path can only scale by tint * brightness (its texture colour mod).
++struct HostSceneGrade {
++    float r{1.0f}, g{1.0f}, b{1.0f}, brightness{1.0f}, saturation{1.0f};
++};
++[[nodiscard]] inline bool host_scene_grade_neutral(const HostSceneGrade &g) noexcept {
++    return g.r == 1.0f && g.g == 1.0f && g.b == 1.0f && g.brightness == 1.0f && g.saturation == 1.0f;
++}
++void host_scene_grade_set(const HostSceneGrade &grade) noexcept;
++[[nodiscard]] HostSceneGrade host_scene_grade() noexcept;
++// Grades `pixels` RGB8 triples in place (the frame dumps, the tests). A neutral grade leaves them untouched.
++void host_scene_grade_apply_rgb(const HostSceneGrade &grade, std::uint8_t *rgb, std::size_t pixels) noexcept;
++
+ inline constexpr std::uint32_t kFpsOverlayWidth = 192u;
+ inline constexpr std::uint32_t kFpsOverlayHeight = 48u;
+ 
+diff --git a/lcs/host/lcs_display_menu.cpp b/lcs/host/lcs_display_menu.cpp
+index a45db51..07b07fd 100644
+--- a/lcs/host/lcs_display_menu.cpp
++++ b/lcs/host/lcs_display_menu.cpp
+@@ -671,6 +671,36 @@ void settings_overlay_set_synchronous(bool synchronous) noexcept {
+     w.synchronous = synchronous;
+ }
+ 
++// GT patch 0072: the scene grade.
++namespace {
++std::mutex g_grade_mutex;
++HostSceneGrade g_grade;
++}  // namespace
++
++void host_scene_grade_set(const HostSceneGrade &grade) noexcept {
++    std::lock_guard<std::mutex> lock(g_grade_mutex);
++    g_grade = grade;
++}
++
++HostSceneGrade host_scene_grade() noexcept {
++    std::lock_guard<std::mutex> lock(g_grade_mutex);
++    return g_grade;
++}
++
++void host_scene_grade_apply_rgb(const HostSceneGrade &grade, std::uint8_t *rgb, std::size_t pixels) noexcept {
++    if (rgb == nullptr || host_scene_grade_neutral(grade)) return;
++    const float tint[3] = {grade.r, grade.g, grade.b};
++    for (std::size_t i = 0; i < pixels; ++i) {
++        float c[3];
++        for (int k = 0; k < 3; ++k) c[k] = static_cast<float>(rgb[i * 3u + k]) / 255.0f * tint[k];
++        const float luma = 0.2126f * c[0] + 0.7152f * c[1] + 0.0722f * c[2];
++        for (int k = 0; k < 3; ++k) {
++            const float v = (grade.saturation == 1.0f ? c[k] : luma + (c[k] - luma) * grade.saturation) * grade.brightness;
++            rgb[i * 3u + k] = static_cast<std::uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
++        }
++    }
++}
++
+ // GT patch 0071: the mod draw layer's worker: the same shape as the UI picture's (one slot for the newest request, one finished picture).
+ namespace {
+ 
+diff --git a/lcs/host/ge_gpu_backend_vulkan.cpp b/lcs/host/ge_gpu_backend_vulkan.cpp
+index 9060105..e53dafd 100644
+--- a/lcs/host/ge_gpu_backend_vulkan.cpp
++++ b/lcs/host/ge_gpu_backend_vulkan.cpp
+@@ -2035,7 +2035,7 @@ bool ensure_present_pipeline(VulkanState &s, VkFormat format, std::string &error
+     }
+     VkPushConstantRange range{};
+     range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-    range.size = 16u;  // GT patch 0022: opaque flag + source uv scale
++    range.size = 48u;  // GT patch 0022: opaque flag + source uv scale; GT patch 0072: + the scene grade
+     VkPipelineLayoutCreateInfo layout{};
+     layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+     layout.setLayoutCount = 1u;
+@@ -2470,7 +2470,16 @@ void draw_present_layer(VulkanState &s, VkDescriptorSet set, std::int32_t x, std
+     scissor.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
+     vkCmdSetViewport(s.command, 0u, 1u, &viewport);
+     vkCmdSetScissor(s.command, 0u, 1u, &scissor);
+-    struct { std::uint32_t opaque; float pad; float uv_scale[2]; } push{opaque ? 1u : 0u, 0.0f, {1.0f, 1.0f}};
++    struct { std::uint32_t opaque; std::uint32_t grade_on; float uv_scale[2]; float tint[4]; float saturation; float pad[3]; } push{
++        opaque ? 1u : 0u, 0u, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, {0.0f, 0.0f, 0.0f}};
++    if (opaque) {  // GT patch 0072: the mods' scene grade (neutral = off, the shader does not touch the picture)
++        const HostSceneGrade grade = host_scene_grade();
++        if (!host_scene_grade_neutral(grade)) {
++            push.grade_on = 1u;
++            push.tint[0] = grade.r, push.tint[1] = grade.g, push.tint[2] = grade.b, push.tint[3] = grade.brightness;
++            push.saturation = grade.saturation;
++        }
++    }
+     if (opaque) {  // GT patch 0022: the game layer shows only the display crop of the target
+         push.uv_scale[0] = static_cast<float>(crop_width(s)) / static_cast<float>(s.target_width);
+         push.uv_scale[1] = static_cast<float>(crop_height(s)) / static_cast<float>(s.target_height);
+diff --git a/lcs/host/display_window_sdl.cpp b/lcs/host/display_window_sdl.cpp
+index 4a49eaa..d4ae52e 100644
+--- a/lcs/host/display_window_sdl.cpp
++++ b/lcs/host/display_window_sdl.cpp
+@@ -400,8 +400,16 @@ void present_game_texture(std::uint32_t source_width, std::uint32_t source_heigh
+     SDL_SetRenderDrawColor(g_renderer, 0, 0, 0, 255);
+     SDL_RenderClear(g_renderer);
+     const SDL_Rect destination = game_texture_destination(source_width, source_height);
+-    if (destination.w > 0 && destination.h > 0)
+-        SDL_RenderCopy(g_renderer, g_texture, nullptr, &destination);
++    {
++        // GT patch 0072: the scene grade by colour mod: the SDL path can scale by tint * brightness (it cannot brighten past 1, nor
++        // change the saturation: the GPU path does both)
++        const HostSceneGrade grade = host_scene_grade();
++        const auto channel = [&grade](float tint) {
++            return static_cast<Uint8>(std::clamp(tint * grade.brightness, 0.0f, 1.0f) * 255.0f + 0.5f);
++        };
++        SDL_SetTextureColorMod(g_texture, channel(grade.r), channel(grade.g), channel(grade.b));
++        if (destination.w > 0 && destination.h > 0) SDL_RenderCopy(g_renderer, g_texture, nullptr, &destination);
++    }
+     paint_mod_draw(g_renderer, destination);  // GT patch 0071
+     paint_fps(g_renderer);
+     paint_host_settings(g_renderer);
+diff --git a/lcs/host/vulkan/present.frag b/lcs/host/vulkan/present.frag
+index bff625d..0f952c2 100644
+--- a/lcs/host/vulkan/present.frag
++++ b/lcs/host/vulkan/present.frag
+@@ -2,8 +2,10 @@
+ layout(set = 0, binding = 0) uniform sampler2D image;
+ layout(push_constant) uniform PresentPush {
+     uint opaque;
+-    float pad;
++    uint gradeOn;  // GT patch 0072: the scene grade (mods); 0 = off, the picture is untouched
+     vec2 uvScale;  // GT patch 0022: the shown crop of the target
++    vec4 tint;     // rgb tint, w = brightness
++    float saturation;
+ } push;
+ layout(location = 0) in vec2 uv;
+ layout(location = 0) out vec4 color;
+@@ -15,5 +17,10 @@ void main() {
+     vec2 crop = push.uvScale.x == 0.0 ? vec2(1.0) : push.uvScale;
+     vec2 halfTexel = 0.5 / vec2(textureSize(image, 0));
+     vec4 texel = texture(image, clamp(uv * crop, halfTexel, crop - halfTexel));
++    if (push.opaque != 0u && push.gradeOn != 0u) {  // GT patch 0072: the same formula as host_scene_grade_apply_rgb
++        vec3 c = texel.rgb * push.tint.rgb;
++        float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
++        texel.rgb = clamp((vec3(luma) + (c - vec3(luma)) * push.saturation) * push.tint.w, 0.0, 1.0);
++    }
+     color = push.opaque != 0u ? vec4(texel.rgb, 1.0) : texel;
+ }

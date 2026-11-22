@@ -52,18 +52,29 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
 def test_defaults_split_the_desktop(tmp_path):
     lines = run_verdict(tmp_path, {})
     assert lines[0].startswith("taskset -c 6-11,18-23 ")
-    assert all(line.startswith("taskset -c 0-5,12-17 ") for line in lines[1:]) and len(lines) == 3
+    assert all(line.startswith("taskset -c 0-5,12-17 ") for line in lines[1:]) and len(lines) == 4  # gate + three synthetic groups
 
 
 def test_environment_overrides_both_sets(tmp_path):
     lines = run_verdict(tmp_path, {"GT_GATE_CPUS": "0-11", "GT_SYNTH_CPUS": "0-11"})
-    assert len(lines) == 3 and all(line.startswith("taskset -c 0-11 ") for line in lines)
+    assert len(lines) == 4 and all(line.startswith("taskset -c 0-11 ") for line in lines)
 
 
 def test_a_failed_fetch_is_retried(tmp_path):
     # two verdicts share one object store; a fetch that loses the ref lock must not end the verdict as "no branch"
-    assert len(run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=2)) == 3
+    assert len(run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=2)) == 4
 
 
 def test_a_fetch_that_keeps_failing_still_stops(tmp_path):
     assert run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=9) == []
+
+
+def test_synth_groups_override(tmp_path):
+    # GT_VERIFY_SYNTH_GROUPS replaces the scene groups: one group, one synthetic taskset line
+    lines = run_verdict(tmp_path, {"GT_VERIFY_SYNTH_GROUPS": "dealer,race"})
+    assert len(lines) == 2 and "GT_SYNTH_ROUTE" not in lines[1]
+
+
+def test_boot_budget_defaults_to_600_and_is_overridable(tmp_path):
+    text = (REPO / "tools" / "verdict.sh").read_text()
+    assert 'tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}"' in text
