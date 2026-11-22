@@ -63,7 +63,9 @@ fi
 synth_pid=$!
 # GT_VERIFY_OVERLAP=0 (the default below 16 CPUs) waits for the synthetic groups first: on a 6-core/12-thread laptop the two
 # CPU sets share physical cores, and the gate's real-time routes need theirs.
-[ "${GT_VERIFY_OVERLAP:-$([ "$(nproc)" -ge 16 ] && echo 1 || echo 0)}" = 1 ] || wait $synth_pid
+# Default 0: the gate and a synthetic group in the same tree cannot run at once (both verdicts 775 and 830 lost their
+# fast gate entirely when overlapped), so the synthetic groups still finish first unless GT_VERIFY_OVERLAP=1.
+[ "${GT_VERIFY_OVERLAP:-0}" = 1 ] || wait $synth_pid
 # The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
 GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
   | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
