@@ -76,128 +76,6 @@ void release_result(Runtime &rt, AllegrexContext &ctx, u32 destination, u32 temp
 // array up or down and queues the new entry through 0x088CC988; ends in a tail call of 0x08B3457C.
 // v0 of every exit is what the asm leaves there: untouched when +0x63C is null, the call's result
 // otherwise.
-void func_088CCE44(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 arg1 = ctx.gpr[5];
-    const u32 id = ctx.gpr[6];
-    const u32 mode = ctx.gpr[7];
-    const u32 extra = ctx.gpr[8];
-    const u32 stepper = ctx.gpr[9];
-    GuestFrame frame(ctx, 0x30u);
-
-    if (word(rt, self + 0x63Cu) == 0u) return;  // v0 is the caller's, as the original leaves it
-
-    const float current = call_method(rt, ctx, word(rt, self + 0x63Cu), 0x14u,
-                                      {word(rt, self + 0x63Cu)}).f0;
-    const float half_step = psp_mul(current, 0.5f);  // the call's delay slot
-
-    const u32 controller = word(rt, self + 0x63Cu);
-    const GuestResult decided = call_method(rt, ctx, controller, 0x18u, {controller, mode});
-    u32 step = mode;
-    u32 changed = 0u;
-    if (decided.v0 == 0u) {
-        const u32 retry = word(rt, self + 0x63Cu);
-        const GuestResult again = call_method(rt, ctx, retry, 0x18u, {retry, 6u});
-        step = 6u;  // the beqz's delay slot
-        if (again.v0 == 0u) return;
-    }
-    if (step != word(rt, self + 0x30u)) {
-        put(rt, self + 0x30u, step);
-        changed = 1u;
-    }
-    if (word(rt, self + 0x2Cu) != id) {
-        put(rt, self + 0x2Cu, id);
-        changed = 1u;
-    }
-    const GuestResult stepped = call_method(rt, ctx, stepper, 0x20u, {stepper});
-    if (stepped.v0 == 0u) return;
-    const u32 stepper_value = stepped.v0;
-
-    if (changed != 0u || rt.memory().load8(self + 0x634u) != 0u) {
-        call(rt, ctx, 0x08B344E0u, {self});
-        call(rt, ctx, 0x088CCBCCu, {self, arg1, extra});
-        rt.memory().store8(self + 0x634u, 0u);
-        call(rt, ctx, 0x08B3457Cu, {self});
-    }
-    const u32 leaf_target = word(rt, word(rt, arg1) + 0x18u);
-    ctx.gpr[2] = leaf_target;  // `jalr v0` leaves v0 = the target for a callee that never writes it
-    const GuestResult found = call_keep(rt, ctx, leaf_target, {arg1, word(rt, self + 0x2Cu)});
-    if (found.v0 == 0u) return;
-    const u32 target = found.v0;
-    const float window = call_method(rt, ctx, target, 0x50u, {target}).f0;
-
-    const float high = float_at(rt, self + 0x5E8u);
-    const float width = float_at(rt, self + 0x608u);
-    const float reach = half_step + window;
-    const float upper = high + width;
-    const float lower = high - width;  // the bc1f's delay slot, always computed
-    float value = window;
-    if (reach < upper) {
-        value = value + current;
-    } else if ((half_step + lower) < value) {
-        value = value - current;
-    }
-
-    if (upper <= value) {
-        // One entry further along the 40-byte array at +0x5D8.
-        call(rt, ctx, 0x08B344E0u, {self});
-        const float delta = float_at(rt, self + 0x608u);
-        const float e0 = float_at(rt, self + 0x5E0u) + delta;
-        const float e1 = float_at(rt, self + 0x5E4u) + delta;
-        const float e2 = float_at(rt, self + 0x5E8u) + delta;
-        const u32 index = word(rt, self + 0x5D8u);
-        const float sample = float_at(rt, self + index * 40u + 0x3Cu);
-        put_float(rt, self + 0x5E0u, e0);
-        put_float(rt, self + 0x5E4u, e1);
-        put_float(rt, self + 0x5E8u, e2);
-        put(rt, self + 0x5D8u, index + 1u);
-        put(rt, self + 0x5DCu, word(rt, self + 0x5DCu) + 1u);
-        call(rt, ctx, 0x088CBEB0u, {self});
-        const GuestResult queued = call_keepf(
-            rt, ctx, 0x088CC988u,
-            {self, step, 0u, word(rt, self + 0x5D8u), word(rt, self + 0x5F0u), word(rt, self + 0x5F4u), extra},
-            {float_at(rt, self + 0x5E0u), sample});
-        put(rt, self + 0x5F0u, queued.v0);
-        const u32 next = self + word(rt, self + 0x5DCu) * 40u;
-        put(rt, self + 0x5F4u, queued.v1);
-        put(rt, self + 0x5F8u, word(rt, next + 0x50u));
-        put(rt, self + 0x5FCu, word(rt, next + 0x54u));
-        rt.memory().store8(self + 0x635u, 1u);
-        call(rt, ctx, 0x08B3457Cu, {self});
-    } else if (value < lower) {
-        // One entry back.
-        call(rt, ctx, 0x08B344E0u, {self});
-        const float delta = float_at(rt, self + 0x608u);
-        const float e0 = float_at(rt, self + 0x5E0u) - delta;
-        const float e1 = float_at(rt, self + 0x5E4u) - delta;
-        const float e2 = float_at(rt, self + 0x5E8u) - delta;
-        const u32 index = word(rt, self + 0x5DCu);
-        const float sample = float_at(rt, self + index * 40u + 0x3Cu);
-        put_float(rt, self + 0x5E0u, e0);
-        put_float(rt, self + 0x5E4u, e1);
-        put_float(rt, self + 0x5E8u, e2);
-        put(rt, self + 0x5D8u, word(rt, self + 0x5D8u) - 1u);
-        put(rt, self + 0x5DCu, index - 1u);
-        call(rt, ctx, 0x088CBEB0u, {self});
-        const u32 entry = self + word(rt, self + 0x5D8u) * 40u;
-        const u32 t0 = word(rt, self + 0x5F8u);
-        const u32 t1 = word(rt, self + 0x5FCu);
-        put(rt, self + 0x5F0u, word(rt, entry + 0x50u));
-        put(rt, self + 0x5F4u, word(rt, entry + 0x54u));
-        const GuestResult queued = call_keepf(
-            rt, ctx, 0x088CC988u,
-            {self, step, 0u, word(rt, self + 0x5DCu), t0, t1, extra},
-            {float_at(rt, self + 0x5E4u), sample});
-        put(rt, self + 0x5F8u, queued.v0);
-        put(rt, self + 0x5FCu, queued.v1);
-        rt.memory().store8(self + 0x635u, 1u);
-        call(rt, ctx, 0x08B3457Cu, {self});
-    }
-
-    call(rt, ctx, 0x08B344E0u, {self});
-    call(rt, ctx, 0x088CB7F0u, {self, arg1, stepper_value, extra});
-    tail_call(ctx, 0x08B3457Cu, {self});
-}
 
 // 0x089EE49C (a0 = object, a1 = object with a vtable at +0x0). Builds three stack objects through
 // 0x089E4BB8, asks the a1 object for a context (0x08A06E94) and calls its +0x108 method, releases
@@ -601,7 +479,6 @@ void func_08B452EC(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW128(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_128::name, gt::ReturnKind::kind)
-NEW128(0x088CCE44u, func_088CCE44, Word);
 NEW128(0x089EE49Cu, func_089EE49C, Word);
 NEW128(0x08B452ECu, func_08B452EC, Word);
 NEW128(0x08C174D4u, func_08C174D4, Word);

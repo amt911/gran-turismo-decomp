@@ -682,79 +682,6 @@ inline void unswap_sub(Runtime &rt, u32 address, u32 delta) {
 // triangle intersection: the first two vertices of the plane at a2 with the edges to a3 / t0 / t1 give two barycentric
 // parameters (the degenerate case divides directly), stored at out[0] / out[1], and the point's missing y is
 // interpolated into out[2]; v0 = 1 when the point lies inside. An early exit leaves v0 as it was.
-void func_08905594(Runtime &rt, AllegrexContext &ctx) {
-    const u32 out = ctx.gpr[4];
-    const u32 point = ctx.gpr[5];
-    const u32 first = ctx.gpr[6];
-    const u32 second = ctx.gpr[7];
-    const u32 third = ctx.gpr[8];
-    const u32 fourth = ctx.gpr[9];
-    GuestFrame frame(ctx, 0x10u);
-    const float ax = float_at(rt, first), ay = float_at(rt, first + 4u), az = float_at(rt, first + 8u);
-    const float bx = float_at(rt, second), by = float_at(rt, second + 4u), bz = float_at(rt, second + 8u);
-    const float cx = float_at(rt, third), cy = float_at(rt, third + 4u), cz = float_at(rt, third + 8u);
-    const float dx = float_at(rt, fourth), dy = float_at(rt, fourth + 4u), dz = float_at(rt, fourth + 8u);
-    const float px = float_at(rt, point), py = float_at(rt, point + 4u), pz = float_at(rt, point + 8u);
-    const float zero = 0.0f;
-    const float e_cx = cx - ax;
-    const float e_cz = cz - az;
-    const float e_dx = dx - bx;
-    const float e_dz = dz - bz;
-    if (e_cx == zero && e_cz == zero && e_dx == zero && e_dz == zero) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    const float p_ax = px - ax;
-    const float p_az = pz - az;
-    const float cross_ac = psp_mul(e_cx, p_az) - psp_mul(e_cz, p_ax);
-    if (zero < cross_ac) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    const float b_ax = bx - ax;
-    const float b_az = bz - az;
-    const float cross_ab = psp_mul(p_az, b_ax) - psp_mul(p_ax, b_az);
-    if (cross_ab < zero) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    const float d_cx = dx - cx;
-    const float d_cz = dz - cz;
-    const float cross_cd = psp_mul(pz - cz, d_cx) - psp_mul(px - cx, d_cz);
-    if (zero < cross_cd) return;
-    const float rel_x = d_cx - b_ax;
-    const float rel_z = d_cz - b_az;
-    const float edge_ab = psp_mul(p_az, rel_x) - psp_mul(p_ax, rel_z);
-    if (e_cx == zero && e_cz == zero) {
-        const float denominator = psp_mul(b_az, rel_x) - psp_mul(b_ax, rel_z);
-        put_float(rt, out, -cross_ab / edge_ab);
-        put_float(rt, out + 4u, edge_ab / denominator);
-    } else {
-        const float term_a = psp_mul(e_cx, b_az);
-        const float term_b = psp_mul(e_cz, b_ax);
-        const float term_c = psp_mul(e_cx, rel_z);
-        const float term_d = psp_mul(e_cz, rel_x);
-        const float sum = term_a - term_b;
-        const float difference = term_d - term_c;
-        const float twice = psp_mul(cross_ab, 2.0f);
-        const float plus = edge_ab + sum;
-        const float minus = sum - edge_ab;
-        const float scaled = psp_mul(difference, twice);
-        const float negated = psp_mul(cross_ab, -2.0f);
-        const float root = std::sqrt(psp_mul(plus, plus) + scaled);
-        put_float(rt, out + 4u, negated / (plus - root));
-        put_float(rt, out, (cross_ac + cross_ac) / (minus - root));
-    }
-    const float u = float_at(rt, out);
-    const float v = float_at(rt, out + 4u);
-    const float one = 1.0f;
-    const float rest_u = one - u;
-    const float rest_v = one - v;
-    ctx.gpr[2] = 1u;
-    const float height = psp_mul(psp_mul(rest_u, rest_v), ay) + psp_mul(psp_mul(u, rest_v), by) +
-                         psp_mul(psp_mul(rest_u, v), cy) + psp_mul(psp_mul(u, v), dy);
-    put_float(rt, out + 8u, py - height);
-}
 
 // 0x08AFBFEC (a0 = a vertex array of 12-byte xyz triples, a1..t1 = five indices): builds the four edge vectors from the
 // vertex at a1 (to the ones at a2, a3, t0 and t1) in the frame and folds them with 0x08AFBF8C three times (into the
@@ -812,5 +739,4 @@ MAIN22(0x08ACD5D4u, func_08ACD5D4, Word);
 MAIN22(0x08924690u, func_08924690, Word);
 MAIN22(0x088DBF0Cu, func_088DBF0C, Word);
 MAIN22(0x08AF5830u, func_08AF5830, Word);
-MAIN22(0x08905594u, func_08905594, Word);
 MAIN22(0x088D51BCu, func_088D51BC, Word);
