@@ -401,31 +401,6 @@ void func_088618E8(Runtime &rt, AllegrexContext &ctx) {
 // empty or absent qualifier makes the caller pass 0 and takes the owner's default through 0x0886B2F4(owner). Then a present name
 // is matched with 0x0886A950(found, name); on a hit (or without a name) the tail call 0x0886B9A4(owner, name, qualifier) does
 // the work, and when nothing matched v0 is the found pointer.
-void func_088756F0(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x20u);
-    const u32 owner = word(rt, ctx.gpr[4]);
-    u32 name = ctx.gpr[5];
-    u32 qualifier = ctx.gpr[6];
-    if (name != 0u && load8(rt, name) == 0u) name = 0u;
-    u32 found;
-    if (qualifier == 0u || load8(rt, qualifier) == 0u) {
-        if (qualifier != 0u) qualifier = 0u;
-        found = call(rt, ctx, 0x0886B2F4u, {owner});
-    } else {
-        found = 0u;
-    }
-    if (name != 0u) {
-        if (found == 0u) tail_call(ctx, 0x0886B9A4u, {word(rt, ctx.gpr[4]), name, qualifier});
-        if (call(rt, ctx, 0x0886A950u, {found, name}) == 0u) {
-            tail_call(ctx, 0x0886B9A4u, {word(rt, ctx.gpr[4]), name, qualifier});
-        }
-    }
-    if (found != 0u) {
-        ctx.gpr[2] = found;
-        return;
-    }
-    tail_call(ctx, 0x0886B9A4u, {word(rt, ctx.gpr[4]), name, qualifier});
-}
 
 // 0x08877724 / 0x088777E4 / 0x088778A4 (a0 = a factory, a1 = a name in an argument object): build a temporary from 0x08AB85F0 +
 // 0x08AB856C, 0x088755B4(factory, key), then a second temporary's key, 0x088757B0(factory, 0x08CA0074), and when that exists
@@ -785,7 +760,6 @@ void func_08AD5460(Runtime &rt, AllegrexContext &ctx) {
 
 #define NEW15(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_15::name, gt::ReturnKind::kind)
 NEW15(0x088618E8u, func_088618E8, Word);
-NEW15(0x088756F0u, func_088756F0, Word);
 NEW15(0x088941A0u, func_088941A0, Word);
 NEW15(0x088D7158u, func_088D7158, Word);
 NEW15(0x088E4DFCu, func_088E4DFC, Word);
