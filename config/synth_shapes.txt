@@ -87,3 +87,99 @@
 # 0x08B437C0: a0+0 is the vtable the three virtual slots come from; the table at +0x454 (count at +0x8D4, flag byte +0x854) and the
 # registration at +0x8DC lie past the 1024-byte cap, so the slot ends where the shape does.
 0x08B437C0 reg:a0=struct:1024 field:+0x0=ptr
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md, item 3): one line per function,
+# with the asm evidence above it. Drafted by DeepSeek V4.1 Flash from tools.disasm, kept only where the gate then compared.
+#   sw a3,0x0(a0); sw t0,0x0(a0+v0); lw a2,0x0(a0); sw 0,0x4(a0); func_08C54A7C(a0 = this + lw -0xC(a2)).
+#   -> a1+0x0 ptr (dereferenced at -0xC). a1+0x4 is only copied into the object (no constraint). a0 is the destination
+#   object: written at +0x0/+0x4 and re-read after the write, so it needs no more than valid memory.
+0x08C55C24 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A17CD8: lw v1,0x0(a0) then lw t2,0x0(v1) -> v1 is a pointer, its +0x0 word is only tested (bnez) to pick the
+#   argument order of the tail call func_08966B20; a0 itself is never used again. -> a0+0x0 ptr, size 16.
+0x08A17CD8 reg:a0=struct:16 field:+0x0=ptr
+#   Both are pointers; a shape cannot order two independently drawn pointers, and end < begin is a ~4 GiB length
+#   (alloc fails, copy to null), so the only expressible bounded range is the empty one: begin = end = 0.
+#   (There is no `null` field kind; int:0..0 is a null pointer here, not a counter.)
+0x08A66DB8 reg:a1=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md, item 3): one line per function,
+# with the asm evidence above it. Drafted by DeepSeek V4.1 Flash from tools.disasm, kept only where the gate then compared.
+# evidence: 0x08C782C4 lw $v0,0x0($a0) (word at -0xC), and a0+4 is the object pointer passed to 0x08C78130.
+0x08C782C4 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
+# evidence: 0x08875D60 lw $v0,0x4($a0): the object whose virtual at +8 runs.
+0x08875D60 reg:a0=struct:16 field:+0x4=ptr
+# evidence: 0x088A9DF8 lw $v0,0x8($a0) (its word at +0x32C is the table).
+0x088A9DF8 reg:a0=struct:16 field:+0x8=ptr
+# evidence: 0x0899A490 lw $v0,0x138($a0) must be non-null (0x08A5B930 destroys it).
+0x0899A490 reg:a0=struct:320 field:+0x138=ptr
+# evidence: 0x08AA8F38 lw $s0,0x4($a0) must be non-null (0x08CB30B0 names it).
+0x08AA8F38 reg:a0=struct:16 field:+0x4=ptr
+# evidence: 0x08AB6F7C lw $s0,0xC($a1) must be non-null (0x08CB4250 names it).
+0x08AB6F7C reg:a1=struct:16 field:+0xC=ptr
+# evidence: 0x08AB7054 lw $s0,0xC($a1) must be non-null (0x08CB4250 names it).
+0x08AB7054 reg:a1=struct:16 field:+0xC=ptr
+# evidence: 0x08BA7EE4 lw $v0,0x0($a0) is copied and lw $v0,0x4($a0) is a count block whose word at +4 is raised.
+0x08BA7EE4 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
+# evidence: 0x08C50744 lw $v0,0x0($s0) is the object 0x08B61FC0 releases.
+0x08C50744 reg:a0=struct:16 field:+0x0=ptr
+# evidence: 0x08C6B8AC lw $v1,0x0($a1)/lw $v0,0x4($a1): the two words of the first pair copied to the stack (a2 is
+# evidence: the second pair, the same shape).
+0x08C6B8AC reg:a1=struct:16 field:+0x0=ptr field:+0x4=ptr
+# evidence: 0x08C6C51C lw $v1,0x0($a1)/lw $v0,0x4($a1): the two words of the first pair copied to the stack (a2 is
+# evidence: the second pair, the same shape).
+0x08C6C51C reg:a1=struct:16 field:+0x0=ptr field:+0x4=ptr
+# evidence: 0x08C6D258 lw $v1,0x0($a1)/lw $v0,0x4($a1): the two words of the first pair copied to the stack (a2 is
+# evidence: the second pair, the same shape).
+0x08C6D258 reg:a1=struct:16 field:+0x0=ptr field:+0x4=ptr
+# evidence: 0x08A35160 lw $s0,0x1C($s0) must be non-null (0x08CACEC8 names it).
+0x08A35160 reg:a0=struct:32 field:+0x1C=ptr
+# evidence: 0x08AB18FC lw $s0,0x0($a1) must be non-null (0x08CB3AF0 names it), its virtual at +0x44 answers.
+0x08AB18FC reg:a1=struct:16 field:+0x0=ptr
+# evidence: 0x08B889D4 lw $s0,0x0($a1) must be non-null (0x08C9832C names it), its virtual at +0x54 answers.
+0x08B889D4 reg:a1=struct:16 field:+0x0=ptr
+# evidence: 0x08B89EFC lw $s0,0x0($a1) must be non-null (0x08C98D34 names it), its virtual at +0x4C answers.
+0x08B89EFC reg:a1=struct:16 field:+0x0=ptr
+# Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md): one line per function, asm evidence above.
+# lw a0, 0x0(a0) (the owner object). a1 and a2 are strings whose first byte is tested (lb 0x0).
+0x088756F0 reg:a0=struct:16 field:+0x0=ptr
+# lw a3, 0x0(a0): the source pointer the 0x24-byte copy reads through.
+0x088941A0 reg:a0=struct:16 field:+0x0=ptr
+# lw a0, 0x640(a0) (an object passed on) and lw v1, 0x130(a0) then sb v0, 0x13(v1). 0x643 is over the 1024 cap, so the slot stops there.
+0x088D7158 reg:a0=struct:1024 field:+0x130=ptr
+# lw s0, 0x0(a0): the holder whose +0x178 record is copied out (a1/a2/a3/t0 are the output pointers).
+0x088E4DFC reg:a0=struct:16 field:+0x0=ptr
+# lwc1 0x41C/0x414/0x418/0x4/0x49C/0x4A0/0x4A4(a0) and lwc1 0xC/0x30/0x38(a0); the highest offset is 0x4A7 (over the cap, no fields).
+0x08900350 reg:a0=struct:1024
+# lw v0, 0x8(a0) and 0xC(a0): the cached key pair compared with a2/a3.
+0x0892FCE0 reg:a0=struct:24 field:+0x8=ptr field:+0xC=ptr
+# The eight divide thunks and 0x08A5FE6C: lw s0, 0x0(a3) is the object whose virtual +0x34..+0x4C slot gives the divisor. a0's
+# 0x14 field (the divided count: lh/lb/lhu/lbu/lw) is the second register the body reads.
+0x08A737EC reg:a3=struct:16 field:+0x0=ptr
+0x08A7372C reg:a3=struct:16 field:+0x0=ptr
+0x08A96560 reg:a3=struct:16 field:+0x0=ptr
+0x08A964A0 reg:a3=struct:16 field:+0x0=ptr
+0x08AB06CC reg:a3=struct:16 field:+0x0=ptr
+0x08A5FE6C reg:a3=struct:16 field:+0x0=ptr
+# lw a0, 0x28(a0): the allocator object both 0x08B2CB18 calls take.
+0x08B48398 reg:a0=struct:48 field:+0x28=ptr
+# evidence: 0x089645C4 loads s0 = word(a0) at entry (lw s0, 0x0(s4)) and passes it to 0x08A7CC30/0x08BE* as the object
+# pointer, so a0 points at a struct whose +0x00 word is a guest object address.
+0x089645C4 reg:a0=struct:16 field:+0x0=ptr
+# 0x088CCE44: lw a0,0x63C(a0) is the controller object whose vtable +0x14/+0x18 methods answer
+# (0x63C + 4 -> 0x640, capped at 1024). Not expressible here: a1's vtable (+0x18) and t1's (+0x20).
+0x088CCE44 reg:a0=struct:1024
+# 0x089EE49C: lbu v0,0xA68(a0) gates the body, the int at +0x22C switches over 0..3 and the word at
+# +0x230 is compared with 1 (0xA6C capped at 1024); +0x240/+0x244 are released through 0x08A5BAD8.
+# Not expressible here: a1's vtable slot 0x108.
+0x089EE49C reg:a0=struct:1024 field:+0x22C=int:0..4 field:+0x230=int:0..2 field:+0x240=ptr field:+0x244=ptr
+# 0x08C174D4: a0 is the array of 44-byte elements (words at 0x0/0x4, floats 0x8..0x24, word at 0x28).
+# Not expressible here: a3 (the element copied into the hole) and t0 (the comparator, whose words at
+# +0x3C/+0x40 are the begin/end of the vector 0x08C15F9C copies).
+0x08C174D4 reg:a0=struct:48
+# 0x08B452EC: a3 is the descriptor: lh +0x8 and lh +0xA are the two keys, lh +0xC and the byte at
+# +0xE are read, +0x10/+0x14 are copied out. Not expressible here: a0's tables at +0x154/+0x454 and
+# the object at +0x8DC (0x8E0 capped at 1024).
+0x08B452EC reg:a3=struct:32 field:+0x8=int:0..255 field:+0xC=int:0..255
+# 08B00E90: lh 0xEC(a0) cursor (negative returns early), lhu 0xE2(a0) mask; a1 (+0x0, +0x44 pointers) is left to the generator (one reg per function)
+0x08B00E90 reg:a0=struct:240 field:+0xEC=int:0..3
+# 0x08A63A6C: a0 = self: the vector at +0x24 is left empty so the element loop and its virtuals do not run, the block at +0x3C
+# is followed; real struct 0x58.
+0x08A63A6C reg:a0=struct:0x58 field:+0x24=int:0..0 field:+0x28=int:0..0 field:+0x3C=ptr

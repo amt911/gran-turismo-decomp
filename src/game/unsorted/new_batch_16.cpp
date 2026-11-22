@@ -645,22 +645,6 @@ void func_088D2C8C(Runtime &rt, AllegrexContext &ctx) {
 // 0x08A2E748 (a0 = object): stores vtable 0x08CBE590 and, when both the pointer at 0x08CF6648 and the byte at
 // 0x08CF664C are set, 0x08B097AC(object) and 0x08B64654(object) run and both globals are cleared; then
 // 0x08A780B0(object) finishes.
-void func_08A2E748(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[17] = self;
-    put(rt, self, 0x08CBE590u);
-    const u32 object = word(rt, 0x08CF6648u);
-    ctx.gpr[16] = object;
-    if (object != 0u && byte_u(rt, 0x08CF664Cu) != 0u) {
-        call_set(rt, ctx, 0x08B097ACu, {object});
-        call_set(rt, ctx, 0x08B64654u, {object});
-        put(rt, 0x08CF6648u, 0u);
-        put8(rt, 0x08CF664Cu, 0u);
-    }
-    tail_call(ctx, 0x08A780B0u, {self});
-}
 
 // 0x08A4D308 (a0 = object): the member at +0x98, when set, runs 0x08B61FC0; the member at +0x78 is released
 // (0x08A5058C, and 0x08C1CC2C(member + 0x14, member[0x1C]) then 0x08B64654(member)), cleared, and 0x08B2EE2C(
@@ -820,7 +804,6 @@ NEW16(0x0880AF30u, func_0880AF30, Word);
 NEW16(0x088A117Cu, func_088A117C, Word);
 NEW16(0x088D2C8Cu, func_088D2C8C, Float);
 NEW16(0x08B35E3Cu, func_08B35E3C, Word);
-NEW16(0x08A2E748u, func_08A2E748, Word);
 NEW16(0x08A70A48u, func_08A70A48, Word);
 NEW16(0x08AA3DD0u, func_08AA3DD0, Word);
 NEW16(0x08AB4724u, func_08AB4724, Word);
