@@ -25,7 +25,10 @@ heavy() { systemd-run --user --scope --quiet --slice=gt-heavy.slice -- "$@"; }
 tools/setup.sh > "$logs/setup.log" 2>&1 || { echo "setup failed"; exit 1; }
 .venv/bin/python -m tools.extract --full > "$logs/extract.log" 2>&1 || { echo "extract failed"; exit 1; }
 heavy .venv/bin/python -m tools.recomp > "$logs/recomp.log" 2>&1 || { echo "recomp failed"; tail -3 "$logs/recomp.log"; exit 1; }
-heavy sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ > /dev/null && cmake --build build -j8' \
+# ccache (tools/setup.sh) only skips compiling units whose preprocessed content is identical: same objects as a clean build.
+launcher=""; [ -x tools/src/ccache/ccache-4.10.2-linux-x86_64/ccache ] && launcher="-DCMAKE_CXX_COMPILER_LAUNCHER=$PWD/tools/src/ccache/ccache-4.10.2-linux-x86_64/ccache"
+export CCACHE_DIR=${CCACHE_DIR:-$HOME/.cache/gt-verdict-ccache} CCACHE_MAXSIZE=${CCACHE_MAXSIZE:-20G}
+heavy sh -c "cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ $launcher > /dev/null && cmake --build build -j8" \
   > "$logs/build.log" 2>&1 || { echo "build failed"; tail -5 "$logs/build.log"; exit 1; }
 .venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1; tail -1 "$logs/pytest.log"
 ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
