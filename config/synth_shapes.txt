@@ -52,3 +52,24 @@
 0x08B0C71C reg:a0=struct:32
 # 0x08B1FC78: lw t0,0x4(a1) is a link that is dereferenced; a0 only receives the head's +4 / +8.
 0x08B1FC78 reg:a1=struct:16 field:+0x4=ptr
+
+# 0x088107A4: a0 is the drawing context, read at +0x224 (the word there is the quad atlas pointer, whose +8 word is
+# its row count as a float and whose rows start at +0x300) and at +0x23C (the table the tail call offsets by 0x40 or
+# 0x60). a1, the drawn object, is only read at +0xE0/+0xE8 and passed on to the calls.
+0x088107A4 reg:a0=struct:1024 field:+0x224=ptr field:+0x23C=ptr
+#   stops at the 1024-byte cap; nothing on the reached path touches it (a1 == 0 returns, otherwise func_0886F8D4 is the
+#   `jr ra; move v0, zero` stub and the body is skipped), so it only matters if a mod fills that stub. a1 is the resource
+#   pointer: tested against 0 and passed on, never dereferenced here.
+0x0888329C reg:a0=struct:1024
+# a node all run. The tree (a0) and the hint (a1) cannot be shaped at the same time (one shape line per function): with the
+# hint at a random arena pointer the first compare is decided by the length alone (an arena word is usually a pointer, i.e. a
+# length larger than any shaped one) and the predecessor arm still runs; the hint == tree + 4 arm (the header) is not reached.
+0x08C518D4 reg:a2=struct:16 field:+0x0=int:0..1 field:+0x4=ptr field:+0x8=int:0..16 field:+0xC=int:0..1
+# +0x3C/+0x40 is deep-copied into storage 0x08A5BC20(end - begin, 4) allocates, so an empty vector keeps
+# every case's allocation inside the arena; the elements the other three registers point at are raw 0x2C-byte
+# blocks the generator's arena already provides.
+0x08C17E04 reg:a3=struct:80 field:+0x3C=int:0..0 field:+0x40=int:0..0
+# 0x08BB43C8 (vector = a0, position = a1, value = a2): a0 is a vector {begin +0, end +4, capacity +8}; zeroed here so the
+# grow path runs with an empty vector (size 0 -> one element), which is the only branch that can finish with the random
+# position (a1) and value (a2) the generator supplies.
+0x08BB43C8 reg:a0=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0 field:+0x8=int:0..0
