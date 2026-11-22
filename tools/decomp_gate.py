@@ -3,7 +3,7 @@
 Usage (from the repository root):
   .venv/bin/python -m tools.decomp_gate fast TAG --only 0xADDR,0xADDR...|@file   # listed functions, uncapped
   .venv/bin/python -m tools.decomp_gate full TAG                                 # everything, real time
-  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ... [--also ...]  # s0 bump, fast gate
+  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp [src/y.cpp ...] --only ... [--also ...]  # s0 bump, fast gate
   .venv/bin/python -m tools.decomp_gate coverage TAG --only 0xADDR,...|@file     # fast gate + which branches it took
   .venv/bin/python -m tools.decomp_gate probe TAG --symbols FILE                 # call counts of FILE's functions (--decomp off)
   .venv/bin/python -m tools.decomp_gate report TAG                               # re-read a run's logs
@@ -743,32 +743,47 @@ def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False
     return status
 
 
-def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int],  # pragma: no cover - runs
+def _sabotage_round(tag: str, files: Sequence[Path], only: list[int], targets: set[int],  # pragma: no cover - runs
                     kind: str = "fast"):
-    """Sabotages `targets` (with every function of `only` installed), runs the fast gate, restores the file.
-    Returns the run's mismatching cases and every registration the bumps reached (template instances share a
-    body), or None when the sabotaged build didn't run."""
-    original = file.read_text()
-    names, affected, unresolved = sabotage_targets(original, targets)
-    sabotaged, missing = sabotage(original, names)
-    refusal = unsabotageable_message(file, missing, unresolved)
-    if refusal:
-        print(refusal, file=sys.stderr)
+    """Sabotages `targets` (with every function of `only` installed) in whichever of `files` registers them, runs the
+    fast gate once, restores the files. Returns the run's mismatching cases and every registration the bumps reached
+    (template instances share a body), or None when the sabotaged build didn't run."""
+    originals = {file: file.read_text() for file in files}
+    edits: dict[Path, str] = {}
+    affected: set[int] = set()
+    remaining = set(targets)
+    for file, original in originals.items():
+        here = {a for a in remaining if a in {**template_functions(original), **registered_names(original)}}
+        if not here:
+            continue
+        remaining -= here
+        names, reached, _ = sabotage_targets(original, here)
+        sabotaged, missing = sabotage(original, names)
+        refusal = unsabotageable_message(file, missing, [])
+        if refusal:
+            print(refusal, file=sys.stderr)
+            return None
+        edits[file] = sabotaged
+        affected |= reached
+    if remaining:
+        print(unsabotageable_message(files[0], [], sorted(remaining)), file=sys.stderr)
         return None
     try:
-        pending_restore(file, original)
-        file.write_text(sabotaged)
+        for file, sabotaged in edits.items():
+            pending_restore(file, originals[file])
+            file.write_text(sabotaged)
         ran = _run_gate(kind, tag, only)
     finally:
-        file.write_text(original)
-        pending_restore(file, None)
+        for file in edits:
+            file.write_text(originals[file])
+            pending_restore(file, None)
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
         return None
     logs = [Path(f"recomp/analysis/gt_diff_{tag}_{r}.log") for r, _ in ROUTES["full"]]
     return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists())), affected
 
 
-def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - edits, runs, restores
+def _sabotage_run(tag: str, files: Sequence[Path], only: list[int],  # pragma: no cover - edits, runs, restores
                   also: Sequence[int] = (), kind: str = "fast") -> int:
     """Sabotages `only`; `also` is installed too (their callers or callees) without being sabotaged. `kind` "full"
     runs the sabotaged build on the full gate, for functions only the full routes reach."""
@@ -777,7 +792,7 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     seen: set[tuple[int, frozenset[int]]] = set()
     found: set[int] = set()
     for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
-        result = _sabotage_round(f"{tag}s{round_number}", file, installed, targets, kind)
+        result = _sabotage_round(f"{tag}s{round_number}", files, installed, targets, kind)
         if result is None:
             print("sabotage: the sabotaged build did not run (see above: a refusal, or the build failed)")
             return 2
@@ -880,7 +895,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
                       help=f"after a passing gate, raise the compared floor in {FLOOR_FILE} to this run's total")
     sab = sub.add_parser("sabotage")
     sab.add_argument("tag")
-    sab.add_argument("--file", type=Path, required=True)
+    sab.add_argument("--file", type=Path, required=True, nargs="+",
+                     help="the source file(s) that register --only (several: sabotaged together in one run)")
     sab.add_argument("--only", required=True)
     sab.add_argument("--also", default="", help="installed but not sabotaged (e.g. the decompiled callers of "
                                                 "functions reached only nested)")
