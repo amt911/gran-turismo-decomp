@@ -647,6 +647,8 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
     subprocess.run(slice_limits(), check=True)
     if cache.exists() and prebuilt_generated(cache.read_text()):
         recomp_ok = True  # build/ links a prebuilt generated library: nothing here compiles recomp/generated
+    elif subprocess.run([sys.executable, "-m", "tools.recomp", "--check"], stdout=subprocess.DEVNULL).returncode == 0:
+        recomp_ok = True  # already current: no heavy slot for a no-op (it made every gate wait behind every other)
     else:
         recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
         recomp.acquire()

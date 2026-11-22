@@ -1,0 +1,4 @@
+# layout 1
+08870140 137 1 word:0xDCF8=imm:0xBF800000
+08870140 3 1 reg:0=arena:0xCA40
+08870140 137 1 word:0xDCF8=imm:0xBF800000 reg:0=live:39630
