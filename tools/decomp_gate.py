@@ -80,7 +80,7 @@ FULL_TAIL = {"race": 23400}
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
 SLICE = "gt-heavy.slice"
-SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
+SLICE_LIMITS = ("MemoryHigh=11G", "MemoryMax=12G", "MemorySwapMax=0",  # user, 2026-11-20 (was 6 GB)
                 # real-time routes first when other sessions load the machine (their niced jobs still stalled routes)
                 "CPUWeight=10000")
 def heavy_slots() -> tuple[Path, ...]:
@@ -608,6 +608,13 @@ def raise_floor(path: Path, compared: int) -> int:
     return floor
 
 
+def prebuilt_generated(cmake_cache: str) -> bool:
+    """Whether build/ links a prebuilt libgt_generated.a (GT_PREBUILT_GENERATED, a local-only option): recomp/generated is
+    then never compiled, so the gate skips tools.recomp and its exclusive heavy slot."""
+    match = re.search(r"^GT_PREBUILT_GENERATED:[A-Z]+=(.*)$", cmake_cache, re.MULTILINE)
+    return bool(match and match[1].strip())
+
+
 def coverage_left_configured(cmake_cache: str) -> bool:
     """Whether build/CMakeCache.txt still instruments sources for coverage (a coverage run killed before it could
     put the build back): a normal gate would then build them instrumented."""
@@ -638,13 +645,18 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
               "uncompared (.venv/bin/python -m tools.contract_audit)")
         return 2
     subprocess.run(slice_limits(), check=True)
-    recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
-    recomp.acquire()
-    try:
-        recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
-                                   stdout=subprocess.DEVNULL).returncode == 0
-    finally:
-        recomp.release()
+    if cache.exists() and prebuilt_generated(cache.read_text()):
+        recomp_ok = True  # build/ links a prebuilt generated library: nothing here compiles recomp/generated
+    elif subprocess.run([sys.executable, "-m", "tools.recomp", "--check"], stdout=subprocess.DEVNULL).returncode == 0:
+        recomp_ok = True  # already current: no heavy slot for a no-op (it made every gate wait behind every other)
+    else:
+        recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
+        recomp.acquire()
+        try:
+            recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
+                                       stdout=subprocess.DEVNULL).returncode == 0
+        finally:
+            recomp.release()
     if not recomp_ok:
         print("recomp failed")
         return 2

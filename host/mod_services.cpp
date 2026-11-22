@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <utility>
 #include <string>
@@ -386,7 +387,9 @@ bool v5_mod(GtMod *self, const char *what) {
 }
 
 namespace {
-gt::game_state::ImpactTracker g_impact;  // the step hook runs on one guest thread at a time (cooperative scheduling)
+// One tracker per mod: car_impact compares with the previous call, so a tracker shared by two mods made the second caller of a step see dv = 0 (the deformation and
+// mechanical-damage mods both ask once per step). The step hook runs on one guest thread at a time (cooperative scheduling).
+std::map<const GtMod *, gt::game_state::ImpactTracker> g_impact;
 }
 static_assert(sizeof(GtMeshInfo) == sizeof(gt::mesh::BlobInfo), "GtMeshInfo mirrors mesh::BlobInfo");
 static_assert(sizeof(GtCarImpact) == sizeof(gt::game_state::Impact), "GtCarImpact mirrors game_state::Impact");
@@ -394,7 +397,7 @@ static_assert(sizeof(GtCarImpact) == sizeof(gt::game_state::Impact), "GtCarImpac
 int api_car_impact(GtMod *self, GtModCtx *ctx, std::uint32_t world, std::uint32_t car, GtCarImpact *out) {
     if (!v5_mod(self, "car_impact") || ctx == nullptr || out == nullptr) return 1;
     gt::game_state::Impact impact{};
-    if (!gt::game_state::car_impact(ctx->rt->memory(), world, car, g_impact, impact)) return 1;
+    if (!gt::game_state::car_impact(ctx->rt->memory(), world, car, g_impact[self], impact)) return 1;
     std::memcpy(out, &impact, sizeof impact);
     return 0;
 }
@@ -591,6 +594,7 @@ void run_vblank_tick(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, st
 }
 
 void remove_for(const GtMod *mod) {
+    g_impact.erase(mod);
     {
         std::lock_guard<std::mutex> lock(g_grade_mutex);
         g_grades.erase(std::remove_if(g_grades.begin(), g_grades.end(), [mod](const ModGrade &g) { return g.mod == mod; }), g_grades.end());
@@ -603,6 +607,7 @@ void remove_for(const GtMod *mod) {
 }
 
 void clear_for_tests() {
+    g_impact.clear();
     g_rows.clear();
     g_ticks.clear();
     g_actions.clear();
