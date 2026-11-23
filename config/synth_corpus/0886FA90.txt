@@ -1,0 +1,6 @@
+# layout 1
+0886FA90 122 1 word:0x8234=imm:0x71
+0886FA90 122 1 word:0x8234=imm:0x71 reg:0=live:65066
+0886FA90 42 1 word:0x3C70=arena:0x2950
+0886FA90 137 1 reg:7=imm:0x8000
+0886FA90 137 1 reg:7=imm:0x8000 reg:0=live:65066

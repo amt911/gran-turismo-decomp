@@ -142,7 +142,7 @@ def test_blind_dispatch_check_fails_and_can_be_waived():
     log = good_log(flipcalls=0)
     assert "never fired" in mr.judge_roll(log)[1]
     assert mr.judge_roll(log, expected_flipcalls=False)[0]
-    assert "never fired" in mr.judge_roll(good_log().replace(" body_calls=100", ""))[1]
+    assert mr.judge_roll(good_log().replace(" body_calls=100", ""))[0]  # 0.5.0: the host owns the body-step hook, the mod logs no count: nothing to check
     assert mr.judge_roll(good_log().replace(" body_calls=100", " flipmachine_calls=100"))[0]  # the old field name still parses
 
 

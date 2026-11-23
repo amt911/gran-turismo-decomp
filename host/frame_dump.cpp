@@ -64,7 +64,11 @@ std::filesystem::path numbered(const char *directory, const char *prefix, std::u
     return std::filesystem::path(directory) / name;
 }
 
+FrameComposer g_composer = nullptr;
+
 } // namespace
+
+void set_frame_composer(FrameComposer composer) { g_composer = composer; }
 
 // GT_FRAME_DUMP=<dir> (+ GT_FRAME_EVERY=N, default 60): every Nth presented frame is written as
 // <dir>/frame_NNNNNN.ppm from the guest display framebuffer, and stderr says at which vblank: GT_PAD times
@@ -77,8 +81,9 @@ void frame_dump(psprecomp::Runtime &runtime, std::uint32_t frame_buffer, std::ui
     static DumpBucket bucket;  // which presents are dumped: host/dump_bucket.hpp
     if (dump_dir == nullptr || !bucket.due(present_vblank, dump_every())) return;
     ++presented;
-    const std::vector<std::uint8_t> rgb = guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height);
+    std::vector<std::uint8_t> rgb = guest_rgb(runtime, frame_buffer, buffer_width, pixel_format, width, height);
     if (rgb.empty()) return;
+    if (g_composer != nullptr) g_composer(rgb, width, height);
     std::filesystem::create_directories(dump_dir);
     (void)write_rgb_ppm(numbered(dump_dir, "frame", presented - 1u), rgb, width, height);
     std::fprintf(stderr, "[frame-dump] frame %06llu vblank %llu present_vblank %llu\n", static_cast<unsigned long long>(presented - 1u),

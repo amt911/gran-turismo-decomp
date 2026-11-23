@@ -3,7 +3,7 @@
 Usage (from the repository root):
   .venv/bin/python -m tools.decomp_gate fast TAG --only 0xADDR,0xADDR...|@file   # listed functions, uncapped
   .venv/bin/python -m tools.decomp_gate full TAG                                 # everything, real time
-  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp --only ... [--also ...]  # s0 bump, fast gate
+  .venv/bin/python -m tools.decomp_gate sabotage TAG --file src/x.cpp [src/y.cpp ...] --only ... [--also ...]  # s0 bump, fast gate
   .venv/bin/python -m tools.decomp_gate coverage TAG --only 0xADDR,...|@file     # fast gate + which branches it took
   .venv/bin/python -m tools.decomp_gate probe TAG --symbols FILE                 # call counts of FILE's functions (--decomp off)
   .venv/bin/python -m tools.decomp_gate report TAG                               # re-read a run's logs
@@ -80,10 +80,19 @@ FULL_TAIL = {"race": 23400}
 # Heavy jobs share one systemd slice whose memory ceiling caps them all together (AGENTS.md: 6 GB on this
 # machine), so two can run at once with the same guarantee a per-job cap plus a global lock gave serially.
 SLICE = "gt-heavy.slice"
-SLICE_LIMITS = ("MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0",
+SLICE_LIMITS = ("MemoryHigh=11G", "MemoryMax=12G", "MemorySwapMax=0",  # user, 2026-11-20 (was 6 GB)
                 # real-time routes first when other sessions load the machine (their niced jobs still stalled routes)
                 "CPUWeight=10000")
-SLOTS = (Path("/tmp/claude-1000/gt-heavy.lock"), Path("/tmp/claude-1000/gt-heavy-2.lock"))
+def heavy_slots() -> tuple[Path, ...]:
+    """The lock files of the heavy slots: GT_HEAVY_SLOTS of them (default 4: the gt-heavy.slice ceiling is 12 GB since
+    the user's decision of 2026-11-20, was 6 GB with 2 slots). The first two keep their old names, so worktrees on an
+    older checkout still share them."""
+    count = max(1, int(os.environ.get("GT_HEAVY_SLOTS", "4")))
+    return tuple(Path("/tmp/claude-1000/gt-heavy.lock" if i == 0 else f"/tmp/claude-1000/gt-heavy-{i + 1}.lock")
+                 for i in range(count))
+
+
+SLOTS = heavy_slots()
 MAX_SABOTAGE_ROUNDS = 4  # a parent and its decompiled callees need one round each when they share every case
 # A route keeps ~1 core busy (0.61-0.67 measured on a full gate, 2026-11-05; ~3 before the vblank pacing fix of
 # 2026-10-22); the cap leaves a fifth of the cores the gate may use free so routes keep pace. Those cores are the process's CPU affinity, not the machine's: another session's jobs pinned to
@@ -599,6 +608,13 @@ def raise_floor(path: Path, compared: int) -> int:
     return floor
 
 
+def prebuilt_generated(cmake_cache: str) -> bool:
+    """Whether build/ links a prebuilt libgt_generated.a (GT_PREBUILT_GENERATED, a local-only option): recomp/generated is
+    then never compiled, so the gate skips tools.recomp and its exclusive heavy slot."""
+    match = re.search(r"^GT_PREBUILT_GENERATED:[A-Z]+=(.*)$", cmake_cache, re.MULTILINE)
+    return bool(match and match[1].strip())
+
+
 def coverage_left_configured(cmake_cache: str) -> bool:
     """Whether build/CMakeCache.txt still instruments sources for coverage (a coverage run killed before it could
     put the build back): a normal gate would then build them instrumented."""
@@ -629,13 +645,18 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
               "uncompared (.venv/bin/python -m tools.contract_audit)")
         return 2
     subprocess.run(slice_limits(), check=True)
-    recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
-    recomp.acquire()
-    try:
-        recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
-                                   stdout=subprocess.DEVNULL).returncode == 0
-    finally:
-        recomp.release()
+    if cache.exists() and prebuilt_generated(cache.read_text()):
+        recomp_ok = True  # build/ links a prebuilt generated library: nothing here compiles recomp/generated
+    elif subprocess.run([sys.executable, "-m", "tools.recomp", "--check"], stdout=subprocess.DEVNULL).returncode == 0:
+        recomp_ok = True  # already current: no heavy slot for a no-op (it made every gate wait behind every other)
+    else:
+        recomp = HeavySlot(exclusive=True)  # the 3.8 GB step runs alone
+        recomp.acquire()
+        try:
+            recomp_ok = subprocess.run(heavy([sys.executable, "-m", "tools.recomp"]),
+                                       stdout=subprocess.DEVNULL).returncode == 0
+        finally:
+            recomp.release()
     if not recomp_ok:
         print("recomp failed")
         return 2
@@ -722,32 +743,47 @@ def _report(tag: str, check_floor: bool = False, raise_floor_after: bool = False
     return status
 
 
-def _sabotage_round(tag: str, file: Path, only: list[int], targets: set[int],  # pragma: no cover - runs
+def _sabotage_round(tag: str, files: Sequence[Path], only: list[int], targets: set[int],  # pragma: no cover - runs
                     kind: str = "fast"):
-    """Sabotages `targets` (with every function of `only` installed), runs the fast gate, restores the file.
-    Returns the run's mismatching cases and every registration the bumps reached (template instances share a
-    body), or None when the sabotaged build didn't run."""
-    original = file.read_text()
-    names, affected, unresolved = sabotage_targets(original, targets)
-    sabotaged, missing = sabotage(original, names)
-    refusal = unsabotageable_message(file, missing, unresolved)
-    if refusal:
-        print(refusal, file=sys.stderr)
+    """Sabotages `targets` (with every function of `only` installed) in whichever of `files` registers them, runs the
+    fast gate once, restores the files. Returns the run's mismatching cases and every registration the bumps reached
+    (template instances share a body), or None when the sabotaged build didn't run."""
+    originals = {file: file.read_text() for file in files}
+    edits: dict[Path, str] = {}
+    affected: set[int] = set()
+    remaining = set(targets)
+    for file, original in originals.items():
+        here = {a for a in remaining if a in {**template_functions(original), **registered_names(original)}}
+        if not here:
+            continue
+        remaining -= here
+        names, reached, _ = sabotage_targets(original, here)
+        sabotaged, missing = sabotage(original, names)
+        refusal = unsabotageable_message(file, missing, [])
+        if refusal:
+            print(refusal, file=sys.stderr)
+            return None
+        edits[file] = sabotaged
+        affected |= reached
+    if remaining:
+        print(unsabotageable_message(files[0], [], sorted(remaining)), file=sys.stderr)
         return None
     try:
-        pending_restore(file, original)
-        file.write_text(sabotaged)
+        for file, sabotaged in edits.items():
+            pending_restore(file, originals[file])
+            file.write_text(sabotaged)
         ran = _run_gate(kind, tag, only)
     finally:
-        file.write_text(original)
-        pending_restore(file, None)
+        for file in edits:
+            file.write_text(originals[file])
+            pending_restore(file, None)
     if ran == 2:  # recomp or build failed: nothing ran, so nothing was detected
         return None
     logs = [Path(f"recomp/analysis/gt_diff_{tag}_{r}.log") for r, _ in ROUTES["full"]]
     return set().union(*(parse_mismatch_cases(log.read_text(errors="replace")) for log in logs if log.exists())), affected
 
 
-def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - edits, runs, restores
+def _sabotage_run(tag: str, files: Sequence[Path], only: list[int],  # pragma: no cover - edits, runs, restores
                   also: Sequence[int] = (), kind: str = "fast") -> int:
     """Sabotages `only`; `also` is installed too (their callers or callees) without being sabotaged. `kind` "full"
     runs the sabotaged build on the full gate, for functions only the full routes reach."""
@@ -756,7 +792,7 @@ def _sabotage_run(tag: str, file: Path, only: list[int],  # pragma: no cover - e
     seen: set[tuple[int, frozenset[int]]] = set()
     found: set[int] = set()
     for round_number in range(1, MAX_SABOTAGE_ROUNDS + 1):
-        result = _sabotage_round(f"{tag}s{round_number}", file, installed, targets, kind)
+        result = _sabotage_round(f"{tag}s{round_number}", files, installed, targets, kind)
         if result is None:
             print("sabotage: the sabotaged build did not run (see above: a refusal, or the build failed)")
             return 2
@@ -859,7 +895,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
                       help=f"after a passing gate, raise the compared floor in {FLOOR_FILE} to this run's total")
     sab = sub.add_parser("sabotage")
     sab.add_argument("tag")
-    sab.add_argument("--file", type=Path, required=True)
+    sab.add_argument("--file", type=Path, required=True, nargs="+",
+                     help="the source file(s) that register --only (several: sabotaged together in one run)")
     sab.add_argument("--only", required=True)
     sab.add_argument("--also", default="", help="installed but not sabotaged (e.g. the decompiled callers of "
                                                 "functions reached only nested)")
