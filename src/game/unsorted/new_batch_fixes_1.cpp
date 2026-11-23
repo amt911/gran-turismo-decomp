@@ -520,28 +520,6 @@ void func_08B58B10(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x08BE6674 (a0 = a destination array, a1 = a count, a2 = a source object): the source's 0x30-byte record (words +4 / +8,
 // floats +0xC..+0x2C) is copied to each element with the vtable word 0x08CCDE00 at +0 (a null destination skips the copy).
-void func_08BE6674(Runtime &rt, AllegrexContext &ctx) {
-    const u32 count = ctx.gpr[5];
-    const u32 source = ctx.gpr[6];
-    if (count == 0u) return;
-    u32 destination = ctx.gpr[4];
-    ctx.gpr[2] = 0x004D0000u;
-    for (u32 round = 1u;; ++round) {
-        if (destination != 0u) {
-            const u32 first = word(rt, source + 4u);
-            const u32 second = word(rt, source + 8u);
-            ctx.gpr[2] = first;
-            ctx.gpr[3] = second;
-            put(rt, destination + 4u, first);
-            put(rt, destination + 8u, second);
-            for (u32 offset = 0xCu; offset <= 0x1Cu; offset += 4u) put(rt, destination + offset, word(rt, source + offset));
-            put(rt, destination, 0x08CCDE00u);
-            for (u32 offset = 0x20u; offset <= 0x2Cu; offset += 4u) put(rt, destination + offset, word(rt, source + offset));
-        }
-        destination += 0x30u;
-        if (round == count) break;
-    }
-}
 
 // 0x08BF4C70 (a0 = begin, a1 = end of 0x28-byte records, a2 = a destination): each record is copied (words +4 / +8, floats
 // +0xC..+0x1C, +0x20 / +0x24) with the vtable word 0x08CCE6E0 at +0; a null destination skips the copy. v0 = the destination
@@ -612,6 +590,5 @@ NEW_FIX1(0x08B047D0u, func_08B047D0, Word);
 NEW_FIX1(0x08B55F14u, func_08B55F14, Word);
 NEW_FIX1(0x08B58178u, func_08B58178, Float);
 NEW_FIX1(0x08B58B10u, func_08B58B10, Word);
-NEW_FIX1(0x08BE6674u, func_08BE6674, Word);
 NEW_FIX1(0x08BF4C70u, func_08BF4C70, Word);
 NEW_FIX1(0x08C20F98u, func_08C20F98, Word);
