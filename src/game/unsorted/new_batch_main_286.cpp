@@ -243,7 +243,6 @@ constexpr Registration kRegistrations[] = {
 // 0x08BDC338: the same insertion once more (0x08BDBFE0 / 0x08BDC228 / 0x08BDC030 / 0x08BDC080 / 0x08BDC1D8 /
 // 0x08BDC188 / 0x08B8ECAC, message 0x08CA1A44). This one leaves v0 = the capacity it computed (or untouched when
 // count == 0). hot_batch_116.cpp keeps a parked copy of this body; delete that one when this registers.
-void func_08BDC338(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { GuestFrame frame(ctx, 0x60u); insert_shared_values(rt, ctx, frame, InsertCallees{0x08BDBFE0u, 0x08BDC228u, 0x08BDC030u, 0x08BDC080u, 0x08CA1A44u, 0x08BDC1D8u, 0x08BDC188u, 0x08B8ECACu}, Return::Capacity); }
 
 // 0x089E519C (a0 = mode, a1 = 0xFFFF for the wildcard): mode 1 with 0xFFFF sets two objects up (0x08B28DCC twice, then
 // 0x08A92114 and 0x0897D534 with their tables) and registers the fourteen descriptors; mode 1 with any other a1 returns
@@ -280,7 +279,6 @@ void func_089E519C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 #define MAIN247(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_247::name, gt::ReturnKind::kind)
 MAIN247(0x089E519Cu, func_089E519C, Word);
-MAIN247(0x08BDC338u, func_08BDC338, Word);
 
 // ---- from main-session batch 248 (draft c8ac2029cf4361b6655599a54467da832f7902af) ----
 // New batch 248 (main session): hand-written drafts from `tools/disasm`, not gated yet.
