@@ -87,3 +87,14 @@
 # 0x08B437C0: a0+0 is the vtable the three virtual slots come from; the table at +0x454 (count at +0x8D4, flag byte +0x854) and the
 # registration at +0x8DC lie past the 1024-byte cap, so the slot ends where the shape does.
 0x08B437C0 reg:a0=struct:1024 field:+0x0=ptr
+
+# 0x08977B14: lw a0+0x178 is the mode compared with 0, 1, 2, 3; a1 is an index into the object's float tables.
+0x08977B14 reg:a0=struct:384 field:+0x178=int:0..3
+# 0x08B29930: a0 is the 16-word digest block it writes (a1 is the name, read by 0x08B79A88 for at most 32 bytes).
+0x08B29930 reg:a0=struct:64
+# 0x08BE207C: the shared-holder chain at +0x24, +0x2C, +0x3C, +0x44, +0x4C, +0x74, +0x7C, +0x84 and the string block at
+# +0x50 (0x84 + 4 = 0x88).
+0x08BE207C reg:a0=struct:136 field:+0x24=ptr field:+0x2C=ptr field:+0x3C=ptr field:+0x44=ptr field:+0x4C=ptr field:+0x50=ptr field:+0x74=ptr field:+0x7C=ptr field:+0x84=ptr
+# 0x08BD9C44: the same chain at +0x3C, +0x48, +0x50, +0x144, +0x14C, +0x154, +0x160, +0x168 and the string block at +0x54
+# (0x168 + 4 = 0x16C -> 0x170).
+0x08BD9C44 reg:a0=struct:368 field:+0x3C=ptr field:+0x48=ptr field:+0x50=ptr field:+0x54=ptr field:+0x144=ptr field:+0x14C=ptr field:+0x154=ptr field:+0x160=ptr field:+0x168=ptr
