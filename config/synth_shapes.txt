@@ -87,3 +87,21 @@
 # 0x08B437C0: a0+0 is the vtable the three virtual slots come from; the table at +0x454 (count at +0x8D4, flag byte +0x854) and the
 # registration at +0x8DC lie past the 1024-byte cap, so the slot ends where the shape does.
 0x08B437C0 reg:a0=struct:1024 field:+0x0=ptr
+
+# main session 696 (draft-only batch): input shapes for the functions that dereference an argument.
+# 0x08B03448: closest approach of two segments; a1 and a3 are 0x10-byte vector pairs read by 0x08BBBEC4 (a1 pinned).
+0x08B03448 reg:a1=struct:16
+# 0x08AEF1D0: a1 is the source record read at +4 / +8 / +0xC / +0x14 / +0x18 / +0x1C / +0x24; +0x1C and +0x24 index
+# the 8-byte-entry table at 0x08CE09D0 (2*[+0x24] + [+0x1C]), so both stay small.
+0x08AEF1D0 reg:a1=struct:64 field:+0x1C=int:0..3 field:+0x24=int:0..3
+# 0x08B62A04: a0 is the container header: flags at +8, entry count at +0xC (pinned small: the loop walks that many
+# 8-byte entries from +0x10, each an object at its +0 and flags at its +4).
+0x08B62A04 reg:a0=struct:64 field:+0xC=int:0..3
+# 0x08BE1DA4: a0 is the object; every shared holder it releases is a pointer member (vtable at +0, counts at +4 / +8),
+# +0x50 is the string buffer (its header sits 0xC bytes before it). Real struct 0x70.
+0x08BE1DA4 reg:a0=struct:112 field:+0x68=ptr field:+0x50=ptr field:+0x4C=ptr field:+0x44=ptr field:+0x3C=ptr field:+0x2C=ptr field:+0x24=ptr
+# 0x088C0DCC: a0 is the object: mode byte is at *(a0+0x24)+0xF, model at +8 (floats +0x6C4 / +0x704), the model words at
+# +0xC / +0x10 go to 0x088DF13C, and +0x1C is the object asked through its vtable slot 0x18.
+0x088C0DCC reg:a0=struct:48 field:+0x24=ptr field:+0x1C=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr
+# 0x08902C00: a0 is the two-float output; a1 / a2 / a3 / t0 are 0x28-byte geometry structs (a3 and t0 read up to +0x24).
+0x08902C00 reg:a0=struct:8
