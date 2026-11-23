@@ -2,6 +2,7 @@
 // drafted from `tools.disasm` with a register-level emitter (pipeline/bodyg.py: labels and gotos over the same register-level operations as bodyx), read against the asm and verified
 // by synthetic cases.
 // No names: none has evidence.
+// One of them (0x08C28918) is rewritten as structured C from the disassembly (structured rewrites, batch 89), compared by the synthetic gate.
 // Sixteen of them (0x08B797F0, 0x08806FA0, 0x0883F73C, 0x088E4C28, 0x089B5E70, 0x08A15BA8, 0x08AEBB0C, 0x08B9CC90, 0x08C779C8, 0x0882E624, 0x08866DF8,
 // 0x08921AF0, 0x089BD694, 0x089DDCC4, 0x089DDEA4, 0x08A9A448) are rewritten as structured C from the disassembly (structured rewrites, batch 79); the others keep their emitter bodies.
 // 0x08B81B70 was also rewritten but no run (route or synthetic) ever compared it, so it keeps its emitter body.
@@ -203,7 +204,75 @@ void func_08B797F0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     set_flags(flags() | 1u);
     ctx.gpr[2] = flags();
 }
-void func_08C28918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x40u); put(rt, frame.at(0x24u), G[21]); put(rt, frame.at(0x1Cu), G[19]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x34u), G[31]); put(rt, frame.at(0x30u), G[30]); put(rt, frame.at(0x2Cu), G[23]); put(rt, frame.at(0x28u), G[22]); put(rt, frame.at(0x20u), G[20]); put(rt, frame.at(0x10u), G[16]); G[21] = G[6]; G[19] = G[4] + 0x4u; G[18] = G[7]; G[17] = G[4]; { const bool tk = G[5] != 0u; if (tk) goto L_08C28A3C; } { const bool tk = G[6] == G[19]; G[4] = frame.at(0u); if (tk) goto L_08C28A3C; } G[23] = frame.at(0x4u); G[22] = word(rt, G[17] + 0x0u); G[20] = G[21] + 0x10u; call_here(rt, ctx, 0x08A76AA0u); G[16] = G[23]; G[30] = frame.at(0xCu); G[4] = G[16]; L_08C2897C: ; G[16] = G[16] + 0x4u; call_here(rt, ctx, 0x08A76AA0u); { const bool tk = G[16] != G[30]; G[4] = G[16]; if (tk) goto L_08C2897C; } { const bool tk = G[23] == G[18]; G[4] = frame.at(0x8u); if (tk) goto L_08C289A4; } G[5] = word(rt, G[18] + 0x0u); G[4] = G[23]; call_here(rt, ctx, 0x08A5BAD8u); G[4] = frame.at(0x8u); L_08C289A4: ; if (G[4] == G[20]) { G[16] = word(rt, G[22] + 0x2Cu); goto L_08C289B8; } G[5] = word(rt, G[20] + 0x0u); call_here(rt, ctx, 0x08A5BAD8u); G[16] = word(rt, G[22] + 0x2Cu); L_08C289B8: ; if (G[16] != 0u) { G[2] = word(rt, G[16] + 0x0u); goto L_08C289D0; } G[4] = 0x08CB0000u; G[4] = 0x08CB15A0u; call_here(rt, ctx, 0x08A5BB7Cu); G[2] = word(rt, G[16] + 0x0u); L_08C289D0: ; G[4] = G[16]; G[5] = frame.at(0u); G[3] = word(rt, G[2] + 0xCCu); G[6] = 0x2u; { const std::uint32_t tg = G[3]; G[7] = G[23]; call_here(rt, ctx, tg); } G[16] = word(rt, frame.at(0x0u)); if (G[16] != 0u) { G[3] = word(rt, G[16] + 0x0u); goto L_08C28A04; } G[4] = 0x08CB0000u; G[4] = 0x08CB15A0u; call_here(rt, ctx, 0x08A5BB7Cu); G[3] = word(rt, G[16] + 0x0u); L_08C28A04: ; G[4] = G[16]; G[2] = word(rt, G[3] + 0x30u); { const std::uint32_t tg = G[2]; G[16] = G[30]; call_here(rt, ctx, tg); } G[22] = G[2]; G[16] = G[16] + 0xFFFFFFFCu; L_08C28A1C: ; G[4] = G[16]; call_here(rt, ctx, 0x08A5B9ECu); if (G[16] != G[23]) { G[16] = G[16] + 0xFFFFFFFCu; goto L_08C28A1C; } G[4] = frame.at(0u); call_here(rt, ctx, 0x08A5B9ECu); { const bool tk = G[22] == 0u; G[20] = 0u; if (tk) goto L_08C28A40; } L_08C28A3C: ; G[20] = 0x1u; L_08C28A40: ; G[4] = 0x18u; G[5] = 0x4u; call_here(rt, ctx, 0x08A5BC20u); G[4] = G[2] + 0x10u; { const bool tk = G[4] == 0u; G[16] = G[2]; if (tk) goto L_08C28A6C; } G[5] = G[18]; call_here(rt, ctx, 0x08A76ABCu); G[5] = G[18] + 0x4u; G[4] = G[16] + 0x14u; call_here(rt, ctx, 0x08A76ABCu); L_08C28A6C: ; G[4] = G[20]; G[6] = G[21]; G[7] = G[19]; G[5] = G[16]; call_here(rt, ctx, 0x08B5F2B8u); G[3] = word(rt, G[17] + 0x14u); G[2] = G[16]; G[3] = G[3] + 0x1u; put(rt, G[17] + 0x14u, G[3]); goto exit_;  exit_: ; G[21] = word(rt, frame.at(0x24u)); G[19] = word(rt, frame.at(0x1Cu)); G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[30] = word(rt, frame.at(0x30u)); G[23] = word(rt, frame.at(0x2Cu)); G[22] = word(rt, frame.at(0x28u)); G[20] = word(rt, frame.at(0x20u)); G[16] = word(rt, frame.at(0x10u)); } } if (tail != 0u) jump(ctx, tail); } }
+// 0x08C28918 (a0 = the map, a1 = a force-left flag, a2 = the parent node, a3 = the value (two strings at +0 / +4); v0 = the new node): the red-black tree header is map + 4, the node count map + 0x14 and
+// word(map + 0) holds a comparator object. The new node (0x18 bytes from 0x08A5BC20(0x18, 4), strings copy-constructed at +0x10 / +0x14 by 0x08A76ABC) is linked with 0x08B5F2B8(left, node,
+// parent, header) where `left` is 1 for a forced insert (a1 non-zero or the parent is the header) and otherwise decided by comparing: three strings on the stack (0x08A76AA0) get the value's first
+// string (0x08A5BAD8(frame + 4, word(value))) and the parent's key (0x08A5BAD8(frame + 8, word(parent + 0x10))), the comparator's facet word(word(map) + 0x2C) (0 reports 0x08A5BB7C(0x08CB15A0)) is called through its
+// virtual +0xCC with (facet, frame, 2, frame + 4), the object it leaves at frame + 0 answers its virtual +0x30 (also reported when 0), and the strings are destroyed (0x08A5B9EC, last to first);
+// left = 1 when that answer is non-zero. The map's count goes up by one.
+void func_08C28918(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 map = ctx.gpr[4];
+    const u32 force_left = ctx.gpr[5];
+    const u32 parent = ctx.gpr[6];
+    const u32 value = ctx.gpr[7];
+    GuestFrame frame(ctx, 0x40u);
+    SavedRegisters saved(rt, ctx, frame, {{21u, 0x24u}, {19u, 0x1Cu}, {18u, 0x18u}, {17u, 0x14u}, {31u, 0x34u}, {30u, 0x30u}, {23u, 0x2Cu}, {22u, 0x28u}, {20u, 0x20u}, {16u, 0x10u}});
+    const u32 header = map + 4u;
+    ctx.gpr[21] = parent;
+    ctx.gpr[19] = header;
+    ctx.gpr[18] = value;
+    ctx.gpr[17] = map;
+    u32 left = 1u;
+    if (force_left == 0u && parent != header) {
+        const u32 first = frame.at(4u);
+        const u32 scratch_end = frame.at(0xCu);
+        ctx.gpr[23] = first;
+        const u32 comparator = word(rt, map);
+        ctx.gpr[22] = comparator;
+        const u32 key = parent + 0x10u;
+        ctx.gpr[20] = key;
+        call_set(rt, ctx, 0x08A76AA0u, {frame.at(0u)});
+        ctx.gpr[30] = scratch_end;
+        for (u32 string = first; string != scratch_end; string += 4u) {
+            ctx.gpr[16] = string + 4u;
+            call_set(rt, ctx, 0x08A76AA0u, {string});
+        }
+        if (first != value) call_set(rt, ctx, 0x08A5BAD8u, {first, word(rt, value)});
+        if (frame.at(8u) != key) call_set(rt, ctx, 0x08A5BAD8u, {frame.at(8u), word(rt, key)});
+        u32 facet = word(rt, comparator + 0x2Cu);
+        ctx.gpr[16] = facet;
+        if (facet == 0u) call_set(rt, ctx, 0x08A5BB7Cu, {0x08CB15A0u});
+        ctx.gpr[4] = facet;
+        ctx.gpr[5] = frame.at(0u);
+        ctx.gpr[6] = 2u;
+        ctx.gpr[7] = first;
+        call_indirect(rt, ctx, word(rt, word(rt, facet) + 0xCCu), {facet, frame.at(0u), 2u, first});
+        const u32 result_object = word(rt, frame.at(0u));
+        ctx.gpr[16] = result_object;
+        if (result_object == 0u) call_set(rt, ctx, 0x08A5BB7Cu, {0x08CB15A0u});
+        ctx.gpr[4] = result_object;
+        const u32 answer = call_indirect(rt, ctx, word(rt, word(rt, result_object) + 0x30u), {result_object});
+        ctx.gpr[22] = answer;
+        ctx.gpr[16] = scratch_end;
+        for (u32 string = scratch_end - 4u;; string -= 4u) {
+            ctx.gpr[16] = string;
+            call_set(rt, ctx, 0x08A5B9ECu, {string});
+            if (string == first) break;
+        }
+        call_set(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
+        left = answer != 0u ? 1u : 0u;
+    }
+    ctx.gpr[20] = left;
+    const u32 node = call_set(rt, ctx, 0x08A5BC20u, {0x18u, 4u});
+    ctx.gpr[16] = node;
+    if (node + 0x10u != 0u) {
+        call_set(rt, ctx, 0x08A76ABCu, {node + 0x10u, value});
+        call_set(rt, ctx, 0x08A76ABCu, {node + 0x14u, value + 4u});
+    }
+    call_set(rt, ctx, 0x08B5F2B8u, {left, node, parent, header});
+    put(rt, map + 0x14u, word(rt, map + 0x14u) + 1u);
+    ctx.gpr[2] = node;
+}
 // 0x08806FA0 (a0 = destination string, a1 = key, a2 = count, a3 = pointer to a holder; v0 = 0 for an index of 90 or more, the negative index, or the last release's v0):
 // with a positive count the holder's object (null is reported through 0x08A5BB7C and then used anyway) answers virtual +0x50; 0x08930204(that, the answer's v1) gives an
 // index (negative: nothing, 90 or more: v0 = 0). Otherwise the key is wrapped by 0x08A57854, the wrapped object's virtual +0x9C is called with a new 0x18-byte object
