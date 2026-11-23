@@ -2,6 +2,7 @@
 // drafted from `tools.disasm` with a register-level emitter (pipeline/bodyg.py: labels and gotos over the same register-level operations as bodyx), read against the asm and verified
 // by synthetic cases.
 // No names: none has evidence.
+// 0x08B5CC1C, 0x08C78CC0 are rewritten as structured C from the disassembly (structured rewrites, batch 90) and registered: the synthetic gate compares them in the garage / challenge / dirt / manual / challenge2 scenes.
 #include "decomp_registry.hpp"
 #include "gt/game/hot_common.hpp"
 #include "guest_call.hpp"
@@ -920,7 +921,59 @@ void func_08BE03BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         call_set(rt, ctx, ctx.gpr[25], {holder});
     }
 }
-void func_08C78CC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x80u); put(rt, frame.at(0x6Cu), G[19]); put(rt, frame.at(0x68u), G[18]); put(rt, frame.at(0x64u), G[17]); put(rt, frame.at(0x60u), G[16]); put(rt, frame.at(0x70u), G[31]); G[3] = 0xFFFFFFFFu; G[17] = G[5]; G[16] = G[4]; G[4] = G[5] + 0x24u; G[2] = word(rt, G[6] + 0x0u); G[7] = word(rt, G[6] + 0x4u); G[13] = word(rt, G[6] + 0x1Cu); G[8] = word(rt, G[6] + 0x8u); G[9] = word(rt, G[6] + 0xCu); G[10] = word(rt, G[6] + 0x10u); G[11] = word(rt, G[6] + 0x14u); G[12] = word(rt, G[6] + 0x18u); put(rt, frame.at(0x18u), G[2]); G[2] = 0xFFFFFFFFu; put(rt, frame.at(0x1Cu), G[7]); put(rt, G[16] + 0x0u, G[2]); put(rt, G[16] + 0x4u, G[3]); put(rt, G[16] + 0x8u, 0u); put(rt, G[16] + 0xCu, 0u); put(rt, G[16] + 0x10u, 0u); put(rt, G[16] + 0x14u, 0u); put(rt, G[16] + 0x18u, 0u); put(rt, G[16] + 0x1Cu, 0u); G[18] = word(rt, frame.at(0x18u)); put(rt, frame.at(0x20u), G[8]); put(rt, frame.at(0x24u), G[9]); put(rt, frame.at(0x28u), G[10]); put(rt, frame.at(0x2Cu), G[11]); put(rt, frame.at(0x30u), G[12]); put(rt, frame.at(0x34u), G[13]); G[19] = word(rt, frame.at(0x1Cu)); call_here(rt, ctx, 0x08B61534u); { const bool tk = G[2] == 0u; G[2] = G[16]; if (tk) goto L_08C78DFC; } G[2] = load8(G[17] + 0x8Cu); if (G[2] != 0u) { G[2] = word(rt, G[17] + 0x8u); goto L_08C78E18; } L_08C78D6C: ; G[2] = word(rt, frame.at(0x20u)); G[3] = word(rt, frame.at(0x24u)); G[5] = G[17]; put(rt, frame.at(0x0u), G[2]); G[6] = G[18]; G[7] = G[19]; G[2] = word(rt, frame.at(0x28u)); put(rt, frame.at(0x4u), G[3]); G[4] = frame.at(0x40u); G[8] = 0u; G[3] = word(rt, frame.at(0x2Cu)); put(rt, frame.at(0x8u), G[2]); G[9] = frame.at(0u); G[2] = word(rt, frame.at(0x30u)); put(rt, frame.at(0xCu), G[3]); G[3] = word(rt, frame.at(0x34u)); put(rt, frame.at(0x10u), G[2]); put(rt, frame.at(0x14u), G[3]); call_here(rt, ctx, 0x08C77B74u); G[3] = word(rt, frame.at(0x44u)); G[4] = word(rt, frame.at(0x48u)); G[5] = word(rt, frame.at(0x4Cu)); G[6] = word(rt, frame.at(0x50u)); G[7] = word(rt, frame.at(0x54u)); G[8] = word(rt, frame.at(0x58u)); G[9] = word(rt, frame.at(0x5Cu)); G[2] = word(rt, frame.at(0x40u)); put(rt, G[16] + 0x4u, G[3]); put(rt, G[16] + 0x0u, G[2]); put(rt, G[16] + 0x8u, G[4]); put(rt, G[16] + 0xCu, G[5]); put(rt, G[16] + 0x10u, G[6]); put(rt, G[16] + 0x14u, G[7]); put(rt, G[16] + 0x18u, G[8]); put(rt, G[16] + 0x1Cu, G[9]); G[2] = G[16]; L_08C78DFC: ; goto exit_; L_08C78E18: ; G[3] = word(rt, G[17] + 0x4u); G[5] = word(rt, G[17] + 0x84u); G[6] = word(rt, G[17] + 0x88u); G[2] = G[2] ^ G[3]; G[4] = word(rt, G[17] + 0x78u); G[2] = 0u < G[2] ? 1u : 0u; G[2] = G[2] + G[5]; put(rt, G[17] + 0x4u, G[4]); put(rt, G[17] + 0x8u, G[2]); put(rt, G[17] + 0xCu, G[6]); put(rt, G[17] + 0x84u, G[2]); store8(G[17] + 0x8Cu, 0u); goto L_08C78D6C;  exit_: ; G[19] = word(rt, frame.at(0x6Cu)); G[18] = word(rt, frame.at(0x68u)); G[17] = word(rt, frame.at(0x64u)); G[16] = word(rt, frame.at(0x60u)); } } if (tail != 0u) jump(ctx, tail); } }
+// 0x08C78CC0 (a0 = the 32-byte result, a1 = the object, a2 = an 8-word request; v0 = a0): the result starts as (-1, -1, 0 x 6). The request is copied to frame + 0x18 / +0x1C (words 0 / 1) and
+// frame + 0x20 ... +0x34 (words 2-7). When 0x08B61534(object + 0x24) answers 0 that is the result. Otherwise, if the object's byte +0x8C is set the object's cursor words are rotated first:
+// +4 = word(+0x78), +8 = +0x84 = word(+8) xor word(+4) != 0 ? 1 : 0, plus word(+0x84), +0xC = word(+0x88), byte +0x8C = 0. Then the request words 2-7 go to frame + 0 ... +0x14 and
+// 0x08C77B74(frame + 0x40, object, word0, word1, 0, frame) fills the answer at frame + 0x40 (8 words), which is copied to the result (word 1 first, then 0, then 2-7).
+void func_08C78CC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 result = ctx.gpr[4];
+    const u32 object = ctx.gpr[5];
+    const u32 request = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x80u);
+    SavedRegisters saved(rt, ctx, frame, {{19u, 0x6Cu}, {18u, 0x68u}, {17u, 0x64u}, {16u, 0x60u}, {31u, 0x70u}});
+    ctx.gpr[17] = object;
+    ctx.gpr[16] = result;
+    u32 words[8];
+    for (u32 i = 0; i < 8u; ++i) words[i] = word(rt, request + i * 4u);
+    put(rt, frame.at(0x18u), words[0]);
+    put(rt, frame.at(0x1Cu), words[1]);
+    put(rt, result, 0xFFFFFFFFu);
+    put(rt, result + 4u, 0xFFFFFFFFu);
+    for (u32 i = 2; i < 8u; ++i) put(rt, result + i * 4u, 0u);
+    const u32 first = word(rt, frame.at(0x18u));
+    ctx.gpr[18] = first;
+    for (u32 i = 2; i < 8u; ++i) put(rt, frame.at(0x18u + i * 4u), words[i]);
+    const u32 second = word(rt, frame.at(0x1Cu));
+    ctx.gpr[19] = second;
+    ctx.gpr[2] = call_set(rt, ctx, 0x08B61534u, {object + 0x24u});
+    if (ctx.gpr[2] == 0u) {
+        ctx.gpr[2] = result;
+        return;
+    }
+    if (load8(object + 0x8Cu) != 0u) {
+        const u32 current = word(rt, object + 8u);
+        const u32 previous = word(rt, object + 4u);
+        const u32 base = word(rt, object + 0x84u);
+        const u32 third = word(rt, object + 0x88u);
+        const u32 next_pointer = word(rt, object + 0x78u);
+        const u32 advanced = ((current ^ previous) != 0u ? 1u : 0u) + base;
+        put(rt, object + 4u, next_pointer);
+        put(rt, object + 8u, advanced);
+        put(rt, object + 0xCu, third);
+        put(rt, object + 0x84u, advanced);
+        store8(object + 0x8Cu, 0u);
+    }
+    for (u32 i = 0; i < 6u; ++i) put(rt, frame.at(i * 4u), word(rt, frame.at(0x20u + i * 4u)));
+    call_set(rt, ctx, 0x08C77B74u, {frame.at(0x40u), object, first, second, 0u, frame.at(0u)});
+    const u32 answer_second = word(rt, frame.at(0x44u));
+    u32 rest[6];
+    for (u32 i = 0; i < 6u; ++i) rest[i] = word(rt, frame.at(0x48u + i * 4u));
+    const u32 answer_first = word(rt, frame.at(0x40u));
+    put(rt, result + 4u, answer_second);
+    put(rt, result, answer_first);
+    for (u32 i = 0; i < 6u; ++i) put(rt, result + 8u + i * 4u, rest[i]);
+    ctx.gpr[2] = result;
+}
 void func_0889AB88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     aim_through_virtuals(rt, ctx);
 }
@@ -963,7 +1016,105 @@ void func_08B5CA20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     u32 tail = 0u;
     if (empty_owner_tables(rt, ctx, tail)) call_set(rt, ctx, 0x08B61FC0u, {tail});
 }
-void func_08B5CC1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x10u); put(rt, frame.at(0x8u), G[18]); put(rt, frame.at(0xCu), G[31]); put(rt, frame.at(0x4u), G[17]); put(rt, frame.at(0x0u), G[16]); G[18] = G[4]; G[4] = word(rt, G[4] + 0x4u); if (G[4] == 0u) { G[4] = word(rt, G[18] + 0xCu); goto L_08B5CCA4; } G[3] = word(rt, G[18] + 0x8u); { const bool tk = G[3] == 0u; G[17] = 0u; if (tk) goto L_08B5CC98; } G[2] = G[17] << 2; L_08B5CC50: ; G[2] = G[2] + G[4]; G[16] = word(rt, G[2] + 0x0u); if (G[16] == 0u) { G[17] = G[17] + 0x1u; goto L_08B5CC84; } G[4] = G[16] + 0x4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); G[3] = 0x1u; if (G[2] == G[3]) { G[3] = word(rt, G[16] + 0x0u); goto L_08B5CD9C; } G[4] = word(rt, G[18] + 0x4u); L_08B5CC7C: ; G[3] = word(rt, G[18] + 0x8u); G[17] = G[17] + 0x1u; L_08B5CC84: ; G[2] = G[17] < G[3] ? 1u : 0u; { const bool tk = G[2] != 0u; G[2] = G[17] << 2; if (tk) goto L_08B5CC50; } if (G[4] == 0u) { G[4] = word(rt, G[18] + 0xCu); goto L_08B5CCA4; } L_08B5CC98: ; call_here(rt, ctx, 0x08B61FC0u); G[4] = word(rt, G[18] + 0xCu); L_08B5CCA4: ; if (G[4] == 0u) { G[3] = word(rt, G[18] + 0x10u); goto L_08B5CCC4; } G[3] = word(rt, G[18] + 0x8u); { const bool tk = G[3] != 0u; G[17] = 0u; if (tk) goto L_08B5CD3C; } L_08B5CCB8: ; call_here(rt, ctx, 0x08B61FC0u); G[3] = word(rt, G[18] + 0x10u); L_08B5CCC4: ; { const bool tk = G[3] == 0u; if (tk) goto L_08B5CD88; } G[16] = 0u; L_08B5CCD0: ; G[17] = 0x18u; G[2] = G[3] + G[16]; L_08B5CCD8: ; G[4] = word(rt, G[2] + 0x0u); { const bool tk = G[4] == 0u; G[16] = G[16] + 0x4u; if (tk) goto L_08B5CCF0; } call_here(rt, ctx, 0x08B61FC0u); G[3] = word(rt, G[18] + 0x10u); L_08B5CCF0: ; { const bool tk = G[16] != G[17]; G[2] = G[3] + G[16]; if (tk) goto L_08B5CCD8; } { const bool tk = G[3] == 0u; if (tk) goto L_08B5CD84; } G[4] = G[3]; tail = 0x08B61FC0u; goto exit_; L_08B5CD18: ; G[2] = word(rt, G[3] + 0x4u); { const std::uint32_t tg = G[2]; G[4] = G[16]; call_here(rt, ctx, tg); } G[3] = word(rt, G[18] + 0x8u); L_08B5CD28: ; G[4] = word(rt, G[18] + 0xCu); G[17] = G[17] + 0x1u; L_08B5CD30: ; G[2] = G[17] < G[3] ? 1u : 0u; { const bool tk = G[2] == 0u; if (tk) goto L_08B5CD70; } L_08B5CD3C: ; G[2] = G[17] << 2; G[2] = G[2] + G[4]; G[16] = word(rt, G[2] + 0x0u); if (G[16] == 0u) { G[17] = G[17] + 0x1u; goto L_08B5CD30; } G[4] = G[16] + 0x4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); G[3] = 0x1u; if (G[2] != G[3]) { G[3] = word(rt, G[18] + 0x8u); goto L_08B5CD28; } G[3] = word(rt, G[16] + 0x0u); goto L_08B5CD18; L_08B5CD70: ; { const bool tk = G[4] != 0u; if (tk) goto L_08B5CCB8; } G[3] = word(rt, G[18] + 0x10u); { const bool tk = G[3] != 0u; G[16] = 0u; if (tk) goto L_08B5CCD0; } L_08B5CD84: ; L_08B5CD88: ; goto exit_; L_08B5CD9C: ; G[2] = word(rt, G[3] + 0x4u); { const std::uint32_t tg = G[2]; G[4] = G[16]; call_here(rt, ctx, tg); } G[4] = word(rt, G[18] + 0x4u); goto L_08B5CC7C;  exit_: ; G[18] = word(rt, frame.at(0x8u)); G[17] = word(rt, frame.at(0x4u)); G[16] = word(rt, frame.at(0x0u)); } } if (tail != 0u) jump(ctx, tail); } }
+// 0x08B5CC1C (a0 = the object; v0 = as the asm leaves it, see the comments): releases the object's three buffers. word(object + 4) is an array of shared holders (count word(object + 8)) and so
+// is word(object + 0xC): each non-zero holder's use count (+4) is dropped with 0x08B60804(holder + 4, -1) and a last use (answer 1) calls its virtual +4 on it; then each array is freed with
+// 0x08B61FC0 (when non-zero; a zero count frees it straight away). word(object + 0x10) is a table of six pointers: each non-zero one is freed with 0x08B61FC0, and the table itself ends the function
+// as a tail call 0x08B61FC0(table) (made after the frame is gone).
+static bool release_buffers(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 object) {
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{18u, 0x8u}, {31u, 0xCu}, {17u, 0x4u}, {16u, 0x0u}});
+    ctx.gpr[18] = object;
+    const auto release_holder_at = [&](u32 holder) {
+        if (call_set(rt, ctx, 0x08B60804u, {holder + 4u, 0xFFFFFFFFu}) == 1u) call_indirect(rt, ctx, word(rt, word(rt, holder) + 4u), {holder});
+    };
+    u32 array = word(rt, object + 4u);
+    ctx.gpr[4] = array;
+    if (array != 0u) {
+        u32 count = word(rt, object + 8u);
+        u32 index = 0u;
+        ctx.gpr[17] = 0u;
+        if (count != 0u) {
+            for (;;) {
+                ctx.gpr[2] = array + 4u * index;
+                const u32 holder = word(rt, ctx.gpr[2]);
+                ctx.gpr[16] = holder;
+                if (holder != 0u) {
+                    release_holder_at(holder);
+                    array = word(rt, object + 4u);
+                    count = word(rt, object + 8u);
+                    ctx.gpr[4] = array;
+                }
+                ++index;
+                ctx.gpr[17] = index;
+                const bool more = index < count;
+                ctx.gpr[2] = index << 2;
+                if (!more) break;
+            }
+        }
+        if (array != 0u || count == 0u) call_set(rt, ctx, 0x08B61FC0u, {array});
+        array = word(rt, object + 0xCu);
+    } else {
+        array = word(rt, object + 0xCu);
+    }
+    ctx.gpr[4] = array;
+    u32 table;
+    if (array == 0u) {
+        table = word(rt, object + 0x10u);
+    } else {
+        u32 count = word(rt, object + 8u);
+        ctx.gpr[17] = 0u;
+        if (count == 0u) {
+            call_set(rt, ctx, 0x08B61FC0u, {array});
+            table = word(rt, object + 0x10u);
+        } else {
+            u32 index = 0u;
+            for (;;) {
+                ctx.gpr[2] = array + 4u * index;
+                const u32 holder = word(rt, ctx.gpr[2]);
+                ctx.gpr[16] = holder;
+                if (holder != 0u) {
+                    release_holder_at(holder);
+                    count = word(rt, object + 8u);
+                    array = word(rt, object + 0xCu);
+                    ctx.gpr[4] = array;
+                }
+                ++index;
+                ctx.gpr[17] = index;
+                const bool more = index < count;
+                ctx.gpr[2] = more ? 1u : 0u;
+                if (!more) break;
+            }
+            if (array != 0u) {
+                call_set(rt, ctx, 0x08B61FC0u, {array});
+                table = word(rt, object + 0x10u);
+            } else {
+                table = word(rt, object + 0x10u);
+                if (table == 0u) return false;
+            }
+        }
+    }
+    if (table == 0u) return false;
+    u32 offset = 0u;
+    ctx.gpr[17] = 0x18u;
+    for (;;) {
+        const u32 pointer = word(rt, table + offset);
+        offset += 4u;
+        ctx.gpr[16] = offset;
+        if (pointer != 0u) {
+            call_set(rt, ctx, 0x08B61FC0u, {pointer});
+            table = word(rt, object + 0x10u);
+        }
+        ctx.gpr[2] = table + offset;
+        if (offset == 0x18u) break;
+    }
+    if (table == 0u) return false;
+    ctx.gpr[4] = table;
+    return true;
+}
+
+void func_08B5CC1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    if (release_buffers(rt, ctx, ctx.gpr[4])) jump(ctx, 0x08B61FC0u);
+}
 void func_08B6BE8C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     scaled_exponential(rt, ctx);
 }
@@ -1003,7 +1154,7 @@ HOT328(0x089A7C80u, func_089A7C80, Word);
 HOT328(0x089C5E4Cu, func_089C5E4C, Word);
 HOT328(0x08A04570u, func_08A04570, Word);
 HOT328(0x08B5CA20u, func_08B5CA20, Word);
-// HOT328(0x08B5CC1Cu, func_08B5CC1C, Word);  // no comparable synthetic case yet
+HOT328(0x08B5CC1Cu, func_08B5CC1C, Word);
 HOT328(0x08B6BE8Cu, func_08B6BE8C, Word);
 HOT328(0x08BF15D4u, func_08BF15D4, Word);
 // HOT328(0x08C7A274u, func_08C7A274, Word);  // no comparable synthetic case yet
