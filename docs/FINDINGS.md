@@ -3408,6 +3408,14 @@ source, transparent or opaque destination, fully covered rows): 6 ms, pixel-iden
 standalone bench linking `lcs_host_style.cpp` (perf was not usable here; valgrind/callgrind was).
 
 
+## A hook that draws a part twice must give the leaf its blob back (2026-11-18)
+
+Re-issuing a car part's draw (the Step 0 probe of the mod draw API, the Step 0 car-replay probe (removed after use)) in a `GT_HOOK_MESH_DRAW` hook: `call_original` runs the leaf `0x08B550A8` (14
+instructions: it writes `BASE` + `CALL blob` at the list cursor `word(0x08D6CE00 + 0x5C)` and advances the cursor by 8) **with the context the hook holds, and leaves that context changed**: a0 ends holding the
+new cursor (the leaf returns it in v0 as well). A second `call_original` in the same hook therefore drew a "blob" that was the old list cursor: the `CALL` went into the list itself and the rest of the
+frame's list was never executed (a race frame with no cars, no HUD; the GE trace stopped after the first replayed part). Fix: save a0 before the first call and restore it before the second, and hand the
+caller the cursor after the commands the hook appended (`set_gpr(2, cursor)`). Confirmed: the first fix (v0 only) still stopped the list after the same 4182 prims; with a0 restored the list ran to 7286 prims (6725 without the probe) and the race frame shows both cars.
+**Rule for any hook that calls the original twice:** the callee may rewrite its argument registers; copy the arguments first and put them back before every call after the first.
 ## Why 2,368 functions are never emitted (2026-11-19, `new-functions` research)
 
 Of the 23,208 functions in `recomp/analysis/functions.tsv`, 306 lie outside `.text` (the 2-instruction import stubs of the Sony
@@ -3442,3 +3450,9 @@ so they would be verified synthetically only. Not done: it changes the generated
 - Installing regenerated files with `cp -p` keeps their old mtimes, older than the objects built from the previous content: ninja then rebuilds nothing. `touch` the files whose content differs (`cmp`), or let `tools.recomp` write into the build's own `recomp/generated`.
 - The synthetic gate over every registration has 5 mismatches on `main` before this change (`0x0889E01C`, `0x088A657C`, `0x0893D9AC`, `0x08C18650`, `0x08C70D64`): a before/after comparison must expect the same five, not zero.
 - **What `tools.extra_seeds verify` proves about bodies (2026-11-19):** besides the superset of function entries and block labels and the identical `functions.tsv`, every baseline block (the code between two `L_xxxxxxxx:` labels, up to the function's closing brace) must be unchanged after the seeds, once the dispatch tables, the `case N: goto` lines and the numeric ids of `invoke_chained_direct<..., id, ...>` (they renumber when a unit gains labels) are left out. The only change a new label may cause is a split: the block then reads as a prefix plus `goto L_new;` and the rest under the new label; following the added labels must reproduce the baseline body exactly. Measured with the 370 Phase A seeds: 258,051 baseline blocks, 0 changed, 0 split (the seeds are function starts, none lands inside a baseline block). Not covered: a change in the unit's trailing text (dispatch scaffolding, registration tables), which the trace, gate and synthetic comparisons cover.
+- **A decompiled setjmp breaks every diff route; the synthetic gate does not notice (2026-11-21).** `0x08B7B2E4` stores
+  s0–s7, sp, fp, ra and f20–f31 into a record and returns 0. Its body compared equal in its synthetic cases, but
+  installed in `--decomp diff` every route stopped: "diff harness sentinel reached without a pending continuation"
+  (exit 3), or locally a guest access outside RAM at `0x08B12CCC`, and the fast gate compared 387 of a 5711 floor.
+  Before drafting, leave setjmp/longjmp-like functions (register save/restore into a record) as recompiled code. A
+  verdict with any route exiting 3+ or a `FLOOR:` line is a failure even when "0 mismatched" is printed.

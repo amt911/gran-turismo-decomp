@@ -271,3 +271,8 @@ architecture is:
     the cache, so the objects are those of a clean build. A prebuilt recompiled library was not used: the boundaries
     from `src/` change the generated code.
   - The synthetic groups run beside the full gate on their own CPUs (#775).
+- **Faster verification (user, 2026-11-20).**
+  - **Memory:** the gt-heavy.slice ceiling on the desktop is 12 GB (`MemoryHigh=11G MemoryMax=12G`, was 6 GB), with
+    four heavy slots (`GT_HEAVY_SLOTS`, was two).
+  - **Full gate:** agents no longer run it before opening a PR. The PR verdict runs it from a clean tree anyway. Agents
+    still run the fast or synthetic compare and the sabotage of their own functions, plus the static audits.

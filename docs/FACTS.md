@@ -797,3 +797,57 @@ velocity change the game's own collision gave in one step (`dv`), applied as an 
 `s`/`c` = sin/cos, indices 1 pitch (`K+0x6FC`), 2 roll (`K+0x700`), 3 yaw (`K+0x704`): forward row `(-s3 c1, c3 c1, s1)`, right row `(c3 c2 - s1 s2 s3, s3 c2 + s1 s2 c3, -c1 s2)`, up row
 `(c3 s2 + s1 c2 s3, s3 s2 - s1 c2 c3, c1 c2)`. Yaw 1.571 gives forward `(-1, 0, 0)` (the race start's velocity direction), up.z = `c1 c2`, and the basis is left-handed (forward x right = -up) at every angle.
 The inverse is unique for pitch in [-pi/2, pi/2]; at the pole (forward vertical) yaw and roll are one degree of freedom and the host puts it all in yaw.
+
+## Mechanical damage: what moves the car (measured 2026-11-19, mechanical-damage mod, `rollover` route, `--decomp off`; runtime addresses)
+
+Evidence: the mod's per-step log (`GT_MOD_DAMAGE_LOG=1`, `tools/mod_damage_check.sh`); the route holds the accelerator from the race start (the pedal reaches 1.0 at step ~767).
+- **The pedal float `K'+0x530` is ramped between world steps**: the logged value before and after each step is the same, and it moves 1/15 per step toward 0 or 1 (0.200, 0.267, ... 1.000 on a press; 1.000, 0.933, ... 0.000 on a release).
+  Written scaled (x 0.62) before a step with `car_set_state` it changes **nothing**: speed at steps 850 / 1000 / 1090 identical to the undamaged run to 3 decimals. The drive chain (`0x0894E9C0`, the block at `0x0894FD00-0x0894FDE0`
+  that stores `+0x534` from `+0x530`, the speed `+0x6C4` / `+0x6C0` and the table at `word(unit)+0x3A8..0x3B0`) derives its own effective throttle `+0x534` inside the step. A scaled pedal left in place compounds: the ramp adds 1/15 to the
+  scaled value, scaling again pins it (0.62^n -> 0.175 measured).
+- **Velocity and speed written BEFORE the step are integrated** (the cheats mod's nitro does it): bleeding `(1 - s) x` the previous step's engine gain before each step gives the net gain `s x` the undamaged one.
+- **Sign of the yaw rate:** `+0x6F8` > 0 turns the car to ITS LEFT (forward = (-sin yaw, cos yaw); at yaw 1.571 forward = -x and right = +y, so a positive rate moves the car toward -y); the mod subtracts the bias for a hit from the right.
+- **A yaw-rate bias added after the step persists**: `rates[4]` (`+0x6F8`) + bias x gain / 60 per step (bias 0.06, gain 6) gave 0.026 / 0.035 rad/s at 11 / 17 m/s with full alignment damage (the mod uses gain 10).
+- **A speed cap written after each step holds**: with cap 25 m/s the logged speed sits at 25.04 (the engine's gain of the next step, 0.04 m/s, on top).
+- The undamaged run is deterministic step for step (the same speed at the same step number in two runs, `--decomp off`): comparisons are by steps since the accelerator was pressed.
+## Mod draw API: Step 0 research (2026-11-18, spec `2026-11-18-mod-draw-api-design.md`; runtime addresses)
+
+Probes (research-only, raw guest addresses, deleted after use: not kept in the repo as mod examples; see git history of PR 667); `tools/mod_draw_probe/probe.cpp` is the API probe, runs of the `chase` route (`--decomp off`, vblank 18500 = chase view,
+frames dumped every 30 vblanks, GE trace `GT_GE_LOG=18500`). The machine ran at load average 40-70 during all of it: times below are upper bounds.
+
+**1. Overlay cost, ~200 primitives** (`build/mod_draw_raster_tests bench`: 60 text lines of 14 characters, 100 rects, 40 lines, 30 passes after a warm-up):
+
+| output | mean | worst |
+| --- | --- | --- |
+| 480 x 272 | 0.62 ms | 0.87 ms |
+| 960 x 544 | 2.30 ms | 3.16 ms |
+| 1920 x 1088 | 7.83 ms | 8.98 ms |
+| 3840 x 2176 | 34.6 ms | 39.5 ms |
+
+It runs on the picture worker (lcs patch 0070's design), never on the present thread: up to 1080p one pass fits a 60 Hz frame, at 4K a telemetry overlay that changes every
+vblank lags (the presenter shows the newest finished picture, the game is never blocked). The present thread only copies the finished picture into the staging buffer and
+uploads it when its version changed (1080p: 8 MB, ~1 ms); an identical resubmitted list keeps its version (no rasterization, no upload). A mod that wants 4K smoothness should
+draw fewer text lines or let the host rasterize at a capped size (not done).
+
+**2. Where the HUD begins in the display list** (probe on the two matrix-upload leaves, FACTS "Camera and the world-matrix upload"; one frame at vblank 18500, chase view):
+- A race frame is ONE display list (`0x08D20490`, 6725 `PRIM`s in the GE trace, 97 % of them reached through `CALL` of model blobs). The 3D scene is every draw after a **perspective**
+  projection upload (`0x08B59194`, cmd `0x3E`, `m[11] = -1`, `m[10] = -1.002`; `m[14]` = -2.687 for the world pass and -67.163 for another pass, FACTS "Draw distance").
+- The **last projection upload of the frame is orthographic**: `m[0] = 0.004 (2/480)`, `m[5] = -0.007 (-2/272)`, `m[10] = -0.020`, `m[11] = 0`, `m[14] = -1`, `m[15] = 1`, at list offset `+0x1E08` from the
+  frame's first world upload, followed by 7 world uploads (the HUD elements) and the textured sprites of the HUD (RAM textures `0x09EF....`, `0x0916....`, `0x093E....`; the scene's textures are in VRAM
+  `0x04......`). Order seen: `WORLD x1, PROJ (persp), MATRIX 0x40, WORLD x1, PROJ, WORLD x3, PROJ, WORLD x60 (the cars and the scenery), PROJ, WORLD x7, PROJ (ortho) ...HUD`.
+- So the grade can stop at the projection switch: everything drawn before the first orthographic projection of the frame is the 3D scene (the sky, track and cars), everything after is the HUD
+  (the trace's `fb` field printed 0 for every prim, so which render target those HUD prims draw into, the display buffer or the offscreen 0x0CC000 buffer of FINDINGS "GPU: menus magnified, HUD behind a
+  black layer", was not read: the projection switch is the marker either way).
+- **Not implemented:** the present-pass grade (API 8 `scene_grade`) grades the finished picture, the HUD included. Excluding the HUD needs the GPU backend to grade its colour target when the
+  first orthographic projection of a frame arrives (a render-pass split in `ge_gpu_backend_vulkan.cpp`) and the software renderer to grade its framebuffer at the same GE command. The marker is known;
+  the work is the backend split.
+
+**3. Car draw replay: WORKS** (a throwaway probe, API 5 only, `chase` route, frames compared with a run without the probe, GE trace at vblank 18500):
+- In a `GT_HOOK_MESH_DRAW` hook, for a part whose `draw_matrix` looks like the car's box (three orthogonal rows 0.892 / 0.719 / 1.914 long = half extents of the player's Peugeot, translation (0, 0.70, -4.60) in view space in the
+  chase view): `call_original`; append `WORLDN (0x3A000000)` + 12 `WORLDD (0x3B000000 | float_bits >> 8)` at the list cursor `word(0x08D6CE00 + 0x5C)` with the translation row shifted by +2.5 m in
+  VIEW space, advance the cursor by 52; restore a0 (the blob); `call_original` again; append the original matrix again; set v0 = the cursor. Result: a second, correctly lit and textured copy of the
+  car 2.5 m to the car's right, the HUD and the rest of the frame unchanged (7286 prims in the list vs 6725; ~100 replayed part draws per frame, 380 k in a 420 s run, no slowdown noticed).
+  Because the view is folded into WORLD on the CPU, a shift of the translation row is a shift in view space; a pose in the physics frame needs the camera (FACTS "Camera", `S+0x10`) to map it.
+- Pitfall: the leaf clobbers a0 (FINDINGS 2026-11-18). No list-space check exists in the leaf (`0x08B550A8` has no bounds test); 28 extra words per replayed part were fine.
+- Translucency (stencil ref 0x80 screen-door, or a host blend) was **not** tried; the pose mapping, the car-part identification (blob membership through `model_blobs` / `blob_runs`, as the deformation mod does) and alpha are what
+  `draw_car_pose` still needs.

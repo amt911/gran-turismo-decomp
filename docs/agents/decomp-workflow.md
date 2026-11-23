@@ -60,8 +60,12 @@ mechanical and therefore trusted. Byte-matching survives only as optional extra 
   `GT_SYNTH_ROUTE=<full route>` sets the scene with another route (its full-gate length + 1200 s): script natives whose
   holders reach race objects fault in the original after `dealer` and compare after `race` (FINDINGS). A batch
   verified that way is re-checked in its verdict with the same variable. The variable takes a comma-separated list
-  (the routes run side by side): verdicts run `GT_SYNTH_ROUTE=dealer,race,save_garage,circuit,buy,options`, every
+  (the routes run side by side): verdicts run `GT_SYNTH_ROUTE=dealer,race,save_garage,circuit,buy,options` and `garage,challenge,dirt,manual,challenge2` (`GT_VERIFY_SYNTH_GROUPS`), every
   route some function was verified after.
+  **Generator v2 (spec `2026-11-19-synthetic-pointer-graphs-design.md`):** after the 8 v1 cases each function gets `GT_SYNTH_V2` more (default 8, 0 = today's
+  run exactly) whose arena words are only arena pointers, tables, zero, small ints and floats, so a chain of dereferences stays valid; optional
+  `config/synth_shapes.txt` lays out a register's struct. The report prints `v2 cases: compared N, equal M` per function;
+  `.venv/bin/python -m tools.synth_v2 OFF.log ON.log` gives the per-file before/after table. v1 inputs are hash-pinned in `host/tests/synth_case_test.cpp`.
   **Corpus (spec `2026-11-11-coverage-guided-synthetic-inputs-design.md`):** `config/synth_corpus/<ADDRESS>.txt` holds recipes (a generated case plus
   mutations, no game bytes) that earlier searches found to reach new branches; the synthetic gate replays them after each function's
   normal cases (`GT_SYNTH_CORPUS=off` disables, another directory replaces). `tools.decomp_gate coverage TAG --only ... --synth --search N`
@@ -222,7 +226,7 @@ in the typing phase; the gate then proves each rewrite.
 
 From 2026-11-10 (user) the work is mostly **cleanup**: each PR rewrites 20-40 already-verified register-level functions as structured C, file by
 file, at the same address and registration, keeping every quirk; the same gate (fast gate on the touched functions, a sabotage pinned on each,
-the full gate before the PR) proves the rewrite, and the README keeps a "structured rewrites: N of ~1,100" line instead of a new count.
+the full gate, run by the PR verdict since 2026-11-20) proves the rewrite, and the README keeps a "structured rewrites: N of ~1,100" line instead of a new count.
 
 Two traps of writing it by hand (each cost a mismatch in a synthetic gate, batches 337 and 339):
 - **A `jal`'s delay slot runs before the callee.** `jal f; move s0, v0` stores the result of the call *before* `f`, not `f`'s result:
