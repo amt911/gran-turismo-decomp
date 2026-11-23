@@ -55,7 +55,7 @@ for entry in $routes; do
   mkdir -p "$out/$route-savedata"
   # Routes that start from the user's save (save_*, and perf_* like perf_tt_newyork) get a fresh copy of it.
   case $route in save_*|perf_*) cp -r game_files/UCES01245-GAMEDAT "$out/$route-savedata/" || exit 2 ;; esac
-  flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G \
+  flock /tmp/claude-1000/gt-heavy.lock systemd-run --user --scope --quiet -p MemoryHigh=11G -p MemoryMax=12G \
     -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen PSPRECOMP_CONFIG="$(route_ini "$route")" \
     GT_SAVEDATA_DIR="$out/$route-savedata" PSPRECOMP_GE_GPU_DUAL=1 GT_FRAMESKIP=0 GT_GPU_NO_DROP=1 GT_PAD="$pad" GT_GPU_DUMP="$out/$route" \
     GT_FRAME_EVERY="${GT_FRAME_EVERY:-30}" timeout $((seconds + 300)) "$build/gt_play" --max-seconds "$seconds" \

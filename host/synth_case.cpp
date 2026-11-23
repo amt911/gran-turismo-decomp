@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <set>
+#include <string>
 
 namespace gt {
 namespace {
@@ -360,6 +361,180 @@ Recipe mutate_recipe(std::uint32_t function, const Recipe &parent, MutationRando
     }
     child.mutations.push_back(m);
     return child;
+}
+
+} // namespace gt
+
+// ---- generator v2 ----
+
+namespace gt {
+namespace {
+
+constexpr std::uint64_t kV2Stream = 0x56324B0000000000ull;
+
+} // namespace
+
+namespace {
+
+// Decimal digits or 0x-prefixed hex only (no octal), the whole text, at most 32 bits.
+bool parse_u32(const std::string &text, bool default_hex, std::uint32_t &out) {
+    if (text.empty()) return false;
+    bool hex = default_hex;
+    std::size_t start = 0u;
+    if (text.size() > 2u && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) { hex = true; start = 2u; }
+    if (start >= text.size()) return false;
+    unsigned long long value = 0u;
+    for (std::size_t i = start; i < text.size(); ++i) {
+        const char c = text[i];
+        unsigned digit;
+        if (c >= '0' && c <= '9') digit = static_cast<unsigned>(c - '0');
+        else if (hex && c >= 'a' && c <= 'f') digit = static_cast<unsigned>(c - 'a' + 10);
+        else if (hex && c >= 'A' && c <= 'F') digit = static_cast<unsigned>(c - 'A' + 10);
+        else return false;
+        value = value * (hex ? 16u : 10u) + digit;
+        if (value > 0xFFFFFFFFull) return false;
+    }
+    out = static_cast<std::uint32_t>(value);
+    return true;
+}
+
+} // namespace
+
+bool parse_case_count(const char *text, unsigned maximum, unsigned &out) {
+    std::uint32_t value = 0u;
+    if (text == nullptr || !parse_u32(text, false, value)) return false;
+    out = value > maximum ? maximum : value;
+    return true;
+}
+
+std::map<std::uint32_t, Shape> parse_shapes(const std::string &text, std::string *error) {
+    std::map<std::uint32_t, Shape> shapes;
+    std::size_t begin = 0u;
+    unsigned line_number = 0u;
+    const auto fail = [&](const char *what) {
+        if (error != nullptr && error->empty()) *error = "shapes line " + std::to_string(line_number) + ": " + what;
+    };
+    while (begin <= text.size()) {
+        std::size_t end = text.find('\n', begin);
+        if (end == std::string::npos) end = text.size();
+        std::string line = text.substr(begin, end - begin);
+        begin = end + 1u;
+        ++line_number;
+        if (const std::size_t hash = line.find('#'); hash != std::string::npos) line.resize(hash);
+        std::vector<std::string> words;
+        for (std::size_t i = 0; i < line.size();) {
+            while (i < line.size() && (line[i] == ' ' || line[i] == '\t' || line[i] == '\r')) ++i;
+            std::size_t j = i;
+            while (j < line.size() && line[j] != ' ' && line[j] != '\t' && line[j] != '\r') ++j;
+            if (j > i) words.push_back(line.substr(i, j - i));
+            i = j;
+        }
+        if (words.empty()) continue;
+        std::uint32_t address = 0u;
+        if (!parse_u32(words[0], true, address)) { fail("bad address"); continue; }
+        Shape shape;
+        bool have_reg = false, ok = true;
+        for (std::size_t w = 1; w < words.size() && ok; ++w) {
+            const std::string &word = words[w];
+            if (word.rfind("reg:", 0) == 0) {
+                if (have_reg) { fail("more than one reg"); ok = false; break; }
+                const std::size_t eq = word.find('=');
+                const std::string name = word.substr(4, eq == std::string::npos ? 0 : eq - 4);
+                const std::string rest = eq == std::string::npos ? "" : word.substr(eq + 1);
+                static const char *const names[8] = {"a0", "a1", "a2", "a3", "t0", "t1", "t2", "t3"};
+                int found = -1;
+                for (int k = 0; k < 8; ++k) if (name == names[k]) found = k;
+                if (found < 0 || rest.rfind("struct:", 0) != 0) { fail("bad reg"); ok = false; break; }
+                shape.reg = static_cast<unsigned>(found);
+                if (!parse_u32(rest.substr(7), false, shape.size) || shape.size == 0u || shape.size > kBlockWords * 4u) {
+                    fail("bad size (1..1024)"); ok = false; break;
+                }
+                have_reg = true;
+            } else if (word.rfind("field:+", 0) == 0) {
+                const std::size_t eq = word.find('=');
+                if (eq == std::string::npos) { fail("bad field"); ok = false; break; }
+                ShapeField field;
+                if (!parse_u32(word.substr(7, eq - 7), false, field.offset)) { fail("bad field offset"); ok = false; break; }
+                const std::string kind = word.substr(eq + 1);
+                if (kind == "ptr") {
+                    field.pointer = true;
+                } else if (kind.rfind("int:", 0) == 0) {
+                    field.pointer = false;
+                    const std::size_t dots = kind.find("..");
+                    if (dots == std::string::npos || !parse_u32(kind.substr(4, dots - 4), false, field.low) ||
+                        !parse_u32(kind.substr(dots + 2), false, field.high)) { fail("bad int range"); ok = false; break; }
+                    if (field.high < field.low) { fail("empty int range"); ok = false; break; }
+                    if (field.high - field.low > 0xFFFFu) { fail("int range wider than 65535"); ok = false; break; }
+                } else { fail("bad field kind"); ok = false; break; }
+                if (field.offset % 4u != 0u) { fail("unaligned field"); ok = false; break; }
+                shape.fields.push_back(field);
+            } else { fail("unknown word"); ok = false; }
+        }
+        if (!ok) continue;
+        if (!have_reg) { fail("no reg"); continue; }
+        for (const ShapeField &f : shape.fields) if (f.offset + 4u > shape.size) { fail("field outside the struct"); ok = false; }
+        if (!ok) continue;
+        if (!shapes.emplace(address, shape).second) fail("duplicate address");
+    }
+    return shapes;
+}
+
+SynthInputs make_synth_case_v2(std::uint32_t function, unsigned index, std::uint64_t seed, const SynthLayout &layout,
+                               const std::map<std::uint32_t, Shape> *shapes) {
+    Random random{(seed * 0x100000001B3ull ^ (static_cast<std::uint64_t>(function) << 20) ^ index) ^ kV2Stream};
+    const Arena arena{layout};
+    const std::uint32_t slots = arena.words() / 4u;  // 16-byte slots
+    const auto slot_pointer = [&]() {
+        for (;;) {  // a slot that is not inside a table block
+            const std::uint32_t slot = random.below(slots);
+            if (!arena.is_table(slot * 4u)) return layout.arena_base + slot * 16u;
+        }
+    };
+    const auto table_pointer = [&]() {
+        const std::uint32_t tables = arena.words() / (kBlockWords * kTableEvery);
+        return layout.arena_base + 4u * ((random.below(tables) * kTableEvery + kTableEvery - 1u) * kBlockWords);
+    };
+    SynthInputs inputs;
+    inputs.arena.resize(arena.words());
+    for (std::uint32_t i = 0; i < arena.words(); ++i) {
+        if (arena.is_table(i)) {
+            inputs.arena[i] = layout.leaf_functions[random.below(static_cast<std::uint32_t>(layout.leaf_functions.size()))];
+            continue;
+        }
+        const std::uint32_t pick = random.below(100u);
+        if (pick < 70u) inputs.arena[i] = slot_pointer();
+        else if (pick < 80u) inputs.arena[i] = arena.has_tables() ? table_pointer() : slot_pointer();
+        else if (pick < 90u) inputs.arena[i] = 0u;
+        else if (pick < 95u) inputs.arena[i] = random.below(17u);
+        else inputs.arena[i] = kFloats[random.below(8u)];
+    }
+    for (std::uint32_t &reg : inputs.gpr) {
+        const std::uint32_t pick = random.below(100u);
+        reg = pick < 60u ? slot_pointer() : pick < 80u ? random.below(17u) : pick < 90u ? 0u : slot_pointer();
+    }
+    inputs.gpr[0] = slot_pointer();
+    for (std::uint32_t &reg : inputs.fpr) reg = kFloats[random.below(8u)];
+    if (const auto it = layout.class_instances.find(function); it != layout.class_instances.end() && !it->second.empty())
+        inputs.gpr[0] = it->second[(seed + static_cast<std::uint64_t>(index) * 7u) % it->second.size()];
+    if (shapes != nullptr) {
+        if (const auto it = shapes->find(function); it != shapes->end()) {
+            const Shape &shape = it->second;
+            std::uint32_t base;
+            for (;;) {  // inside one block that is not a table (a struct must not overlap a vtable block)
+                base = slot_pointer();
+                const std::uint32_t first = (base - layout.arena_base) / (kBlockWords * 4u);
+                const std::uint32_t last = (base - layout.arena_base + shape.size - 1u) / (kBlockWords * 4u);
+                if (first == last && !arena.is_table(first * kBlockWords)) break;
+            }
+            inputs.gpr[shape.reg] = base;
+            const std::uint32_t at = (base - layout.arena_base) / 4u;
+            for (const ShapeField &field : shape.fields) {
+                const std::uint32_t word = at + field.offset / 4u;
+                inputs.arena[word] = field.pointer ? slot_pointer() : field.low + random.below(field.high - field.low + 1u);  // span <= 65536
+            }
+        }
+    }
+    return inputs;
 }
 
 } // namespace gt

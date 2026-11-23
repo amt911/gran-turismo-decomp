@@ -1,0 +1,10 @@
+id = "draw-probe"
+name = "Draw API probe"
+version = "0.0.1"
+library = "libdraw_probe.so"
+api = 8
+enabled = true
+
+[settings]
+draw = 1
+grade = ""

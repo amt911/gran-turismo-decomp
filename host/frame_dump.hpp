@@ -7,8 +7,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 namespace gt {
+
+// What gt_play adds to a dumped frame (the mods' draw layer, the scene grade): set once at start; null = the framebuffer as it is.
+using FrameComposer = void (*)(std::vector<std::uint8_t> &rgb, std::uint32_t width, std::uint32_t height);
+void set_frame_composer(FrameComposer composer);
 
 // present_vblank: the vblank the present was requested at (the log line carries it: the label `vblank` is read when the GE worker dumps, which
 // lags the game under load, so only present_vblank pairs the same game frame in two runs).

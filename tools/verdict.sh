@@ -34,8 +34,11 @@ GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m
   | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
 # Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
 boot=$logs/boot
+# GT_VERIFY_BOOT_SECONDS (default 600): the boot route's wall-clock budget. On a loaded machine (load ~30 on 24 cores, powersave)
+# save_garage needed more than 600 s and the boot check failed on time alone (verdicts 662, 666, 667 on 2026-11-19).
+# It is a time budget only: the route's waits and the pass condition are unchanged.
 rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$boot/sd/"
-GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage 600 "$boot/run" --decomp on
+GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}" "$boot/run" --decomp on
 echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot/run/run.log") waits $(grep -o 'script done.*' "$boot/run/run.log")"
 rm -rf "$boot/sd"
 # The synthetic gate only when the PR can reach it (tools/verdict_scope.py: decomp source, headers, harness, build, runtime
@@ -46,7 +49,9 @@ if [ "$scope" = skip ]; then
 else
   # Two groups, one after the other: a synthetic run is CPU-bound (unlike a gate route), and six at once ran so slowly that
   # every one hit its timeout (exit 124, verdict 526, 2026-11-10).
-  for group in dealer,race save_garage,circuit,buy,options; do
+  # GT_VERIFY_SYNTH_GROUPS: the scene groups, space-separated. The third group holds the scenes PR 674's functions were verified
+  # after (garage, challenge, dirt, manual, challenge2): every scene some function was verified after must stay in the verdict.
+  for group in ${GT_VERIFY_SYNTH_GROUPS:-dealer,race save_garage,circuit,buy,options garage,challenge,dirt,manual,challenge2}; do
     t=v${tag}_${group%%,*}
     # Its own lock and its own cores (user, 2026-11-10): a synthetic run is CPU-bound, not paced, so it need not wait for
     # another verdict's real-time gate routes (GT_GATE_CPUS above); one synthetic group at a time on GT_SYNTH_CPUS.
