@@ -514,114 +514,6 @@ void func_08AED688(Runtime &rt, AllegrexContext &ctx) {
 // and the two callbacks at +4 / +8): tokenises the command text with the library's tokenizer (0x08B52238 / 0x08B51F38), which
 // tracks the quotes and the '=' separator, builds the argument table out of the tokens on the stack, and hands the table to
 // the callback the kind selects (1: the +4 callback with the table, 2: the +8 callback, 3: both). v0 = 0 for no kind.
-void func_08B518F4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 context = ctx.gpr[4];
-    SavedCallee saved(ctx);
-    GuestFrame frame(ctx, 0x880u);
-    const u32 fp = frame.at(0x00u);
-    u32 stack = fp;
-    const auto alloca_block = [&](u32 bytes) {
-        stack -= bytes & ~0x0Fu;
-        return stack;
-    };
-    u32 previous = 0u;
-    u32 state = 0u;
-    u32 counter = 0xFFFFFFFFu;
-    u32 limit = 0u;
-    u32 records = 0u;
-    u32 cursor = fp + 0x28u;
-    u32 quoted = 0u;
-    put(rt, fp + 0x834u,
-        call(rt, ctx, 0x08B52238u, {fp, context + 0x20u, word(rt, context + 0x1Cu), word(rt, context + 0x14u)}));
-    limit = word(rt, context + 0x1Cu) - 1u;
-    put(rt, fp + 0x830u, word(rt, context + 0x18u) == 2u ? 1u : 0u);
-    for (;;) {
-        const u32 token = call(rt, ctx, 0x08B51F38u, {fp});
-        if (token == 0u) break;
-        const u32 text = word(rt, fp + 0x20u);
-        s32 first = 0;
-        if (byte_at(rt, token + 0x0Cu) != 0u) first = signed_byte(rt, token + 0x04u);
-        u32 toggle = quoted ^ 1u;
-        if (state == 1u && first == 0x3D) {
-            put(rt, cursor + 4u, previous);
-            cursor += 8u;
-            records += 1u;
-            put(rt, cursor, text);
-            state = 2u;
-            toggle = quoted ^ 1u;
-        }
-        if ((static_cast<u32>(first) ^ 0x22u) == 0u) quoted = toggle;
-        if (quoted != 0u) {
-            counter += 1u;
-            previous = text;
-            continue;
-        }
-        if (first == 0x20 || first == 0x09 || first == 0x0D || first == 0x0A) {
-            const bool closing = state < 2u;
-            if (limit == word(rt, context + 0x1Cu) - 1u) limit = counter;
-            if (!closing) {
-                put(rt, cursor + 4u, previous);
-                records += 1u;
-                cursor += 8u;
-            }
-            put(rt, cursor, text);
-            state = 1u;
-        }
-        counter += 1u;
-        previous = text;
-    }
-    if (state >= 2u) {
-        put(rt, fp + 0x28u + records * 8u + 4u, previous);
-        records += 1u;
-    }
-    const u32 flag = word(rt, fp + 0x830u);
-    const u32 length = limit - flag;
-    const u32 prefix = alloca_block(length + 0x20u);
-    call(rt, ctx, 0x08B36018u, {prefix, 0u, length + 2u});
-    call(rt, ctx, 0x08B79A88u, {prefix, word(rt, fp + 0x834u) + word(rt, fp + 0x830u), length + 1u});
-    const u32 words = records * 4u;
-    const u32 table = alloca_block(words + 0x22u);
-    if (static_cast<s32>(records) > 0) put(rt, table + words, 0u);
-    u32 pointer_cursor = table;
-    u32 record_cursor = fp + 0x2Cu;
-    for (u32 i = 0u; i < records; ++i) {
-        const u32 start = word(rt, record_cursor - 4u);
-        const u32 end = word(rt, record_cursor);
-        const u32 span = end - start;
-        const u32 entry = alloca_block(span + 0x1Fu);
-        put(rt, pointer_cursor, entry);
-        u32 copy_length = span;
-        u32 source = start;
-        if (signed_byte(rt, start) == 0x22) {
-            copy_length = span - 2u;
-            source = start + 1u;
-        }
-        call(rt, ctx, 0x08B79A88u, {entry, source, copy_length});
-        record_cursor += 8u;
-        pointer_cursor += 4u;
-        put_byte(rt, entry + copy_length, 0u);
-    }
-    const u32 kind = word(rt, context + 0x18u);
-    u32 answer = 0u;
-    const u32 base = word(rt, context + 0x10u);
-    const u32 first_callback = word(rt, context + 0x04u);
-    const u32 second_callback = word(rt, context + 0x08u);
-    if (kind == 1u) {
-        if (first_callback != 0u) call_indirect(rt, ctx, first_callback, {base, prefix, table});
-        answer = 1u;
-    } else if (kind == 2u) {
-        if (second_callback != 0u) call_indirect(rt, ctx, second_callback, {base, prefix});
-        answer = 1u;
-    } else if (kind == 3u) {
-        if (first_callback != 0u) call_indirect(rt, ctx, first_callback, {base, prefix, table});
-        if (second_callback != 0u) call_indirect(rt, ctx, second_callback, {base, prefix, table});
-        answer = 1u;
-    } else {
-        answer = kind == 0u ? 0u : 1u;
-    }
-    call(rt, ctx, 0x08B52284u, {fp});
-    ctx.gpr[2] = answer;
-}
 
 // 0x0893D6A4 (a0 = a curve block with the piecewise breakpoints at +0x18..+0x34, a1 = a table index, f12 = x): maps x through
 // the block's curve. The byte at 0x08CDE655 selects the plain piecewise form; otherwise the shape is eased through the curve
@@ -781,6 +673,5 @@ NEW26(0x08876850u, func_08876850, Word);
 NEW26(0x08902C00u, func_08902C00, Word);
 NEW26(0x08905000u, func_08905000, Word);
 NEW26(0x08AED688u, func_08AED688, Word);
-NEW26(0x08B518F4u, func_08B518F4, Word);
 NEW26(0x0893D6A4u, func_0893D6A4, Float);
 NEW26(0x08977B14u, func_08977B14, Void);
