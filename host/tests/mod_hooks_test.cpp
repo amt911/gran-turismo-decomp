@@ -68,6 +68,20 @@ void hook_turns_itself_off(GtModCtx *c) {
     gt::mods::mod_api().call_original(c);
     gt::mods::mod_api().set_gpr(c, 2, 7);
 }
+// A callee that clobbers a0-a3 and returns a value in v0, as a decompiled function does (it runs its whole body inside call_original).
+void clobbering_original(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    for (unsigned r = 4; r <= 7; ++r) ctx.gpr[r] = 0xDEAD0000u + r;
+    ctx.gpr[2] = 123u;
+    ctx.pc = ctx.gpr[31];
+}
+std::uint32_t g_a0_before = 0, g_a0_after = 0, g_a3_after = 0;
+void hook_reads_args_after(GtModCtx *c) {
+    const GtModApi &api = gt::mods::mod_api();
+    g_a0_before = api.gpr(c, 4);
+    api.call_original(c);
+    g_a0_after = api.gpr(c, 4);
+    g_a3_after = api.gpr(c, 7);
+}
 } // namespace
 
 int main() {
@@ -123,6 +137,18 @@ int main() {
         call(rt, ctx);
         check(g_pc_inside_second == kAddr, "hook_wraps_previous_registration: ctx.pc == address inside original");
         check(ctx.gpr[2] == 7u, "hook_wraps_previous_registration: hook result");
+    }
+    {   // a0-a3 are back as they were after call_original: a decompiled callee clobbers them (extra-cameras read the world there and never took a snapshot with `--decomp on`)
+        clear_hooks_for_tests();
+        psprecomp::Runtime rt;
+        rt.register_function(kAddr, &clobbering_original, "orig");
+        install_hook(rt, kAddr, hook_reads_args_after, {"alpha", &a}, err);
+        psprecomp::AllegrexContext ctx;
+        ctx.gpr[4] = 0x09000000u;
+        ctx.gpr[7] = 77u;
+        call(rt, ctx);
+        check(g_a0_before == 0x09000000u && g_a0_after == 0x09000000u && g_a3_after == 77u, "call_original_restores_a0_to_a3");
+        check(ctx.gpr[2] == 123u && ctx.gpr[4] == 0x09000000u, "call_original_keeps_v0_and_the_callers_a0");
     }
     {
         clear_hooks_for_tests();

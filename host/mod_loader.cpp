@@ -3,6 +3,7 @@
 #include "mod_hooks.hpp"
 #include "mod_manifest.hpp"
 #include "mod_services.hpp"
+#include "mod_camera.hpp"
 #include "tilt_free.hpp"
 
 #include <dlfcn.h>
@@ -79,9 +80,9 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
             skip("duplicate mod id '" + manifest->id + "' (already used by " + first.first->second + ", also in " + name + ")");
             continue;
         }
-        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_8) {
+        if (manifest->api < GT_MOD_API_VERSION || manifest->api > GT_MOD_API_VERSION_9) {
             skip("api " + std::to_string(manifest->api) + " (host implements " + std::to_string(GT_MOD_API_VERSION) + " to " +
-                 std::to_string(GT_MOD_API_VERSION_8) + ")");
+                 std::to_string(GT_MOD_API_VERSION_9) + ")");
             continue;
         }
         const std::filesystem::path library = mod_dir / manifest->library;
@@ -109,6 +110,12 @@ LoadReport load_mods(psprecomp::Runtime &rt, const std::filesystem::path &dir) {
         if (self->api_version >= GT_MOD_API_VERSION_7 && !tilt::install(rt, self, tilt_error)) {  // v7: the host's tilt hooks, owned by the mod
             remove_hooks_for(rt, self);
             skip("tilt_free hooks: " + tilt_error);
+            continue;
+        }
+        std::string camera_error;
+        if (self->api_version >= GT_MOD_API_VERSION_9 && !camera::install(rt, self, camera_error)) {  // v9: the host's camera hooks, owned by the mod
+            remove_hooks_for(rt, self);
+            skip("camera hooks: " + camera_error);
             continue;
         }
         services::begin_init(self);
