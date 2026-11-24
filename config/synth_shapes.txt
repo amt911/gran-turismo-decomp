@@ -106,3 +106,8 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x089006DC: a0 is the object the constructor vtable-initialises and fills up to +0x4B4 (callees read +0/+4/+8).
+0x089006DC reg:a0=struct:1024
+# 0x08900A38: byte-identical body to 0x089006DC.
+0x08900A38 reg:a0=struct:1024
