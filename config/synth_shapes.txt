@@ -106,3 +106,45 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# a0 is the slot the insert (08A76AB4 / 089BAC44 / 08A5D40C / 08A7263C, all 08A5BAB8 underneath) overwrites
+# with the freshly built block and then refcounts, so its word at +0 is an intrusive pointer; a1 is only
+# handed to the block's constructor.
+0x08844590 reg:a0=struct:16 field:+0x0=ptr
+0x088456F4 reg:a0=struct:16 field:+0x0=ptr
+0x0884648C reg:a0=struct:16 field:+0x0=ptr
+0x08848E18 reg:a0=struct:16 field:+0x0=ptr
+0x0884F6D4 reg:a0=struct:16 field:+0x0=ptr
+0x08857CA4 reg:a0=struct:16 field:+0x0=ptr
+0x08857D04 reg:a0=struct:16 field:+0x0=ptr
+0x0897E04C reg:a0=struct:16 field:+0x0=ptr
+0x089A75E4 reg:a0=struct:16 field:+0x0=ptr
+0x089FCED0 reg:a0=struct:16 field:+0x0=ptr
+0x08A04294 reg:a0=struct:16 field:+0x0=ptr
+0x08A19064 reg:a0=struct:16 field:+0x0=ptr
+0x08A2DD40 reg:a0=struct:16 field:+0x0=ptr
+0x08A3E8C0 reg:a0=struct:16 field:+0x0=ptr
+0x08A3E920 reg:a0=struct:16 field:+0x0=ptr
+0x08A55F30 reg:a0=struct:16 field:+0x0=ptr
+# 0x088EF1B0: a0 is the record the parent builds; vtable at +0 / +0x38, word at +0x38 cleared, two 0x120-byte
+# members cleared at +0x40 and +0x160, the byte at +0x280 cleared and the one at +0x40 set to -1.
+0x088EF1B0 reg:a0=struct:0x284
+# 0x088F6160: a0 is the record the parent builds; a1 stored at +0xC, the quotient at +0x10, byte +0x14 cleared.
+0x088F6160 reg:a0=struct:0x18
+# 0x08931A7C / 0x089321E8: a0 is the record; the words at +0x10 / +0x14 are the pair handed to 089304C8 and a
+# 0x22-word slot (word or byte at +0x14) is written to the frame.
+0x08931A7C reg:a0=struct:0x18 field:+0x10=ptr field:+0x14=ptr
+0x089321E8 reg:a0=struct:0x18 field:+0x10=ptr field:+0x14=ptr
+# 0x0899A2A0: a0 is the record the parent builds; two vtable words at +0 / +0x38 and words +0x120..+0x138 cleared.
+0x0899A2A0 reg:a0=struct:0x13C
+# 0x0899BBCC: a0 is the record the parent builds; vtable at +0, words +0x28..+0x34 cleared, members at +0x38 /
+# +0x3C built, byte at +0x40 cleared.
+0x0899BBCC reg:a0=struct:0x44
+# 0x088354EC: a0 is the record the parent builds; two vtable words at +0 / +0x38, +0x78 cleared, the block at
+# +0x7C built from the global name, the float +0x84 = 4.0 and the bytes at +0x80 / +0x81 cleared.
+0x088354EC reg:a0=struct:0x88
+# 0x088AB18C: a0 is the record; words +0 and +4..+0x1C cleared, the block at +0x20 built, -1 at +0x48, the byte
+# at +0x2DC cleared and words +0x4C..+0x58 cleared.
+0x088AB18C reg:a0=struct:0x2E0
+# 0x08922B34: a0 is the record the parent builds; vtable at +0, a2 at +0x8, the member at +0xC rebuilt.
+0x08922B34 reg:a0=struct:0x18
