@@ -44,7 +44,10 @@ synth_out=$logs/synth.out
 # functions those files register (tools/verdict_scope.py; user 2026-11-24 "y no se pueden acelerar mas las verificaciones":
 # each scene spent 650-950 s comparing all ~17.5k registered functions, verdict 842). Shared code runs every function.
 only_list=$PWD/$logs/synth_only.txt
-scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic)
+# GT_VERDICT_SCOPE: a verdict_scope.py to run instead of the tree's (the runners pass the verdict branch's copy, so a PR
+# based on an older main still gets the current scope rules).
+if [ -n "${GT_VERDICT_SCOPE:-}" ]; then scope=$(.venv/bin/python "$GT_VERDICT_SCOPE" origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic)
+else scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic); fi
 only=""
 case "$scope" in only*) only="--only @$only_list"; echo "synthetic: only the ${scope#only } functions the PR's decomp sources register";; esac
 if [ "$scope" = skip ]; then

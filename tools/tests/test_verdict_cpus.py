@@ -9,7 +9,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 
 
-def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0, scope: str = "synthetic") -> list[str]:
+def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0, scope: str = "synthetic",
+                keep_scope: bool = False) -> list[str]:
     tree = tmp_path / "tree"
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -42,14 +43,15 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
     for name in ("python", "pytest"):
         stub = venv / name
         # tools.verdict_scope answers `scope` ("synthetic" by default) so the synthetic groups run too
-        stub.write_text(f'#!/bin/sh\ncase "$*" in *verdict_scope*) echo "{scope}";; esac\nexit 0\n')
+        stub.write_text(f'#!/bin/sh\ncase "$*" in *verdict_scope*) echo "scope $*" >> {calls}; echo "{scope}";; esac\nexit 0\n')
         stub.chmod(0o755)
     (tree / "game_files" / "UCES01245-GAMEDAT").mkdir(parents=True)
     # The caller's own GT_GATE_CPUS / GT_SYNTH_CPUS must not leak in (the laptop's verdict exports them: verdict 580).
     base = {k: v for k, v in os.environ.items() if k not in ("GT_GATE_CPUS", "GT_SYNTH_CPUS")}
     env = dict(base, PATH=f"{bindir}:{os.environ['PATH']}", GT_VERIFY_TREE=str(tree), **env_extra)
     subprocess.run(["bash", str(REPO / "tools" / "verdict.sh"), "main", "t"], env=env, cwd=tree, capture_output=True, timeout=60)
-    return [line for line in calls.read_text().splitlines() if line.startswith("taskset")] if calls.exists() else []
+    lines = calls.read_text().splitlines() if calls.exists() else []
+    return [line for line in lines if line.startswith("taskset") or (keep_scope and line.startswith("scope "))]
 
 
 def test_defaults_split_the_desktop(tmp_path):
@@ -113,3 +115,14 @@ def test_synth_installs_only_the_prs_functions_when_the_scope_says_so(tmp_path):
 
 def test_skip_scope_runs_no_synth(tmp_path):
     assert [line for line in run_verdict(tmp_path, {}, scope="skip") if "decomp_gate synth" in line] == []
+
+
+def test_scope_tool_can_come_from_the_verdict_branch(tmp_path):
+    lines = run_verdict(tmp_path, {"GT_VERDICT_SCOPE": "/x/verdict_scope.py"}, keep_scope=True)
+    scope = [line for line in lines if line.startswith("scope ")]
+    assert len(scope) == 1 and scope[0].startswith("scope /x/verdict_scope.py origin/main HEAD --only-file ")
+
+
+def test_scope_tool_defaults_to_the_trees_module(tmp_path):
+    scope = [line for line in run_verdict(tmp_path, {}, keep_scope=True) if line.startswith("scope ")]
+    assert len(scope) == 1 and scope[0].startswith("scope -m tools.verdict_scope origin/main HEAD --only-file ")
