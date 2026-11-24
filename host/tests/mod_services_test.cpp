@@ -381,6 +381,32 @@ int main() {
         check(!racing() && api6.action_held(&v6m, "nitro") == 0, "clear_for_tests forgets the step and the query");
     }
 
+    // car_impact keeps one tracker per mod: two mods asking once per step each see the step's velocity change (a shared tracker gave the second one dv = 0)
+    {
+        constexpr std::uint32_t IW = 0x09500000u, islots = 0x09510000u, K = 0x09400000u, wheels = 0x09410000u;
+        auto &m = rt.memory();
+        m.store32(IW + 4u, islots);
+        m.store32(IW + 8u, 1u);
+        const std::uint32_t icar = islots + 0x2010u;
+        m.store32(icar + 8u, K);
+        m.store32(icar + 0x10u, wheels);
+        const auto setf = [&](std::uint32_t off, float v) { std::uint32_t b; std::memcpy(&b, &v, 4); m.store32(K + off, b); };
+        const float identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        for (int i = 0; i < 9; ++i) setf(0x1Cu + 4u * i, identity[i]);
+        setf(0x6CCu, 10.f); setf(0x6D0u, 0.f); setf(0x6D4u, 0.f); setf(0x6C4u, 10.f); setf(0x6F8u, 0.f);
+        GtMod a, b;
+        a.id = "imp-a"; a.api_version = 5;
+        b.id = "imp-b"; b.api_version = 5;
+        GtModCtx ictx{&rt, nullptr, 0u, 0u};
+        GtCarImpact ia{}, ib{};
+        check(api_car_impact(&a, &ictx, IW, K, &ia) == 0 && api_car_impact(&b, &ictx, IW, K, &ib) == 0, "impact: both mods sample the car");
+        setf(0x6D0u, 8.f);  // a 8 m/s sideways change in one step
+        check(api_car_impact(&a, &ictx, IW, K, &ia) == 0 && ia.dv_magnitude > 7.9f, "impact: the first mod sees the step's dv");
+        check(api_car_impact(&b, &ictx, IW, K, &ib) == 0 && ib.dv_magnitude > 7.9f, "impact: the second mod sees it too (its own tracker)");
+        check(api_car_impact(&a, &ictx, IW, K, &ia) == 0 && ia.dv_magnitude == 0.f, "impact: a mod's second call in the same step compares with its own last sample");
+        remove_for(&a);
+        check(api_car_impact(&a, &ictx, IW, K, &ia) == 0 && ia.dv_magnitude == 0.f, "impact: a removed mod's tracker starts again");
+    }
     {  // v8: the draw layer (on_overlay, draw_text / draw_rect / draw_line)
         clear_for_tests();
         clear_hooks_for_tests();
