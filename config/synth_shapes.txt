@@ -304,3 +304,12 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+0x08A79040 reg:a1=struct:16 field:+0x0=ptr
+0x08AA2508 reg:a1=struct:16 field:+0x0=ptr
+0x08AA257C reg:a1=struct:16 field:+0x0=ptr
+# 0x08B0A9F4: the ring index at +0 and its end at +4 (16 slots, so 0..16 covers end == index), slots +8 .. +0x48.
+0x08B0A9F4 reg:a0=struct:76 field:+0x0=int:0..16 field:+0x4=int:0..16
+# 0x08C48FC4: *(a2) is the record count (the offset times four) and *(a2 + 4) the table whose +0x98 floats compare;
+# a0 is the run's end (the lh reads walk down from a0 - 2).
+0x08C48FC4 reg:a2=struct:8 field:+0x0=int:0..4 field:+0x4=ptr
