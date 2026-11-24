@@ -87,6 +87,14 @@
 # 0x08B437C0: a0+0 is the vtable the three virtual slots come from; the table at +0x454 (count at +0x8D4, flag byte +0x854) and the
 # registration at +0x8DC lie past the 1024-byte cap, so the slot ends where the shape does.
 0x08B437C0 reg:a0=struct:1024 field:+0x0=ptr
+
+# Synthetic-case input shapes for main-session batch 869 (one line per function, asm evidence above).
+# 0x088F2D98: a0+4 is the 0x40-byte record array, a0+8 the signed halfword first index (0 keeps it inside the block).
+0x088F2D98 reg:a0=struct:16 field:+0x4=ptr field:+0x8=int:0..0
+# 0x0895F194: a0+8 is the track data (record array at +0x610, state bytes +0x678..+0x67A).
+0x0895F194 reg:a0=struct:16 field:+0x8=ptr
+# 0x088800F4: a0+0x74 is the resource the two probes and the seven builders read (0x74+4 -> 0x78).
+0x088800F4 reg:a0=struct:120 field:+0x74=ptr
 # Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md): one line per function, asm evidence above.
 # 0x0892C034: reads the four pointers at +4, +8, +0xC, +0x10 and releases each non-null one (func_08B61FC0), then clears
 # a0+0. Highest offset read is 0x10, so size 32. Pinning them to 0 skips the releases (a null pointer is "int:0..0").
