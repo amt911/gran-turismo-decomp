@@ -154,3 +154,10 @@ def test_pytest_runs_on_the_synthetic_cpus(tmp_path):
     lines = run_verdict(tmp_path, {}, keep_pytest=True)
     pytest = [line for line in lines if ".venv/bin/pytest" in line]
     assert len(pytest) == 1 and pytest[0].startswith("taskset -c 0-5,12-17 ")
+
+
+def test_full_scope_gate_waits_for_the_synthetic_groups(tmp_path):
+    """Every function installed: the groups take up to ~30 min, so the gate waits for them (verdict 846 lost three
+    groups to the lock cap beside the gate)."""
+    lines = [line for line in run_verdict(tmp_path, {}, scope="synthetic") if "decomp_gate" in line]
+    assert [("full" in line) for line in lines] == [False, False, False, True]
