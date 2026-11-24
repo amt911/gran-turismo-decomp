@@ -77,12 +77,7 @@ u32 insert_bits(u32 target, u32 value, unsigned position, unsigned size) {
 
 u32 half_at(Runtime &rt, u32 address) { return rt.memory().load16(address); }
 
-// 0x0885BCA8 (a0 = a holder, a1 = an index; returns a doubleword): the pair of words at *a0 + 0x38 + 8 * index.
-void func_0885BCA8(Runtime &rt, AllegrexContext &ctx) {
-    const u32 entry = word(rt, ctx.gpr[4]) + ctx.gpr[5] * 8u;
-    ctx.gpr[2] = word(rt, entry + 0x38u);
-    ctx.gpr[3] = word(rt, entry + 0x3Cu);
-}
+// 0x0885BCA8 is not here: new_batch_main_54 (PR #771) already registers it, and one address has one registration.
 
 // 0x0885F550 (a0 = a holder): clears two fields of the object at *a0 (running 0x0885F46C first when the byte at +0x3FDB is
 // set); when the byte at +0x26 of the object at +0x5AC is zero the function ends (v0 = 0). Otherwise each of the eight 0x18-byte
@@ -571,7 +566,6 @@ void func_08C20F98(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW_FIX1(address, name, kind) GT_DECOMP(address, gt::game::new_batch_fixes_1::name, gt::ReturnKind::kind)
-NEW_FIX1(0x0885BCA8u, func_0885BCA8, DoubleWord);
 NEW_FIX1(0x0885F550u, func_0885F550, Word);
 NEW_FIX1(0x0886C31Cu, func_0886C31C, Word);
 NEW_FIX1(0x08872E18u, func_08872E18, Word);
