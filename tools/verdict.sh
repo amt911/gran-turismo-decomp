@@ -30,7 +30,10 @@ launcher=""; [ -x tools/src/ccache/ccache-4.10.2-linux-x86_64/ccache ] && launch
 export CCACHE_DIR=${CCACHE_DIR:-$HOME/.cache/gt-verdict-ccache} CCACHE_MAXSIZE=${CCACHE_MAXSIZE:-20G}
 heavy sh -c "cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ $launcher > /dev/null && cmake --build build -j8" \
   > "$logs/build.log" 2>&1 || { echo "build failed"; tail -5 "$logs/build.log"; exit 1; }
-.venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1; tail -1 "$logs/pytest.log"
+# pytest runs beside the synthetic groups and the gate, on the synthetic CPUs (it tests tools/, not the game: about 4 min
+# less per verdict, user 2026-11-24 "y no hay nada mas que se pueda hacer"); its summary line is printed after the boot line.
+taskset -c "$synth_cpus" .venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1 &
+pytest_pid=$!
 ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
 # The synthetic groups run in the background while the full gate and the boot check run (user, 2026-11-21: "no hay forma de
 # hacer más rápido el proceso en vez de 2 horas?"). They already had their own CPUs (GT_SYNTH_CPUS) and their own lock, apart
@@ -97,6 +100,7 @@ rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$bo
 GT_PAD_EXIT_AFTER=${GT_VERIFY_BOOT_EXIT_AFTER:-3600} GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}" "$boot/run" --decomp on
 echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot/run/run.log") waits $(grep -o 'script done.*' "$boot/run/run.log")"
 rm -rf "$boot/sd"
+wait $pytest_pid 2>/dev/null; tail -1 "$logs/pytest.log"
 wait $synth_pid 2>/dev/null || true
 cat "$synth_out"
 

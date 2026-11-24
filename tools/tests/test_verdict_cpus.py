@@ -10,7 +10,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0, scope: str = "synthetic",
-                keep_scope: bool = False, gate_has_only: bool = True) -> list[str]:
+                keep_scope: bool = False, gate_has_only: bool = True, keep_pytest: bool = False) -> list[str]:
     tree = tmp_path / "tree"
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -54,7 +54,8 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
     env = dict(base, PATH=f"{bindir}:{os.environ['PATH']}", GT_VERIFY_TREE=str(tree), **env_extra)
     subprocess.run(["bash", str(REPO / "tools" / "verdict.sh"), "main", "t"], env=env, cwd=tree, capture_output=True, timeout=60)
     lines = calls.read_text().splitlines() if calls.exists() else []
-    return [line for line in lines if line.startswith("taskset") or (keep_scope and line.startswith("scope "))]
+    gates = [line for line in lines if line.startswith("taskset") and (keep_pytest or ".venv/bin/pytest" not in line)]
+    return gates + [line for line in lines if keep_scope and line.startswith("scope ")]
 
 
 def test_defaults_split_the_desktop(tmp_path):
@@ -146,3 +147,10 @@ def test_gate_installs_every_function_otherwise(tmp_path):
 def test_gate_keeps_every_function_when_the_tree_cannot_take_only(tmp_path):
     gate = [line for line in run_verdict(tmp_path, {}, scope="only 2", gate_has_only=False) if "decomp_gate full" in line]
     assert len(gate) == 1 and "--only" not in gate[0]
+
+
+def test_pytest_runs_on_the_synthetic_cpus(tmp_path):
+    """pytest runs beside the synthetic groups and the gate (about 4 min less per verdict), on the synthetic CPUs."""
+    lines = run_verdict(tmp_path, {}, keep_pytest=True)
+    pytest = [line for line in lines if ".venv/bin/pytest" in line]
+    assert len(pytest) == 1 and pytest[0].startswith("taskset -c 0-5,12-17 ")
