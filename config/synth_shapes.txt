@@ -106,3 +106,46 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x08854804: select 0x08A76AB4(a0, 0x08CF6ED8), tail 0x08854718(a0, a1).
+0x08854804 reg:a0=struct:16
+# 0x08918F70: lwc1 f12,0x40C(a0) and lw a1,0x1FC(a0) (that word is a1 of 0x08918C84, an object); 0x40C is then rewritten.
+0x08918F70 reg:a0=struct:512 field:+0x1FC=ptr
+# 0x089203D8: sw a2,0x8(a0) and sw vtable,0x0(a0).
+0x089203D8 reg:a0=struct:16
+# 0x089657FC: select 0x089BA130(a0, 0x08CF6ED8), tail 0x08965710(a0, a1).
+0x089657FC reg:a0=struct:16
+# 0x08969284: select 0x089BAC44(a0, 0x08CF6ED8), tail 0x08969198(a0, a1).
+0x08969284 reg:a0=struct:16
+# 0x08973FC4: select 0x08A76AB4(a0, 0x08CF6ED8), tail 0x08973E4C(a0, a1).
+0x08973FC4 reg:a0=struct:16
+# 0x089767F0: sw vtable,0x38(a0) and sw vtable,0x0(a0) (0x38 + 4 -> 0x3C -> 0x40).
+0x089767F0 reg:a0=struct:64
+# 0x08976A44: select 0x08993BF4(a0, 0x08CF6ED8), tail 0x08976938(a0, a1).
+0x08976A44 reg:a0=struct:16
+# 0x08976D14: byte-identical body to 0x089767F0 with its own tables.
+0x08976D14 reg:a0=struct:64
+# 0x08978040: select 0x08A76AB4(a0, 0x08CF6ED8), tail 0x08977F54(a0, a1).
+0x08978040 reg:a0=struct:16
+# 0x0897EA2C: select 0x08969190(a0, 0x08CF6ED8), tail 0x0897E798(a0, a1).
+0x0897EA2C reg:a0=struct:16
+# 0x0898E1B0: select 0x0899537C(a0, 0x08CF6ED8), tail 0x0898E0C4(a0, a1).
+0x0898E1B0 reg:a0=struct:16
+# 0x089919A0: select 0x08A76AB4(a0, 0x08CF6ED8), tail 0x089918F4(a0, a1).
+0x089919A0 reg:a0=struct:16
+# 0x089919E0: byte-identical body to 0x089919A0.
+0x089919E0 reg:a0=struct:16
+# 0x08991DAC: select 0x089FFC94(a0, 0x08CF6ED8), tail 0x08991CA0(a0, a1).
+0x08991DAC reg:a0=struct:16
+# 0x089965B0: select 0x089948F4(a0, 0x08CF6ED8), tail 0x089964C4(a0, a1).
+0x089965B0 reg:a0=struct:16
+# 0x08999B14: select 0x089FC5D0(a0, 0x08CF6ED8), tail 0x08999A28(a0, a1).
+0x08999B14 reg:a0=struct:16
+# 0x0899AF4C: select 0x089948F4(a0, 0x08CF6ED8), tail 0x0899AEA0(a0, a1).
+0x0899AF4C reg:a0=struct:16
+# 0x0899DF28: select 0x089A274C(a0, 0x08CF6ED8), tail 0x0899DCB4(a0, a1).
+0x0899DF28 reg:a0=struct:16
+# 0x089A2818: select 0x08A0D868(a0, 0x08CF6ED8), tail 0x089A276C(a0, a1).
+0x089A2818 reg:a0=struct:16
+# 0x089A2858: byte-identical body to 0x089A2818.
+0x089A2858 reg:a0=struct:16
