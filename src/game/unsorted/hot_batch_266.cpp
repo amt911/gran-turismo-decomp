@@ -802,6 +802,7 @@ private:
     u32 fp_;
     float fpr_[12];
 };
+
 } // namespace
 
 #define G ctx.gpr
