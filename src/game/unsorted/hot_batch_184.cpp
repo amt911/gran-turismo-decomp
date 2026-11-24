@@ -467,7 +467,17 @@ void func_08A1AA6C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { co
 void func_08A17CD8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[3] = word(rt, G[4]); G[2] = G[6]; G[11] = G[5]; G[10] = word(rt, G[3]); G[3] = G[7]; G[4] = G[5]; G[5] = G[6]; G[6] = G[7]; G[7] = G[2]; G[2] = G[8]; G[8] = G[3]; if (G[10] == 0u) { G[7] = G[2]; G[8] = G[9]; } else { G[4] = G[11]; G[5] = G[2]; G[6] = G[9]; } jump(ctx, 0x08966B20u); }
 void func_08A17EBC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[3] = word(rt, G[4]); G[2] = G[6]; G[11] = G[5]; G[10] = word(rt, G[3]); G[3] = G[7]; G[4] = G[5]; G[5] = G[6]; G[6] = G[7]; G[7] = G[2]; G[2] = G[8]; G[8] = G[3]; if (G[10] == 0u) { G[7] = G[2]; G[8] = G[9]; } else { G[4] = G[11]; G[5] = G[2]; G[6] = G[9]; } jump(ctx, 0x08A0D048u); }
 void func_08A237EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[5]; G[16] = G[4]; call_here(rt, ctx, 0x08A237A8u); G[5] = G[17]; G[4] = 0x80u; call_here(rt, ctx, 0x08B35840u); put(rt, G[16] + 0x6Cu, G[2]); G[4] = G[16]; G[6] = G[17]; G[5] = G[2]; } G[16] = s0; G[17] = s1; jump(ctx, 0x08AB9144u); }
-void func_08A33228(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x10u); G[4] += 0x14u; call_here(rt, ctx, 0x08B1B40Cu); } G[3] = 0x92492493u; G[4] = G[2] + 2u; const std::int64_t product = static_cast<std::int64_t>(static_cast<std::int32_t>(G[4])) * static_cast<std::int32_t>(G[3]); ctx.lo = static_cast<std::uint32_t>(product); ctx.hi = static_cast<std::uint32_t>(static_cast<std::uint64_t>(product) >> 32); G[2] = sra(G[4], 31u); G[3] = ctx.hi + G[4]; G[3] = sra(G[3], 2u) - G[2]; G[2] = (G[3] << 3) - G[3]; G[2] = G[4] - G[2]; }
+// 0x08A33228 (a0 = the object; v0 =): 0x08B1B40C(object + 0x14) gives a word; two more than it is reduced modulo 7 by the asm's signed
+// multiply-and-shift sequence: the dividend minus 7 times the quotient the 0x92492493 magic and the two arithmetic shifts give.
+void func_08A33228(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x0u}});
+    const u32 dividend = call_set(rt, ctx, 0x08B1B40Cu, {ctx.gpr[4] + 0x14u}) + 0x2u;
+    const std::int64_t product = static_cast<std::int64_t>(static_cast<s32>(dividend)) * static_cast<s32>(0x92492493u);
+    const u32 high = static_cast<u32>(static_cast<std::uint64_t>(product) >> 32);
+    const u32 quotient = sra(high + dividend, 2u) - sra(dividend, 31u);
+    ctx.gpr[2] = dividend - ((quotient << 3) - quotient);
+}
 void func_08A342CC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[16] = G[4]; call_here(rt, ctx, 0x08A76ACCu); G[2] = 0x08CD1B20u; G[5] = 0x08CF6ED8u; put(rt, G[16], G[2]); G[4] = G[16] + 0x18u; put(rt, G[16] + 0x14u, 0u); call_here(rt, ctx, 0x08A76AACu); put(rt, G[16] + 0x20u, 0u); put(rt, G[16] + 0x1Cu, 0u); } G[16] = s0; }
 void func_08A34B04(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[2] = 0x08CD1B20u; G[16] = G[4]; G[3] = word(rt, G[4] + 0x14u); put(rt, G[16], G[2]); G[4] = G[3]; if (G[3] != 0u) call_here(rt, ctx, 0x08B2E28Cu); G[4] = G[16] + 0x18u; call_here(rt, ctx, 0x08A5B9ECu); G[4] = G[16]; } G[16] = s0; jump(ctx, 0x08A780B0u); }
 void func_08A35114(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[5] = 0u; G[16] = G[4]; call_here(rt, ctx, 0x08A34E98u); G[4] = G[16]; call_here(rt, ctx, 0x08A35088u); G[16] = word(rt, G[16] + 0x1Cu); G[4] = 0x08CACEC8u; if (G[16] == 0u) call_here(rt, ctx, 0x08A5BB7Cu); G[4] = G[16]; } G[16] = s0; jump(ctx, 0x08A3A6FCu); }
@@ -628,7 +638,20 @@ void func_08B1AB08(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { co
 void func_08B1BE60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[4]; G[4] = G[5]; call_here(rt, ctx, 0x08B1BE58u); G[5] = G[2]; G[4] = G[17]; G[16] = G[2]; call_here(rt, ctx, 0x08B1BAA4u); G[3] = 0xFFFFFFFFu; if (G[2] != 0u) G[3] = G[16]; G[2] = G[3]; } G[16] = s0; G[17] = s1; }
 void func_08B1C158(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[4]; G[4] = G[5]; call_here(rt, ctx, 0x08B1BE38u); G[5] = G[2]; G[4] = G[17]; G[16] = G[2]; call_here(rt, ctx, 0x08B1C140u); G[3] = 0xFFFFFFFFu; if (G[2] != 0u) G[3] = G[16]; G[2] = G[3]; } G[16] = s0; G[17] = s1; }
 void func_08B1C218(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[5]; G[16] = G[4]; if (G[5] != 0u) { call_here(rt, ctx, 0x08B1C1A4u); put(rt, G[16] + 8u, G[2]); G[5] = G[17]; G[4] = G[16]; call_here(rt, ctx, 0x08B1C158u); put(rt, G[16] + 0xCu, G[2]); } } G[16] = s0; G[17] = s1; }
-void func_08B1EF70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x10u); call_here(rt, ctx, 0x08B1EEF0u); } ctx.fpr[0] = std::bit_cast<float>(G[2]); G[3] = G[2] >> 1; G[4] = (G[2] & 1u) | G[3]; ctx.fpr[1] = static_cast<float>(static_cast<std::int32_t>(G[2])); if (static_cast<std::int32_t>(G[2]) < 0) { ctx.fpr[0] = std::bit_cast<float>(G[4]); ctx.fpr[1] = static_cast<float>(static_cast<std::int32_t>(G[4])); ctx.fpr[1] = ctx.fpr[1] + ctx.fpr[1]; } G[1] = 0x2F800000u; ctx.fpr[0] = std::bit_cast<float>(G[1]); ctx.fpr[0] = psp_mul(ctx.fpr[1], ctx.fpr[0]); }
+// 0x08B1EF70 (f0 =): 0x08B1EEF0()'s word is taken as a float's bit pattern; a non-negative one is converted to float as it is, a negative one
+// has the word shifted right by one with its lowest bit ORed back, converted and doubled, and the value is multiplied by the float whose bits
+// are 0x2F800000.
+void func_08B1EF70(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x0u}});
+    // a0 is still the caller's word at the jal
+    const u32 raw = call_set(rt, ctx, 0x08B1EEF0u, {ctx.gpr[4]});
+    const u32 halved = (raw >> 1) | (raw & 0x1u);
+    const bool negative = static_cast<s32>(raw) < 0;
+    float converted = static_cast<float>(static_cast<s32>(negative ? halved : raw));
+    if (negative) converted = converted + converted;
+    ctx.fpr[0] = psp_mul(converted, std::bit_cast<float>(0x2F800000u));
+}
 void func_08B20D10(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[5]; G[16] = G[4]; call_here(rt, ctx, 0x08B22C04u); G[2] = 0x08C9376Cu; G[3] = 0x08CD94F8u; put(rt, G[16] + 8u, G[2]); put(rt, G[16], G[3]); put(rt, G[16] + 0xCu, G[17]); } G[16] = s0; G[17] = s1; }
 void func_08B26B28(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[2] = G[5] & 1u; G[7] = G[5] - G[2]; G[3] = load16(G[7]); G[2] <<= 3; G[5] += G[6]; G[3] = sra(G[3], G[2] & 31u); G[8] = G[5] + 1u; G[2] = 0u - G[2]; G[7] += 2u; G[8] &= ~1u; put(rt, G[4] + 4u, G[3]); store16(G[4] + 0x20u, G[2]); put(rt, G[4] + 8u, G[7]); put(rt, G[4] + 0xCu, G[5]); if (static_cast<std::int32_t>(G[6]) >= 0 && G[5] != G[8]) put(rt, G[4] + 0xCu, G[8]); }
 void func_08B2A3EC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { bool tail = false; { GuestFrame frame(ctx, 0x20u); G[2] = G[8]; G[3] = G[7]; G[7] = 0x08B2A3D0u; G[8] = frame.at(0u); if (G[2] == 0u) tail = true; else { put(rt, frame.at(0u), G[3]); put(rt, frame.at(4u), G[2]); call_here(rt, ctx, 0x08C4FD6Cu); } } if (tail) jump(ctx, 0x08C4FD3Cu); }
