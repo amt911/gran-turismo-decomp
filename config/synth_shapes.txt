@@ -106,3 +106,50 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x089693E8: lw s0,0xE0(s1) is the flags word the bit is taken from (0xE0 + 4 -> 0xE4 -> 0xF0).
+0x089693E8 reg:a0=struct:240
+# 0x08975BC0: a0 goes to the init call as its holder `out`, which the callee fills.
+0x08975BC0 reg:a0=struct:16
+# 0x08976A84: the same factory shape (holder in a0).
+0x08976A84 reg:a0=struct:16
+# 0x08976FA8: the same factory shape.
+0x08976FA8 reg:a0=struct:16
+# 0x0897DF6C: the same factory shape.
+0x0897DF6C reg:a0=struct:16
+# 0x089830BC: the same factory shape.
+0x089830BC reg:a0=struct:16
+# 0x08991A20: the same factory shape.
+0x08991A20 reg:a0=struct:16
+# 0x08992090: the same factory shape.
+0x08992090 reg:a0=struct:16
+# 0x089930A8: the same factory shape.
+0x089930A8 reg:a0=struct:16
+# 0x08994A8C: the same factory shape.
+0x08994A8C reg:a0=struct:16
+# 0x089987E8: the same factory shape.
+0x089987E8 reg:a0=struct:16
+# 0x0899A3F0: the same factory shape.
+0x0899A3F0 reg:a0=struct:16
+# 0x0899BD1C: the same factory shape.
+0x0899BD1C reg:a0=struct:16
+# 0x0899DFD4: the same factory shape.
+0x0899DFD4 reg:a0=struct:16
+# 0x089A1F08: the same factory shape.
+0x089A1F08 reg:a0=struct:16
+# 0x089A2904: the same factory shape.
+0x089A2904 reg:a0=struct:16
+# 0x089A5D80: the same factory shape.
+0x089A5D80 reg:a0=struct:16
+# 0x089B4198: the same factory shape.
+0x089B4198 reg:a0=struct:16
+# 0x089B4C70: the same factory shape.
+0x089B4C70 reg:a0=struct:16
+# 0x089BFB20: the same factory shape.
+0x089BFB20 reg:a0=struct:16
+# 0x089C29E8: the same factory shape.
+0x089C29E8 reg:a0=struct:16
+# 0x089CBBD8: the same factory shape.
+0x089CBBD8 reg:a0=struct:16
+# 0x089DE9B0: the same factory shape.
+0x089DE9B0 reg:a0=struct:16
