@@ -106,3 +106,35 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# stores the new block's pointer there, so a0 must be a writable block; 16 bytes covers the word it writes), and the
+# object itself comes from func_08A5BC20(size, 4), which the harness supplies from its own arena — no field of a0 is
+# read, so no field lines. Size and the alignment word are immediates in the asm.
+0x089E8CA4 reg:a0=struct:16
+0x089ED274 reg:a0=struct:16
+0x089ED798 reg:a0=struct:16
+0x089EFC40 reg:a0=struct:16
+0x089F3CD0 reg:a0=struct:16
+0x089F6E00 reg:a0=struct:16
+0x089F9810 reg:a0=struct:16
+0x089FC670 reg:a0=struct:16
+0x08A02B48 reg:a0=struct:16
+0x08A0382C reg:a0=struct:16
+0x08A041B4 reg:a0=struct:16
+0x08A06730 reg:a0=struct:16
+0x08A08E98 reg:a0=struct:16
+0x08A0D96C reg:a0=struct:16
+0x08A0EDFC reg:a0=struct:16
+0x08A1C060 reg:a0=struct:16
+0x08A1CA80 reg:a0=struct:16
+0x08A1EB94 reg:a0=struct:16
+0x08A20E30 reg:a0=struct:16
+0x08A21898 reg:a0=struct:16
+0x08A222B4 reg:a0=struct:16
+0x08A25298 reg:a0=struct:16
+0x08A2A3D0 reg:a0=struct:16
+0x08A2DB28 reg:a0=struct:16
+0x08A318B8 reg:a0=struct:16
+0x08A32B24 reg:a0=struct:16
+0x08A33758 reg:a0=struct:16
+0x08A3705C reg:a0=struct:16
