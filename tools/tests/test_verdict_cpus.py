@@ -46,8 +46,9 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
         stub.write_text(f'#!/bin/sh\ncase "$*" in *verdict_scope*) echo "scope $*" >> {calls}; echo "{scope}";; esac\nexit 0\n')
         stub.chmod(0o755)
     (tree / "game_files" / "UCES01245-GAMEDAT").mkdir(parents=True)
-    # The caller's own GT_GATE_CPUS / GT_SYNTH_CPUS must not leak in (the laptop's verdict exports them: verdict 580).
-    base = {k: v for k, v in os.environ.items() if k not in ("GT_GATE_CPUS", "GT_SYNTH_CPUS")}
+    # The caller's own GT_GATE_CPUS / GT_SYNTH_CPUS / GT_VERDICT_SCOPE must not leak in (the runners export them: verdicts
+    # 580 and 846).
+    base = {k: v for k, v in os.environ.items() if k not in ("GT_GATE_CPUS", "GT_SYNTH_CPUS", "GT_VERDICT_SCOPE")}
     env = dict(base, PATH=f"{bindir}:{os.environ['PATH']}", GT_VERIFY_TREE=str(tree), **env_extra)
     subprocess.run(["bash", str(REPO / "tools" / "verdict.sh"), "main", "t"], env=env, cwd=tree, capture_output=True, timeout=60)
     lines = calls.read_text().splitlines() if calls.exists() else []
