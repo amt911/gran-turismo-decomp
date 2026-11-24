@@ -304,3 +304,7 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x08AAE994: the three words at +0x3C / +0x40 / +0x44 delimiting the array that is freed are pinned to zero so the
+# destructor takes the empty path there (a random pointer would make the count `(word(+0x44) - base) / 4` huge).
+0x08AAE994 reg:a0=struct:80 field:+0x3C=int:0..0 field:+0x40=int:0..0 field:+0x44=int:0..0
