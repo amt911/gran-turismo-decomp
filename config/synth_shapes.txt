@@ -662,6 +662,39 @@
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
 
+# one-word stack record from a fixed .data word (0x08CE2B1C / 0x08CE2B18); that word is real game data, not an
+# argument, and the format has no directive for a fixed address.
+# 0x08854CAC: vtable at +0, members at +0x14 / +0x18 (0x18 + 4 -> 0x1C -> 32).
+0x08854CAC reg:a0=struct:32
+# 0x0886FA20 / FBCC / FD78 / FF24 / FF5C: vtable at +0, members at +0x0C / +0x10 (0x10 + 4 -> 32).
+0x0886FA20 reg:a0=struct:32
+0x0886FBCC reg:a0=struct:32
+0x0886FD78 reg:a0=struct:32
+0x0886FF24 reg:a0=struct:32
+0x0886FF5C reg:a0=struct:32
+0x088700D0 reg:a0=struct:32
+0x08870108 reg:a0=struct:32
+# 0x0887E528 / E560 / E598 / E788 / E8B8: vtable at +0, members at +0x70 / +0x74 (0x74 + 4 -> 0x78 -> 128).
+0x0887E528 reg:a0=struct:128
+0x0887E560 reg:a0=struct:128
+0x0887E598 reg:a0=struct:128
+0x0887E788 reg:a0=struct:128
+0x0887E8B8 reg:a0=struct:128
+# 0x0891C5DC: vtable at +0, members at +0x1E0 / +0x1FC (0x1FC + 4 -> 0x200 -> 512).
+0x0891C5DC reg:a0=struct:512
+# 0x08991634: vtable at +0, word at +0x14, byte at +0x18 (32 covers it).
+0x08991634 reg:a0=struct:32
+# 0x089FD9B0 / 0x08A31848: vtable at +0, members at +0x14 / +0x18.
+0x089FD9B0 reg:a0=struct:32
+0x08A31848 reg:a0=struct:32
+# 0x08A17C10: members +0x04..+0x14 zeroed (0x14 + 4 -> 0x18 -> 32).
+0x08A17C10 reg:a0=struct:32
+# 0x08A26D30: members +0x28..+0x34 (words and bytes; 0x34 + 4 -> 0x38 -> 64).
+0x08A26D30 reg:a0=struct:64
+# 0x08892B68: the whole object is memset to zero over 0x26D0 bytes and +0x22A8 / +0x22AC are written; capped at 1024.
+0x08892B68 reg:a0=struct:1024
+# 0x0890B0B8: `lw s0, 0x0(a0)` is the object whose word at +0 holds the bit mask.
+0x0890B0B8 reg:a0=struct:16 field:+0x0=ptr
 # 0x08909C84: 0x08909B60(a0) returns a pointer into the vector whose begin is the word at +0x34 (0x34 + 4 -> 0x38).
 0x08909C84 reg:a0=struct:56
 # 0x08916A80: the byte at +0x14 and the word at +0x10 are cleared after 0x0890B2F4(a0 + 4) (0x14 + 4 -> 0x18).
