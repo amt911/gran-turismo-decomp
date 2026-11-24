@@ -81,7 +81,10 @@ synth_pid=$!
 # was two builds in one build/ at once, and the gate's build now holds build/.gt-build.lock (tools/decomp_gate.py
 # build_command); its build/recomp errors are no longer filtered out of the verdict either.
 # (and only when the tree's decomp_gate has that lock: a branch older than #846 still waits)
-overlap_default=0; [ "$(nproc)" -ge 16 ] && grep -q 'def build_command' tools/decomp_gate.py 2>/dev/null && overlap_default=1
+# (and only for a PR-scoped synthetic gate: verdict 846, with every function installed, had three groups run past the
+# 30-minute lock cap beside the gate; a PR-scoped group takes about 2 min)
+overlap_default=0
+case "$scope" in only*) [ "$(nproc)" -ge 16 ] && grep -q 'def build_command' tools/decomp_gate.py 2>/dev/null && overlap_default=1;; esac
 [ "${GT_VERIFY_OVERLAP:-$overlap_default}" = 1 ] || wait $synth_pid
 # The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
 # The gate installs only the PR's functions too when the scope says "only N" (user 2026-11-24, "Sí, con gate diario"): the
