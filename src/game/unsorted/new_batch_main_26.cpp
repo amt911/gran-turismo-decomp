@@ -519,82 +519,6 @@ void func_08AED688(Runtime &rt, AllegrexContext &ctx) {
 // the block's curve. The byte at 0x08CDE655 selects the plain piecewise form; otherwise the shape is eased through the curve
 // at 0x08B49D7C and blended with the weights in the tables at 0x08CF2A28..0x08CF2A40 when the byte at 0x08CF2A48 is set.
 // v0 = f0 = the mapped value.
-void func_0893D6A4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 block = ctx.gpr[4];
-    const u32 index = ctx.gpr[5];
-    const float input = ctx.fpr[12];
-    SavedCallee saved(ctx);
-    GuestFrame frame(ctx, 0x30u);
-    const float a18 = float_at(rt, block + 0x18u);
-    const float a1c = float_at(rt, block + 0x1Cu);
-    const float a20 = float_at(rt, block + 0x20u);
-    const float a24 = float_at(rt, block + 0x24u);
-    const float a28 = float_at(rt, block + 0x28u);
-    const float a2c = float_at(rt, block + 0x2Cu);
-    const float a30 = float_at(rt, block + 0x30u);
-    const float a34 = float_at(rt, block + 0x34u);
-    const auto curve = [&](float x) { return call_float(rt, ctx, 0x08B49D7Cu, {}, {x}); };
-    float result;
-    if (byte_at(rt, 0x08CDE655u) != 0u) {
-        if (input < 0.0f) {
-            if (input <= -a20) {
-                result = a24;
-            } else if (-a18 <= input) {
-                result = psp_mul(-input, a1c) / -a18;
-            } else {
-                result = a1c + psp_mul(-input - a18, a24 - a1c) / (a20 - a18);
-            }
-        } else if (!(0.0f < input)) {
-            result = 0.0f;
-        } else if (a30 <= input) {
-            result = -a34;
-        } else if (input <= a28) {
-            result = psp_mul(-input, a2c) / a28;
-        } else {
-            result = -(a2c + psp_mul(input - a28, a34 - a2c) / (a30 - a28));
-        }
-    } else {
-        if (input < 0.0f) {
-            const float shaped = input < -1.0f ? -1.0f : input;
-            const float base = input < -1.0f ? 1.0f : -input;
-            const float r = curve(base - a18);
-            const float plain = a1c + psp_mul(a20, r);
-            if (byte_at(rt, 0x08CF2A48u) == 0u) {
-                result = plain;
-            } else {
-                const float edge = -float_at(rt, 0x08CF2A40u + index * 4u);
-                if (!(edge < shaped)) {
-                    result = plain;
-                } else {
-                    const float r2 = curve(plain - a18);
-                    const float weight = float_at(rt, 0x08CF2A38u + index * 4u);
-                    const float scaled = psp_mul(psp_mul(a1c, psp_mul(shaped, shaped)) / psp_mul(edge, edge), weight);
-                    result = psp_mul(plain, 1.0f - weight) + scaled;
-                }
-            }
-        } else {
-            const float shaped = 1.0f < input ? 1.0f : input;
-            const float r = curve(shaped - a28);
-            const float plain = -a2c - psp_mul(a30, r);
-            if (byte_at(rt, 0x08CF2A48u) == 0u) {
-                result = plain;
-            } else {
-                const float edge = float_at(rt, 0x08CF2A30u + index * 4u);
-                if (!(shaped < edge)) {
-                    result = plain;
-                } else {
-                    const float r2 = curve(edge - a28);
-                    const float weight = float_at(rt, 0x08CF2A28u + index * 4u);
-                    const float scaled = psp_mul(psp_mul(-a2c - psp_mul(a30, r2), psp_mul(shaped, shaped)) /
-                                                    psp_mul(edge, edge),
-                                                weight);
-                    result = psp_mul(plain, 1.0f - weight) + scaled;
-                }
-            }
-        }
-    }
-    ctx.fpr[0] = result;
-}
 
 // 0x08977B14 (a0 = an object with its mode at +0x178, a1 = a second object, a2 / a3 = the two float outputs): the steering
 // factor: the two axle angles from 0x08977290 / 0x089771F1, the magnitude's cubed falloff against the weight at 0x08CDE764,
@@ -673,5 +597,4 @@ NEW26(0x08876850u, func_08876850, Word);
 NEW26(0x08902C00u, func_08902C00, Word);
 NEW26(0x08905000u, func_08905000, Word);
 NEW26(0x08AED688u, func_08AED688, Word);
-NEW26(0x0893D6A4u, func_0893D6A4, Float);
 NEW26(0x08977B14u, func_08977B14, Void);

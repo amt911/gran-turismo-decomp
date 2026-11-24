@@ -2202,72 +2202,6 @@ void func_08C36114(Runtime &rt, AllegrexContext &ctx) {
 // the smaller of |a2.x - low + 1| and |a2.z - low + 1| (high for the swapped layout), compares the pair along +0x18
 // or +0x20, and either answers 1 with the larger non-negative component at a3, or asks 0x08B66FBC for the angle of the
 // distance (f12) at that component (f13): a3 = the distance, t0 = the angle / pi * 180, and v0 = (that angle < +0xC).
-void func_08A155B8(Runtime &rt, AllegrexContext &ctx) {
-    const u32 object = ctx.gpr[4];
-    const u32 first = ctx.gpr[5];
-    const u32 second = ctx.gpr[6];
-    const u32 out_distance = ctx.gpr[7];
-    const u32 out_angle = ctx.gpr[8];
-    SavedRegisters saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[16] = object;
-    ctx.gpr[18] = out_distance;
-    ctx.gpr[17] = out_angle;
-    put(rt, out_angle, 0u);
-    put_float(rt, out_distance, 10000.0f);
-    const float low = float_at(rt, object + 0x14u);
-    const float high = float_at(rt, object + 0x1Cu);
-    if (!(psp_mul(low + high, 0.5f) < psp_mul(float_at(rt, first) + float_at(rt, first + 8u), 0.5f))) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    const float second_x = float_at(rt, second);
-    const float second_z = float_at(rt, second + 8u);
-    float fx;
-    float fz;
-    if (rt.memory().load8(object + 0x10u) == 0u) {
-        fx = (second_x - low) + 1.0f;
-        fz = (second_z - low) + 1.0f;
-    } else {
-        fx = (second_x - high) + 1.0f;
-        fz = (second_z - high) + 1.0f;
-    }
-    // The join both branches reach: a3 = the distance between the pair, t0 = the angle in degrees, v0 its comparison
-    // with the object's limit.
-    const auto finish = [&](float candidate, float distance) {
-        const float angle = psp_mul(call_guest(rt, ctx, 0x08B66FBCu, {}, {distance, candidate}).f0 /
-                                        std::bit_cast<float>(0x40490FDBu),
-                                    180.0f);
-        put_float(rt, out_distance, std::sqrt(psp_mul(candidate, candidate) + psp_mul(distance, distance)));
-        put_float(rt, out_angle, angle);
-        ctx.gpr[2] = angle < float_at(rt, object + 0x0Cu) ? 1u : 0u;
-    };
-    const float pair = std::fabs(fx) < std::fabs(fz) ? fx : fz;
-    const float limit = float_at(rt, object + 0x18u);
-    const float along = float_at(rt, second + 0x0Cu);
-    if (!(along <= limit)) {
-        finish(pair, limit - along);
-        return;
-    }
-    const float other_limit = float_at(rt, object + 0x20u);
-    const float other = float_at(rt, second + 4u);
-    if (!(other_limit <= other)) {
-        if (0.0f <= fx) {
-            ctx.gpr[2] = 1u;
-            if (fx < fz) fx = fz;
-            put_float(rt, out_distance, fx);
-            return;
-        }
-        if (0.0f <= fz) {
-            ctx.gpr[2] = 1u;
-            put_float(rt, out_distance, fz);
-            return;
-        }
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    finish(pair, other - other_limit);
-}
 
 // 0x08AFBFEC (a0 = a vertex array of 12-byte xyz triples, a1..t1 = five indices): builds the four edge vectors from the
 // vertex at a1 (to the ones at a2, a3, t0 and t1) in the frame and folds them with 0x08AFBF8C three times (into the
@@ -2295,7 +2229,6 @@ constexpr u32 kind_code(u32 low) { return 0x80110000u | low; }
 } // namespace gt::game
 
 #define MAIN209(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_209::name, gt::ReturnKind::kind)
-MAIN209(0x08A155B8u, func_08A155B8, Word);
 MAIN209(0x08C36114u, func_08C36114, Word);
 MAIN209(0x08B3F4D0u, func_08B3F4D0, Word);
 
@@ -2536,62 +2469,6 @@ void func_0895C140(Runtime &rt, AllegrexContext &ctx) {
 // Every assertion is 0x08A5BB7C(0x08CA6984) followed by the same work with the value a null read gave.
 // The seven `lw $s0, 4($sp)` / `lw $s0, 0($sp)` of `tools.sp_loads` are the temporary's word being re-read
 // (word(rt, frame.at(4u)) / word(rt, frame.at(0u))) before each use, as the original does.
-void func_089CF330(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4], key = ctx.gpr[5], value = ctx.gpr[6], holder = ctx.gpr[7];
-    const u32 assertion = 0x08CA6984u, lock = 0x08CF5134u;
-    {
-        GuestFrame frame(ctx, 0x30u);
-        SavedRegs saved(ctx);
-        ctx.gpr[17] = self;
-        ctx.gpr[19] = key;
-        ctx.gpr[20] = value;
-        ctx.gpr[18] = holder;
-        if (call_keep(rt, ctx, 0x089CE09Cu, {self, key}).v0 == 0u) return;
-        (void)call_keep(rt, ctx, 0x08B344E0u, {lock});
-        const u32 found = call_keep(rt, ctx, 0x089CE1F4u, {self, key}).v0;
-        if (word(rt, holder) == word(rt, found + 0xCu)) {
-            (void)call_keep(rt, ctx, 0x08B3457Cu, {lock});
-            return;
-        }
-        const u32 temporary = frame.at(4u);
-        if (word(rt, holder) != 0u) {
-            // Each use re-reads the temporary's word and, when it is 0, runs the assertion first.
-            const auto checked = [&]() {
-                const u32 node = word(rt, temporary);
-                if (node == 0u) (void)call_keep(rt, ctx, 0x08A5BB7Cu, {assertion});
-                return node;
-            };
-            (void)call_keep(rt, ctx, 0x08969178u, {temporary, holder});
-            (void)call_keep(rt, ctx, 0x089BA6CCu, {checked(), self + 0xE8u});
-            (void)call_keep(rt, ctx, 0x089687D8u, {checked(), call_keep(rt, ctx, 0x089CF134u, {self, key}).v0});
-            (void)call_keep(rt, ctx, 0x08968850u, {checked(), call_keep(rt, ctx, 0x089CF084u, {self, key}).v0});
-            const u32 node = checked();
-            put(rt, node + 0x60u, word(rt, node + 0x60u) | 8u);  // the store is the delay slot of the value's test
-            if (value != 0u) (void)call_keep(rt, ctx, 0x089BAA60u, {checked(), value});
-            (void)call_keep(rt, ctx, 0x08A5B9ECu, {temporary});
-        }
-        (void)call_keep(rt, ctx, 0x08969188u, {frame.at(0u), 0x08CF6ED8u});
-        (void)call_keep(rt, ctx, 0x08B344E0u, {lock});
-        const u32 element = call_keep(rt, ctx, 0x089CE1F4u, {self, key}).v0 + 0xCu;
-        if (frame.at(0u) != element) (void)call_keep(rt, ctx, 0x08A5BAD8u, {frame.at(0u), word(rt, element)});
-        if (holder != element) (void)call_keep(rt, ctx, 0x08A5BAD8u, {element, word(rt, holder)});
-        if (key != word(rt, self + 0x198u)) put(rt, self + 0x1C0u, 1u);
-        (void)call_keep(rt, ctx, 0x08B3457Cu, {lock});
-        u32 released = word(rt, frame.at(0u));
-        if (released != 0u) {
-            if (value != 0u) {
-                (void)call_keep(rt, ctx, 0x089BA4D8u, {released, value});
-                released = word(rt, frame.at(0u));
-            }
-            if (released == 0u) {
-                (void)call_keep(rt, ctx, 0x08A5BB7Cu, {assertion});
-                released = 0u;
-            }
-            (void)call_keep(rt, ctx, 0x089BA6CCu, {released, 0u});
-        }
-        (void)call_keep(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
-    }
-}
 
 // ---------------------------------------------------------------------------------------------------
 // 0x08C2E514 (a0 = first, a1 = middle, a2 = last, pointers to 4-byte reference-counted elements): the
@@ -2927,7 +2804,6 @@ void func_08C356C8(Runtime &rt, AllegrexContext &ctx) {
 #define NEW210(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_210::name, gt::ReturnKind::kind)
 NEW210(0x08BB0608u, func_08BB0608, Word);
 NEW210(0x0895C140u, func_0895C140, Word);
-NEW210(0x089CF330u, func_089CF330, Word);
 NEW210(0x08C2E514u, func_08C2E514, Word);
 NEW210(0x08C51360u, func_08C51360, Word);
 NEW210(0x08C356C8u, func_08C356C8, Word);

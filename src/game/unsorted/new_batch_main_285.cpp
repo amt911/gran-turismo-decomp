@@ -2550,100 +2550,6 @@ void quaternion_product(Runtime &rt, u32 destination, u32 left, u32 right) {
 // Structured rewrite of the emitter-style draft in hot_batch_115 (its HOT115 line is still commented out: with the
 // batch-329 set the synthetic gate faults the decompiled run on the frame word at +0x20, which this function reads and
 // never writes — a scene needs to fill it, FINDINGS "A callee can read a stale stack slot").
-void func_08BBAA74(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x160u);
-    const u32 self = ctx.gpr[4];
-    const u32 actor = ctx.gpr[5];
-    const u32 world = word(rt, self + 8u);
-    if (world == 0u) return;  // v0 = 0, the loaded word
-    (void)call_set(rt, ctx, 0x08B56790u, {1u, frame.at(0x3Cu), 0u, 0u});
-    (void)call_set(rt, ctx, 0x08B55140u, {0x65u, 0xDu, frame.at(0xCu)});
-    const float scale = float_at(rt, 0x08CE9ECCu);
-    const float limit_base = psp_mul(scale, scale);
-    const u32 position = call_set(rt, ctx, 0x08AF26F0u, {actor});
-    const u32 direction = call_set(rt, ctx, 0x08AF2724u, {actor});
-    const u32 value = word(rt, world + 0x68u);
-    (void)call_set(rt, ctx, 0x08AF8904u, {world, value});
-    const u32 list = word(rt, self + 0xCu);
-    const u32 count = call_virtual(rt, ctx, list, 8u, {list}).v0;
-    if (signed_of(count) <= 0) {
-        (void)call_set(rt, ctx, 0x08AF8434u, {word(rt, self + 8u)});
-        return;
-    }
-    const u32 y_pointer = frame.at(0x10Cu);
-    const u32 z_pointer = frame.at(0x108u);
-    put(rt, y_pointer, position + 4u);
-    put(rt, z_pointer, position + 8u);
-    u32 index = 0u;
-    while (index != count) {
-        const u32 elements = word(rt, self + 0xCu);        (void)call_virtual(rt, ctx, elements, 0xCu, {elements, index, frame.at(0x1Cu)});
-        const u32 current_world = word(rt, self + 8u);
-        const u32 element = static_cast<u32>(signed_half(rt, frame.at(0x1Cu)));
-        const u32 point = word(rt, frame.at(0x24u));
-        const u32 row = current_world + (((element << 7u) - (element << 5u)) + word(rt, current_world + 0x30u));
-        const u32 record = word(rt, word(rt, current_world + 0xA4u) + (static_cast<u32>(signed_half(rt, row + 0x2Cu)) << 2u));
-        const float delta_x = float_at(rt, point) - float_at(rt, position);
-        const float delta_y = float_at(rt, point + 4u) - float_at(rt, word(rt, y_pointer));
-        const float delta_z = float_at(rt, point + 8u) - float_at(rt, word(rt, z_pointer));
-        const float radius = float_at(rt, record + 0x20u);
-        const float distance_squared = (psp_mul(delta_x, delta_x) + psp_mul(delta_y, delta_y)) + psp_mul(delta_z, delta_z);
-        if (psp_mul(limit_base, psp_mul(radius, radius)) < distance_squared) {
-            ++index;
-            continue;
-        }
-        const float along = (psp_mul(delta_x, float_at(rt, direction)) + psp_mul(delta_y, float_at(rt, direction + 4u))) +
-                            psp_mul(delta_z, float_at(rt, direction + 8u));
-        if (along < psp_mul(radius, std::bit_cast<float>(0xC0000000u))) {  // -2.0f
-            ++index;
-            continue;
-        }
-        const u32 box = word(rt, frame.at(0x20u));
-        put(rt, frame.at(0x2Cu), word(rt, box));
-        put(rt, frame.at(0x30u), word(rt, box + 4u));
-        put(rt, frame.at(0x34u), word(rt, box + 8u));
-        put(rt, frame.at(0x38u), word(rt, box + 0xCu));
-        put(rt, frame.at(0x110u), record + 0x24u);
-        put(rt, frame.at(0x104u), record + 0x28u);
-        put(rt, frame.at(0x100u), record + 0x2Cu);
-        (void)call_setf(rt, ctx, 0x08B4B114u, {frame.at(0x2Cu), frame.at(0x80u)},
-                        {float_at(rt, point), float_at(rt, point + 4u), float_at(rt, point + 8u)});
-        const u32 plane = word(rt, frame.at(0x28u));
-        put_float(rt, frame.at(0u), float_at(rt, point));
-        // -(plane[0] * point[0] + plane[2] * point[8] + plane[3]) / plane[1]
-        const float sum = psp_mul(float_at(rt, plane), float_at(rt, point)) +
-                          psp_mul(float_at(rt, plane + 8u), float_at(rt, point + 8u));
-        put_float(rt, frame.at(4u), (-(sum + float_at(rt, plane + 0xCu))) / float_at(rt, plane + 4u));
-        put_float(rt, frame.at(8u), float_at(rt, point + 8u));
-        const float gap = call_setf(rt, ctx, 0x08AF52E4u, {plane, frame.at(0u), frame.at(0x3Cu)}, {}).f0;
-        if (0.0f < gap) {
-            put(rt, frame.at(0x104u), record + 0x28u);
-            put(rt, frame.at(0x100u), record + 0x2Cu);
-            (void)call_setf(rt, ctx, 0x08B5894Cu, {}, {psp_mul(gap, std::bit_cast<float>(0xBCA3D70Au))});  // -0.02f
-            (void)call_set(rt, ctx, 0x08B569A0u, {});
-            (void)call_set(rt, ctx, 0x08AF5394u, {frame.at(0xC0u), frame.at(0xCu), word(rt, frame.at(0x28u))});
-            (void)call_set(rt, ctx, 0x08B566BCu, {frame.at(0xC0u)});
-            (void)call_set(rt, ctx, 0x08B566BCu, {frame.at(0x80u)});
-            (void)call_setf(rt, ctx, 0x08B56364u, {},
-                            {-float_at(rt, record + 0x24u), -float_at(rt, record + 0x28u), -float_at(rt, record + 0x2Cu)});
-            const u32 slot = static_cast<u32>(signed_half(rt, frame.at(0x1Cu))) << 1u;
-            (void)call_set(rt, ctx, 0x08AF9E88u, {word(rt, self + 8u), slot + 1u, value, 0u});
-            (void)call_set(rt, ctx, 0x08B56940u, {});
-            (void)call_setf(rt, ctx, 0x08B5894Cu, {}, {0.0f});
-        }
-        ++index;  // the asm's `jal` delay slot at 08BBAD78
-        (void)call_set(rt, ctx, 0x08B569A0u, {});
-        (void)call_set(rt, ctx, 0x08B566BCu, {frame.at(0x80u)});
-        (void)call_setf(rt, ctx, 0x08B56364u, {},
-                        {-float_at(rt, word(rt, frame.at(0x110u))), -float_at(rt, word(rt, frame.at(0x104u))),
-                         -float_at(rt, word(rt, frame.at(0x100u)))});
-        const u32 slot = static_cast<u32>(signed_half(rt, frame.at(0x1Cu))) << 1u;
-        const u32 current = word(rt, self + 8u);
-        const u32 extra = call_set(rt, ctx, 0x08AF2954u, {actor});
-        (void)call_set(rt, ctx, 0x08AF9E88u, {current, slot, value, extra});
-        (void)call_set(rt, ctx, 0x08B56940u, {});
-    }
-    (void)call_set(rt, ctx, 0x08AF8434u, {word(rt, self + 8u)});
-}
 
 } // namespace
 } // namespace new_batch_main_246
@@ -2651,5 +2557,4 @@ void func_08BBAA74(Runtime &rt, AllegrexContext &ctx) {
 
 #define NEW246(address, name) GT_DECOMP(address, gt::game::new_batch_main_246::name, gt::ReturnKind::Word)
 NEW246(0x08A15800u, func_08A15800);
-NEW246(0x08BBAA74u, func_08BBAA74);
 
