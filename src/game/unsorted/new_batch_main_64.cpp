@@ -452,47 +452,6 @@ u32 read_field(Runtime &rt, AllegrexContext &ctx, u32 slot, u32 stream, u32 inde
 // 0x08884788 (a0 = this, a2 = stream): reads a four-character tag (0x08AC2690) and, for 'LPRB' (0x4C505242), 'REND' (0x52454E44) or 'DISP'
 // (0x44495350), the tag's fields: 'LPRB' passes one value (0x08AC2900) to 0x08884758(this, value); 'DISP' puts one field in bit 3 of this[4]'s
 // word +0x10; 'REND' reads nine fields into bits 0..2 of the word +0x10 and builds the flag word at +0xC from the others. v0 = 0 always.
-void func_08884788(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 stream = ctx.gpr[6];
-    GuestFrame frame(ctx, 0x70u);
-    const u32 tag = call(rt, ctx, 0x08AC2690u, {stream});
-    if (tag == 0x4C505242u) {
-        call(rt, ctx, 0x08AC2730u, {frame.at(0), stream, 0u});
-        const u32 value = call(rt, ctx, 0x08AC2900u, {frame.at(0)});
-        call(rt, ctx, 0x08AC26DCu, {frame.at(0)});
-        call(rt, ctx, 0x08884758u, {self, value});
-    } else if (tag == 0x52454E44u) {
-        const u32 slots[9] = {0x24u, 0x20u, 0x1Cu, 0x18u, 0x14u, 0x10u, 0xCu, 8u, 4u};
-        u32 field[9];
-        for (u32 index = 0u; index != 9u; ++index) field[index] = read_field(rt, ctx, frame.at(slots[index]), stream, index);
-        u32 bits = word(rt, self + 0x10u);
-        bits = (bits & ~1u) | (field[0] & 1u);
-        bits = (bits & ~2u) | ((field[1] & 1u) << 1);
-        bits = (bits & ~4u) | ((field[6] & 1u) << 2);
-        put(rt, self + 0x10u, bits);
-        u32 flags;
-        if (field[5] != 0u) {
-            flags = field[3] != 0u ? 0u : 0x20u;
-            if (field[4] == 0u) flags |= 4u;
-        } else if (field[8] != 0u) {
-            flags = field[2] != 0u ? 0u : 0x80u;
-            if (field[3] == 0u) flags |= 0x10u;
-            if (field[4] == 0u) flags |= 2u;
-        } else if (field[7] != 0u) {
-            flags = field[2] != 0u ? 0x10000u : 0x10080u;
-        } else {
-            flags = field[2] != 0u ? 0u : 0x80u;
-            if (field[3] == 0u) flags |= 8u;
-            if (field[4] == 0u) flags |= 1u;
-        }
-        put(rt, self + 0xCu, flags);
-    } else if (tag == 0x44495350u) {
-        const u32 value = read_field(rt, ctx, frame.at(0x28u), stream, 0u);
-        put(rt, self + 0x10u, (word(rt, self + 0x10u) & ~8u) | ((value & 1u) << 3));
-    }
-    ctx.gpr[2] = 0u;
-}
 
 } // namespace
 
@@ -1497,4 +1456,3 @@ NEW64(0x08BAC714u, legacy_113::func_08BAC714, Word);
 NEW64(0x08A2C2B4u, legacy_113::func_08A2C2B4, Word);
 NEW64(0x08BBF0D0u, legacy_114::func_08BBF0D0, Word);
 NEW64(0x08C4BD80u, legacy_116::func_08C4BD80, Word);
-NEW64(0x08884788u, func_08884788, Word);
