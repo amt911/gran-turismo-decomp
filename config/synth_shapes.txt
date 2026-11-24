@@ -106,3 +106,27 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# being constructed — the base constructor stores its vtable and members into it, so it must be a writable block and is
+# never read; 0x100 covers the head fields (the only one with a visible store width is 0x089ED504, which writes +0x38).
+# a1 is only handed on to the tail call, which decides what it is; no shape can say that here.
+0x089ED504 reg:a0=struct:0x100
+0x089ED758 reg:a0=struct:0x100
+0x089EE180 reg:a0=struct:0x100
+0x089F5748 reg:a0=struct:0x100
+0x089F6BD4 reg:a0=struct:0x100
+0x089FC630 reg:a0=struct:0x100
+0x089FE238 reg:a0=struct:0x100
+0x089FF0C8 reg:a0=struct:0x100
+0x08A01378 reg:a0=struct:0x100
+0x08A037EC reg:a0=struct:0x100
+0x08A03E98 reg:a0=struct:0x100
+0x08A05144 reg:a0=struct:0x100
+0x08A0C2F8 reg:a0=struct:0x100
+0x08A0C754 reg:a0=struct:0x100
+0x08A0CB44 reg:a0=struct:0x100
+0x08A0D810 reg:a0=struct:0x100
+0x08A122A0 reg:a0=struct:0x100
+0x08A14738 reg:a0=struct:0x100
+0x08A1D54C reg:a0=struct:0x100
+0x08A20D08 reg:a0=struct:0x100
