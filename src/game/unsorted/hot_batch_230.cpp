@@ -74,6 +74,42 @@ std::uint32_t call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, 
 using u32 = std::uint32_t;
 using s32 = std::int32_t;
 
+// Where the prologue of a function stores a callee-saved register: `reg` 0-31 is a general register, 32-63 a floating one (32 + its number).
+struct SavedSlot {
+    unsigned reg;
+    u32 offset;
+};
+
+// The callee-saved registers (s0-s7, fp, f20-f31) a function keeps values in, and the stores of its prologue: the rewrite stores them where the asm
+// does (a callee can read the stack below its caller's frame), sets the registers as the asm does because callees can read them too, and gives
+// the caller's values back when it returns.
+class SavedRegisters {
+public:
+    SavedRegisters(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, GuestFrame &frame, std::initializer_list<SavedSlot> slots) : ctx_(ctx) {
+        for (unsigned i = 0; i < 8; ++i) gpr_[i] = ctx.gpr[16 + i];
+        fp_ = ctx.gpr[30];
+        for (unsigned i = 0; i < 12; ++i) fpr_[i] = ctx.fpr[20 + i];
+        for (const SavedSlot &slot : slots) {
+            if (slot.reg < 32u) put(rt, frame.at(slot.offset), ctx.gpr[slot.reg]);
+            else put_float(rt, frame.at(slot.offset), ctx.fpr[slot.reg - 32u]);
+        }
+    }
+    ~SavedRegisters() {
+        for (unsigned i = 0; i < 8; ++i) ctx_.gpr[16 + i] = gpr_[i];
+        ctx_.gpr[30] = fp_;
+        for (unsigned i = 0; i < 12; ++i) ctx_.fpr[20 + i] = fpr_[i];
+    }
+    SavedRegisters(const SavedRegisters &) = delete;
+    SavedRegisters &operator=(const SavedRegisters &) = delete;
+
+private:
+    psprecomp::AllegrexContext &ctx_;
+    u32 gpr_[8];
+    u32 fp_;
+    float fpr_[12];
+};
+
+
 // The `std::string` representation every empty string shares.
 constexpr u32 kEmptyStreamText = 0x08D74FD0u;
 
@@ -350,7 +386,52 @@ void func_0898FB74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { pr
 void func_08A9A09C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { apply_member_string(rt, ctx, {true, 0xCu, 0x8u, 0x08A98674u, 0x08CB23CCu, 0x08CB2328u, 0x08A9A048u}); }
 void func_08A9A310(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { apply_member_string(rt, ctx, {true, 0xCu, 0x8u, 0x08A98674u, 0x08CB23CCu, 0x08CB2328u, 0x08A9A1A0u}); }
 void func_08C016FC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x24u), G[21]); G[21] = G[6]; put(rt, frame.at(0x20u), G[20]); G[20] = G[4] + 4u; put(rt, frame.at(0x1Cu), G[19]); G[19] = G[7]; put(rt, frame.at(0x18u), G[18]); G[18] = G[4]; put(rt, frame.at(0x2Cu), G[31]); put(rt, frame.at(0x28u), G[22]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x10u), G[16]); bool one = G[5] != 0u; if (!one) { G[22] = 0u; one = G[6] == G[20]; if (!one) { G[4] = word(rt, G[7]); G[2] = word(rt, G[6] + 0x10u); G[16] = word(rt, G[4] - 0xCu); G[5] = G[2]; put(rt, frame.at(0u), G[16]); G[17] = word(rt, G[2] - 0xCu); G[2] = frame.at(4u); G[3] = G[17] < G[16] ? 1u : 0u; if (G[3] == 0u) G[2] = frame.at(0u); put(rt, frame.at(4u), G[17]); G[16] = G[16] - G[17]; G[6] = word(rt, G[2]); call_here(rt, ctx, 0x08B36170u); if (G[2] != 0u) G[16] = G[2]; one = static_cast<std::int32_t>(G[16]) < 0; } } if (one) G[22] = 1u; G[4] = 0x18u; G[5] = 4u; call_here(rt, ctx, 0x08A5BC20u); G[16] = G[2]; G[2] = G[2] + 0x10u; G[5] = G[19]; G[4] = G[2]; if (G[2] != 0u) { call_here(rt, ctx, 0x08B88F44u); G[5] = G[19] + 4u; G[4] = G[16] + 0x14u; call_here(rt, ctx, 0x089F09ECu); } G[4] = G[22]; G[6] = G[21]; G[7] = G[20]; G[5] = G[16]; call_here(rt, ctx, 0x08B5F2B8u); G[3] = word(rt, G[18] + 0x14u) + 1u; G[2] = G[16]; put(rt, G[18] + 0x14u, G[3]); G[22] = word(rt, frame.at(0x28u)); G[21] = word(rt, frame.at(0x24u)); G[20] = word(rt, frame.at(0x20u)); G[19] = word(rt, frame.at(0x1Cu)); G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); } }
-void func_08C1C0A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x24u), G[21]); G[21] = G[6]; put(rt, frame.at(0x20u), G[20]); G[20] = G[4] + 4u; put(rt, frame.at(0x1Cu), G[19]); G[19] = G[7]; put(rt, frame.at(0x18u), G[18]); G[18] = G[4]; put(rt, frame.at(0x2Cu), G[31]); put(rt, frame.at(0x28u), G[22]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x10u), G[16]); bool one = G[5] != 0u; if (!one) { G[22] = 0u; one = G[6] == G[20]; if (!one) { G[4] = word(rt, G[7]); G[2] = word(rt, G[6] + 0x10u); G[16] = word(rt, G[4] - 0xCu); G[5] = G[2]; put(rt, frame.at(0u), G[16]); G[17] = word(rt, G[2] - 0xCu); G[2] = frame.at(4u); G[3] = G[17] < G[16] ? 1u : 0u; if (G[3] == 0u) G[2] = frame.at(0u); put(rt, frame.at(4u), G[17]); G[16] = G[16] - G[17]; G[6] = word(rt, G[2]); call_here(rt, ctx, 0x08B36170u); if (G[2] != 0u) G[16] = G[2]; one = static_cast<std::int32_t>(G[16]) < 0; } } if (one) G[22] = 1u; G[4] = 0x18u; G[5] = 4u; call_here(rt, ctx, 0x08A5BC20u); G[16] = G[2]; G[2] = G[2] + 0x10u; G[5] = G[19]; G[4] = G[2]; if (G[2] != 0u) { call_here(rt, ctx, 0x08B88F44u); G[5] = G[19] + 4u; G[4] = G[16] + 0x14u; call_here(rt, ctx, 0x08A40C24u); } G[4] = G[22]; G[6] = G[21]; G[7] = G[20]; G[5] = G[16]; call_here(rt, ctx, 0x08B5F2B8u); G[3] = word(rt, G[18] + 0x14u) + 1u; G[2] = G[16]; put(rt, G[18] + 0x14u, G[3]); G[22] = word(rt, frame.at(0x28u)); G[21] = word(rt, frame.at(0x24u)); G[20] = word(rt, frame.at(0x20u)); G[19] = word(rt, frame.at(0x1Cu)); G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); } }
+// 0x08C1C0A4 (a0 = the owner, a1 = a flag, a2 = a node, a3 = a text holder; v0 = the 0x18-byte object): with the flag clear and the node not the owner's
+// +4 list head, the texts at [a3] and [node +0x10] (their headers 0xC bytes back) are compared by 0x08B36170(head 1, head 2, the shorter of the two lengths);
+// its answer, or the difference of the lengths when it is zero, decides the mark: below zero (or the node being the list head) marks, not below leaves the
+// mark clear, and the flag always marks. 0x08A5BC20(0x18, 4) makes a 0x18-byte object whose +0x10 part takes the text (0x08B88F44(part, a3)) and whose
+// +0x14 part is set from the holder's +4 word by 0x08A40C24; the object goes to 0x08B5F2B8(mark, object, node, owner + 4) and the owner's word +0x14 counts it.
+void func_08C1C0A4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 owner = ctx.gpr[4], flag = ctx.gpr[5], node = ctx.gpr[6], holder = ctx.gpr[7];
+    GuestFrame frame(ctx, 0x30u);
+    SavedRegisters saved(rt, ctx, frame, {{21u, 0x24u}, {20u, 0x20u}, {19u, 0x1Cu}, {18u, 0x18u}, {31u, 0x2Cu}, {22u, 0x28u}, {17u, 0x14u}, {16u, 0x10u}});
+    const u32 link = owner + 0x4u;
+    ctx.gpr[21] = node;
+    ctx.gpr[20] = link;
+    ctx.gpr[19] = holder;
+    ctx.gpr[18] = owner;
+    bool mark = flag != 0u;
+    if (!mark) {
+        ctx.gpr[22] = 0u;
+        mark = node == link;
+        if (!mark) {
+            const u32 first_head = word(rt, holder);
+            const u32 second_head = word(rt, node + 0x10u);
+            const u32 first_length = word(rt, first_head - 0xCu);
+            const u32 second_length = word(rt, second_head - 0xCu);
+            ctx.gpr[16] = first_length;
+            put(rt, frame.at(0x0u), first_length);
+            put(rt, frame.at(0x4u), second_length);
+            const u32 difference = first_length - second_length;
+            const u32 shorter = second_length < first_length ? second_length : first_length;
+            const u32 compared = call_set(rt, ctx, 0x08B36170u, {first_head, second_head, shorter});
+            const u32 verdict = compared != 0u ? compared : difference;
+            ctx.gpr[16] = verdict;
+            mark = static_cast<s32>(verdict) < 0;
+        }
+    }
+    if (mark) ctx.gpr[22] = 1u;
+    const u32 made = call_set(rt, ctx, 0x08A5BC20u, {0x18u, 4u});
+    const u32 part = made + 0x10u;
+    ctx.gpr[16] = made;
+    if (part != 0u) {
+        call_set(rt, ctx, 0x08B88F44u, {part, holder});
+        call_set(rt, ctx, 0x08A40C24u, {made + 0x14u, holder + 0x4u});
+    }
+    call_set(rt, ctx, 0x08B5F2B8u, {ctx.gpr[22], made, node, link});
+    put(rt, owner + 0x14u, word(rt, owner + 0x14u) + 1u);
+    ctx.gpr[2] = made;
+}
 
 #undef G
 #undef load8
