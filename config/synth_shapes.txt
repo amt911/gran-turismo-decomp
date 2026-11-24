@@ -106,3 +106,42 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x08A37CBC..0x08A44C7C (12 "build then register" constructors): a0 is the container the newly built object is registered
+# in (0x08A76AB4(container, &slot)); the object itself comes from the allocator, so only the container needs an object slot.
+0x08A37CBC reg:a0=struct:16
+0x08A393EC reg:a0=struct:16
+0x08A39CCC reg:a0=struct:16
+0x08A3AE10 reg:a0=struct:16
+0x08A3E6FC reg:a0=struct:16
+0x08A3F7F8 reg:a0=struct:16
+0x08A3F898 reg:a0=struct:16
+0x08A3F938 reg:a0=struct:16
+0x08A402D4 reg:a0=struct:16
+0x08A41118 reg:a0=struct:16
+0x08A43BC8 reg:a0=struct:16
+0x08A44C7C reg:a0=struct:16
+# 0x08A4DE78: sb 0x24(a0), sw 0x20(a0), and the base constructor 0x08B36290 writes the head of the same object.
+0x08A4DE78 reg:a0=struct:64
+# 0x0899A984: halfwords cleared up to +0x12A, two vtable words written.
+0x0899A984 reg:a0=struct:320
+# 0x089FF1C0: members up to +0x98 and a sub-object built at +0x78 from this.
+0x089FF1C0 reg:a0=struct:1024
+# 0x08A1A8C0: members at +0x64, +0x90 and sub-objects at +0x68 / +0x44 / +0x30.
+0x08A1A8C0 reg:a0=struct:256
+# 0x08A32B74: sw zero,0x42C(a0); capped at 1024.
+0x08A32B74 reg:a0=struct:1024
+# 0x0887CC50: lw a1,0x4(a0) is the smart pointer copied through 0x08B9CC58.
+0x0887CC50 reg:a0=struct:8 field:+0x4=ptr
+# 0x0891C480: sw s1,0x1F8(a0) and sw zero,0x1FC(a0) (the 0xF0-byte member comes from the allocator).
+0x0891C480 reg:a0=struct:1024
+# 0x08A18764: words cleared at +0x280..+0x28C and a member built at +0x260.
+0x08A18764 reg:a0=struct:1024
+# 0x08A337F8: a0 is the object 0x08B85EB8 fills from the 0x40-byte block at sp+1; a1 is only forwarded to 0x08A33148.
+0x08A337F8 reg:a0=struct:1024
+# 0x08A40324: sw zero,0x14(a0), a member built at +0x108 and a tail call on +0x18.
+0x08A40324 reg:a0=struct:1024
+# 0x08A18F74: vtable word at +0 and a member built at +0x14 from the a1 object.
+0x08A18F74 reg:a0=struct:64
+# 0x0881A708: the same registrar shape as the 12 above, and the ctor's second argument is this function's a1 object.
+0x0881A708 reg:a0=struct:64
