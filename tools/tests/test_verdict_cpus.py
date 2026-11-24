@@ -2,13 +2,14 @@
 
 Runs the script with `taskset` and the heavy steps replaced by stubs that record their arguments, in a scratch tree."""
 import os
+import re
 import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0) -> list[str]:
+def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0, scope: str = "synthetic") -> list[str]:
     tree = tmp_path / "tree"
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -40,8 +41,8 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
     venv.mkdir(parents=True)
     for name in ("python", "pytest"):
         stub = venv / name
-        # tools.verdict_scope answers "synthetic" so the synthetic groups run too
-        stub.write_text('#!/bin/sh\ncase "$*" in *verdict_scope*) echo synthetic;; esac\nexit 0\n')
+        # tools.verdict_scope answers `scope` ("synthetic" by default) so the synthetic groups run too
+        stub.write_text(f'#!/bin/sh\ncase "$*" in *verdict_scope*) echo "{scope}";; esac\nexit 0\n')
         stub.chmod(0o755)
     (tree / "game_files" / "UCES01245-GAMEDAT").mkdir(parents=True)
     # The caller's own GT_GATE_CPUS / GT_SYNTH_CPUS must not leak in (the laptop's verdict exports them: verdict 580).
@@ -97,3 +98,18 @@ def test_boot_exit_after_can_be_overridden(tmp_path):
     run_verdict(tmp_path, {"GT_VERIFY_BOOT_EXIT_AFTER": "60"})
     boot = [line for line in (tmp_path / "calls.txt").read_text().splitlines() if line.startswith("cpu_lock") and "verdict boot" in line]
     assert len(boot) == 1 and boot[0].startswith("cpu_lock exit_after=60 ")
+
+
+def test_synth_installs_every_function_by_default(tmp_path):
+    synth = [line for line in run_verdict(tmp_path, {}) if "decomp_gate synth" in line]
+    assert len(synth) == 3 and not any("--only" in line for line in synth)
+
+
+def test_synth_installs_only_the_prs_functions_when_the_scope_says_so(tmp_path):
+    # tools.verdict_scope "only N": the PR changes only decomp sources / shapes, so each group installs that list
+    synth = [line for line in run_verdict(tmp_path, {}, scope="only 2") if "decomp_gate synth" in line]
+    assert len(synth) == 3 and all(re.search(r"--only @\S*synth_only\.txt", line) for line in synth)
+
+
+def test_skip_scope_runs_no_synth(tmp_path):
+    assert [line for line in run_verdict(tmp_path, {}, scope="skip") if "decomp_gate synth" in line] == []

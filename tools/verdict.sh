@@ -40,7 +40,13 @@ synth_out=$logs/synth.out
 (
 # The synthetic gate only when the PR can reach it (tools/verdict_scope.py: decomp source, headers, harness, build, runtime
 # patches; not docs, mods' checks, pad routes, renderer patches or the mod host; user, 2026-11-10).
-scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD 2>/dev/null || echo synthetic)
+# "only N": the PR changes nothing but decomp sources (src/game/**.cpp) and shape lines, so each group installs only the
+# functions those files register (tools/verdict_scope.py; user 2026-11-24 "y no se pueden acelerar mas las verificaciones":
+# each scene spent 650-950 s comparing all ~17.5k registered functions, verdict 842). Shared code runs every function.
+only_list=$PWD/$logs/synth_only.txt
+scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic)
+only=""
+case "$scope" in only*) only="--only @$only_list"; echo "synthetic: only the ${scope#only } functions the PR's decomp sources register";; esac
 if [ "$scope" = skip ]; then
   echo "synthetic: skipped (no path the synthetic gate can see changed; tools/verdict_scope.py)"
 else
@@ -53,7 +59,7 @@ else
     # Its own lock and its own cores (user, 2026-11-10): a synthetic run is CPU-bound, not paced, so it need not wait for
     # another verdict's real-time gate routes (GT_GATE_CPUS above); one synthetic group at a time on GT_SYNTH_CPUS.
     CPU_LOCK_DIR="${CPU_LOCK_DIR:-/tmp/claude-$(id -u)}/synth" GT_SYNTH_ROUTE=$group GT_GATE_CPU_LOCK="verdict synth $tag $group" \
-      taskset -c "$synth_cpus" .venv/bin/python -m tools.decomp_gate synth "$t" 2>&1 \
+      taskset -c "$synth_cpus" .venv/bin/python -m tools.decomp_gate synth "$t" $only 2>&1 \
       | grep -E "^all routes|exit [^02]" | head -3
     grep -ah "synthetic: [0-9]* functions in" recomp/analysis/gt_diff_${t}_*.log
     echo "mismatched: $(grep -ah 'mismatched [1-9]' recomp/analysis/gt_diff_${t}_*.log | grep -oE '@0x[0-9A-F]+' | sort -u | tr '\n' ' ')"

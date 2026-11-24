@@ -6,6 +6,12 @@ The rule is an allowlist: a path that is not listed counts as needing the gate, 
 A changed lcs-recomp patch skips only when every file it modifies is renderer/display/menu code (lcs/host/ge_*, display*, lcs_*).
 
   python -m tools.verdict_scope BASE HEAD   -> prints "synthetic" or "skip"
+  python -m tools.verdict_scope BASE HEAD --only-file F
+      -> "only N" (and the N addresses in F) when the PR changes nothing but decomp sources (src/game/**.cpp) and
+         config/synth_shapes.txt: the synthetic gate then installs only the functions those files register (and the
+         addresses whose shape lines are new). A PR cannot change what another function compares except through shared
+         code (headers, host, harness, build, patches), and any of those runs every function as before. User 2026-11-24
+         ("y no se pueden acelerar mas las verificaciones"): each scene spent 650-950 s comparing all ~17.5k functions.
 """
 import re
 import subprocess
@@ -38,16 +44,65 @@ def needs_synthetic(paths, read):
     return False
 
 
+ONLY_SOURCES = re.compile(r"^src/game/.+\.cpp$")
+SHAPES = "config/synth_shapes.txt"
+REGISTRATION = re.compile(r"^[A-Z0-9_]+\(0x(0[89][0-9A-Fa-f]{6})", re.M)
+SHAPE_LINE = re.compile(r"^0x(0[89][0-9A-Fa-f]{6})\b")
+
+
+def only_functions(paths, read_head, read_base):
+    """The functions the synthetic gate must install for these changed paths, or None for every registered one.
+
+    Only when every path the gate can see is a decomp source (src/game/**.cpp) or config/synth_shapes.txt: the
+    registrations of those sources at HEAD plus the addresses of shape lines HEAD has and BASE has not. A deleted source
+    or an empty result also gives None (the safe side)."""
+    found = set()
+    for path in paths:
+        if any(fnmatch(path, p) for p in SKIP):
+            continue
+        if path == SHAPES:
+            head, base = read_head(path) or "", read_base(path) or ""
+            old = set(base.splitlines())
+            for line in head.splitlines():
+                m = SHAPE_LINE.match(line)
+                if m and line not in old:
+                    found.add(int(m.group(1), 16))
+            continue
+        if not ONLY_SOURCES.match(path):
+            return None
+        text = read_head(path)
+        if text is None:
+            return None
+        found.update(int(a, 16) for a in REGISTRATION.findall(text))
+    return sorted(found) or None
+
+
+def _changed(base, head):
+    return subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"], capture_output=True, text=True,
+                          check=True).stdout.split()
+
+
+def _reader(ref):
+    def read(path):
+        result = subprocess.run(["git", "show", f"{ref}:{path}"], capture_output=True, text=True)
+        return result.stdout if result.returncode == 0 else None
+    return read
+
+
 def main(argv):
     base, head = argv[1], argv[2]
-    paths = subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"], capture_output=True, text=True,
-                           check=True).stdout.split()
-
-    def read(path):
-        result = subprocess.run(["git", "show", f"{head}:{path}"], capture_output=True, text=True)
-        return result.stdout if result.returncode == 0 else None
-
-    print("synthetic" if needs_synthetic(paths, read) else "skip")
+    only_file = argv[argv.index("--only-file") + 1] if "--only-file" in argv else None
+    paths = _changed(base, head)
+    read = _reader(head)
+    if not needs_synthetic(paths, read):
+        print("skip")
+        return 0
+    only = only_functions(paths, read, _reader(base)) if only_file else None
+    if only is None:
+        print("synthetic")
+        return 0
+    Path(only_file).write_text("".join(f"0x{a:08X}\n" for a in only))
+    print(f"only {len(only)}")
     return 0
 
 
