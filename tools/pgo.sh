@@ -14,7 +14,7 @@ seconds=${2:-220}
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo"
 command -v clang++ > /dev/null && command -v llvm-profdata > /dev/null || { echo "pgo: needs clang++ and llvm-profdata" >&2; exit 2; }
-slice() { systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- "$@"; }
+slice() { systemd-run --user --scope --quiet -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- "$@"; }
 profiles=recomp/analysis/pgo
 rm -rf "$profiles" && mkdir -p "$profiles"
 echo "pgo: instrumented build (build-pgo-gen)"

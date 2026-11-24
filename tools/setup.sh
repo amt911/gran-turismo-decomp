@@ -72,7 +72,7 @@ fetch_verified() {
 # capped CMD... — run a parallel job under the project's memory ceiling (AGENTS.md § memory cgroup)
 capped() {
   if command -v systemd-run >/dev/null; then
-    systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- "$@"
+    systemd-run --user --scope --quiet -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- "$@"
   else
     "$@"
   fi
@@ -188,5 +188,14 @@ while read -r sum name; do
     *) fetch_verified "$gf/barlow/$name" "$sum" "$SRC/fonts/$name" ;;
   esac
 done < "$REPO/config/ui_assets.sha256"
+
+# ccache 4.10.2 (pinned release binary, GPL-3.0, sha256 below): the verdict build regenerates the recompiled units
+# every time (tools.recomp rewrites them) although most are byte-identical; ccache recompiles only units whose content
+# changed, so the result is exactly a clean build's (user 2026-11-22: faster verdicts "que no bajen la calidad").
+step "ccache 4.10.2"
+mkdir -p "$SRC/ccache"
+fetch_verified https://github.com/ccache/ccache/releases/download/v4.10.2/ccache-4.10.2-linux-x86_64.tar.xz \
+  80cab87bd510eca796467aee8e663c398239e0df1c4800a0b5dff11dca0b4f18 "$SRC/ccache/ccache.tar.xz"
+[ -x "$SRC/ccache/ccache-4.10.2-linux-x86_64/ccache" ] || tar -xJf "$SRC/ccache/ccache.tar.xz" -C "$SRC/ccache"
 
 step "done"

@@ -219,7 +219,7 @@ def test_slice_limits_cap_the_total_at_6g_without_swap():
     command = gate.slice_limits()
     assert command[:4] == ["systemctl", "--user", "set-property", "--runtime"]
     assert "gt-heavy.slice" in command
-    assert {"MemoryHigh=5G", "MemoryMax=6G", "MemorySwapMax=0"} <= set(command)
+    assert {"MemoryHigh=11G", "MemoryMax=12G", "MemorySwapMax=0"} <= set(command)
 
 
 def test_routes_outweigh_builds_in_the_heavy_slice(monkeypatch):
@@ -527,6 +527,14 @@ def test_sabotage_can_run_the_full_gate(monkeypatch):
     assert calls[1][1].get("kind", "fast") == "fast"
 
 
+def test_sabotage_takes_several_files_for_one_run(monkeypatch):
+    """A batch spread over many files is sabotaged in one run (`--file a.cpp b.cpp`), not one run per file."""
+    calls = []
+    monkeypatch.setattr(gate, "_sabotage_run", lambda *a, **k: calls.append((a, k)) or 0)
+    assert gate.main(["sabotage", "t1", "--file", "src/a.cpp", "src/b.cpp", "--only", "0x08800000,0x08800010"]) == 0
+    assert [str(f) for f in calls[0][0][1]] == ["src/a.cpp", "src/b.cpp"]
+
+
 def test_probe_shell_never_runs_more_than_the_cap_at_once(tmp_path):
     """The probe starts the same routes as the fast gate, so the same memory cap applies."""
     fake = tmp_path / "fake"
@@ -734,3 +742,16 @@ def test_heavy_slot_count_follows_the_environment(monkeypatch):
     assert len(gate.heavy_slots()) == 3
     monkeypatch.setenv("GT_HEAVY_SLOTS", "0")
     assert len(gate.heavy_slots()) == 1  # never fewer than one
+
+
+def test_a_prebuilt_generated_library_skips_the_recomp_step():
+    # A worktree that links a prebuilt libgt_generated.a never compiles recomp/generated: regenerating it is wasted work,
+    # and it took every heavy slot at the start of each gate, so all gates ran one at a time (2026-11-20).
+    assert gate.prebuilt_generated("GT_PREBUILT_GENERATED:UNINITIALIZED=/tmp/claude-1000/libgt_generated_seeded.a\n")
+    assert not gate.prebuilt_generated("GT_PREBUILT_GENERATED:STRING=\n")
+    assert not gate.prebuilt_generated("CMAKE_CXX_COMPILER:STRING=/usr/bin/clang++\n")
+
+
+def test_slice_limits_match_the_12_gb_ceiling():
+    # User, 2026-11-20: 12 GB with four slots; every gate re-applies these, so a stale 6 GB here undid the raise.
+    assert "MemoryHigh=11G" in gate.SLICE_LIMITS and "MemoryMax=12G" in gate.SLICE_LIMITS

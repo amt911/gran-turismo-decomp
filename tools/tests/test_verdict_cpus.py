@@ -51,8 +51,11 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
 
 def test_defaults_split_the_desktop(tmp_path):
     lines = run_verdict(tmp_path, {})
-    assert lines[0].startswith("taskset -c 6-11,18-23 ")
-    assert all(line.startswith("taskset -c 0-5,12-17 ") for line in lines[1:]) and len(lines) == 4  # gate + three synthetic groups
+    # gate + three synthetic groups; their order depends on GT_VERIFY_OVERLAP (synthetic first by default)
+    gate = [line for line in lines if "decomp_gate full" in line]
+    synth = [line for line in lines if "decomp_gate full" not in line]
+    assert len(gate) == 1 and gate[0].startswith("taskset -c 6-11,18-23 ")
+    assert len(synth) == 3 and all(line.startswith("taskset -c 0-5,12-17 ") for line in synth)
 
 
 def test_environment_overrides_both_sets(tmp_path):
