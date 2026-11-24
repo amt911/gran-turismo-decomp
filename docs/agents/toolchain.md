@@ -101,3 +101,5 @@ Tested on 2026-10-09 (method and numbers in FACTS):
 track stays open as optional evidence (see [decomp workflow](decomp-workflow.md#optional-a-matching-check)).
 If a 3.3.6 psp-1.14/1.15 or 4.0.4 psp-2.8.2 build ever surfaces with clean provenance, record it here
 and re-test.
+
+- **ccache 4.10.2** (pinned release binary + sha256 in `tools/setup.sh`, GPL-3.0, into `tools/src/ccache/`): used only by `tools/verdict.sh` as the compiler launcher, so the verdict build recompiles just the units whose content changed (tools.recomp rewrites all ~160 generated units every run). Objects are identical to a clean build; cache in `~/.cache/gt-verdict-ccache` (20 GB cap).
