@@ -527,6 +527,14 @@ def test_sabotage_can_run_the_full_gate(monkeypatch):
     assert calls[1][1].get("kind", "fast") == "fast"
 
 
+def test_sabotage_takes_several_files_for_one_run(monkeypatch):
+    """A batch spread over many files is sabotaged in one run (`--file a.cpp b.cpp`), not one run per file."""
+    calls = []
+    monkeypatch.setattr(gate, "_sabotage_run", lambda *a, **k: calls.append((a, k)) or 0)
+    assert gate.main(["sabotage", "t1", "--file", "src/a.cpp", "src/b.cpp", "--only", "0x08800000,0x08800010"]) == 0
+    assert [str(f) for f in calls[0][0][1]] == ["src/a.cpp", "src/b.cpp"]
+
+
 def test_probe_shell_never_runs_more_than_the_cap_at_once(tmp_path):
     """The probe starts the same routes as the fast gate, so the same memory cap applies."""
     fake = tmp_path / "fake"
