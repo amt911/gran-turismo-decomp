@@ -129,13 +129,37 @@ void func_08918BB8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { 
 void func_08926140(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; GuestFrame frame(ctx, 0x10u); G[1] = 0x3F000000u; F[0] = std::bit_cast<float>(G[1]); F[1] = F[12] * F[0]; G[1] = 0x3C8EFA35u; F[12] = std::bit_cast<float>(G[1]); put(rt, frame.at(0u), G[31]); F[12] = F[1] * F[12]; call_here(rt, ctx, 0x08B66604u); G[1] = 0x3F800000u; F[12] = std::bit_cast<float>(G[1]); F[0] = F[12] / F[0]; G[1] = 0x3ED1F42Cu; F[1] = std::bit_cast<float>(G[1]); G[1] = 0x4013CD46u; F[2] = std::bit_cast<float>(G[1]); F[0] = F[0] * F[1]; F[0] = F[0] * F[2]; F[12] = F[12] / F[0]; call_here(rt, ctx, 0x08B65F0Cu); F[1] = F[0] + F[0]; G[1] = 0x42652EE1u; F[0] = std::bit_cast<float>(G[1]); F[0] = F[1] * F[0]; } }
 void func_08B59118(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto clz = [](std::uint32_t x) { return x == 0u ? 32u : static_cast<std::uint32_t>(__builtin_clz(x)); }; GuestFrame frame(ctx, 0x10u); put(rt, frame.at(8u), G[18]); put(rt, frame.at(0u), G[16]); put(rt, frame.at(0xCu), G[31]); put(rt, frame.at(4u), G[17]); G[3] = word(rt, G[4] + 0x6Cu); G[16] = G[3] & G[5]; G[18] = G[4]; if (G[16] != 0u) { G[2] = ~G[5] & G[3]; G[3] = 0x08CE0000u; put(rt, G[4] + 0x6Cu, G[2]); G[17] = 0x08CE0E54u; G[2] = clz(G[16]); do { G[3] = G[2] << 2; G[3] = G[17] - G[3]; G[5] = word(rt, G[3] - 4u); G[2] = G[16] << (G[2] & 31u); G[16] = G[2] << 1; G[4] = G[18]; G[17] = G[3] - 4u; call_here(rt, ctx, G[5]); G[2] = clz(G[16]); } while (G[16] != 0u); } G[18] = word(rt, frame.at(8u)); G[17] = word(rt, frame.at(4u)); G[16] = word(rt, frame.at(0u)); } }
 void func_08949D40(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; G[3] = word(rt, G[4] + 0xCu); G[5] = word(rt, G[4] + 8u); F[0] = 0.0f; G[4] = load8(G[3] + 0x270u); G[2] = G[4] < 0xCu ? 1u : 0u; G[6] = G[3] + 0x270u; if (G[2] == 0u) return; G[2] = G[4] << 2; G[3] = 0x08C8B3B8u; G[2] = G[2] + G[3]; G[4] = word(rt, G[2]); switch (G[4]) { case 0x08949D78u: F[0] = float_at(rt, G[5] + 0x600u); break; case 0x08949D80u: F[0] = float_at(rt, G[5] + 0x5FCu); break; case 0x08949D88u: F[0] = float_at(rt, G[5] + 0x600u); F[1] = float_at(rt, G[5] + 0x5FCu); G[1] = 0x3F000000u; F[2] = std::bit_cast<float>(G[1]); F[1] = F[1] + F[0]; F[0] = F[1] * F[2]; break; case 0x08949DA4u: F[2] = float_at(rt, G[5] + 0x600u); F[0] = float_at(rt, G[5] + 0x5FCu); F[1] = float_at(rt, G[6] + 8u); F[0] = F[0] - F[2]; F[1] = F[1] * F[0]; F[0] = F[2] + F[1]; break; default: break; } } }
-// 0x08B2F774: the 14-entry jump table at 0x08C93A78 (read from the ELF's .rodata) sends a1 below 14 to the handler
-// that returns its own index — entry 13 goes to 0x08B2F798, which returns 13 — so the function returns a1 itself
-// when it is below 14, and 0 otherwise.
 void func_08B2F774(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[2] = ctx.gpr[5] < 0xEu ? ctx.gpr[5] : 0u;
 }
-void func_0890AD68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0xCu), G[19]); G[19] = 0x08CF0000u; put(rt, frame.at(8u), G[18]); G[18] = G[5]; put(rt, frame.at(4u), G[17]); G[17] = G[6]; put(rt, frame.at(0u), G[16]); G[16] = G[4]; put(rt, frame.at(0x10u), G[31]); put(rt, G[5], 0u); G[5] = G[6]; G[2] = word(rt, 0x08CE9F68u); G[4] = G[2]; if (G[2] == 0u) G[16] = 0u; else { call_here(rt, ctx, 0x08AB7EC4u); G[3] = G[2]; G[5] = G[17]; if (G[2] == 0u) G[16] = 0u; else { G[2] = 1u; put(rt, G[16], G[2]); G[2] = 0x20u; put(rt, G[16] + 4u, G[3]); put(rt, G[16] + 8u, G[2]); G[4] = word(rt, 0x08CE9F68u); call_here(rt, ctx, 0x08AB7F5Cu); put(rt, G[18], G[2]); } } G[2] = G[16]; G[19] = word(rt, frame.at(0xCu)); G[18] = word(rt, frame.at(8u)); G[17] = word(rt, frame.at(4u)); G[16] = word(rt, frame.at(0u)); } }
+// 0x0890AD68 (a0 = the object, a1 = a word pointer, a2 = a third value; v0 = the object or 0): the word at a1 is cleared; the global at 0x08CE9F68
+// (none: 0) goes to 0x08AB7EC4(global, a2) for a handle, and a handle makes the object's word +0 = 1, +4 = the handle and +8 = 0x20, the word at a1
+// = 0x08AB7F5C(word(0x08CE9F68), a2), and answers the object; anything else answers 0.
+void func_0890AD68(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4], word_pointer = ctx.gpr[5], third = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x20u);
+    SavedRegisters saved(rt, ctx, frame, {{19u, 0xCu}, {18u, 0x8u}, {17u, 0x4u}, {16u, 0x0u}, {31u, 0x10u}});
+    ctx.gpr[18] = word_pointer;
+    ctx.gpr[17] = third;
+    ctx.gpr[16] = object;
+    put(rt, word_pointer, 0u);
+    const u32 global = word(rt, 0x08CE9F68u);
+    u32 result = 0u;
+    if (global != 0u) {
+        const u32 handle = call_set(rt, ctx, 0x08AB7EC4u, {global, third});
+        if (handle != 0u) {
+            put(rt, object, 0x1u);
+            put(rt, object + 0x4u, handle);
+            put(rt, object + 0x8u, 0x20u);
+            put(rt, word_pointer, call_set(rt, ctx, 0x08AB7F5Cu, {word(rt, 0x08CE9F68u), third}));
+            result = object;
+        }
+    }
+    ctx.gpr[2] = result;
+}
+// 0x08B2F774: the 14-entry jump table at 0x08C93A78 (read from the ELF's .rodata) sends a1 below 14 to the handler
+// that returns its own index — entry 13 goes to 0x08B2F798, which returns 13 — so the function returns a1 itself
+// when it is below 14, and 0 otherwise.
 void func_08B56E20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { G[2] = G[5] < 0x10u ? 1u : 0u; G[6] = G[4]; if (G[2] == 0u) { G[2] = 0u; return; } G[3] = 0x08C95674u; G[2] = (G[5] << 2) + G[3]; G[4] = word(rt, G[2]); switch (G[4]) { case 0x08B56E50u: G[2] = word(rt, G[6] + 0xD00u); return; case 0x08B56E58u: G[2] = word(rt, G[6] + 0xD04u); return; case 0x08B56E60u: G[2] = word(rt, G[6] + 0xD08u); return; case 0x08B56E68u: G[2] = word(rt, G[6] + 0xD0Cu); return; case 0x08B56E80u: G[2] = G[6] + 0x700u; return; case 0x08B56EB8u: G[2] = G[6] + 0x8C0u; return; default: break; } std::uint32_t target = 0u; switch (G[4]) { case 0x08B56E70u: target = 0x08B56C34u; break; case 0x08B56E78u: target = 0x08B56C94u; break; case 0x08B56E88u: target = 0x08B56F34u; break; case 0x08B56E90u: target = 0x08B56CF4u; break; case 0x08B56E98u: target = 0x08B56A88u; break; case 0x08B56EA0u: target = 0x08B56D4Cu; break; case 0x08B56EA8u: target = 0x08B56DC0u; break; case 0x08B56EB0u: target = 0x08B56B10u; break; default: G[2] = 0u; return; } G[4] = G[6]; jump(ctx, target); } }
 
 #undef G
