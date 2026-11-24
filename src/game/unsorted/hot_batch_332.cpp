@@ -665,7 +665,8 @@ void func_089012D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     F[21] = F[14];
     F[20] = F[15];
     if (callback == 0u) return;
-    if (static_cast<s32>(word(rt, reference + 0x4u)) < 0) return;
+    ctx.gpr[2] = word(rt, reference + 0x4u);  // the original leaves the sign in v0 when it returns here
+    if (static_cast<s32>(ctx.gpr[2]) < 0) return;
     const u32 index = word(rt, reference + 0x0u);
     const u32 entry = index * 20u + word(rt, tree + 0x88u);
     ctx.gpr[2] = entry;
@@ -675,7 +676,7 @@ void func_089012D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     ctx.gpr[3] = packed;
     const u32 end = packed + (ctx.gpr[4]);
     ctx.gpr[4] = end;
-    if (!(static_cast<s32>(packed) < static_cast<s32>(end))) return;
+    if (!(static_cast<s32>(packed) < static_cast<s32>(end))) { ctx.gpr[2] = 0u; return; }  // v0 = the `slt` that found no entry
     const u32 count = end - packed;
     ctx.gpr[19] = count;
     u32 offset = packed << 1u;

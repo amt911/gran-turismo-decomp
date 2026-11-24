@@ -338,7 +338,23 @@ void func_08B51508(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[
 void func_08B53528(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[5]; G[16] = G[4]; G[4] = word(rt, G[4]); call_here(rt, ctx, 0x08B53210u); put(rt, G[16], G[2]); G[4] = G[17]; G[5] = G[16] + 4u; call_here(rt, ctx, 0x08C53CDCu); G[4] = G[16]; G[5] = 0u; G[6] = 0u; G[7] = 0u; G[8] = 0u; G[9] = 0u; call_here(rt, ctx, 0x08B53258u); put(rt, G[16] + 0x10u, 0u); } G[16] = s0; G[17] = s1; }
 void func_08B5A270(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; { GuestFrame frame(ctx, 0x10u); G[17] = G[4]; call_here(rt, ctx, 0x08B5A018u); G[16] = G[2]; G[7] = G[2]; G[2] = 0xFFu; G[4] = G[17]; G[5] = G[17] + 0x202u; G[6] = 2u; G[3] = 0u; if (G[16] != 0xFFu) { call_here(rt, ctx, 0x08B59B38u); G[2] = (G[16] << 4) + G[17]; G[3] = word(rt, G[2] + 8u); } G[2] = G[3]; } G[16] = s0; G[17] = s1; }
 void func_08B61FC8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; const std::uint32_t s1 = G[17]; bool tail = false; { GuestFrame frame(ctx, 0x10u); G[17] = G[4]; if (G[4] != 0u) { G[4] = word(rt, G[4]); while (G[4] != 0u) { G[16] = word(rt, G[4] + 0x10u); G[4] += 0x30u; call_here(rt, ctx, 0x08B733F0u); G[4] = G[16]; } G[4] = G[17]; tail = true; } } G[16] = s0; G[17] = s1; if (tail) jump(ctx, 0x08B35254u); }
-void func_08B627A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x10u); G[9] = G[5]; G[7] = G[7] < 4u ? 1u : 0u; G[3] = word(rt, G[4] + 4u); G[2] = word(rt, G[9] + 4u); G[5] = G[4]; G[8] = 1u; if (G[3] != G[2]) { G[4] = G[9]; G[8] = 0u; if (G[7] != 0u) { G[3] = word(rt, G[9]); G[2] = word(rt, G[3] + 0x14u); call_here(rt, ctx, G[2]); G[8] = G[2]; } } G[2] = G[8]; } }
+// 0x08B627A0: compares the words at +4 of a0 and a1 — equal returns 1; different returns 0 unless a3 is below 4, in
+// which case a1's vtable entry at +0x14 is called (a0 = a1, a1 = the original a0) and its result returned.
+void func_08B627A0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x0u}});
+    const u32 left = ctx.gpr[4], right = ctx.gpr[5];
+    const bool small = ctx.gpr[7] < 4u;
+    if (word(rt, left + 0x4u) == word(rt, right + 0x4u)) {
+        ctx.gpr[2] = 1u;
+        return;
+    }
+    if (!small) {
+        ctx.gpr[2] = 0u;
+        return;
+    }
+    call_set(rt, ctx, word(rt, word(rt, right) + 0x14u), {right, left});
+}
 void func_08B66684(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { (void)rt; G[4] = bits_of(ctx.fpr[12]); G[6] = G[4]; ctx.fpr[0] = ctx.fpr[12]; G[2] = (G[4] >> 23) % 0x100u; G[5] = G[2] - 0x7Fu; G[3] = static_cast<std::int32_t>(G[5]) < 0x17 ? 1u : 0u; G[6] = G[6] >> 31 << 31; if (G[3] != 0u) { G[2] = static_cast<std::uint32_t>(static_cast<std::int32_t>(0x7FFFFFu) >> (G[5] % 32u)); G[2] = ~G[2]; G[2] = G[4] & G[2]; G[2] = G[2] | G[6]; ctx.fpr[0] = std::bit_cast<float>(G[2]); if (static_cast<std::int32_t>(G[5]) < 0) ctx.fpr[0] = std::bit_cast<float>(G[6]); return; } G[2] = 0xFFu; if (G[5] == G[2]) ctx.fpr[0] = ctx.fpr[12] + ctx.fpr[12]; }
 void func_08B7E820(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[7] = 0u; bool rest; if (G[6] == 0u) { G[2] = sext(load8(G[5]), 8u); rest = true; } else { G[2] = sext(load8(G[5]), 8u); G[3] = G[4] + 1u; G[5] += 1u; store8(G[4], G[2]); rest = false; if (G[2] != 0u) for (;;) { G[7] += 1u; G[2] = sext(load8(G[5]), 8u); if (G[6] == G[7]) { rest = true; break; } G[5] += 1u; store8(G[3], G[2]); G[3] += 1u; if (G[2] == 0u) break; } } if (rest) { while (G[2] != 0u) { G[5] += 1u; G[2] = sext(load8(G[5]), 8u); G[7] += 1u; } } G[2] = G[7]; }
 void func_08B81B0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[2] = word(rt, G[4] + 0x10u); G[3] = word(rt, G[5] + 0x10u); G[6] = G[2] - G[3]; G[3] <<= 2; if (G[6] == 0u) { G[4] += 0x14u; G[2] = G[5] + 0x14u; G[2] += G[3]; G[3] += G[4]; G[3] -= 4u; do { G[2] -= 4u; G[7] = word(rt, G[3]); G[5] = word(rt, G[2]); G[6] = G[4] < G[3] ? 1u : 0u; if (G[7] != G[5]) { G[3] = G[7] < G[5] ? 1u : 0u; G[2] = 1u; G[6] = G[3] == 0u ? 1u : 0xFFFFFFFFu; break; } G[3] -= 4u; } while (G[6] != 0u); } G[2] = G[6]; }

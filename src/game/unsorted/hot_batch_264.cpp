@@ -188,9 +188,93 @@ void func_08909628(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     ctx.gpr[2] = 0x1u;
 }
-void func_08B1D900(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; GuestFrame frame(ctx, 0x10u); G[2] = G[4]; G[4] = 0x08D68A94u; put(rt, frame.at(0u), G[16]); G[16] = G[5]; put(rt, frame.at(4u), G[31]); G[5] = G[2]; call_here(rt, ctx, 0x08B1DEB4u); bool done = G[2] == 0u; if (!done) { G[5] = word(rt, G[2]); done = G[5] == 0u; } if (!done) { G[3] = word(rt, G[5]); done = !(G[3] < 6u); } if (!done) { G[2] = G[3] << 2; G[3] = 0x08C932E0u; G[2] = G[2] + G[3]; G[4] = word(rt, G[2]); switch (G[4]) { case 0x08B1D96Cu: { F[0] = float_at(rt, G[5] + 8u); G[1] = 0x4F000000u; F[1] = std::bit_cast<float>(G[1]); F[2] = std::bit_cast<float>(static_cast<std::uint32_t>(trunc_w_s(F[0]))); const bool big = F[1] <= F[0]; G[16] = std::bit_cast<std::uint32_t>(F[2]); if (big) { F[0] = F[0] - F[1]; G[2] = 0x80000000u; F[0] = std::bit_cast<float>(static_cast<std::uint32_t>(trunc_w_s(F[0]))); G[16] = std::bit_cast<std::uint32_t>(F[0]); G[16] = G[16] | G[2]; } break; } case 0x08B1D9A4u: G[4] = word(rt, G[5] + 8u); G[5] = word(rt, G[5] + 0xCu); call_here(rt, ctx, 0x08B6F110u); G[16] = G[2]; break; default: G[16] = word(rt, G[5] + 8u); break; } } G[2] = G[16]; G[16] = word(rt, frame.at(0u)); } }
+void func_08B1D900(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 key = ctx.gpr[4];
+    const u32 fallback = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{16u, 0x0u}, {31u, 0x4u}});
+    ctx.gpr[16] = fallback;
+    const u32 holder = call_set(rt, ctx, 0x08B1DEB4u, {0x08D68A94u, key});
+    u32 result = fallback;
+    if (holder != 0u) {
+        const u32 entry = word(rt, holder);
+        if (entry != 0u) {
+            const u32 kind = word(rt, entry);
+            if (kind < 6u) {
+                if (kind == 4u) {
+                    const float value = float_at(rt, entry + 0x8u);
+                    const float limit = std::bit_cast<float>(0x4F000000u);
+                    result = static_cast<u32>(trunc_w_s(value));
+                    if (limit <= value) result = static_cast<u32>(trunc_w_s(value - limit)) | 0x80000000u;
+                } else if (kind == 5u) {
+                    result = call_set(rt, ctx, 0x08B6F110u, {word(rt, entry + 0x8u), word(rt, entry + 0xCu)});
+                } else {
+                    result = word(rt, entry + 0x8u);
+                }
+            }
+        }
+    }
+    ctx.gpr[2] = result;
+}
+// 0x08B1D900 (a0 = the key, a1 = the answer a missing holder, entry or kind gives; v0 = the answer): 0x08B1DEB4(0x08D68A94, key) finds a
+// holder whose first word is an entry; the entry's word +0 is a kind below 6 that selects, through the table 0x08C932E0, the word at +8
+// (kinds 0..3), the float at +8 truncated toward zero and, at or above 2^31, reduced by 2^31 with the sign bit set (kind 4), or
+// 0x08B6F110(word +8, word +0xC) (kind 5).
 void func_088C54AC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; GuestFrame frame(ctx, 0x10u); put(rt, frame.at(4u), G[17]); G[17] = G[6]; put(rt, frame.at(0u), G[16]); G[16] = G[5]; put(rt, frame.at(8u), G[31]); G[5] = 4u; call_here(rt, ctx, 0x088C541Cu); G[3] = G[2]; [&] { if (G[2] == 0u) { G[2] = 0u; return; } if (G[17] == 0u) { G[2] = 0u; return; } G[6] = word(rt, G[2]); G[2] = static_cast<std::int32_t>(G[6]) < 6 ? 1u : 0u; G[5] = G[3] + 0x40u; if (G[2] != 0u) { G[2] = 0u; return; } G[2] = G[16] < 6u ? 1u : 0u; if (G[5] == 0u) { G[2] = 0u; return; } if (G[2] == 0u) { G[2] = 0u; return; } G[3] = 0x08C89E7Cu; G[2] = (G[16] << 2) + G[3]; G[4] = word(rt, G[2]); switch (G[4]) { case 0x088C5518u: G[2] = 1u; break; case 0x088C5520u: G[2] = 2u; break; case 0x088C5528u: G[2] = 0u; break; case 0x088C5530u: G[2] = G[6] - 3u; break; case 0x088C5538u: G[2] = G[6] - 2u; break; default: G[2] = G[6] - 1u; break; } if (G[4] >= 0x088C5530u && static_cast<std::int32_t>(G[2]) < 0) { G[2] = 0u; return; } G[2] = (G[2] << 6) + G[5]; F[0] = float_at(rt, G[2] + 0x14u); G[2] = 1u; put_float(rt, G[17], F[0]); }(); G[17] = word(rt, frame.at(4u)); G[16] = word(rt, frame.at(0u)); } }
-void func_08B1D9C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; GuestFrame frame(ctx, 0x10u); G[5] = G[4]; G[4] = 0x08D68A94u; put(rt, frame.at(4u), G[17]); G[17] = G[7]; put(rt, frame.at(0u), G[16]); put(rt, frame.at(8u), G[31]); G[16] = G[6]; call_here(rt, ctx, 0x08B1DEB4u); bool done = G[2] == 0u; if (!done) { G[5] = word(rt, G[2]); done = G[5] == 0u; } if (!done) { G[3] = word(rt, G[5]); done = !(G[3] < 6u); } if (!done) { G[2] = G[3] << 2; G[3] = 0x08C932F8u; G[2] = G[2] + G[3]; G[4] = word(rt, G[2]); switch (G[4]) { case 0x08B1DA30u: G[2] = word(rt, G[5] + 8u); G[16] = G[2]; G[17] = sra(G[2], 31u); break; case 0x08B1DA40u: G[16] = word(rt, G[5] + 8u); G[17] = 0u; break; case 0x08B1DA58u: F[12] = float_at(rt, G[5] + 8u); call_here(rt, ctx, 0x08B6F4D0u); G[16] = G[2]; G[17] = G[3]; break; case 0x08B1DA6Cu: G[4] = word(rt, G[5] + 8u); G[5] = word(rt, G[5] + 0xCu); call_here(rt, ctx, 0x08B6F300u); G[16] = G[2]; G[17] = G[3]; break; default: G[16] = word(rt, G[5] + 8u); G[17] = word(rt, G[5] + 0xCu); break; } } G[2] = G[16]; G[3] = G[17]; G[17] = word(rt, frame.at(4u)); G[16] = word(rt, frame.at(0u)); } }
+// 0x08B1D9C8 (a0 = the key, a2 and a3 = the answer's two words; v0 / v1 = that answer): 0x08B1DEB4(0x08D68A94, key) finds a holder whose
+// first word is an entry; the entry's word +0 is a kind below 6 that selects, through the table 0x08C932F8, one of: the word at +8 with
+// its sign in the high word (kind 0), the word at +8 with a zero high word (kind 1), the pair at +8 / +0xC (kinds 2, 3), 0x08B6F4D0(f12 =
+// float at +8) (kind 4) or 0x08B6F300(word +8, word +0xC) (kind 5). A missing holder, entry or kind answers (a2, a3); v1 is the high word.
+void func_08B1D9C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 key = ctx.gpr[4];
+    const u32 given_low = ctx.gpr[6];
+    const u32 given_high = ctx.gpr[7];
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{17u, 0x4u}, {16u, 0x0u}, {31u, 0x8u}});
+    ctx.gpr[17] = given_high;
+    ctx.gpr[16] = given_low;
+    const u32 holder = call_set(rt, ctx, 0x08B1DEB4u, {0x08D68A94u, key});
+    u32 low = given_low;
+    u32 high = given_high;
+    if (holder != 0u) {
+        const u32 entry = word(rt, holder);
+        if (entry != 0u) {
+            const u32 kind = word(rt, entry);
+            // the kind selects through the table at 0x08C932F8: kinds 0 and 1 are the two code blocks below at +0x8, kinds 2 and 3 are
+            // the pair at +0x8 / +0xC, kind 4 turns the float at +0x8 into the pair and kind 5 turns the pair into one
+            if (kind < 6u) {
+                const u32 target = word(rt, 0x08C932F8u + kind * 4u);  // the jump table block for this kind, still in a0
+                switch (kind) {
+                case 0u:  // the word at +8, sign-extended
+                    low = word(rt, entry + 0x8u);
+                    high = static_cast<u32>(static_cast<s32>(low) >> 31);
+                    break;
+                case 1u:  // the word at +8, unsigned
+                    low = word(rt, entry + 0x8u);
+                    high = 0u;
+                    break;
+                case 4u:  // a float at +8 turned into the pair (a0 is still the table block)
+                    ctx.fpr[12] = float_at(rt, entry + 0x8u);
+                    call_set(rt, ctx, 0x08B6F4D0u, {target, entry});
+                    low = ctx.gpr[2];
+                    high = ctx.gpr[3];
+                    break;
+                case 5u:  // a pair turned into the pair
+                    call_set(rt, ctx, 0x08B6F300u, {word(rt, entry + 0x8u), word(rt, entry + 0xCu)});
+                    low = ctx.gpr[2];
+                    high = ctx.gpr[3];
+                    break;
+                default:  // the two words at +8 and +0xC
+                    low = word(rt, entry + 0x8u);
+                    high = word(rt, entry + 0xCu);
+                    break;
+                }
+            }
+        }
+    }
+    ctx.gpr[2] = low;
+    ctx.gpr[3] = high;
+}
 
 #undef G
 #undef load8
