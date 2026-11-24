@@ -140,55 +140,7 @@ void func_0887D3BC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { 
 // negated object's float at +0x44 as a third component, make a vector whose squared length (plus itself as a dot product) is rooted: zero leaves the three
 // floats zero, otherwise 1 / the root scaled by sqrt(f20) * 0x08CDD100, capped at the object's +0x42C float, multiplies the three components into the output
 // (+8 the negated height, +0 the second difference, +4 the first).
-void func_088ACA78(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4], first = ctx.gpr[5], second = ctx.gpr[6], out = ctx.gpr[7];
-    GuestFrame frame(ctx, 0x30u);
-    SavedRegisters saved(rt, ctx, frame, {{19u, 0xCu}, {18u, 0x8u}, {17u, 0x4u}, {16u, 0x0u}, {31u, 0x10u}, {52u, 0x20u}});
-    ctx.gpr[19] = self;
-    ctx.gpr[18] = out;
-    ctx.gpr[17] = second;
-    ctx.gpr[16] = first;
-    ctx.fpr[0] = 0.0f;
-    ctx.fpr[20] = call_set(rt, ctx, 0x08B4A708u, {first});
-    float scale = 0.0f;
-    if (!(ctx.fpr[20] == 0.0f)) {
-        call_set(rt, ctx, 0x08B4ABCCu, {second, first});
-        scale = ctx.fpr[0] / ctx.fpr[20];
-    }
-    const float high_first = float_at(rt, first + 0x4u);
-    const float low_first = float_at(rt, first);
-    const float high_second = float_at(rt, second + 0x4u);
-    const float scaled_high = psp_mul(scale, high_first);
-    const float scaled_low = psp_mul(scale, low_first);
-    const float low_second = float_at(rt, second);
-    const float height = float_at(rt, self + 0x44u);
-    const float d_high = scaled_high - high_second;
-    const float d_low = scaled_low - low_second;
-    const float neg_height = -height;
-    const float q_high = psp_mul(d_high, d_high);
-    const float q_low = psp_mul(d_low, d_low);
-    const float q_height = psp_mul(neg_height, neg_height);
-    const float root_length = std::sqrt(ctx.fpr[20]);
-    const float sum = q_low + q_high + q_height;
-    const bool zero = sum == 0.0f;
-    const float root = std::sqrt(sum);
-    if (zero) {
-        put_float(rt, out + 0x8u, 0.0f);
-        put_float(rt, out, 0.0f);
-        put_float(rt, out + 0x4u, 0.0f);
-        return;
-    }
-    const float inverse = 1.0f / root;
-    const float limit = float_at(rt, self + 0x42Cu);
-    float magnitude = psp_mul(inverse, psp_mul(root_length, float_at(rt, 0x08CDD100u)));
-    if (limit < magnitude) magnitude = limit;
-    const float x = psp_mul(magnitude, neg_height);
-    const float y = psp_mul(magnitude, d_low);
-    const float z = psp_mul(magnitude, d_high);
-    put_float(rt, out + 0x8u, x);
-    put_float(rt, out, y);
-    put_float(rt, out + 0x4u, z);
-}
+void func_088ACA78(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { auto &F = ctx.fpr; { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0xCu), G[19]); put(rt, frame.at(0x8u), G[18]); put(rt, frame.at(0x4u), G[17]); put(rt, frame.at(0x0u), G[16]); put(rt, frame.at(0x10u), G[31]); G[19] = G[4]; G[4] = G[5]; G[18] = G[7]; G[17] = G[6]; G[16] = G[5]; put_float(rt, frame.at(0x20u), F[20]); call_here(rt, ctx, 0x08B4A708u); F[7] = 0.0f; F[20] = F[0]; G[4] = G[17]; G[5] = G[16]; if (!(F[0] == F[7])) { call_here(rt, ctx, 0x08B4ABCCu); F[7] = F[0] / F[20]; } F[1] = float_at(rt, G[16] + 4u); F[2] = float_at(rt, G[16]); F[3] = float_at(rt, G[17] + 4u); F[1] = F[7] * F[1]; F[2] = F[7] * F[2]; F[4] = float_at(rt, G[17]); F[0] = float_at(rt, G[19] + 0x44u); F[3] = F[1] - F[3]; F[4] = F[2] - F[4]; F[6] = -F[0]; F[8] = 0.0f; F[1] = F[3] * F[3]; F[0] = F[4] * F[4]; F[5] = F[6] * F[6]; F[9] = std::sqrt(F[20]); F[0] = F[0] + F[1]; F[0] = F[0] + F[5]; const bool zero = F[0] == F[8]; F[1] = std::sqrt(F[0]); if (zero) { put_float(rt, G[18] + 8u, F[8]); put_float(rt, G[18], F[8]); put_float(rt, G[18] + 4u, F[8]); } else { G[1] = 0x3F800000u; F[0] = 1.0f; F[0] = F[0] / F[1]; G[2] = 0x08CE0000u; F[1] = float_at(rt, 0x08CDD100u); F[5] = float_at(rt, G[19] + 0x42Cu); F[1] = F[9] * F[1]; F[2] = F[0] * F[1]; if (F[5] < F[2]) F[2] = F[5]; F[0] = F[2] * F[6]; F[1] = F[2] * F[4]; F[2] = F[2] * F[3]; put_float(rt, G[18] + 8u, F[0]); put_float(rt, G[18], F[1]); put_float(rt, G[18] + 4u, F[2]); } F[20] = float_at(rt, frame.at(0x20u)); G[19] = word(rt, frame.at(0xCu)); G[18] = word(rt, frame.at(0x8u)); G[17] = word(rt, frame.at(0x4u)); G[16] = word(rt, frame.at(0x0u)); }  } } }
 void func_08937574(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x120u); put(rt, frame.at(0x108u), G[18]); put(rt, frame.at(0x104u), G[17]); put(rt, frame.at(0x114u), G[31]); put(rt, frame.at(0x110u), G[20]); put(rt, frame.at(0x10Cu), G[19]); put(rt, frame.at(0x100u), G[16]); G[18] = G[4]; G[4] = frame.at(0u); G[17] = G[5]; G[5] = G[18] + 0xCu; G[20] = 0x08CA0000u; call_here(rt, ctx, 0x08B7BB6Cu); G[3] = G[17] << 2; G[2] = 0x08CDDE40u; G[2] = G[3] + G[2]; G[5] = word(rt, G[2]); G[4] = frame.at(0u); G[19] = G[3] + G[18]; call_here(rt, ctx, 0x08B7B9ACu); G[4] = 0xCu; call_here(rt, ctx, 0x08B62344u); G[16] = G[2]; G[4] = G[2]; call_here(rt, ctx, 0x08937E04u); G[5] = G[17]; G[4] = G[18]; put(rt, G[19] + 0x8Cu, G[16]); call_here(rt, ctx, 0x08936498u); G[6] = 0x08CA21D0u; G[4] = G[18]; G[5] = frame.at(0u); if (G[2] != 0u) { call_here(rt, ctx, 0x089372C8u); G[5] = G[2]; G[4] = 0x10u; G[16] = G[2]; call_here(rt, ctx, 0x08937AFCu); G[3] = word(rt, G[18] + 8u); G[17] = G[2]; G[2] = 0x08CDDE0Cu; G[3] <<= 2; G[3] += G[2]; G[5] = word(rt, G[3]); G[4] = frame.at(0u); call_here(rt, ctx, 0x08B7B9ACu); G[4] = frame.at(0u); G[5] = 0x08CA21D0u; call_here(rt, ctx, 0x08B7B9ACu); G[4] = word(rt, G[19] + 0x8Cu); G[6] = G[17]; G[7] = G[16]; G[5] = frame.at(0u); call_here(rt, ctx, 0x08937F60u); } else { G[5] = 0x08CA21D0u; G[4] = frame.at(0u); call_here(rt, ctx, 0x08B7B9ACu); G[4] = word(rt, G[19] + 0x8Cu); G[5] = frame.at(0u); call_here(rt, ctx, 0x08937EBCu); } G[18] = word(rt, frame.at(0x108u)); G[17] = word(rt, frame.at(0x104u)); G[20] = word(rt, frame.at(0x110u)); G[19] = word(rt, frame.at(0x10Cu)); G[16] = word(rt, frame.at(0x100u)); }  } }
 
 #undef G
