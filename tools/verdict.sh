@@ -37,17 +37,17 @@ ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
 # from the gate's (GT_GATE_CPUS), so overlapping them changes no result; their lines are printed after the boot line, in the
 # same form as before.
 synth_out=$logs/synth.out
+only_list=$PWD/$logs/synth_only.txt
+# GT_VERDICT_SCOPE: a verdict_scope.py to run instead of the tree's (the runners pass the verdict branch's copy, so a PR
+# based on an older main still gets the current scope rules).
+if [ -n "${GT_VERDICT_SCOPE:-}" ]; then scope=$(.venv/bin/python "$GT_VERDICT_SCOPE" origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic)
+else scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic); fi
 (
 # The synthetic gate only when the PR can reach it (tools/verdict_scope.py: decomp source, headers, harness, build, runtime
 # patches; not docs, mods' checks, pad routes, renderer patches or the mod host; user, 2026-11-10).
 # "only N": the PR changes nothing but decomp sources (src/game/**.cpp) and shape lines, so each group installs only the
 # functions those files register (tools/verdict_scope.py; user 2026-11-24 "y no se pueden acelerar mas las verificaciones":
 # each scene spent 650-950 s comparing all ~17.5k registered functions, verdict 842). Shared code runs every function.
-only_list=$PWD/$logs/synth_only.txt
-# GT_VERDICT_SCOPE: a verdict_scope.py to run instead of the tree's (the runners pass the verdict branch's copy, so a PR
-# based on an older main still gets the current scope rules).
-if [ -n "${GT_VERDICT_SCOPE:-}" ]; then scope=$(.venv/bin/python "$GT_VERDICT_SCOPE" origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic)
-else scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD --only-file "$only_list" 2>/dev/null || echo synthetic); fi
 only=""
 case "$scope" in only*) only="--only @$only_list"; echo "synthetic: only the ${scope#only } functions the PR's decomp sources register";; esac
 if [ "$scope" = skip ]; then
@@ -76,7 +76,14 @@ synth_pid=$!
 # fast gate entirely when overlapped), so the synthetic groups still finish first unless GT_VERIFY_OVERLAP=1.
 [ "${GT_VERIFY_OVERLAP:-0}" = 1 ] || wait $synth_pid
 # The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
-GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
+# The gate installs only the PR's functions too when the scope says "only N" (user 2026-11-24, "Sí, con gate diario"): the
+# race route took 344 s instead of 17 min and compared 175 of PR 732's functions instead of 111. Shared code runs the
+# gate on every function, as before; main gets the full gate and the full synthetic gate once a day.
+gate_only=""
+# (only when the tree's decomp_gate has `full --only`: a branch older than #846 would refuse the argument and lose its gate)
+case "$scope" in only*) grep -q 'full.add_argument("--only"' tools/decomp_gate.py 2>/dev/null \
+  && { gate_only="--only @$only_list"; echo "gate: only the ${scope#only } functions the PR's decomp sources register"; };; esac
+GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" $gate_only 2>&1 \
   | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
 # Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
 boot=$logs/boot

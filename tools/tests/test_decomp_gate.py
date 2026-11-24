@@ -755,3 +755,24 @@ def test_a_prebuilt_generated_library_skips_the_recomp_step():
 def test_slice_limits_match_the_12_gb_ceiling():
     # User, 2026-11-20: 12 GB with four slots; every gate re-applies these, so a stale 6 GB here undid the raise.
     assert "MemoryHigh=11G" in gate.SLICE_LIMITS and "MemoryMax=12G" in gate.SLICE_LIMITS
+
+
+def test_full_gate_can_install_only_the_prs_functions(monkeypatch):
+    """`full --only` (the verdict, when the PR changes only decomp sources; user 2026-11-24): the race route took 344 s
+    instead of 17 min and compared 175 of the PR's functions instead of 111."""
+    calls = []
+    monkeypatch.setattr(gate, "_run_gate", lambda *a, **k: calls.append((a, k)) or 0)
+    assert gate.main(["full", "t1", "--only", "0x08800000,0x08800010"]) == 0
+    assert calls[0][0][:3] == ("full", "t1", [0x08800000, 0x08800010])
+    assert gate.main(["full", "t1"]) == 0
+    assert calls[1][0][:3] == ("full", "t1", None)
+
+
+def test_gate_env_keeps_the_full_gate_real_time():
+    """--only installs the listed functions; only the fast gate also drops the real-time pacing."""
+    full = gate.gate_env("full", [0x08800000], None, {"X": "1"})
+    assert full["GT_DECOMP_ONLY"] == "0x08800000" and "LCS_UNCAPPED" not in full and full["X"] == "1"
+    fast = gate.gate_env("fast", [0x08800000, 0x08800010], None, {})
+    assert fast["GT_DECOMP_ONLY"] == "0x08800000,0x08800010" and fast["LCS_UNCAPPED"] == "1"
+    assert gate.gate_env("full", None, None, {}) is None
+    assert gate.gate_env("full", None, {"A": "b"}, {})["A"] == "b"

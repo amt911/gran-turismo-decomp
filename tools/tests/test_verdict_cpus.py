@@ -10,7 +10,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0, scope: str = "synthetic",
-                keep_scope: bool = False) -> list[str]:
+                keep_scope: bool = False, gate_has_only: bool = True) -> list[str]:
     tree = tmp_path / "tree"
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -32,6 +32,8 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
                        f'  [ "$n" -lt {fail_fetches} ] && {{ echo "error: cannot lock ref" >&2; exit 1; }}; fi\nexec {real_git} "$@"\n')
         git.chmod(0o755)
     (tree / "tools").mkdir()
+    # the tree's decomp_gate.py: verdict.sh passes `full --only` only when it has the argument
+    (tree / "tools" / "decomp_gate.py").write_text('full.add_argument("--only")\n' if gate_has_only else "")
     for name in ("setup.sh", "cpu_lock.sh", "pad_route.sh"):
         stub = tree / "tools" / name
         # cpu_lock.sh records the boot route's GT_PAD_EXIT_AFTER (the boot runs through it)
@@ -127,3 +129,20 @@ def test_scope_tool_can_come_from_the_verdict_branch(tmp_path):
 def test_scope_tool_defaults_to_the_trees_module(tmp_path):
     scope = [line for line in run_verdict(tmp_path, {}, keep_scope=True) if line.startswith("scope ")]
     assert len(scope) == 1 and scope[0].startswith("scope -m tools.verdict_scope origin/main HEAD --only-file ")
+
+
+def test_gate_installs_only_the_prs_functions_when_the_scope_says_so(tmp_path):
+    gate = [line for line in run_verdict(tmp_path, {}, scope="only 2") if "decomp_gate full" in line]
+    assert len(gate) == 1 and re.search(r"decomp_gate full vt --only @\S*synth_only\.txt", gate[0])
+
+
+def test_gate_installs_every_function_otherwise(tmp_path):
+    for scope in ("synthetic", "skip"):
+        (tmp_path / scope).mkdir()
+        gate = [line for line in run_verdict(tmp_path / scope, {}, scope=scope) if "decomp_gate full" in line]
+        assert len(gate) == 1 and "--only" not in gate[0], scope
+
+
+def test_gate_keeps_every_function_when_the_tree_cannot_take_only(tmp_path):
+    gate = [line for line in run_verdict(tmp_path, {}, scope="only 2", gate_has_only=False) if "decomp_gate full" in line]
+    assert len(gate) == 1 and "--only" not in gate[0]

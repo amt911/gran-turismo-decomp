@@ -622,14 +622,25 @@ def coverage_left_configured(cmake_cache: str) -> bool:
     return bool(match and match[1].strip())
 
 
+def gate_env(kind: str, only: list[int] | None, extra_env: dict[str, str] | None,
+             base: dict[str, str]) -> dict[str, str] | None:
+    """The routes' environment: None (inherit) unless functions are listed or extra variables given. --only installs just
+    the listed functions (GT_DECOMP_ONLY); the fast gate also drops the real-time pacing, the full gate keeps it (a
+    verdict's `full --only`: the PR's functions on the real routes, user 2026-11-24)."""
+    if only is None and not extra_env:
+        return None
+    env = dict(base, **(extra_env or {}))
+    if only is not None:
+        env["GT_DECOMP_ONLY"] = ",".join(f"0x{a:08X}" for a in only)
+        if kind != "full":
+            env["LCS_UNCAPPED"] = "1"
+    return env
+
+
 def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover - drives the build
               extra_env: dict[str, str] | None = None, raise_floor_after: bool = False) -> int:
-    env = None
-    if only is not None or extra_env:
-        import os
-        env = dict(os.environ, **(extra_env or {}))
-        if only is not None:
-            env.update(GT_DECOMP_ONLY=",".join(f"0x{a:08X}" for a in only), LCS_UNCAPPED="1")
+    import os
+    env = gate_env(kind, only, extra_env, dict(os.environ))
     clear_run(tag, Path("recomp/analysis"))
     try:
         prepare_saves(tag, Path("recomp/analysis"), kind)
@@ -891,6 +902,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     fast.add_argument("--only", required=True)
     full = sub.add_parser("full")
     full.add_argument("tag")
+    full.add_argument("--only", help="install only these functions (0xA,B... or @file): the verdict's gate of a PR that "
+                      "changes only decomp sources (tools/verdict_scope.py); no compared floor then")
     full.add_argument("--raise-floor", action="store_true",
                       help=f"after a passing gate, raise the compared floor in {FLOOR_FILE} to this run's total")
     sab = sub.add_parser("sabotage")
@@ -930,7 +943,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - CLI wi
     if args.command == "fast":
         return _run_gate("fast", args.tag, parse_only(args.only))
     if args.command == "full":
-        return _run_gate("full", args.tag, None, raise_floor_after=args.raise_floor)
+        return _run_gate("full", args.tag, parse_only(args.only) if args.only else None, raise_floor_after=args.raise_floor)
     if getattr(args, "cases", None):
         SYNTH_CASES = args.cases  # route_shell reads it
     if args.command == "synth":
