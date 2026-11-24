@@ -526,65 +526,6 @@ bool last_bit_set(Runtime &rt, u32 bits) {
     return ((1u << (static_cast<u32>(bit) & 31u)) & word(rt, address)) != 0u;
 }
 
-void func_0897B800(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x40u);
-    const u32 self = ctx.gpr[4];
-    const u32 head = frame.at(4u);
-    const u32 list_head = self + 0x184u;
-    const u32 tail_node = self + 0x18Cu;
-    const u32 bits = self + 0x74u;
-    const u32 slot = frame.at(0u);
-    put(rt, frame.at(8u), head);
-    put(rt, frame.at(4u), head);
-    // Moves the record at `entry` (a copy of the one at `slot`) onto the list `destination`.
-    auto requeue = [&](u32 entry, u32 destination) {
-        call(rt, ctx, 0x08B5C094u, {entry});
-        call(rt, ctx, kRelease, {entry + 8u});
-        call(rt, ctx, 0x08A5BC54u, {entry, 0xCu, 4u});
-        const u32 created = call(rt, ctx, 0x08A5BC20u, {0xCu, 4u});
-        if (created + 8u != 0u) call(rt, ctx, 0x08973DB0u, {created + 8u, slot});
-        call(rt, ctx, 0x08B5C078u, {created, destination});
-    };
-    u32 node = word(rt, list_head);
-    while (list_head != node) {
-        call(rt, ctx, 0x08973DB0u, {slot, node + 8u});
-        requeue(word(rt, list_head), tail_node);
-        u32 current = word(rt, slot);
-        if (current == 0u) call(rt, ctx, kAssert, {0x08CA32C0u});
-        if (call(rt, ctx, 0x08973C2Cu, {current}) != 0u) {
-            for (;;) {
-                current = word(rt, slot);
-                if (current == 0u) call(rt, ctx, kAssert, {0x08CA32C0u});
-                if (vcall(rt, ctx, current, 0x10Cu, {current}).v0 == 0u) break;
-                call(rt, ctx, 0x0897B6E4u, {self});
-                if (word(rt, tail_node) == tail_node) break;
-                if (!last_bit_set(rt, bits)) break;
-                if (call(rt, ctx, 0x08B1A844u) != 0u) break;
-            }
-        }
-        if (word(rt, tail_node) != tail_node) requeue(word(rt, tail_node + 4u), head);
-        if (!last_bit_set(rt, bits) || call(rt, ctx, 0x08B1A844u) != 0u) {
-            call(rt, ctx, kRelease, {slot});
-            break;
-        }
-        call(rt, ctx, kRelease, {slot});
-        node = word(rt, list_head);
-    }
-    u32 entry = word(rt, frame.at(4u));
-    if (head != entry) {
-        do {
-            const u32 object = word(rt, entry + 8u);
-            if (object == 0u) call(rt, ctx, kAssert, {0x08CA32C0u});
-            if (rt.memory().load8(object + 0x14u) == 0u) {
-                const u32 created = call(rt, ctx, 0x08A5BC20u, {0xCu, 4u});
-                if (created + 8u != 0u) call(rt, ctx, 0x08973DB0u, {created + 8u, entry + 8u});
-                call(rt, ctx, 0x08B5C078u, {created, list_head});
-            }
-            entry = word(rt, entry);
-        } while (head != entry);
-    }
-    call(rt, ctx, 0x08BEDDC4u, {head});
-}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // 0x088B82DC (no arguments): returns the payloads at 0x08D75FC0 and 0x08D75F9C to the free list at 0x08D75F5C (inserting each block
@@ -768,6 +709,5 @@ NEW127(0x088BDC24u, func_088BDC24);
 NEW127(0x088D7214u, func_088D7214);
 NEW127(0x08830FCCu, func_08830FCC);
 NEW127(0x08884788u, func_08884788);
-NEW127(0x0897B800u, func_0897B800);
 NEW127(0x08A5AD68u, func_08A5AD68);
 NEW127(0x08A90034u, func_08A90034);
