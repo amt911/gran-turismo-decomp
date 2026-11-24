@@ -74,6 +74,14 @@ void clobbering_original(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) 
     ctx.gpr[2] = 123u;
     ctx.pc = ctx.gpr[31];
 }
+// An original that ends in a tail call (`j` to another function): it returns with ctx.pc on the target and the target's arguments in a0-a3, which the
+// dispatcher then runs (0x08945F6C tail-calls 0x0893C3E4 with a0 = the world: a mod hooked there crashed every race with `--decomp on`, 2026-11-23).
+constexpr std::uint32_t kTailTarget = 0x08910000u;
+void tail_calling_original(psprecomp::Runtime &, psprecomp::AllegrexContext &ctx) {
+    ctx.gpr[4] = 0x09100000u;
+    ctx.gpr[5] = 55u;
+    ctx.pc = kTailTarget;
+}
 std::uint32_t g_a0_before = 0, g_a0_after = 0, g_a3_after = 0;
 void hook_reads_args_after(GtModCtx *c) {
     const GtModApi &api = gt::mods::mod_api();
@@ -137,6 +145,18 @@ int main() {
         call(rt, ctx);
         check(g_pc_inside_second == kAddr, "hook_wraps_previous_registration: ctx.pc == address inside original");
         check(ctx.gpr[2] == 7u, "hook_wraps_previous_registration: hook result");
+    }
+    {   // ...but not when the original tail-called: a0-a3 are then the arguments of the pending call, and restoring them hands it the hook's arguments
+        clear_hooks_for_tests();
+        psprecomp::Runtime rt;
+        rt.register_function(kAddr, &tail_calling_original, "orig");
+        install_hook(rt, kAddr, hook_reads_args_after, {"alpha", &a}, err);
+        psprecomp::AllegrexContext ctx;
+        ctx.gpr[4] = 0x09000000u;
+        ctx.gpr[5] = 1u;
+        call(rt, ctx);
+        check(ctx.pc == kTailTarget, "tail_call_keeps_the_pending_target");
+        check(ctx.gpr[4] == 0x09100000u && ctx.gpr[5] == 55u, "tail_call_keeps_the_targets_arguments");
     }
     {   // a0-a3 are back as they were after call_original: a decompiled callee clobbers them (extra-cameras read the world there and never took a snapshot with `--decomp on`)
         clear_hooks_for_tests();

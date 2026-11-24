@@ -8,6 +8,7 @@
 
 #include <bit>
 #include <cstdint>
+#include <initializer_list>
 #include <utility>
 
 namespace gt::game {
@@ -57,6 +58,65 @@ void call_with(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, std::uin
     call_here(rt, ctx, target);
 }
 
+using u32 = std::uint32_t;
+using s32 = std::int32_t;
+
+// A guest call with the argument registers set like the original sets them before the jal (a0-a3, t0-t3 in order): what the callee
+// does not take stays as the caller had it; v0 / v1 / f0 afterwards are the callee's.
+u32 call_set(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 target, std::initializer_list<u32> arguments) {
+    unsigned reg = 4u;
+    for (const u32 argument : arguments) {
+        if (reg <= 11u) ctx.gpr[reg++] = argument;
+    }
+    const GuestResult result = call_guest(rt, ctx, target, arguments, {});
+    ctx.gpr[2] = result.v0;
+    ctx.gpr[3] = result.v1;
+    ctx.fpr[0] = result.f0;
+    return result.v0;
+}
+
+// Where the prologue of a function stores a callee-saved register: `reg` 0-31 is a general register, 32-63 a floating one (32 + its number).
+struct SavedSlot {
+    unsigned reg;
+    u32 offset;
+};
+
+// The callee-saved registers (s0-s7, fp, f20-f31) a function keeps values in, and the stores of its prologue: the rewrite stores them where the asm
+// does (a callee can read the stack below its caller's frame), sets the registers as the asm does because callees can read them too, and gives
+// the caller's values back when it returns.
+class SavedRegisters {
+public:
+    SavedRegisters(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, GuestFrame &frame, std::initializer_list<SavedSlot> slots) : ctx_(ctx) {
+        for (unsigned i = 0; i < 8; ++i) gpr_[i] = ctx.gpr[16 + i];
+        fp_ = ctx.gpr[30];
+        for (unsigned i = 0; i < 12; ++i) fpr_[i] = ctx.fpr[20 + i];
+        for (const SavedSlot &slot : slots) {
+            if (slot.reg < 32u) put(rt, frame.at(slot.offset), ctx.gpr[slot.reg]);
+            else put_float(rt, frame.at(slot.offset), ctx.fpr[slot.reg - 32u]);
+        }
+    }
+    ~SavedRegisters() {
+        for (unsigned i = 0; i < 8; ++i) ctx_.gpr[16 + i] = gpr_[i];
+        ctx_.gpr[30] = fp_;
+        for (unsigned i = 0; i < 12; ++i) ctx_.fpr[20 + i] = fpr_[i];
+    }
+    SavedRegisters(const SavedRegisters &) = delete;
+    SavedRegisters &operator=(const SavedRegisters &) = delete;
+
+private:
+    psprecomp::AllegrexContext &ctx_;
+    u32 gpr_[8];
+    u32 fp_;
+    float fpr_[12];
+};
+
+u32 signed_byte(psprecomp::Runtime &rt, u32 address) {
+    return static_cast<u32>(static_cast<s32>(static_cast<std::int8_t>(rt.memory().load8(address))));
+}
+u32 signed_half(psprecomp::Runtime &rt, u32 address) {
+    return static_cast<u32>(static_cast<s32>(static_cast<std::int16_t>(rt.memory().load16(address))));
+}
+
 } // namespace
 
 #define G ctx.gpr
@@ -76,7 +136,45 @@ void func_089BCE20(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { 
 void func_08A1F7C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0xB0u); put(rt, frame.at(0xA0u), G[20]); put(rt, frame.at(0x94u), G[17]); put(rt, frame.at(0xA4u), G[31]); put(rt, frame.at(0x9Cu), G[19]); put(rt, frame.at(0x98u), G[18]); put(rt, frame.at(0x90u), G[16]); G[20] = G[4]; G[17] = G[6]; if (static_cast<std::int32_t>(G[5]) > 0) { G[2] = static_cast<std::int32_t>(G[5]) < 2 ? 1u : 0u; G[19] = 0u; if (G[2] == 0u) { G[16] = word(rt, G[6] + 4u); if (G[16] == 0u) { G[4] = 0x08CAA480u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x3Cu); G[4] = G[16]; call_here(rt, ctx, G[2]); G[19] = G[2]; } G[16] = word(rt, G[17]); if (G[16] == 0u) { G[4] = 0x08CAA480u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[4] = G[16]; G[16] = frame.at(0xCu); G[2] = word(rt, G[3] + 0x40u); G[17] = frame.at(4u); G[18] = frame.at(8u); call_here(rt, ctx, G[2]); G[4] = G[2]; G[5] = G[3]; G[7] = G[19]; G[6] = 3u; G[8] = G[16]; G[9] = 0x80u; call_here(rt, ctx, 0x08ABE3A4u); G[5] = G[16]; G[4] = G[17]; G[6] = frame.at(1u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[17]; G[4] = G[18]; call_here(rt, ctx, 0x08A6D2D4u); G[5] = word(rt, frame.at(8u)); if (G[20] != G[18]) { G[4] = G[20]; call_here(rt, ctx, 0x08A5BAD8u); } G[4] = G[18]; call_here(rt, ctx, 0x08A5B9ECu); G[4] = word(rt, frame.at(4u)); G[2] = 0x08D74FD0u; G[16] = G[4] - 0xCu; if (G[16] != G[2]) { G[4] -= 4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); if (static_cast<std::int32_t>(G[2]) <= 0) { G[4] = G[16]; G[5] = frame.at(0x0u); call_here(rt, ctx, 0x08B8542Cu); } } } G[20] = word(rt, frame.at(0xA0u)); G[17] = word(rt, frame.at(0x94u)); G[19] = word(rt, frame.at(0x9Cu)); G[18] = word(rt, frame.at(0x98u)); G[16] = word(rt, frame.at(0x90u)); }  } }
 void func_08A2E128(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { bool tail = false; { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x4u), G[17]); put(rt, frame.at(0x10u), G[31]); put(rt, frame.at(0xCu), G[19]); put(rt, frame.at(0x8u), G[18]); put(rt, frame.at(0x0u), G[16]); G[6] = static_cast<std::int32_t>(G[6]) < 4 ? 1u : 0u; G[17] = G[7]; if (G[6] == 0u) { G[19] = 0x08CF0000u; G[16] = word(rt, G[17] + 0x0u); G[18] = word(rt, 0x08CF6648u); if (G[16] == 0u) { G[4] = 0x08CAC378u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x3Cu); G[4] = G[16]; call_here(rt, ctx, G[2]); G[6] = G[2]; G[4] = G[18]; G[5] = 0u; call_here(rt, ctx, 0x08B0997Cu); G[16] = word(rt, G[17] + 0x4u); G[18] = word(rt, 0x08CF6648u); if (G[16] == 0u) { G[4] = 0x08CAC378u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x3Cu); G[4] = G[16]; call_here(rt, ctx, G[2]); G[6] = G[2]; G[4] = G[18]; G[5] = 1u; call_here(rt, ctx, 0x08B0997Cu); G[16] = word(rt, G[17] + 0x8u); G[18] = word(rt, 0x08CF6648u); if (G[16] == 0u) { G[4] = 0x08CAC378u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x3Cu); G[4] = G[16]; call_here(rt, ctx, G[2]); G[6] = G[2]; G[4] = G[18]; G[5] = 2u; call_here(rt, ctx, 0x08B0997Cu); G[16] = word(rt, G[17] + 0xCu); G[17] = word(rt, 0x08CF6648u); if (G[16] == 0u) { G[4] = 0x08CAC378u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[2] = word(rt, G[3] + 0x3Cu); G[4] = G[16]; call_here(rt, ctx, G[2]); G[6] = G[2]; G[4] = G[17]; G[5] = 3u; tail = true; } G[17] = word(rt, frame.at(0x4u)); G[19] = word(rt, frame.at(0xCu)); G[18] = word(rt, frame.at(0x8u)); G[16] = word(rt, frame.at(0x0u)); } if (tail) jump(ctx, 0x08B0997Cu); } } }
 void func_08A36104(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x10u), G[16]); G[6] = static_cast<std::int32_t>(G[6]) < 2 ? 1u : 0u; G[18] = G[5]; G[17] = G[7]; if (G[6] == 0u) { G[16] = word(rt, G[7]); if (G[16] == 0u) { G[4] = 0x08CACEB8u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[5] = G[16]; G[2] = word(rt, G[3] + 0xCu); G[4] = frame.at(8u); call_here(rt, ctx, G[2]); G[16] = word(rt, G[17] + 4u); if (G[16] == 0u) { G[4] = 0x08CACEB8u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[5] = G[16]; G[4] = frame.at(0xCu); G[2] = word(rt, G[3] + 0xCu); G[17] = frame.at(4u); call_here(rt, ctx, G[2]); G[5] = G[18]; G[4] = G[17]; call_here(rt, ctx, 0x08A354ECu); G[16] = word(rt, frame.at(4u)); G[5] = word(rt, frame.at(8u)); if (G[16] == 0u) { G[4] = 0x08CACF04u; call_here(rt, ctx, 0x08A5BB7Cu); } G[5] = word(rt, frame.at(8u)); G[6] = word(rt, frame.at(0xCu)); G[4] = G[16]; call_here(rt, ctx, 0x08A351B4u); G[4] = G[17]; call_here(rt, ctx, 0x08A5B9ECu); G[4] = word(rt, frame.at(0xCu)); G[2] = 0x08D70000u; G[17] = 0x08D74FD0u; G[16] = G[4] - 0xCu; if (G[16] != G[17]) { G[4] -= 4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); if (static_cast<std::int32_t>(G[2]) <= 0) { G[4] = G[16]; G[5] = frame.at(0x1u); call_here(rt, ctx, 0x08B8542Cu); } } G[4] = word(rt, frame.at(8u)); G[16] = G[4] - 0xCu; if (G[16] != G[17]) { G[4] -= 4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); if (static_cast<std::int32_t>(G[2]) <= 0) { G[4] = G[16]; G[5] = frame.at(0x0u); call_here(rt, ctx, 0x08B8542Cu); } } } G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); }  } }
-void func_08A80D88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x2Cu), G[31]); put(rt, frame.at(0x28u), G[18]); put(rt, frame.at(0x20u), G[16]); put(rt, frame.at(0x24u), G[17]); G[5] = 0x08CB1574u; G[6] = frame.at(1u); G[18] = G[4]; G[16] = frame.at(4u); G[2] = word(rt, G[4]); G[4] = G[16]; G[17] = word(rt, G[2] + 0x108u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[18]; call_here(rt, ctx, G[17]); G[3] = word(rt, frame.at(4u)); G[2] = 0x08D74FD0u; G[16] = G[3] - 0xCu; G[5] = 0xFFFFFFFFu; G[4] = G[3] - 4u; if (G[16] != G[2]) { call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; G[5] = frame.at(0u); if (static_cast<std::int32_t>(G[2]) <= 0) call_here(rt, ctx, 0x08B8542Cu); } call_here(rt, ctx, 0x08A76A94u); G[16] = G[2]; G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5BA08u); G[2] = word(rt, G[18] + 0x38u); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08A5B930u); G[6] = 0x08A80BECu; put(rt, G[18] + 0x38u, G[16]); G[7] = G[6]; G[4] = G[18]; G[5] = 0x08CB1584u; call_here(rt, ctx, 0x08B878E8u); G[3] = 0x08C90000u; G[2] = 0x08C8F1B8u; G[8] = word(rt, G[2] + 4u); G[7] = word(rt, 0x08C8F1B8u); G[4] = G[18]; G[6] = frame.at(0x10u); G[5] = 0x08CF6FC0u; put(rt, frame.at(0x10u), G[7]); put(rt, frame.at(0x14u), G[8]); call_here(rt, ctx, 0x08C28510u); G[3] = 0x08C90000u; G[2] = 0x08C8F1B0u; G[8] = word(rt, G[2] + 4u); G[7] = word(rt, 0x08C8F1B0u); G[4] = G[18]; G[6] = frame.at(8u); G[5] = 0x08CF6F9Cu; put(rt, frame.at(8u), G[7]); put(rt, frame.at(0xCu), G[8]); call_here(rt, ctx, 0x08C28510u); G[18] = word(rt, frame.at(0x28u)); G[16] = word(rt, frame.at(0x20u)); G[17] = word(rt, frame.at(0x24u)); }  } }
+// 0x08A80D88 (a0 = the object; v0 = the last call's): the object's virtual +0x108 is called with (object, text) after 0x08B85EB8(text, 0x08CB1574, sp + 1)
+// formats the text on the frame (+4); the text is released (unless it is the empty header 0x08D74FD0 its count 0x08B60804(data - 4, -1) drops and, with none
+// left, 0x08B8542C(header, sp) frees it). 0x08A76A94() gives a handle: it is released again (0x08A5BA08), the old one at +0x38 is released (0x08A5B930) and the
+// new one is stored there. Then 0x08B878E8(object, 0x08CB1584, 0x08A80BEC, 0x08A80BEC) registers a handler, and the 8-byte pairs at 0x08C8F1B8 (frame +0x10)
+// and 0x08C8F1B0 (frame +8) are registered by 0x08C28510(object, 0x08CF6FC0, +0x10) and 0x08C28510(object, 0x08CF6F9C, +8).
+void func_08A80D88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x30u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x2Cu}, {18u, 0x28u}, {16u, 0x20u}, {17u, 0x24u}});
+    const u32 text = frame.at(0x4u);
+    ctx.gpr[18] = object;
+    ctx.gpr[16] = text;
+    const u32 virtual_call = word(rt, word(rt, object) + 0x108u);
+    ctx.gpr[17] = virtual_call;
+    call_set(rt, ctx, 0x08B85EB8u, {text, 0x08CB1574u, frame.at(0x1u)});
+    call_set(rt, ctx, virtual_call, {object, text});
+    const u32 data = word(rt, text);
+    const u32 header = data - 0xCu;
+    ctx.gpr[16] = header;
+    if (header != 0x08D74FD0u) {
+        const u32 count = call_set(rt, ctx, 0x08B60804u, {data - 0x4u, 0xFFFFFFFFu});
+        if (static_cast<s32>(count) <= 0) call_set(rt, ctx, 0x08B8542Cu, {header, frame.at(0u)});
+    }
+    const u32 handle = call_set(rt, ctx, 0x08A76A94u, {});
+    ctx.gpr[16] = handle;
+    if (handle != 0u) call_set(rt, ctx, 0x08A5BA08u, {handle});
+    const u32 old = word(rt, object + 0x38u);
+    if (old != 0u) call_set(rt, ctx, 0x08A5B930u, {old});
+    put(rt, object + 0x38u, handle);
+    call_set(rt, ctx, 0x08B878E8u, {object, 0x08CB1584u, 0x08A80BECu, 0x08A80BECu});
+    auto copy_pair = [&](u32 source, u32 slot) {
+        put(rt, frame.at(slot), word(rt, source));
+        put(rt, frame.at(slot + 0x4u), word(rt, source + 0x4u));
+    };
+    copy_pair(0x08C8F1B8u, 0x10u);
+    copy_pair(0x08C8F1B0u, 0x8u);
+    call_set(rt, ctx, 0x08C28510u, {object, 0x08CF6FC0u, frame.at(0x10u)});
+    call_set(rt, ctx, 0x08C28510u, {object, 0x08CF6F9Cu, frame.at(0x8u)});
+}
 void func_08C2E3D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x1Cu), G[19]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x20u), G[31]); G[19] = frame.at(0xCu); G[18] = G[5]; G[5] = G[8]; G[17] = G[4]; G[4] = G[19]; G[16] = G[6]; call_here(rt, ctx, 0x08AA27A4u); G[4] = word(rt, G[17] + 0x18u); G[3] = word(rt, G[16]); G[2] = G[4] & 1u; G[5] = word(rt, G[17] + 0x14u); if (G[2] == 0u) { G[2] = sra(G[4], 1); G[4] = G[3] + G[2]; G[2] = G[5]; } else { G[2] = sra(G[4], 1); G[4] = G[3] + G[2]; G[2] = word(rt, G[4]); G[2] += G[5]; G[2] = word(rt, G[2]); } call_here(rt, ctx, G[2]); G[5] = word(rt, G[17] + 0x20u); G[6] = G[2]; G[2] = G[5] & 1u; G[3] = word(rt, G[17] + 0x1Cu); if (G[2] != 0u) { G[2] = sra(G[5], 1); G[2] += G[6]; G[3] = word(rt, G[2]); G[4] = word(rt, G[17] + 0x1Cu); G[3] += G[4]; G[3] = word(rt, G[3]); } G[17] = frame.at(4u); G[5] = sra(G[5], 1); G[5] = G[6] + G[5]; G[4] = G[17]; G[16] = frame.at(8u); G[6] = G[19]; call_here(rt, ctx, G[3]); G[4] = G[16]; G[5] = G[17]; call_here(rt, ctx, 0x08C2DC0Cu); G[5] = word(rt, frame.at(8u)); if (G[18] != G[16]) { G[4] = G[18]; call_here(rt, ctx, 0x08A5BAD8u); } G[4] = G[16]; call_here(rt, ctx, 0x08A5B9ECu); G[4] = G[17]; call_here(rt, ctx, 0x08A5B9ECu); G[4] = word(rt, frame.at(0xCu)); G[2] = 0x08D74FD0u; G[16] = G[4] - 0xCu; if (G[16] != G[2]) { G[4] -= 4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); if (static_cast<std::int32_t>(G[2]) <= 0) { G[4] = G[16]; G[5] = frame.at(0x0u); call_here(rt, ctx, 0x08B8542Cu); } }  G[19] = word(rt, frame.at(0x1Cu)); G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); }  } }
 void func_08C36358(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x50u); put(rt, frame.at(0x20u), G[16]); put(rt, frame.at(0x28u), G[18]); put(rt, frame.at(0x40u), G[31]); put(rt, frame.at(0x3Cu), G[23]); put(rt, frame.at(0x38u), G[22]); put(rt, frame.at(0x34u), G[21]); put(rt, frame.at(0x30u), G[20]); put(rt, frame.at(0x2Cu), G[19]); put(rt, frame.at(0x24u), G[17]); G[2] = 0xAAAAAAABu; G[16] = G[5] - G[4]; G[3] = sra(G[16], 2); { const std::int64_t p = static_cast<std::int64_t>(static_cast<std::int32_t>(G[3])) * static_cast<std::int32_t>(G[2]); ctx.lo = static_cast<std::uint32_t>(p); ctx.hi = static_cast<std::uint32_t>(p >> 32); } G[3] = ctx.lo; G[18] = G[4]; G[3] = static_cast<std::int32_t>(G[3]) < 2 ? 1u : 0u; if (G[3] == 0u) { G[17] = G[5] - 0xCu; G[20] = G[16] - 0xCu; G[23] = frame.at(4u); G[21] = frame.at(0x10u); G[19] = G[17]; G[22] = G[4] + 4u; do { G[2] = word(rt, G[17]); G[16] = G[19] + 4u; G[4] = G[21]; G[5] = G[16]; put(rt, frame.at(0xCu), G[2]); call_here(rt, ctx, 0x08AAE214u); G[19] -= 0xCu; G[2] = load8(G[17] + 8u); G[3] = word(rt, G[18]); G[4] = G[16]; store8(frame.at(0x14u), G[2]); put(rt, G[17], G[3]); if (G[16] != G[22]) { G[5] = word(rt, G[18] + 4u); call_here(rt, ctx, 0x08A5BAD8u); } G[2] = 0xAAAAAAABu; G[16] = sra(G[20], 2); { const std::int64_t p = static_cast<std::int64_t>(static_cast<std::int32_t>(G[16])) * static_cast<std::int32_t>(G[2]); ctx.lo = static_cast<std::uint32_t>(p); ctx.hi = static_cast<std::uint32_t>(p >> 32); } G[16] = ctx.lo; G[3] = load8(G[18] + 8u); G[2] = word(rt, frame.at(0xCu)); G[4] = G[23]; store8(G[17] + 8u, G[3]); G[5] = G[21]; put(rt, frame.at(0u), G[2]); call_here(rt, ctx, 0x08AAE214u); G[6] = G[16]; G[2] = load8(frame.at(0x14u)); G[8] = G[16]; G[5] = 0u; G[7] = frame.at(0u); G[4] = G[18]; store8(frame.at(8u), G[2]); call_here(rt, ctx, 0x08C36114u); G[4] = G[23]; call_here(rt, ctx, 0x08A5B9ECu); G[16] = static_cast<std::int32_t>(G[16]) < 2 ? 1u : 0u; G[4] = G[21]; call_here(rt, ctx, 0x08A5B9ECu); G[17] -= 0xCu; G[20] -= 0xCu; } while (G[16] == 0u); } G[16] = word(rt, frame.at(0x20u)); G[18] = word(rt, frame.at(0x28u)); G[23] = word(rt, frame.at(0x3Cu)); G[22] = word(rt, frame.at(0x38u)); G[21] = word(rt, frame.at(0x34u)); G[20] = word(rt, frame.at(0x30u)); G[19] = word(rt, frame.at(0x2Cu)); G[17] = word(rt, frame.at(0x24u)); }  } }
 void func_08836FD4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x1Cu), G[31]); put(rt, frame.at(0x10u), G[16]); G[18] = G[4]; G[17] = G[8]; if (static_cast<std::int32_t>(G[6]) > 0) { G[16] = word(rt, G[7]); if (G[16] == 0u) { G[4] = 0x08C9B798u; call_here(rt, ctx, 0x08A5BB7Cu); } G[3] = word(rt, G[16]); G[5] = G[16]; G[2] = word(rt, G[3] + 0xCu); G[4] = frame.at(0xCu); call_here(rt, ctx, G[2]); G[5] = word(rt, frame.at(0xCu)); G[4] = 0x08CE2BCCu; G[6] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B20A54u); G[4] = word(rt, frame.at(0xCu)); put(rt, G[17], G[2]); G[2] = 0x08D74FD0u; G[16] = G[4] - 0xCu; if (G[16] != G[2]) { G[4] -= 4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); if (static_cast<std::int32_t>(G[2]) <= 0) { G[4] = G[16]; G[5] = frame.at(0x1u); call_here(rt, ctx, 0x08B8542Cu); } } } else { G[5] = word(rt, G[8]); G[4] = 0x08CE2BCCu; call_here(rt, ctx, 0x08B20968u); G[16] = frame.at(4u); G[5] = G[2]; G[4] = G[16]; G[17] = frame.at(8u); G[6] = frame.at(2u); call_here(rt, ctx, 0x08B85EB8u); G[5] = G[16]; G[4] = G[17]; call_here(rt, ctx, 0x08A6D2D4u); G[5] = word(rt, frame.at(8u)); if (G[18] != G[17]) { G[4] = G[18]; call_here(rt, ctx, 0x08A5BAD8u); } G[4] = G[17]; call_here(rt, ctx, 0x08A5B9ECu); G[4] = word(rt, frame.at(4u)); G[2] = 0x08D74FD0u; G[16] = G[4] - 0xCu; if (G[16] != G[2]) { G[4] -= 4u; G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08B60804u); if (static_cast<std::int32_t>(G[2]) <= 0) { G[4] = G[16]; G[5] = frame.at(0x0u); call_here(rt, ctx, 0x08B8542Cu); } } } G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); }  } }
