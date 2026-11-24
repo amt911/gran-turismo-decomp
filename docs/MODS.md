@@ -266,6 +266,14 @@ Una clave repetida (en la raíz o en `[settings]`) es un error con su número de
 (0 = bien) y registra ganchos con `api->hook(self, direccion, fn)`. Dentro de un gancho: `gpr`/`set_gpr`, `read8/16/32/f`,
 `write8/16/32/f`, `call_original`, `config`, `log`. Un gancho decide si llama al original antes, después o nunca.
 
+## Regla de los ganchos: los argumentos se leen ANTES de `call_original` (medido 2026-11-20)
+
+Con `--decomp off` `call_original` vuelve **antes** de que corra el cuerpo recompilado (la unidad sigue por un salto interno); con `--decomp on` la función decompilada corre **entera dentro** de `call_original` y deja
+otros valores en `a0`-`a3`. Un mod que leía `world = gpr(ctx, 4)` *después* de `call_original` funcionaba con `--decomp off` y con `on` leía basura: **extra-cameras nunca tomó una instantánea del coche con `--decomp on`**
+(el contador `CAMDBG` del mod: `invalid=28799 de 28800`, `snap_vb=0`; el gancho de cámara del host sí funcionaba: `matched=64359`, el argumento de la carga coincidía con el scratch del bucle, 16 alineado o no).
+Dos defensas: el host restaura `a0`-`a3` al volver `call_original` (`host/tests/mod_hooks_test.cpp`: `call_original_restores_a0_to_a3`; sin la restauración el test falla), y los mods leen los argumentos antes
+(extra-cameras y ghost-any-mode lo hacían al revés; corregido). `tools/mod_cameras_check.sh --decomp on` es la comprobación.
+
 ## Límite: solo ven las llamadas que pasan por el despachador
 
 Un gancho sustituye la función en la tabla de direcciones del runtime. El código recompilado solo mira esa tabla cuando llama a una
@@ -422,6 +430,43 @@ tools/mod_rollover_check.sh --without-mod         # física original, el mod sol
 
 Los modos de simulación leen el log del mod (`GT_MOD_ROLLOVER_LOG=1`: líneas `ST`, `TAKEOVER`, `HIT`, `SIM`, `HANDBACK`, `RESET`). `--sim`: ruta `rollover`, el choque contra la barrera: sin toma de control antes del choque, una en el choque por un golpe, presupuesto de energía (la energía total nunca supera la de justo tras el impulso: sin saltos ni «peonza»), ningún punto del casco más de 5 cm bajo el suelo, `|w_z|` acotada con el coche de lado, termina quieto o devuelto, y el pose que el juego reporta al inicio de cada paso es el escrito (dentro de un paso de movimiento: `kd`). `--drop`: caída falsa de 2 m (`GT_MOD_ROLLOVER_DROP=m100:2.0`): el primer rebote ≤ 1,2·e²·h, el coche se desliza hasta parar (rozamiento), se devuelve y el acelerador lo vuelve a mover. `--sim-replay`: ruta `circuit` con golpe falso (`GT_MOD_ROLLOVER_FAKE=m30:9`): misma toma en vivo y en el replay, poses a menos de 0,5 m. `--others`: con los otros seis mods activos. Cada sabotaje debe FALLAR: `--sabotage-restitution` y `--sabotage-nofriction` (con `--drop`), `--sabotage-nopose` y `--sabotage-notakeover` (con `--sim`). Los modos antiguos corren el mod con `style = "arcade"`. Con la CPU en `powersave` la ruta necesita ~410 s (por defecto `--seconds 480`).
 
+## API v9: cámara (spec `docs/superpowers/specs/2026-11-18-extra-cameras-design.md`)
+
+Un mod que declara `api = 9` puede leer y sustituir la pose de la cámara del jugador sin direcciones del juego (`host/mod_camera.cpp`, `host/tests/mod_camera_test.cpp`).
+Los campos v9 de `GtModApi` van tras los v8 (API v8, dibujo 2D, #667 ya fusionado).
+
+- `hook_point(GT_HOOK_CAMERA, fn)`: `fn` corre delante de la carga de la matriz de vista (`0x08B568DC`, una vez por capa del bucle del renderizador `0x08AF1524`) **solo para la cámara
+  del jugador** (la cámara activa del objeto de escena `S`, que nombra `0x08928A80`; la matriz que se carga debe ser su vista dentro de las tolerancias del mod orbit-camera, así que
+  la pasada del retrovisor y las demás capas no la ven). El host llama a la carga original **después** de todos los `fn` activos: `fn` **no** llama a `call_original`. Una función por mod.
+  FACTS «Camera and the world-matrix upload» tiene la evidencia de las tres direcciones.
+- `camera_get(self, ctx, eye, basis)` / `camera_set(self, ctx, eye, basis)`: la pose en el **marco físico** (Z arriba, el de `car_state`) con la convención de filas del coche
+  (adelante, derecha, arriba; izquierdas). `camera_set` exige filas unitarias y ortogonales (1e-2) y valores finitos, y escribe la vista en el temporal del renderizador: nada más en el juego ve el cambio;
+  hay que escribirla en cada fotograma. Fuera de una función de cámara devuelven distinto de 0.
+- `hook_point(GT_HOOK_VIEW_CYCLE, fn)` + `view_cycle(self, ctx, &pos, &prev, &count)` / `view_cycle_set(self, ctx, pos)`: el SELECT del juego. El juego guarda las vistas de carrera como una lista `{entradas, cuenta = 4, posición, posición previa}`;
+  el paso `0x08927D14(S, lista)` (una vez por fotograma; `tools.disasm 08927D14`, forma decompilada en `src/game/unsorted/hot_batch_294.cpp`) mueve `lista+8` en +-1 con vuelta cuando se pulsa el botón y llama a
+  `0x089274C8(S, lista)`, que hace activa la cámara `S[0x1F70 + 4 * entrada]` (`S+0x1FA4`); después copia la posición en `lista+0xC`. El host engancha **`0x089274C8`** (la llamada despachada: un gancho en
+  `0x08927D14` no se ve en el build recompilado, FACTS «View cycle»): una pulsación es `pos != prev`; el mod puede cambiar la posición antes de `call_original` y el juego aplica esa. Fuera del gancho las funciones devuelven distinto de 0.
+- `replay_active(self, ctx)`: 1 mientras el último paso de mundo tenía al coche humano en su rol de repetición (rol 3 de `race_cars`).
+- Conversión de marcos (probada en `mod_camera_test`): render (x, y, z) -> físico (x, -z, y); la cámara mira por -z de la vista (`adelante = -fila 2` de la matriz cámara-a-mundo).
+- Sin ajuste de plano cercano (la spec lo dejaba «si el SDK puede»): no está.
+
+## Construir e instalar `extra-cameras`
+
+README de `gt-mods` (`extra-cameras/`, API 9, `enabled = false` por defecto). Vistas **Wheel** (fija a la carrocería en la rueda delantera izquierda), **Roof** (sobre el techo, mirando adelante y algo abajo) y **TV**
+(puntos fijos junto a la pista que siguen al coche) en la categoría Camera del dispositivo de trucos (fila `Extra view`, acción `Next extra view`), y la **cámara helicóptero** de las repeticiones (fila `Replay camera`).
+El mod **amplía el ciclo SELECT** (`GT_HOOK_VIEW_CYCLE`): tras las cuatro vistas del juego (persecución, parachoques, cabina, capó) vienen Wheel, Roof y TV y luego vuelve a la persecución; mientras se muestra una extra la lista del juego queda en la persecución (que dibuja la carrocería).
+No hechas (README del mod): el botón de cámara de la repetición y migrar orbit-camera a estas funciones.
+
+```bash
+GT_MODS_REPO=../gt-mods-cams tools/mod_cameras_check.sh [--decomp off|on] [--others]   # off / idle (sin vista extra: todos los fotogramas idénticos) / wheel / roof / tv
+tools/mod_cameras_check.sh --cycle                       # ruta chase sin vista forzada: tres SELECT del juego; la tercera pulsación llega a Wheel, la lista del juego se queda en su primera vista
+tools/mod_cameras_check.sh --cycle --sabotage-cycle      # el mod no sigue las pulsaciones: debe FALLAR
+tools/mod_cameras_check.sh --heli [--decomp off|on]       # ruta circuit: en la repetición el ojo queda por encima y detrás del coche
+tools/mod_cameras_check.sh --without-mod                  # debe FALLAR (sin líneas CAM)
+tools/mod_cameras_check.sh --sabotage-offset              # el mod calcula la pose pero no la entrega al juego: debe FALLAR (el coche no se dibuja donde dice la pose)
+```
+El juez compara la pose entregada con las matrices MUNDO del propio juego: el mod registra, por cada pieza del coche del jugador que dibuja, la fila de traslación de su matriz (`draw_matrix`) y
+la posición que la pose pone al origen del cuerpo (`DRAW seen=... expected=...`); la mediana de la diferencia debe quedar bajo 1 m por componente (el origen del modelo no es el del cuerpo: ~0,7 m en vertical medido con la vista Roof).
 ## Construir e instalar `weather`
 
 README de `gt-mods` (`weather/`, `api = 8`, `enabled = false` por defecto). Spec `docs/superpowers/specs/2026-11-18-weather-mod-design.md`. Usa `scene_grade` (hora del día: presets `noon` / `afternoon` / `sunset` / `dusk`, o `progressive` por los pasos de física

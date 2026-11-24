@@ -361,3 +361,22 @@
 # 08C73B40: a0's word 0 is the byte base and its count is the word 12 bytes below it; a1 is a value, a2 the start
 # index, a3 a context (null answers -1 early).
 0x08C73B40 reg:a0=struct:0x10 field:+0x0=ptr
+
+# 0x0888504C: a0 is the owner; its +0xC is the container whose +0x190 (mode 0) / +0x194 (mode 1) slot holds the
+# object that is released, replaced and tail-called (the a2 candidate's vtable is read too, but it is the slot
+# object that carries the calls, so the container is the shape that matters).
+0x0888504C reg:a0=struct:16 field:+0xC=ptr
+# 0x088C7D50: a0 is the mesh state: the 0xC-byte entry list at +0x254, the level width at +0xAC4 and the vertex
+# count at +0xACC (real struct 0xAD0, capped at 1024).
+0x088C7D50 reg:a0=struct:1024
+# 0x08924690: a0 is the state (flag byte +0x35, angle +0x10, scale/offset floats +0xC..+0x30); a1 is the
+# destination block, only written.
+0x08924690 reg:a0=struct:64
+# 0x08A6A6F0: a0 is the string being built: the word at +0 is its data pointer, and the copy-on-write header
+# (length / capacity / refcount) sits 0xC, 8 and 4 bytes before that data pointer.
+0x08A6A6F0 reg:a0=struct:16 field:+0x0=ptr
+# 0x0886DB78: a0 is the owner: the vtable at +0 and the allocated body parked at +4.
+0x0886DB78 reg:a0=struct:16
+# 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
+# release path needs real refcounted objects and the null path still writes the three vtables.
+0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0

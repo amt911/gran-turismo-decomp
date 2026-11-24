@@ -25,22 +25,19 @@ heavy() { systemd-run --user --scope --quiet --slice=gt-heavy.slice -- "$@"; }
 tools/setup.sh > "$logs/setup.log" 2>&1 || { echo "setup failed"; exit 1; }
 .venv/bin/python -m tools.extract --full > "$logs/extract.log" 2>&1 || { echo "extract failed"; exit 1; }
 heavy .venv/bin/python -m tools.recomp > "$logs/recomp.log" 2>&1 || { echo "recomp failed"; tail -3 "$logs/recomp.log"; exit 1; }
-heavy sh -c 'cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ > /dev/null && cmake --build build -j8' \
+# ccache (tools/setup.sh) only skips compiling units whose preprocessed content is identical: same objects as a clean build.
+launcher=""; [ -x tools/src/ccache/ccache-4.10.2-linux-x86_64/ccache ] && launcher="-DCMAKE_CXX_COMPILER_LAUNCHER=$PWD/tools/src/ccache/ccache-4.10.2-linux-x86_64/ccache"
+export CCACHE_DIR=${CCACHE_DIR:-$HOME/.cache/gt-verdict-ccache} CCACHE_MAXSIZE=${CCACHE_MAXSIZE:-20G}
+heavy sh -c "cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ $launcher > /dev/null && cmake --build build -j8" \
   > "$logs/build.log" 2>&1 || { echo "build failed"; tail -5 "$logs/build.log"; exit 1; }
 .venv/bin/pytest --cov --cov-fail-under=80 -q > "$logs/pytest.log" 2>&1; tail -1 "$logs/pytest.log"
 ctest --test-dir build 2>&1 | grep -E 'tests passed|Failed'
-# The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
-GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
-  | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
-# Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
-boot=$logs/boot
-# GT_VERIFY_BOOT_SECONDS (default 600): the boot route's wall-clock budget. On a loaded machine (load ~30 on 24 cores, powersave)
-# save_garage needed more than 600 s and the boot check failed on time alone (verdicts 662, 666, 667 on 2026-11-19).
-# It is a time budget only: the route's waits and the pass condition are unchanged.
-rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$boot/sd/"
-GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}" "$boot/run" --decomp on
-echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot/run/run.log") waits $(grep -o 'script done.*' "$boot/run/run.log")"
-rm -rf "$boot/sd"
+# The synthetic groups run in the background while the full gate and the boot check run (user, 2026-11-21: "no hay forma de
+# hacer más rápido el proceso en vez de 2 horas?"). They already had their own CPUs (GT_SYNTH_CPUS) and their own lock, apart
+# from the gate's (GT_GATE_CPUS), so overlapping them changes no result; their lines are printed after the boot line, in the
+# same form as before.
+synth_out=$logs/synth.out
+(
 # The synthetic gate only when the PR can reach it (tools/verdict_scope.py: decomp source, headers, harness, build, runtime
 # patches; not docs, mods' checks, pad routes, renderer patches or the mod host; user, 2026-11-10).
 scope=$(.venv/bin/python -m tools.verdict_scope origin/main HEAD 2>/dev/null || echo synthetic)
@@ -62,3 +59,25 @@ else
     echo "mismatched: $(grep -ah 'mismatched [1-9]' recomp/analysis/gt_diff_${t}_*.log | grep -oE '@0x[0-9A-F]+' | sort -u | tr '\n' ' ')"
   done
 fi
+) > "$synth_out" 2>&1 &
+synth_pid=$!
+# GT_VERIFY_OVERLAP=0 (the default below 16 CPUs) waits for the synthetic groups first: on a 6-core/12-thread laptop the two
+# CPU sets share physical cores, and the gate's real-time routes need theirs.
+# Default 0: the gate and a synthetic group in the same tree cannot run at once (both verdicts 775 and 830 lost their
+# fast gate entirely when overlapped), so the synthetic groups still finish first unless GT_VERIFY_OVERLAP=1.
+[ "${GT_VERIFY_OVERLAP:-0}" = 1 ] || wait $synth_pid
+# The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
+GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" 2>&1 \
+  | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
+# Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
+boot=$logs/boot
+# GT_VERIFY_BOOT_SECONDS (default 600): the boot route's wall-clock budget. On a loaded machine (load ~30 on 24 cores, powersave)
+# save_garage needed more than 600 s and the boot check failed on time alone (verdicts 662, 666, 667 on 2026-11-19).
+# It is a time budget only: the route's waits and the pass condition are unchanged.
+rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$boot/sd/"
+GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}" "$boot/run" --decomp on
+echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot/run/run.log") waits $(grep -o 'script done.*' "$boot/run/run.log")"
+rm -rf "$boot/sd"
+wait $synth_pid 2>/dev/null || true
+cat "$synth_out"
+
