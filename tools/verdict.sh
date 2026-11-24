@@ -77,7 +77,12 @@ synth_pid=$!
 # CPU sets share physical cores, and the gate's real-time routes need theirs.
 # Default 0: the gate and a synthetic group in the same tree cannot run at once (both verdicts 775 and 830 lost their
 # fast gate entirely when overlapped), so the synthetic groups still finish first unless GT_VERIFY_OVERLAP=1.
-[ "${GT_VERIFY_OVERLAP:-0}" = 1 ] || wait $synth_pid
+# Since 2026-11-24 the default is 1 on 16 CPUs or more (the desktop's two sets are whole cores): the likely cause of 775/830
+# was two builds in one build/ at once, and the gate's build now holds build/.gt-build.lock (tools/decomp_gate.py
+# build_command); its build/recomp errors are no longer filtered out of the verdict either.
+# (and only when the tree's decomp_gate has that lock: a branch older than #846 still waits)
+overlap_default=0; [ "$(nproc)" -ge 16 ] && grep -q 'def build_command' tools/decomp_gate.py 2>/dev/null && overlap_default=1
+[ "${GT_VERIFY_OVERLAP:-$overlap_default}" = 1 ] || wait $synth_pid
 # The gate takes the CPU lock itself, around its routes only (GT_GATE_CPU_LOCK): its recomp and build never hold it.
 # The gate installs only the PR's functions too when the scope says "only N" (user 2026-11-24, "Sí, con gate diario"): the
 # race route took 344 s instead of 17 min and compared 175 of PR 732's functions instead of 111. Shared code runs the
@@ -87,7 +92,7 @@ gate_only=""
 case "$scope" in only*) grep -q 'full.add_argument("--only"' tools/decomp_gate.py 2>/dev/null \
   && { gate_only="--only @$only_list"; echo "gate: only the ${scope#only } functions the PR's decomp sources register"; };; esac
 GT_GATE_CPU_LOCK="verdict full $tag" taskset -c "$gate_cpus" .venv/bin/python -m tools.decomp_gate full "v$tag" $gate_only 2>&1 \
-  | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
+  | grep -E "^all routes|exit [^0]|FLOOR|MISMATCH|no report|build failed|recomp failed|contract audit|save routes:|^error" | head -40  # 10 hid the "all routes" line behind problem lines (L575)
 # Boot check: the save_garage pad route on the decompiled build from a fresh copy of the user's save.
 boot=$logs/boot
 # GT_VERIFY_BOOT_SECONDS (default 600): the boot route's wall-clock budget. On a loaded machine (load ~30 on 24 cores, powersave)

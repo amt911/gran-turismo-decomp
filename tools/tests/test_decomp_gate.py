@@ -776,3 +776,10 @@ def test_gate_env_keeps_the_full_gate_real_time():
     assert fast["GT_DECOMP_ONLY"] == "0x08800000,0x08800010" and fast["LCS_UNCAPPED"] == "1"
     assert gate.gate_env("full", None, None, {}) is None
     assert gate.gate_env("full", None, {"A": "b"}, {})["A"] == "b"
+
+
+def test_gate_build_is_serialised_in_one_tree():
+    """A gate and a synthetic group in one tree both build first; two ninja runs in one build/ at once lost the gate
+    (verdicts 775 and 830 printed no gate line), so the build step holds build/.gt-build.lock."""
+    cmd = gate.build_command()
+    assert cmd[:2] == ["flock", "build/.gt-build.lock"] and cmd[2:5] == ["cmake", "--build", "build"]

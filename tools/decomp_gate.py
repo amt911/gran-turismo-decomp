@@ -637,6 +637,12 @@ def gate_env(kind: str, only: list[int] | None, extra_env: dict[str, str] | None
     return env
 
 
+def build_command() -> list[str]:
+    """The gate's build, one at a time per tree: a gate and a synthetic group of one verdict build in the same build/ when
+    they overlap, and two ninja runs there at once lost the gate (verdicts 775 and 830 printed no gate line)."""
+    return ["flock", "build/.gt-build.lock", "cmake", "--build", "build", f"-j{BUILD_JOBS}"]
+
+
 def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover - drives the build
               extra_env: dict[str, str] | None = None, raise_floor_after: bool = False) -> int:
     import os
@@ -681,7 +687,7 @@ def _run_gate(kind: str, tag: str, only: list[int] | None,  # pragma: no cover -
 
 def _gate_steps(kind: str, tag: str, env: dict[str, str] | None,  # pragma: no cover - drives the build
                 raise_floor_after: bool = False) -> int:
-    build = subprocess.run(heavy(["cmake", "--build", "build", f"-j{BUILD_JOBS}"]), capture_output=True, text=True)
+    build = subprocess.run(heavy(build_command()), capture_output=True, text=True)
     if build.returncode != 0:
         print("\n".join(line for line in build.stdout.splitlines() if "error" in line)[:2000] or "build failed")
         return 2
