@@ -105,71 +105,6 @@ float clamp01(float x) {
     if (!(x < 1.0f)) return 1.0f;
     return x;
 }
-void func_08B03448(Runtime &rt, AllegrexContext &ctx) {
-    const u32 p1 = ctx.gpr[5];
-    const u32 p2 = ctx.gpr[6];
-    const u32 p3 = ctx.gpr[7];
-    const u32 out1 = ctx.gpr[8];
-    const u32 out2 = ctx.gpr[9];
-    SavedS<5> saved(ctx);
-    GuestFrame frame(ctx, 0x70u);
-    ctx.gpr[18] = p1;
-    ctx.gpr[20] = out2;
-    ctx.gpr[19] = out1;
-    ctx.gpr[17] = p3;
-    const u32 point = frame.at(8u);
-    ctx.gpr[16] = point;
-    const Words pair = call_words(rt, ctx, 0x08BAC270u, {ctx.gpr[4], p2});
-    put(rt, frame.at(0x20u), pair.first);
-    put(rt, frame.at(0x24u), pair.second);
-    put(rt, frame.at(0u), pair.first);
-    put(rt, frame.at(4u), pair.second);
-    call(rt, ctx, 0x08BAC428u, {point, pair.first, pair.second});
-    const float f22 = call_float(rt, ctx, 0x08BBBEC4u, {p1, p1});
-    const float f21 = call_float(rt, ctx, 0x08BBBEC4u, {p3, p3});
-    const float f24 = call_float(rt, ctx, 0x08BBBEC4u, {p1, point});
-    const float f23 = call_float(rt, ctx, 0x08BBBEC4u, {p3, point});
-    if (f22 == 0.0f) {
-        put_float(rt, out1, 0.0f);  // the delay slot of the second test runs on both of its paths
-        if (f21 == 0.0f) {
-            put_float(rt, out2, 0.0f);
-            return;
-        }
-        put_float(rt, out2, clamp01(f23 / f21));
-        return;
-    }
-    if (f21 == 0.0f) {
-        put_float(rt, out1, clamp01(-f24 / f22));
-        put(rt, out2, 0u);
-        return;
-    }
-    const float distance = call_float(rt, ctx, 0x08BBBEC4u, {p1, p3});
-    const float denominator = f22 * f21 - distance * distance;
-    if (denominator == 0.0f) {
-        put_float(rt, out1, 0.0f);
-    } else {
-        put_float(rt, out1, clamp01((f23 * distance - f21 * f24) / denominator));
-    }
-    const float t = (f23 + distance * float_at(rt, out1)) / f21;
-    put_float(rt, out2, t);
-    if (t < 0.0f) {
-        const float u = -f24 / f22;
-        put_float(rt, out2, 0.0f);
-        if (u < 0.0f) {
-            put_float(rt, out1, 0.0f);
-        } else {
-            put_float(rt, out1, clamp01(u));
-        }
-    } else if (1.0f < t) {
-        const float u = (distance - f24) / f22;
-        put_float(rt, out2, 1.0f);
-        if (u < 0.0f) {
-            put_float(rt, out1, 0.0f);
-        } else {
-            put_float(rt, out1, clamp01(u));
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x08AEF1D0 (a0 = selector, a1 = source values): fixed-point (12-bit fraction) geometry setup.
@@ -179,67 +114,6 @@ void func_08B03448(Runtime &rt, AllegrexContext &ctx) {
 // results.
 s32 mul32(s32 a, s32 b) { return static_cast<s32>(static_cast<u32>(a) * static_cast<u32>(b)); }
 s32 fixed12(s32 a, s32 b) { return mul32(a, b) >> 12; }
-void func_08AEF1D0(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 source = ctx.gpr[5];
-    SavedS<4> saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[19] = self;
-    ctx.gpr[17] = source;
-    const s32 base = static_cast<s32>(bits(word(rt, source + 0xCu), 1, 12));
-    const u32 lookup1 = call(rt, ctx, 0x08AF0E9Cu, {static_cast<u32>(base + 0x600)});
-    const s32 scale_a = fixed12(static_cast<s32>(word(rt, source + 4u)), static_cast<s32>(lookup1));
-    const u32 lookup2 = call(rt, ctx, 0x08AF0E9Cu, {static_cast<u32>(base + 0x200)});
-    const s32 scale_b = fixed12(static_cast<s32>(word(rt, source + 8u)), static_cast<s32>(lookup2));
-    const u32 entry = 0x08CE09D0u + 8u * (2u * word(rt, source + 0x24u) + word(rt, source + 0x1Cu));
-    const s32 raw_a = mul32(scale_b, static_cast<s32>(word(rt, entry + 4u)));
-    const s32 value_a = raw_a >> 12;
-    const s32 raw_b = mul32(scale_a, static_cast<s32>(word(rt, entry)));
-    s32 value_b = raw_b >> 12;
-    s32 value_a_kept = value_a;
-    const u32 product_for_call = mul32(static_cast<s32>(word(rt, source + 8u)), static_cast<s32>(lookup2));
-    if (call(rt, ctx, 0x08AD9860u, {static_cast<u32>(raw_a), product_for_call}) == 0u) {
-        value_a_kept = static_cast<s32>(static_cast<u32>(value_b) + static_cast<u32>(value_a_kept)) >> 1;
-        value_b = value_a_kept;
-    }
-    const s32 selector = static_cast<s32>(word(rt, self + 0x18u));
-    const u32 index = word(rt, self + 0x1Cu);
-    if (selector == 1) {
-        const u32 row = 0x08D41AD0u + 8u * index;
-        const s32 field14 = static_cast<s32>(word(rt, source + 0x14u));
-        const s32 field18 = static_cast<s32>(word(rt, source + 0x18u));
-        rt.memory().store16(row + 0x1A4u, static_cast<u16>(fixed12(value_b, field14)));
-        rt.memory().store16(row + 0x1A6u, static_cast<u16>(fixed12(value_a_kept, field14)));
-        rt.memory().store16(row + 0x1A8u, static_cast<u16>(fixed12(value_b, field18)));
-        rt.memory().store16(row + 0x1AAu, static_cast<u16>(fixed12(value_a_kept, field18)));
-        const u32 state = word(rt, 0x08D41AD0u + 0x4B0u) + 0x6Cu * index;
-        u32 flags = word(rt, state + 4u) | 0x40u;
-        put(rt, state + 4u, flags);
-        put(rt, state + 0x1Cu, static_cast<u32>(fixed12(value_b, field14)));
-        flags |= 0x80u;
-        put(rt, state + 4u, flags);
-        put(rt, state + 0x20u, static_cast<u32>(fixed12(value_a_kept, field14)));
-        flags |= 0x100u;
-        put(rt, state + 4u, flags);
-        put(rt, state + 0x24u, static_cast<u32>(fixed12(value_b, field18)));
-        put(rt, state + 0x28u, static_cast<u32>(fixed12(value_a_kept, field18)));
-        flags |= 0x200u;
-        put(rt, state + 4u, flags);
-        ctx.gpr[2] = flags;
-        return;
-    }
-    if (selector == 2) {
-        const u32 row = 0x08D41AD0u + 8u * index;
-        const s32 field14 = static_cast<s32>(word(rt, source + 0x14u));
-        rt.memory().store16(row + 0x2A4u, static_cast<u16>(fixed12(value_b, field14)));
-        rt.memory().store16(row + 0x2A6u, static_cast<u16>(fixed12(value_a_kept, field14)));
-        const s32 second = fixed12(value_a_kept, field14);
-        const s32 first = fixed12(value_b, field14);
-        call(rt, ctx, 0x08AEDB60u, {index, static_cast<u32>(first), static_cast<u32>(second)});
-        return;
-    }
-    ctx.gpr[2] = 2u;
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x089164E8 (a0 = object, a1 = a 4-row matrix to fill, f12 = a scale): builds two anchors through 0x088D32E0 (the
@@ -254,103 +128,6 @@ void func_08AEF1D0(Runtime &rt, AllegrexContext &ctx) {
 // of flags at +0xC of the entry and an object at +0x10; the flags' bit 1 (or the container flag's bit 0) decides
 // whether the object's virtual at +0x18 is asked, the callee fills the four words at sp, and the state record's
 // fields are updated from them. Audio-like update: the exits are 1 (busy) or whether +4 of the record is set.
-void func_08B62A04(Runtime &rt, AllegrexContext &ctx) {
-    const u32 header = ctx.gpr[4];
-    const u32 argument = ctx.gpr[5];
-    const u32 table = ctx.gpr[6];
-    const u32 state = ctx.gpr[7];
-    SavedS<8> saved(ctx);
-    SavedFp saved_fp(ctx);
-    GuestFrame frame(ctx, 0x50u);
-    put(rt, frame.at(0x10u), header);
-    put(rt, frame.at(0x14u), argument);
-    if (call(rt, ctx, 0x08B62884u, {header, argument}) != 0u) {
-        ctx.gpr[2] = 1u;
-        return;
-    }
-    u32 flags = word(rt, state + 8u);
-    if ((flags & 0x10u) != 0u) flags = word(rt, header + 8u);
-    const u32 count = word(rt, header + 0xCu);
-    for (u32 i = 0u; i < count; ++i) {
-        const u32 slot = count - 1u - i;
-        const u32 field = word(rt, header + 0x14u + slot * 8u);
-        const u32 bit1 = (field >> 1) & 1u;
-        const s32 offset = static_cast<s32>(field) >> 8;
-        const u32 low = field & 1u;
-        put(rt, frame.at(0u), 0u);
-        put(rt, frame.at(8u), flags);
-        put(rt, frame.at(0xCu), 0u);
-        if (bit1 == 0u && (flags & 1u) == 0u) continue;
-        u32 extra = 0u;
-        if (table != 0u) {
-            if (low != 0u) extra = table + word(rt, word(rt, table) + static_cast<u32>(offset));
-            else extra = table + static_cast<u32>(offset);
-        }
-        const u32 object = word(rt, header + 0x10u + slot * 8u);
-        if (call_virtual(rt, ctx, object, 0x18u,
-                         {object, word(rt, frame.at(0x14u)), extra, frame.at(0u)})
-                .v0 == 0u) {
-            continue;
-        }
-        u32 scratch = word(rt, frame.at(0xCu));
-        if (scratch == 8u && low != 0u) {
-            scratch = object;
-            put(rt, frame.at(0xCu), scratch);
-        }
-        u32 flag = word(rt, frame.at(4u));
-        if (!(static_cast<s32>(flag) < 4) && bit1 == 0u) {
-            flag &= ~2u;
-            put(rt, frame.at(4u), flag);
-        }
-        const u32 inner = word(rt, state + 0xCu);
-        if (inner == 0u) {
-            put(rt, state + 8u, word(rt, frame.at(8u)));
-            put(rt, state + 0u, word(rt, frame.at(0u)));
-            put(rt, state + 0xCu, scratch);
-            put(rt, state + 4u, flag);
-            if (static_cast<s32>(flag) < 4) {
-                ctx.gpr[2] = 1u;
-                return;
-            }
-            if ((flag & 2u) != 0u) {
-                if ((word(rt, header + 8u) & 1u) != 0u) continue;
-                ctx.gpr[2] = 1u;
-                return;
-            }
-            if ((flag & 1u) == 0u) {
-                ctx.gpr[2] = 1u;
-                return;
-            }
-            if ((word(rt, header + 8u) & 2u) != 0u) continue;
-            ctx.gpr[2] = 1u;
-            return;
-        }
-        const u32 stored = word(rt, state + 0u);
-        if (stored != word(rt, frame.at(0u))) {
-            put(rt, state + 4u, 2u);
-            put(rt, state + 0u, 0u);
-            ctx.gpr[2] = 1u;
-            return;
-        }
-        if (stored != 0u) {
-            put(rt, state + 4u, word(rt, state + 4u) | flag);
-            continue;
-        }
-        if (scratch == 8u || inner == 8u) {
-            put(rt, state + 4u, 2u);
-            ctx.gpr[2] = 1u;
-            return;
-        }
-        if (word(rt, scratch + 4u) == word(rt, inner + 4u)) {
-            put(rt, state + 4u, word(rt, state + 4u) | flag);
-            continue;
-        }
-        put(rt, state + 4u, 2u);
-        ctx.gpr[2] = 1u;
-        return;
-    }
-    ctx.gpr[2] = word(rt, state + 4u) != 0u ? 1u : 0u;
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x08BE1DA4 (a0 = object): destructor with intrusive reference counts. The vtable 0x08CC68D0 goes in first, then the
@@ -376,97 +153,12 @@ void release_holder_tail(Runtime &rt, AllegrexContext &ctx, u32 object) {
     if (users != 1u) return;
     call_virtual(rt, ctx, object, 0xCu, {object});
 }
-void func_08BE1DA4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedS<3> saved(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[17] = self;
-    put(rt, self, 0x08CC68D0u);
-    release_holder(rt, ctx, word(rt, self + 0x68u));
-    const u32 buffer = word(rt, self + 0x50u);
-    const u32 inner = buffer - 0xCu;
-    if (inner != 0x08D75298u) {
-        const u32 users = call(rt, ctx, 0x08B60804u, {buffer - 4u, 0xFFFFFFFFu});
-        if (!(static_cast<s32>(users) > 0)) call(rt, ctx, 0x08B93554u, {inner, frame.at(0u)});
-    }
-    release_holder(rt, ctx, word(rt, self + 0x4Cu));
-    const u32 members = self + 0x40u;  // the asm's s2: the second holder is at s2 + 4
-    release_holder(rt, ctx, word(rt, members + 4u));
-    release_holder(rt, ctx, word(rt, self + 0x3Cu));
-    put(rt, self, 0x08CC68F0u);
-    release_holder(rt, ctx, word(rt, self + 0x2Cu));
-    release_holder_tail(rt, ctx, word(rt, self + 0x24u));
-    put(rt, self, 0x08CC3000u);
-    call(rt, ctx, 0x08B64654u, {self});
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x08B6D284 (a0:a1 = a double, a2:a3 = another, t0 = a flag): a chain of 64-bit operations. A magnitude at or below
 // 0x3E3FFFFF asks 0x08B71DC8 first; a non-zero answer (and the > case always) runs the 0x08B71394 / 0x08B712B0 /
 // 0x08B71328 chain with the 64-bit constants at 0x08CB68A0..0x08CB68D4; t0 == 0 takes a shorter chain. v0:v1 is the
 // 64-bit result (the inputs themselves on the early exit).
-void func_08B6D284(Runtime &rt, AllegrexContext &ctx) {
-    const u32 first0 = ctx.gpr[4];
-    const u32 first1 = ctx.gpr[5];
-    const u32 second0 = ctx.gpr[6];
-    const u32 second1 = ctx.gpr[7];
-    const u32 flag = ctx.gpr[8];
-    SavedS<8> saved(ctx);
-    GuestFrame frame(ctx, 0x40u);
-    put(rt, frame.at(8u), second0);
-    put(rt, frame.at(0xCu), second1);
-    bool work = (first1 & ~(1u << 31)) > 0x3E3FFFFFu;  // ins t2, zero, 31, 1 clears the sign bit
-    if (!work) work = call(rt, ctx, 0x08B71DC8u, {first0, first1}) != 0u;
-    if (!work) {
-        ctx.gpr[2] = first0;
-        ctx.gpr[3] = first1;
-        return;
-    }
-    Words q = call_words(rt, ctx, 0x08B71394u, {first0, first1, first0, first1});
-    const u32 x0 = q.first;
-    const u32 x1 = q.second;
-    q = call_words(rt, ctx, 0x08B71394u, {first0, first1, x0, x1});
-    put(rt, frame.at(0u), q.first);
-    put(rt, frame.at(4u), q.second);
-    q = call_words(rt, ctx, 0x08B71394u, {x0, x1, word(rt, 0x08CB68A0u), word(rt, 0x08CB68A4u)});
-    q = call_words(rt, ctx, 0x08B712B0u, {q.first, q.second, word(rt, 0x08CB68A8u), word(rt, 0x08CB68ACu)});
-    q = call_words(rt, ctx, 0x08B71394u, {x0, x1, q.first, q.second});
-    q = call_words(rt, ctx, 0x08B71328u, {q.first, q.second, word(rt, 0x08CB68B0u), word(rt, 0x08CB68B4u)});
-    q = call_words(rt, ctx, 0x08B71394u, {x0, x1, q.first, q.second});
-    q = call_words(rt, ctx, 0x08B712B0u, {q.first, q.second, word(rt, 0x08CB68B8u), word(rt, 0x08CB68BCu)});
-    q = call_words(rt, ctx, 0x08B71394u, {x0, x1, q.first, q.second});
-    q = call_words(rt, ctx, 0x08B71328u, {q.first, q.second, word(rt, 0x08CB68C0u), word(rt, 0x08CB68C4u)});
-    const u32 y0 = q.first;
-    const u32 y1 = q.second;
-    if (flag == 0u) {
-        const Words m = call_words(rt, ctx, 0x08B71394u, {x0, x1, y0, y1});
-        const Words n = call_words(rt, ctx, 0x08B712B0u, {m.first, m.second, word(rt, 0x08CB68C8u), word(rt, 0x08CB68CCu)});
-        const Words o = call_words(rt, ctx, 0x08B71394u, {word(rt, frame.at(0u)), word(rt, frame.at(4u)), n.first, n.second});
-        const Words p = call_words(rt, ctx, 0x08B71328u, {first0, first1, o.first, o.second});
-        ctx.gpr[2] = p.first;
-        ctx.gpr[3] = p.second;
-        return;
-    }
-    const Words a = call_words(rt, ctx, 0x08B71394u,
-                               {word(rt, frame.at(8u)), word(rt, frame.at(0xCu)), word(rt, 0x08CB68D0u),
-                                word(rt, 0x08CB68D4u)});
-    u32 s0 = a.first;
-    u32 s1 = a.second;
-    const Words b = call_words(rt, ctx, 0x08B71394u, {word(rt, frame.at(0u)), word(rt, frame.at(4u)), y0, y1});
-    const Words c = call_words(rt, ctx, 0x08B712B0u, {s0, s1, b.first, b.second});
-    const Words d = call_words(rt, ctx, 0x08B71394u, {x0, x1, c.first, c.second});
-    const Words e = call_words(rt, ctx, 0x08B712B0u,
-                               {d.first, d.second, word(rt, frame.at(8u)), word(rt, frame.at(0xCu))});
-    s0 = e.first;
-    s1 = e.second;
-    const Words f = call_words(rt, ctx, 0x08B71394u,
-                               {word(rt, frame.at(0u)), word(rt, frame.at(4u)), word(rt, 0x08CB68C8u),
-                                word(rt, 0x08CB68CCu)});
-    const Words g = call_words(rt, ctx, 0x08B71328u, {s0, s1, f.first, f.second});
-    const Words h = call_words(rt, ctx, 0x08B712B0u, {first0, first1, g.first, g.second});
-    ctx.gpr[2] = h.first;
-    ctx.gpr[3] = h.second;
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x088C0DCC (a0 = object, a1/a2/a3 = flags, f12/f13 = angles): classifies by the mode byte at *(a0+0x24)+0xF. Mode 1
@@ -644,19 +336,10 @@ void measure_gap(Runtime &rt, AllegrexContext &ctx, u32 out, u32 arg_a1, u32 arg
     put_float(rt, out + 4u, wrapped);
     ctx.gpr[2] = out;
 }
-void func_08902C00(Runtime &rt, AllegrexContext &ctx) {
-    measure_gap(rt, ctx, ctx.gpr[4], ctx.gpr[5], ctx.gpr[6], ctx.gpr[7], ctx.gpr[8]);
-}
 
 } // namespace
 } // namespace new_batch_main_696
 } // namespace gt::game
 
 #define NEW696(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_696::name, gt::ReturnKind::kind)
-NEW696(0x08B03448u, func_08B03448, Word);
-NEW696(0x08AEF1D0u, func_08AEF1D0, Word);
-NEW696(0x08B62A04u, func_08B62A04, Word);
-NEW696(0x08BE1DA4u, func_08BE1DA4, Word);
-NEW696(0x08B6D284u, func_08B6D284, DoubleWord);
 NEW696(0x088C0DCCu, func_088C0DCC, Word);
-NEW696(0x08902C00u, func_08902C00, Word);

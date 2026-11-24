@@ -136,69 +136,9 @@ void release_string(Runtime &rt, AllegrexContext &ctx, u32 data, u32 scratch) {
 // 0x08CDE764 (times 5, over 640), the per-mode adjustment (0: a decay of the value at 0x08CF4078, 1: the maximum at
 // 0x08CF4074 and the flag byte at 0x08CDE7B8, 2: dropped when the axes did not move by 0.015625, 3: kept unless bit
 // 0x400 of 0x08977270's answer), then the clamped (against the weight and zero), normalised pair.
-void func_08977B14(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 other = ctx.gpr[5];
-    const u32 out_a = ctx.gpr[6];
-    const u32 out_b = ctx.gpr[7];
-    GuestFrame frame(ctx, 0x30u);
-    const float previous_a = call_float(rt, ctx, 0x08977290u, {self, other, 2u});
-    const float previous_b = call_float(rt, ctx, 0x08977290u, {self, other, 3u});
-    const float axle_a = call_float(rt, ctx, 0x089771F4u, {self, other, 2u});
-    const float axle_b = call_float(rt, ctx, 0x089771F4u, {self, other, 3u});
-    const u32 flags = call_set(rt, ctx, 0x08977270u, {self, other});
-    const float magnitude = std::sqrt(psp_mul(axle_a, axle_a) + psp_mul(axle_b, axle_b));
-    const float weight = psp_mul(float_at(rt, 0x08CDE764u), 5.0f) / 640.0f;
-    float factor = psp_mul(psp_mul(magnitude, psp_mul(magnitude, magnitude)), weight - 1.0f) + 1.0f;
-    if (-0.2890625f < axle_a && axle_a < 0.2890625f && -0.2890625f < axle_b && axle_b < 0.2890625f) {
-        const u32 mode = word(rt, self + 0x178u);
-        const float moved_a = std::fabs(axle_a - previous_a);
-        const float moved_b = std::fabs(axle_b - previous_b);
-        if (mode == 0u) {
-            if (0.015625f <= moved_a || 0.015625f <= moved_b) {
-                put_float(rt, 0x08CF4078u, 1.0f);
-            } else {
-                put_float(rt, 0x08CF4078u, float_at(rt, 0x08CF4078u) - 0.1f);
-            }
-            const float decay = float_at(rt, 0x08CF4078u);
-            if (decay < 0.0f) {
-                put_float(rt, 0x08CF4078u, 0.0f);
-                factor = psp_mul(factor, 0.0f);
-            } else {
-                factor = psp_mul(factor, decay);
-            }
-        } else if (mode == 1u) {
-            if (0.015625f <= moved_a || 0.015625f <= moved_b) {
-                const float top = float_at(rt, 0x08CF4074u);
-                if (magnitude < top) {
-                    put_byte(rt, 0x08CDE7B8u, 1u);
-                } else if (top < magnitude) {
-                    put_byte(rt, 0x08CDE7B8u, 0u);
-                }
-                put_float(rt, 0x08CF4074u, magnitude);
-            }
-            if (byte_at(rt, 0x08CDE7B8u) != 0u) factor = 0.0f;
-        } else if (mode == 2u) {
-            if (moved_a < 0.015625f && moved_b < 0.015625f) factor = 0.0f;
-        } else if (mode == 3u) {
-            if ((flags & 0x400u) == 0u) factor = 0.0f;
-        }
-    }
-    if (factor < 0.0f) factor = 0.0f;
-    if (weight < factor) factor = weight;
-    float x = axle_a;
-    float y = axle_b;
-    if (0.0f < magnitude) {
-        y = axle_b / magnitude;
-        x = axle_a / magnitude;
-    }
-    put_float(rt, out_a, psp_mul(x, factor));
-    put_float(rt, out_b, psp_mul(y, factor));
-}
 
 } // namespace
 } // namespace new_batch_main_697
 } // namespace gt::game
 
 #define NEW697(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_697::name, gt::ReturnKind::kind)
-NEW697(0x08977B14u, func_08977B14, Void);
