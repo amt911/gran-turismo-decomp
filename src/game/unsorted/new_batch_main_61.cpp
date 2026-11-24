@@ -194,24 +194,6 @@ bool install_child(Runtime &rt, AllegrexContext &ctx, u32 self, u32 offset, u32 
 // 0x0888504C (a0 = an object, a1 = which child (0 or 1), a2 = the replacement): installs child 0 (member +0x190, kind 0xB, text
 // 0x08CA0670, colour 0x80FF00FF, label 0x08BA60AC) or child 1 (+0x194, kind 0x10, 0x08CA0680, 0xFF8080FF, 0x08BA60B4); any other
 // selector returns 1.
-void func_0888504C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 which = ctx.gpr[5];
-    const u32 replacement = ctx.gpr[6];
-    u32 tail_argument = 0u;
-    bool tail = false;
-    {
-        GuestFrame frame(ctx, 0x10u);
-        if (which == 0u) {
-            tail = install_child(rt, ctx, self, 0x190u, replacement, 0xBu, 0x08CA0670u, 0x80FF00FFu, 0x08BA60ACu, tail_argument);
-        } else if (which == 1u) {
-            tail = install_child(rt, ctx, self, 0x194u, replacement, 0x10u, 0x08CA0680u, 0xFF8080FFu, 0x08BA60B4u, tail_argument);
-        } else {
-            ctx.gpr[2] = 1u;
-        }
-    }
-    if (tail) tail_call(ctx, word(rt, word(rt, tail_argument) + 0x28u), {tail_argument});
-}
 
 // 0x088DEA1C (a0 = a manager, a1, a2, a3 = an event's words): with a callback at +0x118, the event is first tried on the manager's
 // pending slot (0x088E5E60 on the object at +0x640, when 0x088DE9CC says so) or placed in a free 760-byte slot of the table at +0xC0
@@ -362,7 +344,6 @@ void func_0896F3B4(Runtime &rt, AllegrexContext &ctx) { query_object(rt, ctx, 0x
 
 #define NEW61(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_61::name, gt::ReturnKind::kind)
 NEW61(0x0880D278u, func_0880D278, Word);
-NEW61(0x0888504Cu, func_0888504C, Word);
 NEW61(0x088DEA1Cu, func_088DEA1C, Word);
 NEW61(0x0896F1BCu, func_0896F1BC, Word);
 NEW61(0x0896F3B4u, func_0896F3B4, Word);

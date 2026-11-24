@@ -239,9 +239,6 @@ void escape_string(Runtime &rt, AllegrexContext &ctx, const EscapeStrings &strin
         ctx.gpr[2] = out;
     }
 }
-void func_08A6A6F0(Runtime &rt, AllegrexContext &ctx) {
-    escape_string(rt, ctx, {0x08CB04CCu, {0x08CB04D0u, 0x08CB04D4u, 0x08CB04E4u, 0x08CB04DCu, 0x08CB04E8u, 0x08CB04D8u, 0x08CB04E0u}, 0x08CB04ECu});
-}
 void func_08A6FDF0(Runtime &rt, AllegrexContext &ctx) {
     escape_string(rt, ctx, {0x08CB08BCu, {0x08CB08C0u, 0x08CB08C4u, 0x08CB08D4u, 0x08CB08CCu, 0x08CB08D8u, 0x08CB08C8u, 0x08CB08D0u}, 0x08CB08DCu});
 }
@@ -586,7 +583,6 @@ void func_08B931BC(Runtime &rt, AllegrexContext &ctx) {
 #define NEW62(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_62::name, gt::ReturnKind::kind)
 NEW62(0x088DBC40u, func_088DBC40, Word);
 NEW62(0x088D4988u, func_088D4988, Word);
-NEW62(0x08A6A6F0u, func_08A6A6F0, Word);
 NEW62(0x08A6FDF0u, func_08A6FDF0, Word);
 NEW62(0x08A3449Cu, func_08A3449C, Word);
 NEW62(0x0888BD14u, func_0888BD14, Word);

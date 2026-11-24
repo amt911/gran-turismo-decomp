@@ -183,7 +183,6 @@ void destroy_members_then_tail(Runtime &rt, AllegrexContext &ctx, u32 vtable, u3
     tail_call(ctx, tail, {self});
 }
 
-void func_08BC12AC(Runtime &rt, AllegrexContext &ctx) { destroy_members(rt, ctx, 0x08CC5200u, 0x08CC5220u, 0x08CC3000u); }
 void func_08BC1538(Runtime &rt, AllegrexContext &ctx) {
     destroy_members_then_tail(rt, ctx, 0x08CC5200u, 0x08CC5220u, 0x08CC3000u, 0x08B64654u);
 }
@@ -239,39 +238,6 @@ void func_08B4A198(Runtime &, AllegrexContext &ctx) {
 // ---- 0x089F1850: one-time registration (a0 == 1 && a1 == 0xFFFF), ten table rows ----
 // Two registry calls, then ten 0x08C0B44C(descriptor, name, {word0, word1}, this) in order; v0 ends as the last
 // result. The early exits keep the asm's v0: 1 for a0 != 1, 0xFFFF for a1 != 0xFFFF.
-void func_089F1850(Runtime &rt, AllegrexContext &ctx) {
-    if (ctx.gpr[4] != 1u) {
-        ctx.gpr[2] = 1u;
-        return;
-    }
-    if (ctx.gpr[5] != 0xFFFFu) {
-        ctx.gpr[2] = 0xFFFFu;
-        return;
-    }
-    GuestFrame frame(ctx, 0x60u);
-    call(rt, ctx, 0x08A92114u, {0x08CF58D8u, 0x08CA808Cu, 0x280u, 0x089F16F4u, 0x089F4500u, 0x089F1718u});
-    call(rt, ctx, 0x0897D534u, {0x08CF58C8u, 0x08CA808Cu, 0x089F46C4u, 0x089F4680u});
-    struct Row {
-        u32 pair;
-        u32 descriptor;
-        u32 name;
-        u32 stack_offset;
-    };
-    static constexpr Row rows[] = {
-        {0x08C8D944u, 0x08CF5984u, 0x08CA809Cu, 0x48u}, {0x08C8D93Cu, 0x08CF5974u, 0x08CA80ACu, 0x40u},
-        {0x08C8D934u, 0x08CF5964u, 0x08CA80BCu, 0x38u}, {0x08C8D92Cu, 0x08CF5954u, 0x08CA80CCu, 0x30u},
-        {0x08C8D924u, 0x08CF5944u, 0x08CA80DCu, 0x28u}, {0x08C8D91Cu, 0x08CF5934u, 0x08CA80ECu, 0x20u},
-        {0x08C8D914u, 0x08CF5924u, 0x08CA80FCu, 0x18u}, {0x08C8D90Cu, 0x08CF5914u, 0x08CA810Cu, 0x10u},
-        {0x08C8D904u, 0x08CF5904u, 0x08CA811Cu, 0x08u}, {0x08C8D8FCu, 0x08CF58F4u, 0x08CA8128u, 0x00u},
-    };
-    for (const Row &row : rows) {
-        const u32 first = word(rt, row.pair);
-        const u32 second = word(rt, row.pair + 4u);
-        put(rt, frame.at(row.stack_offset), first);
-        put(rt, frame.at(row.stack_offset + 4u), second);
-        call(rt, ctx, 0x08C0B44Cu, {row.descriptor, row.name, frame.at(row.stack_offset), 0x08CF58C8u});
-    }
-}
 
 // ---- 0x08AEF1D0: fixed-point (12-bit fraction) sprite/geometry setup ----
 // s3 = a0 (selector at +0x18, index at +0x1C), s1 = a1 (source values). The two 08AF0E9C lookups scale a1's +4/+8, a
@@ -347,114 +313,6 @@ void func_08AEF1D0(Runtime &rt, AllegrexContext &ctx) {
 // ---- 0x0886DB78: constructor of a large object (vtable 0x08CBF748, then 0x08CC6850) ----
 // Allocates a 0x338-byte body with 08B62344, initialises its member blocks through the member constructors, zeroes the
 // arrays and small blocks, copies a 14-byte run from 0x08C9F754, and parks the body at this+4. v0 = body + 0x330.
-void func_0886DB78(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    SavedS0 saved0(ctx);
-    SavedS1 saved1(ctx);
-    SavedS2 saved2(ctx);
-    SavedS3 saved3(ctx);
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[18] = self;
-    put(rt, self, 0x08CBF748u);
-    const u32 body = call(rt, ctx, 0x08B62344u, {0x338u});
-    ctx.gpr[17] = body;
-    call(rt, ctx, 0x08B93A70u, {body});
-    const u32 block60 = body + 0x60u;
-    ctx.gpr[19] = block60;
-    put(rt, body + 0x0Cu, 0u);
-    put(rt, body + 0x28u, 0u);
-    put(rt, body + 0x2Cu, 0u);
-    rt.memory().store8(body + 0x30u, 0u);
-    put(rt, body + 0x34u, 0u);
-    call(rt, ctx, 0x0887D080u, {body + 0x38u});
-    put(rt, body + 0x44u, 0u);
-    call(rt, ctx, 0x0890B2F4u, {block60});
-    rt.memory().store8(body + 0x68u, 0u);
-    put(rt, body + 0x6Cu, 0u);
-    put(rt, body + 0x70u, 0u);
-    put(rt, body + 0x74u, 0u);
-    put(rt, body + 0x78u, 0u);
-    put(rt, body + 0x7Cu, 0u);
-    put(rt, body + 0x80u, 0u);
-    put(rt, body + 0x84u, 0u);
-    call(rt, ctx, 0x0887DE44u, {body + 0x88u, self});
-    put(rt, body + 0xF8u, 0x08CC6838u);
-    put(rt, body + 0xECu, 0u);
-    put(rt, body + 0xF0u, 0u);
-    put(rt, body + 0xF4u, 0u);
-    put(rt, body + 0xFCu, 0u);
-    put(rt, body + 0x100u, 0u);
-    put(rt, body + 0x104u, 0u);
-    put(rt, body + 0x108u, 0u);
-    call(rt, ctx, 0x08B28DCCu, {body + 0x110u});
-    const u32 one = std::bit_cast<u32>(1.0f);
-    put(rt, body + 0x150u, 0u);
-    const u32 block = body + 0x15Cu;
-    const u32 array = body + 0x184u;
-    put(rt, body + 0xF8u, 0x08CC6850u);
-    put(rt, body + 0x138u, 0u);
-    put(rt, body + 0x13Cu, 0u);
-    put(rt, body + 0x144u, 0u);
-    put(rt, body + 0x148u, one);
-    rt.memory().store8(body + 0x14Cu, 0u);
-    put(rt, body + 0x154u, 0u);
-    put(rt, body + 0x158u, 0u);
-    put(rt, body + 0x15Cu, 0u);
-    const u32 masked = word(rt, block + 0x20u) & ~7u;   // ins $v0, $zero, 0, 3
-    put(rt, block + 8u, one);
-    put(rt, block + 0xCu, 0u);
-    const u32 copied_float = word(rt, block + 8u);
-    const u32 copied_zero = word(rt, block + 0xCu);
-    put(rt, block + 0x20u, masked);
-    put(rt, block + 0x10u, copied_float);
-    put(rt, block + 0x14u, copied_zero);
-    put(rt, block + 4u, one);
-    put(rt, block + 0x18u, copied_float);
-    put(rt, block + 0x1Cu, copied_zero);
-    put(rt, body + 0x180u, 0u);
-    for (u32 i = 0; i < 16u; ++i) put(rt, array + 4u * i, 0u);
-    const u32 link1 = body + 0x1DCu;
-    const u32 link2 = body + 0x1F4u;
-    const u32 node1 = body + 0x1C4u;
-    const u32 node2 = body + 0x1C8u;
-    const u32 node3 = body + 0x1E0u;
-    const u32 node4 = body + 0x1F8u;
-    put(rt, node1 + 0x14u, 0u);
-    put(rt, node1 + 0x10u, node2);
-    put(rt, node1 + 0xCu, node2);
-    put(rt, node1 + 4u, 0u);
-    put(rt, node1 + 8u, 0u);
-    put(rt, link1 + 0x10u, node3);
-    put(rt, link1 + 0xCu, node3);
-    put(rt, link1 + 4u, 0u);
-    put(rt, link1 + 0x14u, 0u);
-    put(rt, link1 + 8u, 0u);
-    put(rt, link2 + 0x10u, node4);
-    put(rt, link2 + 4u, 0u);
-    put(rt, link2 + 0x14u, 0u);
-    put(rt, link2 + 8u, 0u);
-    put(rt, link2 + 0xCu, node4);
-    put(rt, body + 0x32Cu, 0u);
-    call(rt, ctx, 0x08B36018u, {body + 0x20Cu, 0u, 0x100u});
-    call(rt, ctx, 0x08B36018u, {body + 0x30Cu, 0u, 0x20u});
-    const u32 tail = body + 0x30Cu;
-    for (u32 i = 0; i < 14u; ++i) rt.memory().store8(tail + i, rt.memory().load8(0x08C9F754u + i));
-    for (u32 i = 0; i < 3u; ++i) {
-        put(rt, body + 4u * i + 0x10u, 0u);
-        put(rt, body + 4u * i + 0x1Cu, 0u);
-    }
-    for (u32 i = 0; i < 2u; ++i) {
-        put(rt, body + 4u * i + 0x48u, 0u);
-        put(rt, body + 4u * i + 0x50u, 0u);
-        put(rt, body + 4u * i + 0x58u, block60);
-    }
-    const u32 result = body + 0x330u;
-    rt.memory().store16(body + 0x330u, 0u);
-    rt.memory().store16(result + 4u, 0u);
-    rt.memory().store16(result + 2u, 0u);
-    put(rt, self + 4u, body);
-    ctx.gpr[2] = result;
-}
 
 // ---- 0x088D2098: a 0x1F5-byte structure copy (dst = a0, src = a1), byte for byte ----
 // The original copies the 12-byte header with sb/lwl/lwr and the rest in 0x10-byte chunks (loads before stores), leaving
@@ -690,14 +548,11 @@ void func_08C789F4(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW24(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_24::name, gt::ReturnKind::kind)
-NEW24(0x08BC12ACu, func_08BC12AC, Word);
 NEW24(0x08BC1538u, func_08BC1538, Word);
 NEW24(0x08BD045Cu, func_08BD045C, Word);
 NEW24(0x08BD06E8u, func_08BD06E8, Word);
 NEW24(0x08B4A198u, func_08B4A198, Float);
-NEW24(0x089F1850u, func_089F1850, Word);
 NEW24(0x08AEF1D0u, func_08AEF1D0, Word);
-NEW24(0x0886DB78u, func_0886DB78, Word);
 NEW24(0x08B03448u, func_08B03448, Word);
 NEW24(0x08BD972Cu, func_08BD972C, Word);
 NEW24(0x08BD99B4u, func_08BD99B4, Word);
