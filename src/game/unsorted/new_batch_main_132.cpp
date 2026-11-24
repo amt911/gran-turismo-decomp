@@ -245,105 +245,6 @@ void func_08808F2C(Runtime &rt, AllegrexContext &ctx) {
 // registry's fields, then builds each singleton in .bss (vtable word, count 1, zeroed members), registers it through 0x08B5D3DC
 // under its id word and finally stores each singleton at the registry slot 0x08B5C2B0 finds for its id. v0 is the address of the
 // last slot written.
-void func_08B5D788(Runtime &rt, AllegrexContext &ctx) {
-    Env e{rt, ctx};
-    GuestFrame frame(ctx, 0x30u);
-    const u32 self = ctx.gpr[4];
-    e.set(self + 0u, ctx.gpr[5]);
-    e.set(self + 8u, 14u);
-    e.set(self + 0x10u, 0u);
-    e.set(self + 4u, 0x08D7267Cu);
-    e.set(self + 0xCu, 0x08D72644u);
-    for (u32 slot = 0u; slot < 14u; ++slot) {
-        e.set(0x08D72644u + slot * 4u, 0u);
-        e.set(0x08D7267Cu + slot * 4u, 0u);
-    }
-    e.set(self + 0x10u, 0x08D726C0u);
-    e.set(0x08D726C0u, 0x08D726B4u);
-    const u32 version = e.call(0x08B5C274u);
-    e.set_byte(0x08D726B4u, e.byte(version));
-    e.set_byte(0x08D726B4u + 1u, e.byte(version + 1u));
-    for (u32 off = 4u; off != 0x18u; off += 4u) e.set(e.w(self + 0x10u) + off, 0u);
-
-    e.call(0x08B64CD0u, {0x08D72424u, 0u, 0u, 1u});
-    e.call(0x08B5D3DCu, {self, 0x08D721D4u, 0x08D72424u});
-    e.call(0x08B647C0u, {0x08D723F0u, 1u});
-    e.call(0x08B5D3DCu, {self, 0x08D721C8u, 0x08D723F0u});
-
-    // 0x08D7232C / holder 0x08D7240C.
-    e.set(0x08D7232Cu, 0x08CDBAD8u);
-    e.set(0x08D7240Cu + 4u, 1u);
-    e.set(0x08D7240Cu + 8u, 0x08D7232Cu);
-    e.set(0x08D7232Cu + 4u, 1u);
-    e.set(0x08D7232Cu + 8u, 0u);
-    e.set(0x08D7232Cu + 0xCu, 0u);
-    e.set_byte(0x08D7232Cu + 0x10u, 0u);
-    for (u32 off = 0x14u; off <= 0x20u; off += 4u) e.set(0x08D7232Cu + off, 0u);
-    e.set_byte(0x08D7232Cu + 0x24u, 0u);
-    e.set_byte(0x08D7232Cu + 0x25u, 0u);
-    e.set_byte(0x08D7232Cu + 0x64u, 0u);
-    e.set(0x08D7240Cu, 0x08CDB798u);
-    e.call(0x08B60DB8u, {0x08D7240Cu, 0u, 0x08D7240Cu, 1u});
-    e.call(0x08B5D3DCu, {self, 0x08D77484u, 0x08D7240Cu});
-
-    auto plain = [&](u32 holder, u32 vtable, u32 id) {
-        e.set(holder + 4u, 1u);
-        e.set(holder, vtable);
-        e.call(0x08B5D3DCu, {self, id, holder});
-    };
-    plain(0x08D72404u, 0x08CDB958u, 0x08D77480u);
-    plain(0x08D723FCu, 0x08CDB998u, 0x08D7747Cu);
-
-    e.set(0x08D72418u + 4u, 1u);
-    e.set(0x08D72418u, 0x08CDB7C0u);
-    e.set(0x08D72418u + 8u, e.call(0x08B5C230u));
-    e.call(0x08B5D3DCu, {self, 0x08D77468u, 0x08D72418u});
-
-    // 0x08D722A4 / holder 0x08D723D8 and 0x08D722E8 / holder 0x08D723E4: the same zeroed block shape, different vtables.
-    auto block_pair = [&](u32 state, u32 state_vtable, u32 holder, u32 holder_vtable, u32 init, u32 id) {
-        e.set(state, state_vtable);
-        e.set(holder + 4u, 1u);
-        e.set(holder + 8u, state);
-        e.set(state + 4u, 1u);
-        e.set(state + 8u, 0u);
-        e.set(state + 0xCu, 0u);
-        e.set_byte(state + 0x10u, 0u);
-        e.set_byte(state + 0x11u, 0u);
-        e.set_byte(state + 0x12u, 0u);
-        for (u32 off = 0x14u; off <= 0x34u; off += 4u) e.set(state + off, 0u);
-        e.set_byte(state + 0x43u, 0u);
-        e.set(holder, holder_vtable);
-        e.call(init, {holder, 0u, 0u, holder, 1u});
-        e.call(0x08B5D3DCu, {self, id, holder});
-    };
-    block_pair(0x08D722A4u, 0x08CDBAB8u, 0x08D723D8u, 0x08CDB838u, 0x08B60910u, 0x08D77494u);
-    block_pair(0x08D722E8u, 0x08CDBAC8u, 0x08D723E4u, 0x08CDB800u, 0x08B60C98u, 0x08D77490u);
-
-    plain(0x08D723D0u, 0x08CDB900u, 0x08D7748Cu);
-    plain(0x08D723C8u, 0x08CDB918u, 0x08D77488u);
-
-    // 0x08D721DC: a 0xC8-byte zeroed block (+4 = 1) initialised by 0x08C5DC90 with its holder 0x08D723B4.
-    e.set(0x08D721DCu + 4u, 1u);
-    e.set(0x08D721DCu, 0x08CDB7E0u);
-    for (u32 off = 8u; off <= 0xC0u; off += 4u) e.set(0x08D721DCu + off, 0u);
-    e.set_byte(0x08D721DCu + 0xC4u, 0u);
-    e.call(0x08C5DC90u, {0x08D723B4u, 0x08D721DCu, 1u});
-    e.call(0x08B5D3DCu, {self, 0x08D77478u, 0x08D723B4u});
-    plain(0x08D723ACu, 0x08CDB9F8u, 0x08D77470u);
-    plain(0x08D723A4u, 0x08CDB9C8u, 0x08D77474u);
-    e.call(0x08C5E298u, {0x08D72394u, 1u});
-    e.call(0x08B5D3DCu, {self, 0x08D7746Cu, 0x08D72394u});
-
-    static const u32 kRegistered[4][2] = {{0x08D77484u, 0x08D7232Cu}, {0x08D77494u, 0x08D722A4u}, {0x08D77490u, 0x08D722E8u}, {0x08D77478u, 0x08D721DCu}};
-    u32 last = 0u;
-    for (const auto &entry : kRegistered) {
-        const u32 table = e.w(self + 0xCu);
-        const u32 index = e.call(0x08B5C2B0u, {entry[0]});
-        last = (index << 2) + table;
-        e.set(last, entry[1]);
-    }
-    ctx.gpr[2] = last;
-}
 
 
 // 0x088DD144 (a0 = world, a1 = car index, a2 = value, a3 = "held" flag byte, t0 = second flag byte): refreshes one car slot
@@ -539,5 +440,4 @@ void func_08912F40(Runtime &rt, AllegrexContext &ctx) {
 #define NEW132(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_132::name, gt::ReturnKind::kind)
 NEW132(0x08808F2Cu, func_08808F2C, Word);
 NEW132(0x088DD144u, func_088DD144, Word);
-NEW132(0x08B5D788u, func_08B5D788, Word);
 NEW132(0x08912F40u, func_08912F40, Word);
