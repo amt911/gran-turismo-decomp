@@ -304,3 +304,6 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
+0x08A26ED8 reg:a0=struct:48
