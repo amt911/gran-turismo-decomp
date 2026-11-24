@@ -87,3 +87,10 @@
 # 0x08B437C0: a0+0 is the vtable the three virtual slots come from; the table at +0x454 (count at +0x8D4, flag byte +0x854) and the
 # registration at +0x8DC lie past the 1024-byte cap, so the slot ends where the shape does.
 0x08B437C0 reg:a0=struct:1024 field:+0x0=ptr
+
+# 0x08B636A0: lwl/lwr and lbu read 2-8 bytes at a2 (the record cursor); a3 receives the out word, a1 is only added.
+0x08B636A0 reg:a2=struct:32
+# 0x08B72830: the same body and the same cursor reads.
+0x08B72830 reg:a2=struct:32
+# 0x08B75DA0: the same body and the same cursor reads.
+0x08B75DA0 reg:a2=struct:32
