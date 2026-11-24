@@ -304,3 +304,9 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x08B518F4: the command record: callbacks at +4 / +8, context at +0x10, source length at +0x14, kind at +0x18,
+# tokenised length at +0x1C and the text at +0x20 (passed on as a pointer).
+0x08B518F4 reg:a0=struct:40 field:+0x4=ptr field:+0x8=ptr field:+0x10=ptr field:+0x20=ptr field:+0x14=int:0..64 field:+0x18=int:0..4 field:+0x1C=int:0..64
+# 0x0893D6A4: the curve block's breakpoints, floats at +0x18..+0x34 (loaded with lwc1).
+0x0893D6A4 reg:a0=struct:56 field:+0x18=int:0..8 field:+0x1C=int:0..8 field:+0x20=int:0..8 field:+0x24=int:0..8 field:+0x28=int:0..8 field:+0x2C=int:0..8 field:+0x30=int:0..8 field:+0x34=int:0..8
