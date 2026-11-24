@@ -276,3 +276,39 @@ architecture is:
     four heavy slots (`GT_HEAVY_SLOTS`, was two).
   - **Full gate:** agents no longer run it before opening a PR. The PR verdict runs it from a clean tree anyway. Agents
     still run the fast or synthetic compare and the sabotage of their own functions, plus the static audits.
+
+## Faster verification, measured (user, 2026-11-24: "a ver si se puede acelerar la verificacion mucho ... anotalo en el claude.md")
+
+A verdict went from **108 min** (verdict 842: build 26, synthetic 54, gate and boot about 20) to **about 36 min of work**
+(verdict 732, 46 rewrites: build 2, pytest 4, three synthetic groups of about 2 min each, gate 17, boot about 5). Nothing a
+verdict passes or fails on changed. What did it:
+- **The synthetic groups install only the PR's own functions** when the PR changes nothing but decomp sources
+  (`src/game/**.cpp`) and `config/synth_shapes.txt`. `tools/verdict_scope.py --only-file` lists the registrations of those
+  sources plus the addresses of new shape lines; `verdict.sh` passes `--only @list`. Any other path (headers, host,
+  harness, build, patches, seeds) still installs every registered function. Each scene spent 650–950 s comparing all
+  ~17.5k functions; with the PR's 768 it takes about 20 s (#846). A PR cannot change what another function compares
+  except through shared code, and shared code runs everything.
+- **Safety net:** once a day the main session runs the synthetic gate on main with every function, and reports any
+  mismatch outside the known list. It must not hold the verdicts' synthetic lock: doing so made verdict 732 wait about
+  55 min for its 2-min groups.
+- **The boot check ends a minute after its pad script is done** (`GT_PAD_EXIT_AFTER=3600`), not at its time budget:
+  about 16 min less per verdict (#846). The per-batch boot canaries do the same.
+- **Main is merged into a PR before its verdict, not after.** Conflicts between rewrite branches, `synth_shapes.txt`
+  unions and duplicate registrations (a function main already registers is dropped from the PR) are settled first,
+  and resolved files must pass `clang -fsyntax-only`. Settling them after the verdict made every such PR pay two
+  verdicts (817, 732, 830, 696). Two bugs of the old resolution, each failing every verdict of its PR, are now checked
+  for: a helper block kept from both sides ("redefinition of 'SavedSlot'", 731/732) and five functions registered twice
+  (825).
+- **Small PRs are grouped:** single batches of 1–11 functions each took a whole verdict; they now join a group from 40
+  functions on.
+- **Per-batch verification:** the sabotage runs only on the fewest scenes that compared each function (one scene
+  usually), with a retry on all 11 for what goes undetected there. It was about 55 of the 120 min of a batch.
+- **The desktop runs verdicts only while more than 4 PRs wait.** The laptops and the lent desktop keep up, and each
+  desktop verdict froze the per-batch verification for its real-time routes (batch 872: 3 h 50 for 5 functions).
+- **Measured and rejected:**
+  - All 11 scenes in one synthetic group: slower per scene, and the 30-minute lock cap cut it.
+  - Fewer scenes in the per-batch synthetic pass: the best 5 scenes catch only 96 % of the mismatches, and the
+    rest would fail group verdicts.
+- **Still serial:** the full gate waits for the synthetic groups (`GT_VERIFY_OVERLAP=0`). Overlapping them in one tree
+  lost the fast gate in 775 and 830, so the earlier note that they run beside each other no longer holds. With the
+  groups at a few minutes this costs little.
