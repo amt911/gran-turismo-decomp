@@ -113,10 +113,15 @@ void api_call_original(GtModCtx *c) {
     // a0-a3 come back as they were when the hook called: the caller's convention lets a callee clobber them, and a decompiled function does (`--decomp on` runs the whole body inside this call, `--decomp off`
     // returns from it before the recompiled body has run), so a mod that read `world = gpr(ctx, 4)` AFTER call_original saw another value in one build and the right one in the other (extra-cameras, 2026-11-20:
     // no pose was ever set with `--decomp on`). The game's code after the call does not read them.
+    // Only when the original returned (pc = ra): an original that ends in a tail call leaves pc on the target and the target's arguments in a0-a3, and the
+    // dispatcher runs that call after the hook; restoring them handed it the hook's arguments (0x08945F6C tail-calls 0x0893C3E4: every race crashed with
+    // `--decomp on` and the rollover or orbit-camera mod, "Guest memory access outside PSP RAM/EDRAM at 0x00000001", 2026-11-23).
     std::uint32_t args[4];
     for (unsigned i = 0; i < 4; ++i) args[i] = c->ctx->gpr[4 + i];
+    const std::uint32_t return_address = c->ctx->gpr[31];
     run_chain(*c->rt, *c->ctx, it->second, c->address, c->link + 1);
-    for (unsigned i = 0; i < 4; ++i) c->ctx->gpr[4 + i] = args[i];
+    if (c->ctx->pc == return_address)
+        for (unsigned i = 0; i < 4; ++i) c->ctx->gpr[4 + i] = args[i];
 }
 
 std::uint32_t api_gpr(GtModCtx *c, unsigned reg) { return c->ctx->gpr[reg & 31u]; }
