@@ -312,3 +312,64 @@
 # 0x08BC12AC: a0 is the object; its +0x24..+0xA0 members are intrusive shared holders, set to null here — the
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
+
+# 0x08909C84: 0x08909B60(a0) returns a pointer into the vector whose begin is the word at +0x34 (0x34 + 4 -> 0x38).
+0x08909C84 reg:a0=struct:56
+# 0x08916A80: the byte at +0x14 and the word at +0x10 are cleared after 0x0890B2F4(a0 + 4) (0x14 + 4 -> 0x18).
+0x08916A80 reg:a0=struct:24
+# 0x0891A454: 0x08926D60(a0) runs before the vtable 0x08CC5B98 is stored at +0.
+0x0891A454 reg:a0=struct:16 field:+0x0=ptr
+# 0x08922AD4: 0x0892025C(a0) then the vtable 0x08CC5F80 at +0.
+0x08922AD4 reg:a0=struct:16 field:+0x0=ptr
+# 0x089299D8: 0x08929DD0(a0) then the vtable 0x08CC62D0 at +0.
+0x089299D8 reg:a0=struct:16 field:+0x0=ptr
+# 0x089302D8: 0x089302D0(a0) is `jr ra; lw v0,0x8(a0)`, the word at +8 (0x8 + 4 -> 0x10).
+0x089302D8 reg:a0=struct:16
+# 0x08931910: the words at +8 / +0xC are the a2 / a3 of the tail call of 0x089365F8 (0xC + 4 -> 0x10).
+0x08931910 reg:a0=struct:32
+# 0x08931940: the words at +0x10 / +0x14 of the same shape (0x14 + 4 -> 0x18).
+0x08931940 reg:a0=struct:32
+# 0x08932528: the words at +0 / +4 of the same shape.
+0x08932528 reg:a0=struct:32
+# 0x08936718: 0x089366FC(a0) is the object handed to 0x08B35FD8 with the string 0x08CA1F44.
+0x08936718 reg:a0=struct:16 field:+0x0=ptr
+# 0x08951914: 0x089518F4 / 0x08951904 store the halfword 1 at +0 and +2 of a0.
+0x08951914 reg:a0=struct:16
+# 0x0895F0F8: the float at +0x10 is multiplied with 0x089468C0(a0 + 0x24) (0x24 + 4 -> 0x28).
+0x0895F0F8 reg:a0=struct:56
+# 0x089C1644: 0x08A5B828(a0) then the vtable 0x08CCEFF8 at +0.
+0x089C1644 reg:a0=struct:16 field:+0x0=ptr
+# 0x089F58E8: 0x08965984(a0) then the vtable 0x08CC8158 at +0.
+0x089F58E8 reg:a0=struct:16 field:+0x0=ptr
+# 0x089F5F3C: 0x08965984(a0) then the vtable 0x08CC8028 at +0.
+0x089F5F3C reg:a0=struct:16 field:+0x0=ptr
+# 0x08A31D00: 0x08A76ACC(a0) then the vtable 0x08CD15D0 at +0.
+0x08A31D00 reg:a0=struct:16 field:+0x0=ptr
+# 0x08A43CD4: 0x08A76ACC(a0) then the vtable 0x08CD0E60 at +0.
+0x08A43CD4 reg:a0=struct:16 field:+0x0=ptr
+# 0x08A43D04: the same body as 0x08A43CD4.
+0x08A43D04 reg:a0=struct:16 field:+0x0=ptr
+# 0x08A52690: 0x08A7E88C(a0) then the vtable 0x08CB7440 at +0.
+0x08A52690 reg:a0=struct:16 field:+0x0=ptr
+# 0x08A55D40: 0x08A725A0(a0) then the vtable 0x08CD20C0 at +0.
+0x08A55D40 reg:a0=struct:16 field:+0x0=ptr
+# 0x088359AC: the vtable 0x08CBDCD8 at +0, then a tail call of 0x0890FA6C(a0 + 0x18).
+0x088359AC reg:a0=struct:32 field:+0x0=ptr
+# 0x08884A94: the vtable 0x08CC16C0 at +0, then a tail call of 0x08884720(a0).
+0x08884A94 reg:a0=struct:16 field:+0x0=ptr
+# 0x0889464C: the vtable 0x08CC1E08 at +0 and the word at +0x54 cleared (0x54 + 4 -> 0x58).
+0x0889464C reg:a0=struct:96 field:+0x0=ptr
+# 0x088E84E4: 0x088D0918(a0 + 0x30), then 0x088E84B8(a0, a1, -1, -1) reads the object at +0x2E4 and writes +0x2D8 / +0x2DC.
+0x088E84E4 reg:a0=struct:768
+# 0x0890AE68: the word at +0 is the value whose byte order is swapped and compared with 0x08B29E88(0).
+0x0890AE68 reg:a0=struct:16
+# 0x08918EFC: the vtable 0x08CC5B40 at +0, then a tail call of 0x08918EF4(a0) clearing the word at +0x1F8.
+0x08918EFC reg:a0=struct:512 field:+0x0=ptr
+# 0x08A21EA0: the vtable 0x08CBE7F8 at +0, then a tail call of 0x08AB8644(a0 + 0x14).
+0x08A21EA0 reg:a0=struct:32 field:+0x0=ptr
+# 0x08A36D70: the vtable 0x08CD1C30 at +0, then a tail call of 0x08B487AC(a0 + 0x14).
+0x08A36D70 reg:a0=struct:32 field:+0x0=ptr
+# 0x08A39928: the vtable 0x08CCC730 at +0, then a tail call of 0x08C1B4D8(a0 + 0x14).
+0x08A39928 reg:a0=struct:32 field:+0x0=ptr
+# 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
+0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
