@@ -1,5 +1,6 @@
 #include "mod_hooks.hpp"
 
+#include "mod_camera.hpp"
 #include "mod_services.hpp"
 #include "tilt_free.hpp"
 
@@ -65,7 +66,10 @@ void trampoline(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     const std::uint32_t address = ctx.pc;
     const std::uint32_t return_address = ctx.gpr[31];
-    if (address == services::kHookWorldStep) services::note_world_step();  // a race is on (services::racing)
+    if (address == services::kHookWorldStep) {
+        services::note_world_step();
+        camera::note_world(ctx.gpr[4]);
+    }  // a race is on (services::racing)
     run_chain(rt, ctx, it->second, address, 0);
     ctx.gpr[0] = 0u;
     // A registered function ends with ctx.pc = ra; a hook that never called the original (or left pc on the entry) gets it here.
@@ -90,6 +94,13 @@ int api_hook_point(GtMod *self, GtHookPoint point, GtHookFn fn) {
     case GT_HOOK_WORLD_STEP: return api_hook(self, services::kHookWorldStep, fn);
     case GT_HOOK_MESH_DRAW: return api_hook(self, services::kHookMeshDraw, fn);
     case GT_HOOK_CAR_DRAW: return api_hook(self, services::kHookCarDraw, fn);
+    case GT_HOOK_CAMERA: return camera::api_camera_hook(self, fn);
+    case GT_HOOK_VIEW_CYCLE:
+        if (self->api_version < GT_MOD_API_VERSION_9) {
+            std::fprintf(stderr, "[mod:%s] hook_point(GT_HOOK_VIEW_CYCLE) refused: the mod declared api %d (needs api = 9)\n", self->id.c_str(), self->api_version);
+            return 1;
+        }
+        return api_hook(self, camera::kViewCycle, fn);
     }
     std::fprintf(stderr, "[mod:%s] hook_point refused: unknown point %d\n", self->id.c_str(), static_cast<int>(point));
     return 1;
@@ -99,7 +110,13 @@ int api_hook_point(GtMod *self, GtHookPoint point, GtHookFn fn) {
 void api_call_original(GtModCtx *c) {
     const auto it = chains().find(c->address);
     if (it == chains().end()) return;
+    // a0-a3 come back as they were when the hook called: the caller's convention lets a callee clobber them, and a decompiled function does (`--decomp on` runs the whole body inside this call, `--decomp off`
+    // returns from it before the recompiled body has run), so a mod that read `world = gpr(ctx, 4)` AFTER call_original saw another value in one build and the right one in the other (extra-cameras, 2026-11-20:
+    // no pose was ever set with `--decomp on`). The game's code after the call does not read them.
+    std::uint32_t args[4];
+    for (unsigned i = 0; i < 4; ++i) args[i] = c->ctx->gpr[4 + i];
     run_chain(*c->rt, *c->ctx, it->second, c->address, c->link + 1);
+    for (unsigned i = 0; i < 4; ++i) c->ctx->gpr[4 + i] = args[i];
 }
 
 std::uint32_t api_gpr(GtModCtx *c, unsigned reg) { return c->ctx->gpr[reg & 31u]; }
@@ -173,10 +190,14 @@ const GtModApi &mod_api(int version) {
                         services::api_draw_mesh_blob, services::api_draw_mesh_redirect, services::api_draw_car_model, services::api_model_blobs,
                         services::api_model_runs, services::api_run_vertex, services::api_run_set_vertex, services::api_on_switch_off, services::api_blob_runs, services::api_draw_matrix,
                         services::api_run_normal, services::api_run_set_normal, services::api_action_held,
-                        services::api_car_dimensions, services::api_car_wheel_contacts, services::api_car_set_pose, tilt::api_tilt_free};
+                        services::api_car_dimensions, services::api_car_wheel_contacts, services::api_car_set_pose, tilt::api_tilt_free,
+                        services::api_on_overlay, services::api_draw_text, services::api_draw_rect, services::api_draw_line,
+                        services::api_scene_grade,
+                        camera::api_camera_get, camera::api_camera_set, camera::api_replay_active, camera::api_view_cycle, camera::api_view_cycle_set, camera::api_camera_projection};
     };
     static const GtModApi v1 = table(GT_MOD_API_VERSION), v2 = table(GT_MOD_API_VERSION_2), v3 = table(GT_MOD_API_VERSION_3),
-                          v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5), v6 = table(GT_MOD_API_VERSION_6), v7 = table(GT_MOD_API_VERSION_7);
+                          v4 = table(GT_MOD_API_VERSION_4), v5 = table(GT_MOD_API_VERSION_5), v6 = table(GT_MOD_API_VERSION_6),
+                          v7 = table(GT_MOD_API_VERSION_7), v8 = table(GT_MOD_API_VERSION_8), v9 = table(GT_MOD_API_VERSION_9);
     switch (version) {
     case GT_MOD_API_VERSION: return v1;
     case GT_MOD_API_VERSION_2: return v2;
@@ -184,7 +205,9 @@ const GtModApi &mod_api(int version) {
     case GT_MOD_API_VERSION_4: return v4;
     case GT_MOD_API_VERSION_5: return v5;
     case GT_MOD_API_VERSION_6: return v6;
-    default: return v7;
+    case GT_MOD_API_VERSION_7: return v7;
+    case GT_MOD_API_VERSION_8: return v8;
+    default: return v9;
     }
 }
 
@@ -195,6 +218,7 @@ void set_active(GtMod *mod, bool on) {
 void remove_hooks_for(psprecomp::Runtime &rt, const GtMod *mod) {
     services::remove_for(mod);  // its menu rows and vblank tick go too
     tilt::forget(mod);
+    camera::forget(mod);
     for (auto it = chains().begin(); it != chains().end();) {
         auto &links = it->second.links;
         links.erase(std::remove_if(links.begin(), links.end(), [mod](const Link &l) { return l.owner.mod == mod; }), links.end());
@@ -212,6 +236,7 @@ void bind_runtime(psprecomp::Runtime &rt) { g_runtime = &rt; }
 void clear_hooks_for_tests() {
     chains().clear();
     services::clear_for_tests();
+    camera::clear_for_tests();
     g_runtime = nullptr;
 }
 

@@ -2,6 +2,8 @@
 // drafted from `tools.disasm` with a register-level emitter (pipeline/bodyg.py: labels and gotos over the same register-level operations as bodyx), read against the asm and verified
 // by synthetic cases.
 // No names: none has evidence.
+// Two of them (0x08AD7EB0, 0x08A15DA8) are rewritten as structured C from the disassembly (structured rewrites, batch 89), the ones the synthetic gate compares;
+// the other emitter bodies were never compared by it (registrations commented out or not comparable) and stay as they are.
 #include "decomp_registry.hpp"
 #include "gt/game/hot_common.hpp"
 #include "guest_call.hpp"
@@ -1128,7 +1130,75 @@ void func_08A04704(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     call_set(rt, ctx, 0x08A5B9ECu, {scratch});
 }
-void func_08AD7EB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { auto &F = ctx.fpr; G[2] = 0x1u; G[3] = G[5] << 4; G[2] = G[2] - G[5]; G[3] = G[4] + G[3]; G[2] = G[2] << 4; G[2] = G[4] + G[2]; G[9] = G[3] + 0x4u; G[3] = sext(load8(G[9] + 0x5u), 8); G[5] = sext(load8(G[2] + 0x9u), 8); G[7] = G[4]; G[4] = word(rt, G[4] + 0x24u); G[3] = G[3] << 4; G[2] = G[5] << 4; G[8] = G[4] + G[2]; G[1] = 0x3FC90000u; G[1] = G[1] | 0xFDBu; F[6] = std::bit_cast<float>(G[1]); { const bool tk = static_cast<std::int32_t>(G[5]) < 0; G[4] = G[4] + G[3]; if (tk) goto L_08AD7F7C; } G[3] = sext(load16(G[4] + 0x2u), 16); G[2] = static_cast<std::int32_t>(G[6]) < static_cast<std::int32_t>(G[3]) ? 1u : 0u; if (G[2] == 0u) { G[3] = sext(load16(G[4] + 0x4u), 16); goto L_08AD7F30; } G[2] = sext(load16(G[8] + 0x4u), 16); G[3] = G[3] - G[2]; G[6] = G[6] - G[2]; F[3] = std::bit_cast<float>(G[3]); F[0] = std::bit_cast<float>(G[6]); F[1] = static_cast<float>(static_cast<std::int32_t>(bits_of(F[3]))); F[2] = static_cast<float>(static_cast<std::int32_t>(bits_of(F[0]))); F[3] = F[2] / F[1]; goto L_08AD7F5C; L_08AD7F30: ; G[2] = static_cast<std::int32_t>(G[3]) < static_cast<std::int32_t>(G[6]) ? 1u : 0u; { const bool tk = G[2] == 0u; F[3] = psp_mul(F[6], F[6]); if (tk) goto L_08AD7F80; } G[2] = sext(load16(G[8] + 0x2u), 16); G[3] = G[2] - G[3]; G[2] = G[2] - G[6]; F[3] = std::bit_cast<float>(G[3]); F[0] = std::bit_cast<float>(G[2]); F[1] = static_cast<float>(static_cast<std::int32_t>(bits_of(F[3]))); F[2] = static_cast<float>(static_cast<std::int32_t>(bits_of(F[0]))); F[3] = F[2] / F[1]; L_08AD7F5C: ; F[2] = std::bit_cast<float>(0u); G[1] = 0x3FC90000u; G[1] = G[1] | 0xFDBu; F[0] = std::bit_cast<float>(G[1]); ctx.set_fpu_condition(F[2] < F[3]); { const bool tk = !ctx.fpu_condition(); F[6] = psp_mul(F[3], F[0]); if (tk) goto L_08AD8004; } L_08AD7F7C: ; F[3] = psp_mul(F[6], F[6]); L_08AD7F80: ; G[1] = 0x362E0000u; G[1] = G[1] | 0x9C4Au; F[0] = std::bit_cast<float>(G[1]); G[1] = 0x394F0000u; G[1] = G[1] | 0xB221u; F[1] = std::bit_cast<float>(G[1]); G[4] = sext(load16(G[4] + 0x6u), 16); F[0] = psp_mul(F[3], F[0]); F[5] = float_at(rt, G[7] + 0x3Cu); F[2] = std::bit_cast<float>(G[4]); F[0] = F[0] - F[1]; G[1] = 0x3C080000u; G[1] = G[1] | 0x873Eu; F[1] = std::bit_cast<float>(G[1]); F[4] = static_cast<float>(static_cast<std::int32_t>(bits_of(F[2]))); G[1] = 0x38800000u; F[2] = std::bit_cast<float>(G[1]); F[0] = psp_mul(F[3], F[0]); F[4] = psp_mul(F[4], F[2]); F[0] = F[0] + F[1]; G[1] = 0x3E2A0000u; G[1] = G[1] | 0xAAA4u; F[1] = std::bit_cast<float>(G[1]); F[4] = psp_mul(F[4], F[5]); F[0] = psp_mul(F[3], F[0]); F[0] = F[0] - F[1]; F[3] = psp_mul(F[3], F[0]); G[1] = 0x3F800000u; F[0] = std::bit_cast<float>(G[1]); F[3] = F[3] + F[0]; F[3] = psp_mul(F[6], F[3]); F[3] = psp_mul(F[3], F[4]); F[2] = std::fabs(F[3]); L_08AD8004: ; put_float(rt, G[9] + 0xCu, F[2]); goto exit_;  exit_: ; } if (tail != 0u) jump(ctx, tail); } }
+void func_08AD7EB0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4];
+    const u32 side = ctx.gpr[5];
+    const s32 value = static_cast<s32>(ctx.gpr[6]);
+    const u32 own = object + side * 16u + 4u;
+    const u32 other_side = object + (1u - side) * 16u;
+    const s32 own_index = static_cast<s32>(signed_byte(rt, own + 5u));
+    const s32 other_index = static_cast<s32>(signed_byte(rt, other_side + 9u));
+    const u32 table = word(rt, object + 0x24u);
+    const u32 other_record = table + (static_cast<u32>(other_index) << 4);
+    const u32 record = table + (static_cast<u32>(own_index) << 4);
+    const float half_pi = std::bit_cast<float>(0x3FC90FDBu);
+    float f6 = half_pi;
+    float f3 = 0.0f;
+    bool have_ratio = false;
+    float ratio = 0.0f;
+    if (other_index < 0) {
+        ctx.gpr[2] = static_cast<u32>(other_index) << 4;
+        f3 = psp_mul(f6, f6);
+    } else {
+        const s32 own_h2 = static_cast<s32>(signed_half(rt, record + 2u));
+        ctx.gpr[2] = value < own_h2 ? 1u : 0u;
+        if (value < own_h2) {
+            const s32 other_h4 = static_cast<s32>(signed_half(rt, other_record + 4u));
+            ctx.gpr[2] = static_cast<u32>(other_h4);
+            ratio = static_cast<float>(value - other_h4) / static_cast<float>(own_h2 - other_h4);
+            have_ratio = true;
+        } else {
+            const s32 own_h4 = static_cast<s32>(signed_half(rt, record + 4u));
+            ctx.gpr[2] = own_h4 < value ? 1u : 0u;
+            f3 = psp_mul(f6, f6);
+            if (own_h4 < value) {
+                const s32 other_h2 = static_cast<s32>(signed_half(rt, other_record + 2u));
+                ctx.gpr[2] = static_cast<u32>(other_h2 - value);
+                ratio = static_cast<float>(other_h2 - value) / static_cast<float>(other_h2 - own_h4);
+                have_ratio = true;
+            }
+        }
+        if (have_ratio) {
+            f6 = psp_mul(ratio, half_pi);
+            if (!(0.0f < ratio)) {
+                put_float(rt, own + 0xCu, 0.0f);
+                return;
+            }
+            f3 = psp_mul(f6, f6);
+        }
+    }
+    const float scale_input = float_at(rt, object + 0x3Cu);
+    const float f4_raw = static_cast<float>(static_cast<s32>(signed_half(rt, record + 6u)));
+    float f0 = psp_mul(f3, std::bit_cast<float>(0x362E9C4Au));
+    f0 = f0 - std::bit_cast<float>(0x394FB221u);
+    float f4 = psp_mul(f4_raw, std::bit_cast<float>(0x38800000u));
+    f0 = psp_mul(f3, f0);
+    f0 = f0 + std::bit_cast<float>(0x3C08873Eu);
+    f4 = psp_mul(f4, scale_input);
+    f0 = psp_mul(f3, f0);
+    f0 = f0 - std::bit_cast<float>(0x3E2AAAA4u);
+    f3 = psp_mul(f3, f0);
+    f3 = f3 + 1.0f;
+    f3 = psp_mul(f6, f3);
+    f3 = psp_mul(f3, f4);
+    put_float(rt, own + 0xCu, std::fabs(f3));
+}
+// 0x08AD7EB0 (a0 = the object, a1 = the side (0 or 1), a2 = a value (signed); v0 = as the asm leaves it; the result is the float stored at object + 4 + side * 16 + 0xC): each side's record at
+// object + 4 + side * 16 holds a signed byte index at +5 into the table at word(object + 0x24) of 16-byte entries (halfwords +2, +4, +6), and the other side's index sits at object + (1 - side) * 16 + 9 (negative: none).
+// With a position ratio r = (value - other.h4) / (own.h2 - other.h4) when the value is below own.h2, or (other.h2 - value) / (other.h2 - own.h4) when it is above own.h4 (both float quotients of
+// the integer differences), a ratio of 0 or less (or a NaN) stores 0.0; otherwise (and when there is no ratio: a negative other index, or a value between own.h2 and own.h4, which use pi/2 directly)
+// x = r * pi/2 (pi/2 = 0x3FC90FDB) and the result is |x * (1 + x^2 * (x^2 * (x^2 * 1.6e-6... - 8.3e-5...) + 0.00833...) - 0.16666...)| * (own.h6 * 2^-14) * float(object + 0x3C)): the usual short sine polynomial, with the constants
+// 0x362E9C4A, 0x394FB221, 0x3C08873E, 0x3E2AAAA4, 0x38800000 as the asm has them.
 void func_08ADDF88(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { store_scaled_values(rt, ctx); }
 void func_08AE8D50(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { apply_event_to_slots(rt, ctx); }
 void func_08AECD60(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tear_down_global_table(rt, ctx); }
@@ -1195,7 +1265,71 @@ void func_08C24AEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_0881D18C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { format_indexed_entry(rt, ctx); }
 void func_088B70DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { range_through_polygon_by_side(rt, ctx); }
 void func_089F9860(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { insert_default_record(rt, ctx); }
-void func_08A15DA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x10u), G[31]); auto &F = ctx.fpr; G[7] = G[4] + 0x3Cu; G[3] = word(rt, G[7] + 0x4u); G[2] = word(rt, G[4] + 0x3Cu); G[2] = G[3] - G[2]; G[2] = sra(G[2], 4); { const bool tk = G[2] == 0u; G[6] = G[5]; if (tk) goto L_08A15EB0; } G[2] = word(rt, G[4] + 0x40u); F[0] = float_at(rt, G[5] + 0x0u); G[4] = G[4] + 0x40u; F[4] = float_at(rt, G[2] + 0xFFFFFFF0u); ctx.set_fpu_condition(F[4] < F[0]); { const bool tk = !ctx.fpu_condition(); G[2] = G[2] + 0xFFFFFFF0u; if (tk) goto L_08A15DF0; } F[4] = F[0]; L_08A15DF0: ; F[3] = float_at(rt, G[2] + 0x4u); F[0] = float_at(rt, G[6] + 0x4u); ctx.set_fpu_condition(F[3] < F[0]); if (ctx.fpu_condition()) { F[3] = F[0]; goto L_08A15E08; } L_08A15E08: ; F[2] = float_at(rt, G[2] + 0x8u); F[0] = float_at(rt, G[6] + 0x8u); ctx.set_fpu_condition(F[2] < F[0]); if (!ctx.fpu_condition()) { F[2] = F[0]; goto L_08A15E20; } L_08A15E20: ; F[0] = float_at(rt, G[2] + 0xCu); F[1] = float_at(rt, G[6] + 0xCu); ctx.set_fpu_condition(F[0] < F[1]); if (!ctx.fpu_condition()) { F[0] = F[1]; goto L_08A15E38; } L_08A15E38: ; ctx.set_fpu_condition(F[2] <= F[4]); if (ctx.fpu_condition()) { F[2] = F[4]; goto L_08A15E5C; } ctx.set_fpu_condition(F[0] <= F[3]); if (!ctx.fpu_condition()) { G[2] = word(rt, G[7] + 0x8u); goto L_08A15E64; } F[2] = F[4]; L_08A15E5C: ; F[0] = F[3]; G[2] = word(rt, G[7] + 0x8u); L_08A15E64: ; put_float(rt, frame.at(0x0u), F[4]); put_float(rt, frame.at(0x4u), F[3]); put_float(rt, frame.at(0x8u), F[2]); { const bool tk = G[3] == G[2]; put_float(rt, frame.at(0xCu), F[0]); if (tk) goto L_08A15E98; } if (G[3] == 0u) { G[3] = G[3] + 0x10u; goto L_08A15EEC; } put_float(rt, G[3] + 0xCu, F[0]); put_float(rt, G[3] + 0x0u, F[4]); put_float(rt, G[3] + 0x4u, F[3]); put_float(rt, G[3] + 0x8u, F[2]); G[3] = word(rt, G[7] + 0x4u); goto L_08A15EE8; L_08A15E98: ; G[5] = word(rt, G[4] + 0x0u); G[6] = frame.at(0u); G[4] = G[7]; call_here(rt, ctx, 0x08C16984u); goto L_08A15F00; L_08A15EB0: ; G[2] = word(rt, G[7] + 0x8u); { const bool tk = G[3] == G[2]; G[4] = G[7]; if (tk) goto L_08A15EF4; } if (G[3] == 0u) { G[3] = G[3] + 0x10u; goto L_08A15EEC; } F[0] = float_at(rt, G[5] + 0xCu); F[1] = float_at(rt, G[5] + 0x0u); F[2] = float_at(rt, G[5] + 0x4u); F[3] = float_at(rt, G[5] + 0x8u); put_float(rt, G[3] + 0xCu, F[0]); put_float(rt, G[3] + 0x0u, F[1]); put_float(rt, G[3] + 0x4u, F[2]); put_float(rt, G[3] + 0x8u, F[3]); G[3] = word(rt, G[7] + 0x4u); L_08A15EE8: ; G[3] = G[3] + 0x10u; L_08A15EEC: ; put(rt, G[7] + 0x4u, G[3]); goto L_08A15EFC; L_08A15EF4: ; G[5] = G[3]; call_here(rt, ctx, 0x08C16984u); L_08A15EFC: ; L_08A15F00: ; goto exit_;  exit_: ;  } } if (tail != 0u) jump(ctx, tail); } }
+// 0x08A15DA8 (a0 = the object, a1 = a pointer to a 4-float record; v0 = the capacity word, or the reallocating insert's answer): the object's vector of 16-byte records (begin word(object + 0x3C), end
+// +0x40, capacity end +0x44) gets a record appended. An empty vector takes the argument as it is; otherwise the new record is built from the last one (L) and the argument (R): x = L.x < R.x ? R.x : L.x,
+// y = L.y < R.y ? R.y : L.y, z = L.z < R.z ? L.z : R.z, w = L.w < R.w ? L.w : R.w, and when z <= x, or w <= y, z becomes x and w becomes y. With the end at the capacity
+// 0x08C16984(vector, end, record) reallocates and inserts (the record built on the stack for the non-empty case); otherwise the four floats are stored at the end (a null end only moves on) and the end advances by 0x10.
+void func_08A15DA8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4];
+    const u32 argument = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x10u}});
+    const u32 vector = object + 0x3Cu;
+    ctx.gpr[7] = vector;
+    ctx.gpr[6] = argument;
+    const u32 end = word(rt, vector + 4u);
+    ctx.gpr[3] = end;
+    const u32 begin = word(rt, object + 0x3Cu);
+    const s32 count = static_cast<s32>(end - begin) >> 4;
+    ctx.gpr[2] = static_cast<u32>(count);
+    // `values` null: the empty-vector case, which reads the argument's four floats only when it stores them (an argument the original never reads may be any word).
+    const auto append = [&](u32 source, const float *values, u32 capacity) {
+        ctx.gpr[2] = capacity;
+        if (end == capacity) {
+            call_set(rt, ctx, 0x08C16984u, {vector, end, source});
+            return;
+        }
+        u32 next_end = end;
+        if (end != 0u) {
+            const float stored[4] = {values != nullptr ? values[0] : float_at(rt, source), values != nullptr ? values[1] : float_at(rt, source + 4u),
+                                     values != nullptr ? values[2] : float_at(rt, source + 8u), values != nullptr ? values[3] : float_at(rt, source + 0xCu)};
+            put_float(rt, end + 0xCu, stored[3]);
+            put_float(rt, end + 0u, stored[0]);
+            put_float(rt, end + 4u, stored[1]);
+            put_float(rt, end + 8u, stored[2]);
+            next_end = word(rt, vector + 4u);
+            ctx.gpr[3] = next_end;
+        }
+        put(rt, vector + 4u, next_end + 0x10u);
+    };
+    if (count == 0) {
+        append(argument, nullptr, word(rt, vector + 8u));
+        return;
+    }
+    const u32 last = end - 0x10u;
+    float x = float_at(rt, last);
+    const float argument_x = float_at(rt, argument);
+    if (x < argument_x) x = argument_x;
+    float y = float_at(rt, last + 4u);
+    const float argument_y = float_at(rt, argument + 4u);
+    if (y < argument_y) y = argument_y;
+    float z = float_at(rt, last + 8u);
+    const float argument_z = float_at(rt, argument + 8u);
+    if (!(z < argument_z)) z = argument_z;
+    float w = float_at(rt, last + 0xCu);
+    const float argument_w = float_at(rt, argument + 0xCu);
+    if (!(w < argument_w)) w = argument_w;
+    if (z <= x || w <= y) {
+        z = x;
+        w = y;
+    }
+    put_float(rt, frame.at(0u), x);
+    put_float(rt, frame.at(4u), y);
+    put_float(rt, frame.at(8u), z);
+    put_float(rt, frame.at(0xCu), w);
+    const float values[4] = {x, y, z, w};
+    append(frame.at(0u), values, word(rt, vector + 8u));
+}
 void func_08ABADE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { make_request_record(rt, ctx); }
 void func_08AC6FE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x28u), G[18]); put(rt, frame.at(0x24u), G[17]); put(rt, frame.at(0x20u), G[16]); put(rt, frame.at(0x2Cu), G[31]); G[18] = G[4]; G[17] = G[6]; G[16] = G[5]; call_here(rt, ctx, 0x08B344E0u); G[2] = 0x1u; store8(G[18] + 0x28u, G[2]); G[4] = G[16]; G[5] = G[17]; call_here(rt, ctx, 0x08C7AB50u); { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[16] = 0u; if (tk) goto L_08AC711C; } put(rt, G[18] + 0x2Cu, G[2]); G[4] = G[2]; call_here(rt, ctx, 0x08C7AB80u); { const bool tk = G[2] != 0u; G[16] = 0u; if (tk) goto L_08AC711C; } G[4] = word(rt, G[18] + 0x2Cu); G[16] = frame.at(0x4u); G[5] = G[16]; call_here(rt, ctx, 0x08C7AB68u); { const bool tk = G[2] != 0u; G[2] = word(rt, frame.at(0x4u)); if (tk) goto L_08AC7118; } G[3] = frame.at(0u); put(rt, frame.at(0x0u), 0u); G[2] = static_cast<std::int32_t>(G[2]) < 0 ? 1u : 0u; if (G[2] == 0u) G[3] = G[16]; G[5] = word(rt, G[3] + 0x0u); G[4] = word(rt, G[18] + 0x2Cu); G[3] = 0x2u; G[2] = G[5] >> 31; G[2] = G[2] + G[5]; G[2] = sra(G[2], 1); put(rt, G[18] + 0x30u, G[3]); G[5] = frame.at(0x8u); put(rt, G[18] + 0x38u, G[2]); call_here(rt, ctx, 0x08C7AB78u); { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[2] = word(rt, frame.at(0x8u)); if (tk) goto L_08AC7118; } G[4] = word(rt, G[18] + 0x2Cu); G[5] = frame.at(0xCu); put(rt, G[18] + 0x34u, G[2]); G[6] = frame.at(0x10u); G[7] = frame.at(0x14u); put(rt, frame.at(0xCu), 0u); put(rt, frame.at(0x10u), 0u); put(rt, frame.at(0x14u), 0u); call_here(rt, ctx, 0x08C7AB70u); { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[5] = word(rt, frame.at(0x10u)); if (tk) goto L_08AC7118; } { const bool tk = static_cast<std::int32_t>(G[5]) < 0; G[4] = word(rt, frame.at(0xCu)); if (tk) goto L_08AC70F8; } G[2] = static_cast<std::int32_t>(G[4]) < static_cast<std::int32_t>(G[5]) ? 1u : 0u; { const bool tk = G[2] != 0u; G[3] = word(rt, frame.at(0x14u)); if (tk) goto L_08AC70FC; } { const bool tk = static_cast<std::int32_t>(G[3]) < 0; G[2] = static_cast<std::int32_t>(G[4]) < static_cast<std::int32_t>(G[3]) ? 1u : 0u; if (tk) goto L_08AC70FC; } if (G[2] != 0u) { G[16] = 0x1u; goto L_08AC7100; } G[4] = word(rt, G[18] + 0x2Cu); G[5] = 0xFFFFFFFFu; call_here(rt, ctx, 0x08C7AB60u); G[5] = word(rt, frame.at(0x10u)); G[4] = word(rt, frame.at(0xCu)); G[3] = word(rt, frame.at(0x14u)); goto L_08AC70FC; L_08AC70F8: ; G[3] = word(rt, frame.at(0x14u)); L_08AC70FC: ; G[16] = 0x1u; L_08AC7100: ; put(rt, G[18] + 0x3Cu, G[4]); put(rt, G[18] + 0x40u, G[5]); put(rt, G[18] + 0x44u, G[3]); store8(G[18] + 0x28u, 0u); goto L_08AC711C; L_08AC7118: ; G[16] = 0u; L_08AC711C: ; G[4] = G[18]; call_here(rt, ctx, 0x08B3457Cu); G[2] = G[16]; goto exit_;  exit_: ; G[18] = word(rt, frame.at(0x28u)); G[17] = word(rt, frame.at(0x24u)); G[16] = word(rt, frame.at(0x20u)); } } if (tail != 0u) jump(ctx, tail); } }
 // 0x08B032A8 (a0 = the object, a1 = a point, a2 = a direction, a3 = an optional float out (entry), t0 = an optional float out (exit); v0 = 1 when the segment is not rejected, else 0): clips the parameter range [0, 1]

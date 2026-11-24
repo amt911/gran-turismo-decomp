@@ -20,7 +20,7 @@ cd "$repo" || exit 2
 rm -rf "${out:?}" && mkdir -p "$out/savedata"
 printf '[Rendering]\nBackend=Vulkan\nNativeGE=true\nInternalResolutionMode=Scale\nInternalScale=%s\n' "$scale" > "$out/gt_play.ini"
 pad=$(grep -v '^#' config/pad_routes/race.pad)
-systemd-run --user --scope --quiet -p MemoryHigh=5G -p MemoryMax=6G -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen \
+systemd-run --user --scope --quiet -p MemoryHigh=11G -p MemoryMax=12G -p MemorySwapMax=0 -- env SDL_VIDEODRIVER=offscreen \
   PSPRECOMP_CONFIG="$out/gt_play.ini" GT_SAVEDATA_DIR="$out/savedata" GT_PAD="$pad" LD_PRELOAD=/usr/lib/libprofiler.so \
   CPUPROFILE="$PWD/$out/race.prof" CPUPROFILESIGNAL=12 CPUPROFILE_FREQUENCY=1000 \
   "$build/gt_play" --max-seconds $((from + 50)) > "$out/run.log" 2>&1 &

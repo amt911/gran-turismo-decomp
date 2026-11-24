@@ -226,7 +226,7 @@ in the typing phase; the gate then proves each rewrite.
 
 From 2026-11-10 (user) the work is mostly **cleanup**: each PR rewrites 20-40 already-verified register-level functions as structured C, file by
 file, at the same address and registration, keeping every quirk; the same gate (fast gate on the touched functions, a sabotage pinned on each,
-the full gate before the PR) proves the rewrite, and the README keeps a "structured rewrites: N of ~1,100" line instead of a new count.
+the full gate, run by the PR verdict since 2026-11-20) proves the rewrite, and the README keeps a "structured rewrites: N of ~1,100" line instead of a new count.
 
 Two traps of writing it by hand (each cost a mismatch in a synthetic gate, batches 337 and 339):
 - **A `jal`'s delay slot runs before the callee.** `jal f; move s0, v0` stores the result of the call *before* `f`, not `f`'s result:

@@ -193,8 +193,9 @@ if(GT_PLAY)
     add_executable(gt_play
         $<TARGET_OBJECTS:gt_host_objs>
         host/play_backends.cpp
-        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/tilt_free.cpp host/game_state.cpp host/mesh_blob.cpp host/pad_menu.cpp host/ui_row.cpp host/ui_view.cpp
+        host/mod_loader.cpp host/mod_hooks.cpp host/mod_manifest.cpp host/mod_menu.cpp host/mod_services.cpp host/tilt_free.cpp host/mod_camera.cpp host/game_state.cpp host/mesh_blob.cpp host/pad_menu.cpp host/ui_row.cpp host/ui_view.cpp
         host/cheat_device/bindings.cpp host/cheat_device/menu.cpp host/cheat_device/device.cpp host/cheat_device/keyboard_sdl.cpp
+        host/draw_composite.cpp
         "${GT_LCS_HOST_DIR}/display_window.cpp"
         "${GT_LCS_HOST_DIR}/display_window_sdl.cpp"
         "${GT_LCS_HOST_DIR}/ge_gpu_backend_vulkan.cpp"
@@ -228,6 +229,16 @@ if(GT_PLAY)
     option(GT_PANEL_SABOTAGE_USE_OVERLAY "sabotage: the cheat device opens as the F9 overlay page, not as the host panel" OFF)
     if(GT_PANEL_SABOTAGE_USE_OVERLAY)
         set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_PANEL_SABOTAGE_USE_OVERLAY=1)
+    endif()
+    # Verification only (tools/mod_draw_check.sh --sabotage-flush / --sabotage-grade must FAIL): the draw list is never handed to the window / dump;
+    # the scene grade never reaches the window / dump.
+    option(GT_DRAW_SABOTAGE_NO_FLUSH "sabotage: the mods' draw lists are dropped" OFF)
+    if(GT_DRAW_SABOTAGE_NO_FLUSH)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_DRAW_SABOTAGE_NO_FLUSH=1)
+    endif()
+    option(GT_GRADE_SABOTAGE_IGNORE "sabotage: the scene grade is ignored" OFF)
+    if(GT_GRADE_SABOTAGE_IGNORE)
+        set_property(SOURCE host/play_backends.cpp APPEND PROPERTY COMPILE_DEFINITIONS GT_GRADE_SABOTAGE_IGNORE=1)
     endif()
     # Verification only: a held-back button released inside its window never reaches the game (mod_reset_check.sh --tap --sabotage-notap, API 4).
     option(GT_PAD_MENU_SABOTAGE_NO_REPLAY "sabotage: the late tap of a held-back button is swallowed" OFF)
@@ -349,7 +360,7 @@ if(LibArchive_FOUND AND OpenSSL_FOUND)
     endif()
 endif()
 # mod_hooks.cpp's API table reaches mod_services.cpp, which calls guest code through gt::call_guest
-set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/tilt_free.cpp host/game_state.cpp host/mesh_blob.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
+set(GT_MOD_CORE host/mod_hooks.cpp host/mod_services.cpp host/tilt_free.cpp host/mod_camera.cpp host/game_state.cpp host/mesh_blob.cpp host/guest_call.cpp host/fiber.cpp host/kernel_isolation.cpp)
 add_executable(mod_hooks_tests host/tests/mod_hooks_test.cpp ${GT_MOD_CORE})
 target_include_directories(mod_hooks_tests PRIVATE host include)
 target_link_libraries(mod_hooks_tests PRIVATE psprecomp_core)
@@ -371,6 +382,10 @@ add_executable(tilt_free_tests host/tests/tilt_free_test.cpp ${GT_MOD_CORE})
 target_include_directories(tilt_free_tests PRIVATE host include)
 target_link_libraries(tilt_free_tests PRIVATE psprecomp_core)
 add_test(NAME tilt_free COMMAND tilt_free_tests)
+add_executable(mod_camera_tests host/tests/mod_camera_test.cpp ${GT_MOD_CORE})
+target_include_directories(mod_camera_tests PRIVATE host include)
+target_link_libraries(mod_camera_tests PRIVATE psprecomp_core)
+add_test(NAME mod_camera COMMAND mod_camera_tests)
 add_executable(mod_services_tests host/tests/mod_services_test.cpp ${GT_MOD_CORE})
 target_include_directories(mod_services_tests PRIVATE host include)
 target_link_libraries(mod_services_tests PRIVATE psprecomp_core)
@@ -445,6 +460,12 @@ target_link_libraries(lcs_host_menu_tests PRIVATE psprecomp_core PkgConfig::SDL2
 foreach(mode menu present f10 f9 extra fps delegated panel styled styled_nofont async_picture)
     add_test(NAME lcs_host_menu_${mode} COMMAND lcs_host_menu_tests ${mode})
 endforeach()
+# The mod draw layer (lcs patch 0071, API v8): rasterizer pixel checks, the picture store, the CPU composite of the frame dumps.
+add_executable(mod_draw_raster_tests host/tests/mod_draw_raster_test.cpp host/draw_composite.cpp
+    "${GT_LCS_HOST_DIR}/lcs_display_menu.cpp" "${GT_LCS_HOST_DIR}/lcs_host_style.cpp" "${GT_LCS_HOST_DIR}/lcs_render_config.cpp" "${GT_LCS_HOST_DIR}/lcs_controls.cpp")
+target_include_directories(mod_draw_raster_tests PRIVATE host "${GT_LCS_HOST_DIR}")
+target_link_libraries(mod_draw_raster_tests PRIVATE psprecomp_core PkgConfig::SDL2)
+add_test(NAME mod_draw_raster COMMAND mod_draw_raster_tests)
 # The host UI as PNGs (cheat device Race / Controls capture / F9 MODS / F10): built from the real Device and mod menu code, only
 # our own UI text; `ui_panel_dump <dir>` writes them, the ctest checks they are written and show the colours.
 add_executable(ui_panel_dump host/tests/ui_panel_dump.cpp host/ui_row.cpp host/ui_view.cpp host/cheat_device/bindings.cpp
