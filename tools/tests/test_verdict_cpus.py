@@ -32,7 +32,9 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
     (tree / "tools").mkdir()
     for name in ("setup.sh", "cpu_lock.sh", "pad_route.sh"):
         stub = tree / "tools" / name
-        stub.write_text("#!/bin/sh\nexit 0\n")
+        # cpu_lock.sh records the boot route's GT_PAD_EXIT_AFTER (the boot runs through it)
+        record = f'echo "cpu_lock exit_after=${{GT_PAD_EXIT_AFTER:-unset}} $*" >> {calls}\n' if name == "cpu_lock.sh" else ""
+        stub.write_text(f"#!/bin/sh\n{record}exit 0\n")
         stub.chmod(0o755)
     venv = tree / ".venv" / "bin"
     venv.mkdir(parents=True)
@@ -81,3 +83,17 @@ def test_synth_groups_override(tmp_path):
 def test_boot_budget_defaults_to_600_and_is_overridable(tmp_path):
     text = (REPO / "tools" / "verdict.sh").read_text()
     assert 'tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}"' in text
+
+
+def test_boot_ends_a_minute_after_the_script(tmp_path):
+    # The boot check passes on "script done"; without GT_PAD_EXIT_AFTER the route idled to its wall-clock budget
+    # (verdict 837: script done at 6 min of game, the step took 20 min).
+    run_verdict(tmp_path, {})
+    boot = [line for line in (tmp_path / "calls.txt").read_text().splitlines() if line.startswith("cpu_lock") and "verdict boot" in line]
+    assert len(boot) == 1 and boot[0].startswith("cpu_lock exit_after=3600 ")
+
+
+def test_boot_exit_after_can_be_overridden(tmp_path):
+    run_verdict(tmp_path, {"GT_VERIFY_BOOT_EXIT_AFTER": "60"})
+    boot = [line for line in (tmp_path / "calls.txt").read_text().splitlines() if line.startswith("cpu_lock") and "verdict boot" in line]
+    assert len(boot) == 1 and boot[0].startswith("cpu_lock exit_after=60 ")

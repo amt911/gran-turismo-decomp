@@ -75,7 +75,10 @@ boot=$logs/boot
 # save_garage needed more than 600 s and the boot check failed on time alone (verdicts 662, 666, 667 on 2026-11-19).
 # It is a time budget only: the route's waits and the pass condition are unchanged.
 rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$boot/sd/"
-GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}" "$boot/run" --decomp on
+# GT_VERIFY_BOOT_EXIT_AFTER (vblanks, default 3600 = 60 s): the route ends that long after its script is done. The pass
+# condition is the script reaching its end; without it the route idled in the garage to its whole budget (verdict 837:
+# script done at 6 min of game, the step took 20 min). One minute of idle after the end is still run and checked.
+GT_PAD_EXIT_AFTER=${GT_VERIFY_BOOT_EXIT_AFTER:-3600} GT_SAVEDATA_DIR=$boot/sd GT_FRAME_DUMP= tools/cpu_lock.sh "verdict boot $tag" tools/pad_route.sh save_garage "${GT_VERIFY_BOOT_SECONDS:-600}" "$boot/run" --decomp on
 echo "boot save_garage rc=$(cat "$boot/run/run.exit") $(grep -c satisfied "$boot/run/run.log") waits $(grep -o 'script done.*' "$boot/run/run.log")"
 rm -rf "$boot/sd"
 wait $synth_pid 2>/dev/null || true
