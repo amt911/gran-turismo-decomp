@@ -113,94 +113,6 @@ void set_state_pairs(Runtime &rt, AllegrexContext &ctx, const u32 (&pairs)[4][2]
 }
 
 // 0x089283AC (a0 = the object, a1 = the argument handed on to 0x089275B0 / 0x08927EAC / 0x089200CC).
-void func_089283AC(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 other = ctx.gpr[5];  // s4
-    SavedRegisters<5> saved(ctx);  // s0-s4
-    GuestFrame frame(ctx, 0x20u);
-    ctx.gpr[2] = 0xAu;  // v0 before the first compare
-    // 0x089283D4: the flags, by the word at +0x1D1C (all four pairs are (state, byte) writes).
-    if (word(rt, self + 0x1FB8u) == 0xAu) {
-        const u32 state = word(rt, self + 0x1D1Cu);
-        if (state == 1u || state == 2u) {
-            set_state_pairs(rt, ctx, {{1u, 1u}, {0u, 0u}, {2u, 0u}, {3u, 0u}});
-        } else if (state == 3u) {
-            set_state_pairs(rt, ctx, {{1u, 0u}, {0u, 0u}, {2u, 1u}, {3u, 0u}});
-        } else if (state == 4u) {
-            set_state_pairs(rt, ctx, {{1u, 0u}, {0u, 0u}, {2u, 0u}, {3u, 1u}});
-        } else {
-            set_state_pairs(rt, ctx, {{1u, 0u}, {0u, 1u}, {2u, 0u}, {3u, 0u}});
-        }
-    } else {
-        set_state_pairs(rt, ctx, {{0u, 0u}, {1u, 0u}, {2u, 0u}, {3u, 0u}});
-    }
-    // 0x089285B0: the word at +0x1FB8 now selects the transition (s0; v0 = 3, then 0x0B).
-    const u32 phase = word(rt, self + 0x1FB8u);
-    if (phase == 0xBu) {
-        // 0x0892870C: idle: one virtual call; a yes answer hands over to 0x089281E4(self, 3).
-        const u32 busy = call_set(rt, ctx, 0x089273B4u, {self});
-        if (busy != 0u) return;  // v0 = busy
-        const u32 object = call_set(rt, ctx, 0x089273D8u, {self});
-        const u32 slot = word(rt, word(rt, object) + 0xCu);
-        const u32 answer = call_indirect(rt, ctx, slot, {object, 0x20u});
-        if (answer == 0u) return;  // v0 = 0
-        tail_call(ctx, 0x089281E4u, {self, 3u});
-        return;
-    }
-    if (phase != 0u && phase != 3u) {  // 0x089285C4: the other states only report back
-        ctx.gpr[2] = 0xBu;
-        return;
-    }
-    // 0x089285CC: 0x089273B4 still busy sends everything to the report path.
-    if (call_set(rt, ctx, 0x089273B4u, {self}) != 0u) {
-        if (phase != 0u) {
-            if (word(rt, self + 0x1FCu) == 0x22u) {
-                ctx.gpr[2] = 0x22u;
-                return;
-            }
-        }
-        tail_call(ctx, 0x08927D14u, {self, self + 0x2184u});
-        return;
-    }
-    // 0x08928618: one step; 0x08927EAC answers the state, 0x08927E4C the mode when the state is not 1.
-    call_set(rt, ctx, 0x089275B0u, {self, other});
-    const u32 previous = ctx.gpr[2];  // s3: this call's answer, read in the next call's delay slot
-    const u32 step = call_set(rt, ctx, 0x08927EACu, {self, other});  // s0
-    u32 mode = 0u;   // s2
-    u32 answer = 0u; // v1
-    if (step != 1u) {
-        answer = call_set(rt, ctx, 0x08927E4Cu, {self});
-        mode = word(rt, self + 0x2050u);
-    } else {
-        mode = 1u;
-    }
-    const bool same = previous == 1u;  // s3, 0x08928654
-    // 0x08928678: the flags differ -> tell the state machine (3, or the object at +0x2194), v0 = 1 either way.
-    if (same || answer == 1u || byte_at(rt, self + 0x2054u) == step) {
-        ctx.gpr[2] = 1u;
-    } else if (mode == 0u) {
-        call_set(rt, ctx, 0x089281E4u, {self, 3u});
-        ctx.gpr[2] = 1u;
-    } else {
-        call_set(rt, ctx, 0x089274C8u, {self, self + 0x2194u});
-        ctx.gpr[2] = 1u;
-    }
-    // 0x0892869C: the byte at +0x2054 remembers the state; only mode 1 goes on.
-    rt.memory().store8(self + 0x2054u, static_cast<std::uint8_t>(step));
-    if (mode != 1u) {
-        ctx.gpr[2] = 1u;
-        return;
-    }
-    const u32 slot = self + 0x2194u;  // s0
-    call_set(rt, ctx, 0x08927D14u, {self, slot});
-    if (same) {
-        // 0x089286BC: the slot's word at +0xC moves to +8, then the two reports.
-        put(rt, slot + 8u, word(rt, slot + 0xCu));
-        call_set(rt, ctx, 0x089274C8u, {self, slot});
-        call_set(rt, ctx, 0x089200CCu, {self, other, word(rt, self + 0x1FB0u)});
-    }
-    tail_call(ctx, 0x08927BE4u, {self, slot, 0u, 0u});
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x0888D9A8 (a0 = the object, a1 = handed to 0x088D62FC, a2 = the request). One request entry of the object's table at
@@ -329,4 +241,3 @@ void finish_request(Runtime &rt, AllegrexContext &ctx, u32 self, u32 request) {
 
 
 #define NEW28(address, name, kind) GT_DECOMP(address, gt::game::new_batch_28::name, gt::ReturnKind::kind)
-NEW28(0x089283ACu, func_089283AC, Word);
