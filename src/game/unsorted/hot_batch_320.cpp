@@ -181,6 +181,12 @@ u32 call_virtual(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx, u32 ta
 #define store8(address, value) rt.memory().store8((address), static_cast<std::uint8_t>(value))
 #define store16(address, value) rt.memory().store16((address), static_cast<std::uint16_t>(value))
 
+// 0x08978D3C (a0 = self, a1 = an argument passed to the calls): 0x08B344E0 with self+0x20, 0x08BEDF34 with self+0x18, the
+// argument and the frame's first word as the list head, then 0x08B3457C with self+0x20. The frame's first word is a list head that
+// points to itself; the walk over the nodes (word +0) ends when a node is the head again. A node is skipped when the words at
+// self+0x74 and self+0x78 match the ones at self+0x7C and self+0x80 (the pair test); otherwise bit (self+0x80 - 1) of the bitmap at
+// word(self+0x7C) decides: when it is set, the node's word +8 (0x08A5BB7C with 0x08CA2F7C first when it is 0) gets the vtable call
+// at +0x108. The walk ends with 0x08BEDD64(head).
 void func_08978D3C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x24u), G[31]); put(rt, frame.at(0x20u), G[20]); put(rt, frame.at(0x1Cu), G[19]); G[17] = G[4] + 0x20u; G[18] = G[4]; G[4] = G[17]; G[16] = G[5]; put(rt, frame.at(0x0u), frame.at(0u)); put(rt, frame.at(0x4u), frame.at(0u)); call_here(rt, ctx, 0x08B344E0u); G[5] = G[16]; G[6] = frame.at(0u); G[4] = G[18] + 0x18u; call_here(rt, ctx, 0x08BEDF34u); G[4] = G[17]; call_here(rt, ctx, 0x08B3457Cu); G[17] = word(rt, frame.at(0x0u)); { const bool tk = frame.at(0u) == G[17]; G[20] = G[18] + 0x74u; if (tk) goto L_08978E10; } G[19] = G[18] + 0x7Cu; G[6] = word(rt, G[18] + 0x7Cu); L_08978DA0: ; G[2] = word(rt, G[18] + 0x74u); G[4] = word(rt, G[20] + 0x4u); { const bool tk = G[2] != G[6]; G[3] = word(rt, G[19] + 0x4u); if (tk) goto L_08978E38; } { const bool tk = G[4] != G[3]; G[2] = G[3] + 0xFFFFFFFFu; if (tk) goto L_08978E3C; } G[17] = word(rt, G[17] + 0x0u); goto L_08978E08; L_08978DC0: ; G[3] = G[3] + 0xFFFFFFFCu; L_08978DC4: ; G[3] = word(rt, G[3] + 0x0u); G[2] = 0x1u; G[2] = G[2] << (G[4] & 31u); G[2] = G[2] & G[3]; if (G[2] == 0u) { G[17] = word(rt, G[17] + 0x0u); goto L_08978E08; } G[16] = word(rt, G[17] + 0x8u); if (G[16] != 0u) { G[3] = word(rt, G[16] + 0x0u); goto L_08978DF8; } G[4] = 0x08CA0000u; G[4] = 0x08CA2F7Cu; call_here(rt, ctx, 0x08A5BB7Cu); G[3] = word(rt, G[16] + 0x0u); L_08978DF8: ; G[2] = word(rt, G[3] + 0x108u); { const std::uint32_t tg = G[2]; G[4] = G[16]; call_here(rt, ctx, tg); } G[17] = word(rt, G[17] + 0x0u); L_08978E08: ; if (frame.at(0u) != G[17]) { G[6] = word(rt, G[18] + 0x7Cu); goto L_08978DA0; } L_08978E10: ; G[4] = frame.at(0u); call_here(rt, ctx, 0x08BEDD64u); goto exit_; L_08978E38: ; G[2] = G[3] + 0xFFFFFFFFu; L_08978E3C: ; G[5] = sra(G[2], 31); G[4] = static_cast<std::int32_t>(G[2]) < 0 ? 1u : 0u; G[5] = G[5] >> 27; G[3] = G[3] + 0x1Eu; if (G[4] == 0u) G[3] = G[2]; G[2] = G[2] + G[5]; G[3] = sra(G[3], 5); G[2] = G[2] & 0x1Fu; G[2] = G[2] - G[5]; G[3] = G[3] << 2; G[3] = G[6] + G[3]; { const bool tk = static_cast<std::int32_t>(G[2]) >= 0; G[4] = G[2]; if (tk) goto L_08978DC4; } G[4] = G[2] + 0x20u; goto L_08978DC0;  exit_: ; G[17] = word(rt, frame.at(0x14u)); G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); G[20] = word(rt, frame.at(0x20u)); G[19] = word(rt, frame.at(0x1Cu)); } } if (tail != 0u) jump(ctx, tail); } }
 // 0x089D15E0 (a0 = the destination object, a1 unused, a2 = mode, a3 = a pointer to a handle): mode 0 makes a handle at frame + 4 with 0x089CD62C (the string 0x08CA69B8
 // reports a missing object through 0x08A5BB7C), converts the float at object + 0x138 with 0x08A87EEC(&temporary, f12) into a temporary at frame + 0, assigns it over the
@@ -486,6 +492,13 @@ void func_089B7CF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     u32 tail_argument = 0u;
     if (walk_flagged_nodes(rt, ctx, tail_object, tail_argument)) call_set(rt, ctx, 0x089B7C80u, {tail_object, tail_argument, 0u});
 }
+// 0x08AA9BEC (a0 = self, a1 = a key): looks up a node with 0x08C315C4(self+0x20, key). When that returns the sentinel self+0x24 it
+// looks up again with 0x08C31F14, and when that one hits the key's word and the hit's word at +0x10 are compared (lengths from word
+// -0xC, 0x08B36170 on the shorter length, then the length difference when that is 0). A non-negative result stores word(self+0x34) at
+// the hit's +0x14 and returns it. Otherwise (a miss, or a negative result) it builds the key with 0x08B88F44 and inserts it with
+// 0x08C33C44(self+0x20, the hit, key) (its stack word +0x10 is 0), then walks from word(key slot) until the sentinel 0x08D74FD0,
+// calling 0x08B60804 (index -1) and, when that is not positive, 0x08B8542C. Stores word(self+0x34) at the inserted node's +0x14.
+// The first lookup's hit returns word(hit +0x14) instead, with no store.
 void func_08AA9BEC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x50u); put(rt, frame.at(0x28u), G[18]); put(rt, frame.at(0x2Cu), G[19]); put(rt, frame.at(0x20u), G[16]); put(rt, frame.at(0x40u), G[31]); put(rt, frame.at(0x3Cu), G[23]); put(rt, frame.at(0x38u), G[22]); put(rt, frame.at(0x34u), G[21]); put(rt, frame.at(0x30u), G[20]); put(rt, frame.at(0x24u), G[17]); G[18] = G[4] + 0x20u; G[2] = G[4]; G[4] = G[18]; G[19] = G[5]; G[16] = G[2] + 0x24u; G[20] = word(rt, G[18] + 0x14u); call_here(rt, ctx, 0x08C315C4u); G[4] = G[18]; { const bool tk = G[16] == G[2]; G[5] = G[19]; if (tk) goto L_08AA9C44; } G[20] = word(rt, G[2] + 0x14u); goto L_08AA9D04; L_08AA9C44: ; call_here(rt, ctx, 0x08C31F14u); G[23] = frame.at(0xCu); G[22] = G[2]; G[21] = G[2]; { const bool tk = G[16] == G[2]; G[6] = frame.at(0x8u); if (tk) goto L_08AA9CA0; } G[4] = word(rt, G[19] + 0x0u); G[16] = word(rt, G[4] + 0xFFFFFFF4u); put(rt, frame.at(0x4u), G[16]); G[2] = word(rt, G[2] + 0x10u); G[17] = word(rt, G[2] + 0xFFFFFFF4u); G[2] = frame.at(0x4u); G[3] = G[17] < G[16] ? 1u : 0u; put(rt, frame.at(0x8u), G[17]); if (G[3] == 0u) G[6] = G[2]; G[16] = G[16] - G[17]; G[6] = word(rt, G[6] + 0x0u); G[5] = word(rt, G[22] + 0x10u); call_here(rt, ctx, 0x08B36170u); if (G[2] != 0u) G[16] = G[2]; if (static_cast<std::int32_t>(G[16]) >= 0) { put(rt, G[21] + 0x14u, G[20]); goto L_08AA9D04; } L_08AA9CA0: ; G[5] = G[19]; G[4] = G[23]; call_here(rt, ctx, 0x08B88F44u); G[4] = G[18]; G[5] = G[22]; G[6] = G[23]; put(rt, frame.at(0x10u), 0u); call_here(rt, ctx, 0x08C33C44u); G[17] = G[2]; G[2] = word(rt, frame.at(0xCu)); G[5] = 0xFFFFFFFFu; G[4] = G[2] + 0xFFFFFFFCu; G[16] = G[2] + 0xFFFFFFF4u; G[2] = 0x08D70000u; G[2] = 0x08D74FD0u; { const bool tk = G[16] == G[2]; G[21] = G[17]; if (tk) goto L_08AA9D00; } call_here(rt, ctx, 0x08B60804u); G[4] = G[16]; { const bool tk = static_cast<std::int32_t>(G[2]) > 0; G[5] = frame.at(0u); if (tk) goto L_08AA9D00; } call_here(rt, ctx, 0x08B8542Cu); L_08AA9D00: ; put(rt, G[21] + 0x14u, G[20]); L_08AA9D04: ; G[2] = G[20]; goto exit_;  exit_: ; G[18] = word(rt, frame.at(0x28u)); G[19] = word(rt, frame.at(0x2Cu)); G[16] = word(rt, frame.at(0x20u)); G[23] = word(rt, frame.at(0x3Cu)); G[22] = word(rt, frame.at(0x38u)); G[21] = word(rt, frame.at(0x34u)); G[20] = word(rt, frame.at(0x30u)); G[17] = word(rt, frame.at(0x24u)); } } if (tail != 0u) jump(ctx, tail); } }
 // 0x08B2D314 (a1 = a pointer whose word +4 holds event bits; v0 = 0): the state word 0x08D68D40 and the handle word 0x08D68D58 of a worker, the busy byte 0x08D68D4C. Unless the state word
 // 0x08D68CF8 is 1 the busy byte is set; bits without 0x80 clear it again. Bit 1 starts the worker: state = 1, the handle 0x08C7AA18(0x08CB53E8, 0x08B2D824, 0x20, 0x1000, 0x200000, 0,
@@ -797,7 +810,64 @@ void func_08A265F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (static_cast<s32>(call_set(rt, ctx, 0x08B60804u, {string - 4u, 0xFFFFFFFFu})) > 0) return;
     call_set(rt, ctx, 0x08B8542Cu, {string - 0xCu, frame.at(0u)});
 }
-void func_08B059D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { std::uint32_t tail = 0u; { { GuestFrame frame(ctx, 0x40u); put(rt, frame.at(0x38u), G[18]); put(rt, frame.at(0x34u), G[17]); put(rt, frame.at(0x30u), G[16]); put(rt, frame.at(0x3Cu), G[31]); auto &F = ctx.fpr; G[18] = 0x1u; G[17] = G[6]; G[16] = G[4]; G[3] = sext(load16(G[6] + 0x0u), 16); store8(frame.at(0x0u), G[2]); G[2] = G[3] << 8; G[6] = word(rt, G[5] + 0x0u); G[7] = word(rt, frame.at(0x0u)); G[3] = G[3] << 4; G[2] = G[2] - G[3]; G[6] = G[6] + G[2]; put(rt, frame.at(0x20u), G[7]); put(rt, frame.at(0x24u), G[5]); put(rt, frame.at(0x28u), G[6]); put(rt, frame.at(0xCu), 0u); put(rt, frame.at(0x8u), G[6]); put(rt, frame.at(0x4u), G[5]); put(rt, frame.at(0x10u), G[7]); put(rt, frame.at(0x14u), G[5]); put(rt, frame.at(0x18u), G[6]); put(rt, frame.at(0x1Cu), 0u); put(rt, frame.at(0x2Cu), 0u); goto L_08B05AE0; L_08B05A40: ; call_here(rt, ctx, 0x08BBBEC4u); F[1] = float_at(rt, G[16] + 0x44u); ctx.set_fpu_condition(F[1] <= F[0]); { const bool tk = ctx.fpu_condition(); G[3] = word(rt, frame.at(0x28u)); if (tk) goto L_08B05A80; } G[4] = word(rt, frame.at(0x28u)); G[4] = G[4] + 0x50u; G[5] = G[4]; call_here(rt, ctx, 0x08BBBEC4u); F[1] = float_at(rt, G[16] + 0x48u); ctx.set_fpu_condition(F[1] <= F[0]); { const bool tk = !ctx.fpu_condition(); G[3] = word(rt, frame.at(0x28u)); if (tk) goto L_08B05A94; } L_08B05A80: ; G[18] = 0u; G[2] = load16(G[3] + 0xE2u); G[2] = (G[2] & ~0x4u) | ((0u << 2) & 0x4u); store16(G[3] + 0xE2u, G[2]); goto L_08B05AA0; L_08B05A94: ; G[2] = load16(G[3] + 0xE2u); G[2] = G[2] | 0x4u; store16(G[3] + 0xE2u, G[2]); L_08B05AA0: ; G[2] = word(rt, frame.at(0x28u)); G[5] = frame.at(0x20u); G[6] = G[16]; G[4] = G[2]; put(rt, frame.at(0x2Cu), G[2]); call_here(rt, ctx, 0x08C46D74u); G[2] = sext(G[2] & 0xFFFFu, 16); G[3] = G[2] << 4; G[4] = G[2] << 8; G[4] = G[4] - G[3]; { const bool tk = static_cast<std::int32_t>(G[2]) < 0; G[3] = 0u; if (tk) goto L_08B05ADC; } G[2] = word(rt, frame.at(0x24u)); G[3] = word(rt, G[2] + 0x0u); G[3] = G[3] + G[4]; L_08B05ADC: ; put(rt, frame.at(0x28u), G[3]); L_08B05AE0: ; G[2] = word(rt, frame.at(0x28u)); G[4] = G[2] + 0x38u; { const bool tk = G[2] != 0u; G[5] = G[4]; if (tk) goto L_08B05A40; } { const bool tk = G[18] == 0u; if (tk) goto L_08B05B08; } G[2] = load16(G[17] + 0x2u); G[2] = G[2] | 0x4000u; store16(G[17] + 0x2u, G[2]); L_08B05B08: ; goto exit_;  exit_: ; G[18] = word(rt, frame.at(0x38u)); G[17] = word(rt, frame.at(0x34u)); G[16] = word(rt, frame.at(0x30u)); } } if (tail != 0u) jump(ctx, tail); } }
+// 0x08B059D0 (v0 = a byte, a1 = a record whose word +0 is a base, a2 = the address of a signed halfword x): the byte goes to the
+// frame's first byte and the word there is passed as a stack value. The chain starts at word(a1) + 240 * x. For each node: 0x08BBBEC4 on
+// node+0x38 (and on node+0x50 when the float at self+0x44 is above what it returns); bit 2 of the halfword at node+0xE2 is cleared when
+// that float is <= the callee's float (the node+0x50 test with self+0x48 comes second), otherwise set. Then 0x08C46D74(node, frame+0x20,
+// self) gives the next step: word(a1) + 240 * (its signed halfword), and 0 when that is negative. When the last clear happened the
+// result is 0; otherwise the halfword at a2+2 gets 0x4000 and that value is returned.
+void func_08B059D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 self = ctx.gpr[4];
+    const u32 record = ctx.gpr[5];
+    const u32 halfword = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x40u);
+    SavedRegisters saved(rt, ctx, frame, {{18u, 0x38u}, {17u, 0x34u}, {16u, 0x30u}, {31u, 0x3Cu}});
+    store8(frame.at(0u), ctx.gpr[2]);
+    const u32 packed = word(rt, frame.at(0u));
+    const u32 x = signed_half(rt, halfword);
+    const u32 chain_start = word(rt, record) + ((x << 8) - (x << 4));
+    // The original leaves these stack copies behind; the callee reads frame+0x20 and the loop reads 0x24 and 0x28.
+    put(rt, frame.at(0x20u), packed);
+    put(rt, frame.at(0x24u), record);
+    put(rt, frame.at(0x28u), chain_start);
+    put(rt, frame.at(0xCu), 0u);
+    put(rt, frame.at(8u), chain_start);
+    put(rt, frame.at(4u), record);
+    put(rt, frame.at(0x10u), packed);
+    put(rt, frame.at(0x14u), record);
+    put(rt, frame.at(0x18u), chain_start);
+    put(rt, frame.at(0x1Cu), 0u);
+    put(rt, frame.at(0x2Cu), 0u);
+    bool keep = true;
+    u32 cursor = chain_start;
+    while (cursor != 0u) {
+        call_set(rt, ctx, 0x08BBBEC4u, {cursor + 0x38u, cursor + 0x38u});
+        if (float_at(rt, self + 0x44u) <= ctx.fpr[0]) {
+            keep = false;
+            store16(cursor + 0xE2u, ins(load16(cursor + 0xE2u), 0u, 2u));
+        } else {
+            call_set(rt, ctx, 0x08BBBEC4u, {cursor + 0x50u, cursor + 0x50u});
+            if (float_at(rt, self + 0x48u) <= ctx.fpr[0]) {
+                keep = false;
+                store16(cursor + 0xE2u, ins(load16(cursor + 0xE2u), 0u, 2u));
+            } else {
+                store16(cursor + 0xE2u, load16(cursor + 0xE2u) | 4u);
+            }
+        }
+        put(rt, frame.at(0x2Cu), cursor);
+        const u32 returned = call_set(rt, ctx, 0x08C46D74u, {cursor, frame.at(0x20u), self});
+        const s32 step_halfword = static_cast<std::int16_t>(returned);
+        cursor = step_halfword < 0 ? 0u : word(rt, record) + ((static_cast<u32>(step_halfword) << 8) - (static_cast<u32>(step_halfword) << 4));
+        put(rt, frame.at(0x28u), cursor);
+    }
+    if (keep) {
+        const u32 bits = load16(halfword + 2u) | 0x4000u;
+        store16(halfword + 2u, bits);
+        ctx.gpr[2] = bits;
+    } else {
+        ctx.gpr[2] = 0u;
+    }
+}
 // 0x08C5B850 (a0 = the end of the buffer, a2 / a3 = the low / high word of the value, t0 = the digit table, t1 = the flags; v0 = the length written): writes the digits of the 64-bit value
 // backwards from a0 down: flags & 0x4A equal to 0x40 give octal (table + 4 + the low 3 bits), equal to 8 hexadecimal (table + 4, or table + 0x14 with the flag 0x4000, + the low nibble),
 // anything else decimal (0x08B708C4 gives the remainder and 0x08B702B4 the quotient of the value by 10, the digit at table + 4 + the remainder). At least one digit is written.
