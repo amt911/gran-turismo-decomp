@@ -876,7 +876,46 @@ void func_08958410(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { in
 void func_089CF9D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { step_back_entries(rt, ctx); }
 void func_08A175B4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { tear_down_static(rt, ctx); }
 void func_08A23ABC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { start_handles(rt, ctx); }
-void func_08AC98C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { bool tail = false; { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x10u), G[31]); put(rt, frame.at(0xCu), G[19]); put(rt, frame.at(8u), G[18]); put(rt, frame.at(4u), G[17]); put(rt, frame.at(0u), G[16]); G[19] = word(rt, G[5] + 4u); G[17] = G[19] + 0x30u; if (G[19] != 0u) { G[16] = word(rt, G[19] + 0x30u); G[2] = word(rt, G[19] + 0x34u); G[18] = G[19] + 0x34u; if (G[16] != G[2]) { G[2] = G[16]; do { G[2] = word(rt, G[2]); G[4] = G[2]; if (G[2] != 0u) call_here(rt, ctx, 0x08AD5358u); G[3] = word(rt, G[18]); G[2] = G[16] + 4u; G[16] = G[2]; } while (G[3] != G[2]); G[2] = word(rt, G[17]); } else { G[3] = word(rt, G[18]); G[2] = word(rt, G[17]); } G[17] = G[2]; if (G[2] != G[3]) { do { G[16] = word(rt, G[2]); G[17] += 4u; G[4] = G[16]; if (G[16] != 0u) { put(rt, G[2], 0u); call_here(rt, ctx, 0x08AD5394u); G[2] = word(rt, G[16]); G[3] = word(rt, G[2] + 4u); G[4] = G[16]; call_here(rt, ctx, G[3]); G[3] = word(rt, G[18]); } G[2] = G[17]; } while (G[3] != G[17]); } G[4] = G[19]; tail = true; } G[19] = word(rt, frame.at(0xCu)); G[18] = word(rt, frame.at(8u)); G[17] = word(rt, frame.at(4u)); G[16] = word(rt, frame.at(0u)); } if (tail) jump(ctx, 0x08AC9240u); } }
+// 0x08AC98C0 (a1 = a holder whose word +4 is a block; ends with the tail call 0x08AC9240(block)): with the block set, its first pointer at
+// +0x30 is released element by element up to the end at +0x34 (each nonzero pointer through 0x08AD5358), then from +0x30 again to +0x34:
+// each nonzero pointer's slot is cleared, 0x08AD5394(pointer) runs and the pointer's virtual +4 is called. The block then goes to
+// 0x08AC9240.
+void func_08AC98C0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 owner = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x20u);
+    SavedRegisters saved(ctx);
+    const u32 block = word(rt, owner + 0x4u);
+    ctx.gpr[19] = block;
+    if (block == 0u) return;
+    ctx.gpr[18] = block + 0x34u;
+    ctx.gpr[17] = block + 0x30u;
+    const u32 last = word(rt, block + 0x34u);
+    if (word(rt, block + 0x30u) != last) {
+        u32 node = word(rt, block + 0x30u);
+        do {
+            const u32 value = word(rt, node);
+            ctx.gpr[16] = value;
+            if (value != 0u) call_set(rt, ctx, 0x08AD5358u, {value});
+            node += 0x4u;
+        } while (word(rt, block + 0x34u) != node);
+    }
+    u32 slot = word(rt, block + 0x30u);
+    ctx.gpr[17] = slot;
+    if (slot != word(rt, block + 0x34u)) {
+        do {
+            const u32 value = word(rt, slot);
+            ctx.gpr[16] = value;
+            const u32 address = slot;
+            slot += 0x4u;
+            if (value != 0u) {
+                put(rt, address, 0u);
+                call_set(rt, ctx, 0x08AD5394u, {value});
+                call_indirect(rt, ctx, word(rt, word(rt, value) + 0x4u), {value});
+            }
+        } while (word(rt, block + 0x34u) != slot);
+    }
+    tail_call(ctx, 0x08AC9240u, {block});
+}
 void func_08ACAC58(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { open_object(rt, ctx); }
 void func_08ADE0E4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { destroy_node(rt, ctx); }
 void func_08B436DC(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { find_entry_and_update(rt, ctx); }
