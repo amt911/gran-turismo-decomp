@@ -755,3 +755,19 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# an argument, the asm evidence in the comment.
+# 0x088414AC: `lw s0, 0x0(a2)` is the holder's object; its vtable slot 0xC copy-constructs frame+0x10 and its
+# word +0x14 is the vector that the appended entries index.
+0x088414AC reg:a2=struct:16 field:+0x0=ptr
+# 0x08883010: `lw v0, 0xC(a0)` is the object every arm of the selector jump table reads (+0x130, +0x4C, +0x140 and
+# the member strings at +0x59C / +0x5C0 / +0x5E4 / +0x608 are all past it).
+0x08883010 reg:a0=struct:16 field:+0xC=ptr
+# 0x08B472AC: word(+0) is the vtable the 0x94 / 0xA4 virtuals are taken from, the list under it at +0x2C.
+0x08B472AC reg:a0=struct:64 field:+0x0=ptr
+# 0x08C4D7D4: the type id at +0 and the destination pointer at +4 (the ids come from the getters, so a run normally
+# falls to the final 0; the shape keeps the destination address valid).
+0x08C4D7D4 reg:a0=struct:16 field:+0x4=ptr
+# 0x08C6FA80: the string object's first word is the vtable-like cell whose word at -0xC gives the header offset; the
+# header (+0x8 limit, +0x6C table source, +0x78 stream) is past it.
+0x08C6FA80 reg:a0=struct:64
