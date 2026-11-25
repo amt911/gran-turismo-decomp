@@ -312,3 +312,13 @@ verdict passes or fails on changed. What did it:
 - **Still serial:** the full gate waits for the synthetic groups (`GT_VERIFY_OVERLAP=0`). Overlapping them in one tree
   lost the fast gate in 775 and 830, so the earlier note that they run beside each other no longer holds. With the
   groups at a few minutes this costs little.
+
+## Claude as a drafter: no MCP servers, no skills (user, 2026-11-25: "anota ese descubrimiento ... en el Claude.md")
+
+Every `claude -p` drafting session (the Claude engine of `gt-delegate/tools/delegate.sh`, Sonnet or Haiku) started all
+~20 user-scope MCP servers (rea with ~300 tools, playwright, shadcn, inkscape, magicui...). Their tool definitions went out
+with every request of a 30-90 minute session, and the user saw the Sonnet usage climb. Drafting needs none of them: run
+drafter sessions with `--strict-mcp-config --mcp-config '{"mcpServers":{}}' --disable-slash-commands` (no MCP servers, no
+skills). The repo's `CLAUDE.md`/`AGENTS.md` still load, so the rules still bind. Measured the same day: a session that only
+skipped its function still paid the whole startup context, so do not hand a model a batch it will skip (the remaining
+pool was all large functions: give Sonnet one large function per session instead).
