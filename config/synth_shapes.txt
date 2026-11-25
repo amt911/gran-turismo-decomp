@@ -811,3 +811,99 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+# 0x0894E614: vtable + members up to +0xDC (0xDC + 4 = 0xE0), plus the sub-objects at +0x64 / +0xE0.
+0x0894E614 reg:a0=struct:224
+# 0x0885F22C: lw v1, 0x0(a0) is the object whose 0x4634 receives the float argument (and whose 0x18 the callee's answer gets).
+0x0885F22C reg:a0=struct:16 field:+0x0=ptr
+# 0x08956470: lw v1, 0x8(s0) is the object read at 0x758 (the same object the first getter reads at 0x4FC).
+0x08956470 reg:a0=struct:16 field:+0x8=ptr
+# 0x089628B0: lw a1, 0x0(s0) is a member, the container at +0x8 and the one at +0x3C / +0x40 are built in place.
+0x089628B0 reg:a0=struct:128 field:+0x0=ptr
+# 0x08A3552C: members at +0x14..+0x24 built in place (0x24 + 4 -> 0x28, rounded to 48).
+0x08A3552C reg:a0=struct:48
+# 0x08A3AA50: members up to +0x2C and the two sub-objects at +0x30 / +0x34 (0x34 + 4 -> 0x38, rounded to 64).
+0x08A3AA50 reg:a0=struct:64
+# 0x08A54ED4: a2 at +0x50, -1 at +0x54 and the byte at +0x58 (0x58 + 1 -> 96).
+0x08A54ED4 reg:a0=struct:96
+# 0x088D464C: the object 0x088D45D8 takes in a0 (the other two arguments go into the stack object).
+0x088D464C reg:a0=struct:128
+# 0x089498F4: the signed half at +0x150 and the byte at +0x155 are read and written (0x155 + 1 -> 0x160).
+0x089498F4 reg:a0=struct:352
+# 0x08A12980: lw of +0x4, +0x8 and +0x10 (0x10 + 4 -> 0x14, rounded to 32).
+0x08A12980 reg:a0=struct:32
+# 0x0884C5F4: the halfword at +0x22 and the words at +0x18 / +0x1C / +0x20 (0x24 -> 48).
+0x0884C5F4 reg:a0=struct:48
+# 0x08857F54: the object 0x08A76AB4 takes in a0 (a1 / a2 go into the allocated 0x1C-byte object).
+0x08857F54 reg:a0=struct:64
+# 0x088A28C4: the object 0x088A2898 takes in a0 (the iterator lives on the stack).
+0x088A28C4 reg:a0=struct:64
+# 0x089B41E8: members at +0x118, +0x11C and +0x120, flags at +0x60 (0x120 + 4 -> 0x124, rounded to 320).
+0x089B41E8 reg:a0=struct:320
+# 0x089F5A00: the object 0x089FF120 takes in a0.
+0x089F5A00 reg:a0=struct:64
+# 0x089F6054: the object 0x089FF120 takes in a0.
+0x089F6054 reg:a0=struct:64
+# 0x08A0BDD8: the object 0x08965854 takes in a0.
+0x08A0BDD8 reg:a0=struct:64
+# 0x08A11B80: the object 0x08965854 takes in a0.
+0x08A11B80 reg:a0=struct:64
+# 0x08A57784: the members at +0x14 / +0x18 and a3 at +0x1C (0x1C + 4 -> 0x20, rounded to 48).
+0x08A57784 reg:a0=struct:48
+# 0x088703D4: lw of 0x0C(a0) is the object whose 0x84 angle is read and zeroed.
+0x088703D4 reg:a0=struct:16 field:+0xC=ptr
+# 0x089BEBDC: members up to +0x2B0 (allocated up to +0x2DC; 0x2B0 + 4 -> 0x2B4, rounded to 768).
+0x089BEBDC reg:a0=struct:768
+# 0x08A1A794: the member at +0xC and the flags word at +0x20 (0x20 + 4 -> 0x24, rounded to 48).
+0x08A1A794 reg:a0=struct:48
+# 0x089F6128: vtable + 0x38, floats at +0x80 / +0x88 and members to +0x9C (0xA0).
+0x089F6128 reg:a0=struct:160
+# 0x08A0FE50: vtable + 0x38, flags at +0x60, members at +0x64..+0x70 and +0x74 (0x78 -> 128).
+0x08A0FE50 reg:a0=struct:128
+# 0x08A43C18: the two rings at +0x18 and +0x30 and the member at +0x44 (0x48, rounded to 96).
+0x08A43C18 reg:a0=struct:96
+# 0x089C5000: vtable, +0x180 / +0x184 and the members up to +0x25C (0x260, rounded to 640).
+0x089C5000 reg:a0=struct:640
+# 0x089D8DB0: vtable + 0x38, a member at +0x78 and members to +0xA4 (0xA8, rounded to 176).
+0x089D8DB0 reg:a0=struct:176
+#
+# 0x089F3A70: a0 is the object built (vtable at +0, 0x22C..0x248 list heads, sub-objects 0x24C..0x268, floats 0x26C/0x270,
+# word 0x274) — real extent 0x278, capped at 1024.
+0x089F3A70 reg:a0=struct:1024
+# 0x089AC110: a0 only reaches 0x089AC0A0 unchanged (f12-f15 are the corners); every call gets the same object.
+0x089AC110 reg:a0=struct:16
+# 0x0892EEC0: a0 is cleared by three memsets (0x38..0x1E8, 0x1E8..0x248, 0x290..0x300) plus the words around them, to 0x314.
+0x0892EEC0 reg:a0=struct:1024
+# 0x08922BFC: a0 holds the vtable, five 0x2C sub-objects 0x1C..0xCC (the last runs to 0xF8) and the a2 word at +8.
+0x08922BFC reg:a0=struct:256
+# 0x08A064A0: a0 is the object (vtable, 0xA8 block of the 8-byte allocation, 0xB4 flag); the stack object is internal.
+0x08A064A0 reg:a0=struct:1024
+# 0x089F9578: the same shape (vtable, 0xA8 block, 0xB4 flag, three internal stack objects).
+0x089F9578 reg:a0=struct:1024
+# 0x088F7558: a3 is the scale record read at +0x14/+0x18/+0x1C/+0x24/+0x28; a1 (write, +4 tested) and a2 (read +0..8) follow.
+0x088F7558 reg:a3=struct:64
+# 0x0899DBA8: a0 is the object built (vtable, flags 0x13C, floats 0x120..0x150, words 0x154..0x15C, four 0x160..0x16C).
+0x0899DBA8 reg:a0=struct:1024
+# 0x089057C8: a0 gets the matrix (+4..+0x2C); a1 is read at +0x10/+0x14 (half extents) and the float block +0x18..+0x24.
+0x089057C8 reg:a1=struct:48
+# 0x089B6584: a0 is the object built (vtable, sub-objects 0x12C..0x134, byte block 0x138, words to 0x174).
+0x089B6584 reg:a0=struct:1024
+# 0x089A5DD0: a0 is the object built (vtables, 0x128 descriptor, flag word 0x138, two two-way lists 0x154..0x180).
+0x089A5DD0 reg:a0=struct:1024
+# 0x088F7660: a0 is the object stepped (floats +4, +0x10..+0x28); a1 supplies the widths at +0/+4 and +0x14..+0x28.
+0x088F7660 reg:a0=struct:64
+# 0x0896BCAC: a0 is the object built (128.0f pair 0x70..0x7C, descriptor 0x84, name 0xA0, flag words 0xE0/0xE4, floats 0xA4..0xDC).
+0x0896BCAC reg:a0=struct:256
+# 0x08983CE8: lw a1,0x30(a0) is the object handed to 0x08A4D57C; the float/byte block 0x34..0xC0 feeds the global state.
+0x08983CE8 reg:a0=struct:256 field:+0x30=ptr
+# 0x0887D0F4: a0 is the object initialised through one-argument calls at +4..+0x3F8 (floats written in between).
+0x0887D0F4 reg:a0=struct:1024
+# 0x0880AEC4: lw s1 = a0 + 0xE8; lw v1, 0x4(s1) is the object pointer released through its vtable (0xEC + 4 -> 0xF0 -> 240).
+0x0880AEC4 reg:a0=struct:0xF0 field:+0xEC=ptr
+# 0x088E0B78: the word at +0x5D4 is null-checked and becomes the tail call's a0 (beyond the 1024-byte slot cap, no field).
+0x088E0B78 reg:a0=struct:1024
+# 0x089176EC: lw v0, 0x4(a1) is the object whose vtable slot 0x58 fills three floats.
+0x089176EC reg:a1=struct:16 field:+0x4=ptr
+# 0x089C6AB4: lw v0, 0x240(a0) is the object released through its first virtual (object past 0x4D0, capped at 1024).
+0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
+# 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
+0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
