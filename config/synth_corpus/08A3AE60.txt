@@ -1,2 +1,0 @@
-# layout 1
-08A3AE60 187 1 word:0xD84C=live:38070
