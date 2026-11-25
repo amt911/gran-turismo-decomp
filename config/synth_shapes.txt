@@ -934,6 +934,9 @@
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
 
+# 0x08AA6908: a1 is the source string object 0x08AA65E4 copies.
+0x08AA6908 reg:a1=struct:16
+0x08A738A8 reg:a3=struct:16 field:+0x0=ptr
 # 0x08A1B4C4: lw s0, 0x0(a1) is the map's tree; a null tree takes the release-and-answer-1 path, and a generated tree
 # would be walked as an rb-tree whose nodes the arena does not model (pinned 0).
 0x08A1B4C4 reg:a1=struct:16 field:+0x0=int:0..0
@@ -1554,3 +1557,16 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+# 0x08A7B030: `sw v0,0x0(a0)` stores the vtable word; a0+0x18 and a0+0x1C are passed on.
+0x08A7B030 reg:a0=struct:64
+# 0x08A805AC: `sw v0,0x0(a0)` stores the vtable word; a0+0x14 and a0+0x18 are passed on.
+0x08A805AC reg:a0=struct:64
+# 0x08A9E2A4 .. 0x08A9E5F4 (seven): `lw s0,0x20(a0)` is the owner pointer passed to 0x08BEED1C.
+0x08A9E2A4 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E428 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E484 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E4E0 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E53C reg:a0=struct:64 field:+0x20=ptr
+0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
