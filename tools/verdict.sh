@@ -105,7 +105,7 @@ boot=$logs/boot
 # GT_VERIFY_BOOT_SECONDS (default 600): the boot route's wall-clock budget. On a loaded machine (load ~30 on 24 cores, powersave)
 # save_garage needed more than 600 s and the boot check failed on time alone (verdicts 662, 666, 667 on 2026-11-19).
 # It is a time budget only: the route's waits and the pass condition are unchanged.
-rm -rf "$boot" && mkdir -p "$boot/sd" && cp -r game_files/UCES01245-GAMEDAT "$boot/sd/"
+rm -rf "$boot" && mkdir -p "$boot/sd" && cp -rL game_files/UCES01245-GAMEDAT "$boot/sd/"   # -L: game_files/ may hold a symlink to the user's real save (copying the link would let the boot write into it)
 # GT_VERIFY_BOOT_EXIT_AFTER (vblanks, default 3600 = 60 s): the route ends that long after its script is done. The pass
 # condition is the script reaching its end; without it the route idled in the garage to its whole budget (verdict 837:
 # script done at 6 min of game, the step took 20 min). One minute of idle after the end is still run and checked.
