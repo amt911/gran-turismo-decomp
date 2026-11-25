@@ -664,6 +664,8 @@
 
 # 0x0887E978: the holders at a0 + 0x64 and a0 + 0x70 (0x70 + 4 -> 0x74).
 0x0887E978 reg:a0=struct:128
+# 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
+0x08A8DB4C reg:a0=struct:1024
 # 0x0894F0AC: lw v0,0xC(a0) is the object whose +0x78 float bounds the angle; lw s1,0x8(a0) receives it at +0x520.
 0x0894F0AC reg:a0=struct:16 field:+0x8=ptr field:+0xC=ptr
 # 0x08951280: a0 goes to 0x0894C460/0x0895077C unchanged (the frame buffers are the outputs); a1 is only forwarded.
