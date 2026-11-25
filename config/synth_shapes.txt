@@ -1197,3 +1197,33 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+# 0x08AC7288: a0 is the object written from +0 to +0x5BC (1.0f at +0x554, -1 at +0x598/+0x59C, the 0x400-byte block at
+# +0x34 zeroed); a0+0x578 is handed to 0x08C3CCE0 with a0+0x22680 (past the cap, so the arena's own words).
+0x08AC7288 reg:a0=struct:1024
+# 0x08A59CEC: select 0x08A52AB0(a0, 0x08CF6ED8), tail 0x08A59C00(a0, a1).
+0x08A59CEC reg:a0=struct:16
+# 0x08A5A1B4: select 0x08A52AB0(a0, 0x08CF6ED8), tail 0x08A5A0C8(a0, a1).
+0x08A5A1B4 reg:a0=struct:16
+# 0x08A59358: select 0x08A52AB0(a0, 0x08CF6ED8), tail 0x08A5926C(a0, a1).
+0x08A59358 reg:a0=struct:16
+# 0x08A7B1A8: select 0x08A5D190(a0, 0x08CF6ED8), tail 0x08A7AF84(a0, a1).
+0x08A7B1A8 reg:a0=struct:16
+# 0x08AB4DC0: select 0x08A76AB4(a0, 0x08CF6ED8), tail 0x08AB4C40(a0, a1).
+0x08AB4DC0 reg:a0=struct:16
+# 0x08AFC484: lw v1,0x0(a0) is the vtable whose slot 0x18 is called, and the signed words at +0x18 / +0x1C become the
+# floats the tail scales (small ints keep them meaningful).
+0x08AFC484 reg:a0=struct:32 field:+0x0=ptr field:+0x18=int:0..16 field:+0x1C=int:0..16
+# 0x08B4E780: a0 is the accumulator read and written at +0x30..+0x3C; a1 (the 3x4 matrix, +0..+0x2C) and a2 (the vector,
+# +0x30..+0x38) are also read, but only one register can be shaped.
+0x08B4E780 reg:a0=struct:64
+# 0x08A90C48: a1 is the source: the two begin/end pairs at +0x18 / +0x1C and +0x24 / +0x28 are decompressed into fresh
+# buffers, and +0x30 is copied; the fields must be pointers or 0x08C2AED8 reads a small address. a0 (the object written
+# at +0..+0x30) is the other pointer argument and stays the arena's.
+0x08A90C48 reg:a1=struct:64 field:+0x18=ptr field:+0x1C=ptr field:+0x24=ptr field:+0x28=ptr
+# 0x08B11AC0: a0 is the object written at +0, +0xA0, +0x1AC..+0x1B4, +0x230..+0x280 and +0x2D4..+0x4D8 (past the cap);
+# a1 is the name string 0x08B7C830 copies into +0xAC and stays the arena's.
+0x08B11AC0 reg:a0=struct:1024
+# 0x08B45054: a0 is the object written at +0, +0xAD..+0xC8, +0xCC.., +0x12C, +0x154, +0x454.., +0x654.., +0x854..,
+# +0x8D4..+0x98C and +0xBB8 (past the cap).
+0x08B45054 reg:a0=struct:1024
