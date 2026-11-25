@@ -89,23 +89,6 @@ void release_string(Runtime &rt, AllegrexContext &ctx, u32 data, u32 scratch) {
 // then the +8 count and the +8 / +0xC virtuals when it was the last reference), the string block at 0x54, the holders at
 // 0x50 (through 0x44 + 4), 0x48 and 0x3C, and the body ends with 0x08BD6D84(this) and 0x08B64654(this). v0 = the last
 // call's result; every path reaches it.
-void func_08BDA004(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x20u);
-    put(rt, self, 0x08CC5588u);
-    release_holder(rt, ctx, word(rt, self + 0x168u));
-    release_holder(rt, ctx, word(rt, self + 0x160u));
-    release_holder(rt, ctx, word(rt, self + 0x154u));
-    release_holder(rt, ctx, word(rt, self + 0x14Cu));
-    release_holder(rt, ctx, word(rt, self + 0x144u));
-    release_string(rt, ctx, word(rt, self + 0x54u), frame.at(0u));
-    release_holder(rt, ctx, word(rt, self + 0x50u));
-    const u32 at_44 = self + 0x44u;  // s2: the next holder is loaded as 4(s2)
-    release_holder(rt, ctx, word(rt, at_44 + 4u));
-    release_holder(rt, ctx, word(rt, self + 0x3Cu));
-    call(rt, ctx, 0x08BD6D84u, {self});
-    call(rt, ctx, 0x08B64654u, {self});
-}
 
 // 0x08862C90 (a0 = the object): constructor of a large object. It builds the two manager objects 0x08ABF3CC hands out
 // for the type records 0x08C9F5AC / 0x08C9F5C8 (both at +0x90 / +0x94, each initialised through its own +0xC virtual and
@@ -124,4 +107,3 @@ void func_08BDA004(Runtime &rt, AllegrexContext &ctx) {
 
 
 #define NEW698(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_698::name, gt::ReturnKind::kind)
-NEW698(0x08BDA004u, func_08BDA004, Word);
