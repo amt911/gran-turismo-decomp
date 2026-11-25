@@ -807,3 +807,10 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# Batch main-1041 shapes (asm evidence in each comment; drafted functions only).
+# 0x08A7A614: the object filled through +0x38 (the released member is at +0x38; 0x3C <= 64).
+0x08A7A614 reg:a0=struct:64 field:+0x38=ptr
+# 0x08941D74: the block array written from a0 + 0x4A8 + (a2*3 + i)*0x268 up to +0x264 of the third block
+# (0x4A8 + 2*0x268 + 0x264 = 0xAAC, past one 1024-byte block; a1 is a byte lane only read, a2 a small index).
+0x08941D74 reg:a0=struct:1024
