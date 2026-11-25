@@ -934,6 +934,14 @@
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
 
+# 0x08A56F08 / 0x08A78F54: lw s0,0x0(a1) is the helper whose slot answers; the record lives at *helper.
+0x08A56F08 reg:a1=struct:16 field:+0x0=ptr
+0x08A78F54 reg:a1=struct:16 field:+0x0=ptr
+0x08A8B108 reg:a2=struct:16 field:+0x0=ptr
+# 0x08860500: lw v1,0x0(a0) is the block carrying +0x3FDB and +0x5AC (0x5AC + 4 -> 0x5B0 is on the block).
+0x08860500 reg:a0=struct:16 field:+0x0=ptr
+# 0x08986058: lw v0,0x30(a0) is the string data; data - 4 / data - 0xC are released.
+0x08986058 reg:a0=struct:64 field:+0x30=ptr
 # 0x089BF568: the lock member at +0x2B0, the scale at +0x244 and the object at +0x264 (vtable +0x6C answers).
 0x089BF568 reg:a0=struct:1024 field:+0x264=ptr
 # 0x08A78D20: `lw s0, 0(a1)` is the object put into the destination slot a0 through 0x08A77444.
