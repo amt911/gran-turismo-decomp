@@ -322,3 +322,16 @@ drafter sessions with `--strict-mcp-config --mcp-config '{"mcpServers":{}}' --di
 skills). The repo's `CLAUDE.md`/`AGENTS.md` still load, so the rules still bind. Measured the same day: a session that only
 skipped its function still paid the whole startup context, so do not hand a model a batch it will skip (the remaining
 pool was all large functions: give Sonnet one large function per session instead).
+
+## Status answers include the decompilation percentage (user, 2026-11-25)
+
+When the user asks how things are going ("¿cómo llevas todo?" or similar), the answer always gives the decompilation
+percentage of main, functions and bytes, and the change since the previous answer. It comes from `tools.progress` over
+main's `src/` (the README's figures lag behind):
+
+```
+git archive origin/main src | tar -x -C /tmp/main-src
+.venv/bin/python -m tools.progress --functions recomp/analysis/functions.tsv --src /tmp/main-src/src
+```
+
+2026-11-25 19:10: functions 18096 / 23208 (77.97 %), bytes 2754360 / 4175084 (65.97 %).
