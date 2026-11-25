@@ -771,9 +771,7 @@
 # +0xC / +0x10 go to 0x088DF13C, and +0x1C is the object asked through its vtable slot 0x18.
 0x088C0DCC reg:a0=struct:48 field:+0x24=ptr field:+0x1C=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr
 # 0x08902C00: a0 is the two-float output; a1 / a2 / a3 / t0 are 0x28-byte geometry structs (a3 and t0 read up to +0x24).
-0x08902C00 reg:a0=struct:8
 # 0x08977B14: lw a0+0x178 is the mode compared with 0, 1, 2, 3; a1 is an index into the object's float tables.
-0x08977B14 reg:a0=struct:384 field:+0x178=int:0..3
 # 0x08B29930: a0 is the 16-word digest block it writes (a1 is the name, read by 0x08B79A88 for at most 32 bytes).
 0x08B29930 reg:a0=struct:64
 # 0x08BE207C: the shared-holder chain at +0x24, +0x2C, +0x3C, +0x44, +0x4C, +0x74, +0x7C, +0x84 and the string block at
