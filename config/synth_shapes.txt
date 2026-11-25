@@ -934,6 +934,12 @@
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
 
+# 0x08A72AF4: `lw 0(a0)` is the element array and +0xC its count; one or two entries exercise the loop.
+0x08A72AF4 reg:a0=struct:16 field:+0x0=ptr field:+0xC=int:1..2
+# 0x08A8B678: `lw s0, 0x0(a3)` is the holder whose +0x58 method leaves the 64-bit value (same shape as 0x08A8B108).
+0x08A8B678 reg:a3=struct:16 field:+0x0=ptr
+# 0x08B47FD8: `lw 0x28(a0)` is the allocator handle the two 0x10-byte blocks come from (0x28 + 4 -> 0x40).
+0x08B47FD8 reg:a0=struct:64
 # 0x08AAE994: the three words at +0x3C / +0x40 / +0x44 delimiting the array that is freed are pinned to zero so the
 # destructor takes the empty path there (a random pointer would make the count `(word(+0x44) - base) / 4` huge).
 0x08AAE994 reg:a0=struct:80 field:+0x3C=int:0..0 field:+0x40=int:0..0 field:+0x44=int:0..0
