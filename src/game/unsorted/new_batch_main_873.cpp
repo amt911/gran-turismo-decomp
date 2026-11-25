@@ -262,17 +262,6 @@ void finish_request(Runtime &rt, AllegrexContext &ctx, u32 self, u32 request) {
     if (flag != 0u) ctx.gpr[2] = call(rt, ctx, 0x088936DCu, {word(rt, self + 0x18u)});
 }
 
-void func_0888D9A8(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];      // s1
-    const u32 argument = ctx.gpr[5];  // fp
-    const u32 request = ctx.gpr[6];   // s0
-    GuestFrame frame(ctx, 0x100u);
-    const u32 table = word(rt, self + 0x34u);  // v1
-    if (table != 0u && byte_at(rt, table + 0x1C34u) != 0u) {
-        update_entry(rt, ctx, self, argument, request, frame.at(0u));
-    }
-    finish_request(rt, ctx, self, request);
-}
 
 } // namespace
 } // namespace new_batch_873
@@ -280,4 +269,3 @@ void func_0888D9A8(Runtime &rt, AllegrexContext &ctx) {
 
 
 #define NEW873(address, name, kind) GT_DECOMP(address, gt::game::new_batch_873::name, gt::ReturnKind::kind)
-NEW873(0x0888D9A8u, func_0888D9A8, Word);

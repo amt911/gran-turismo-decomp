@@ -482,26 +482,6 @@ void func_08A99728(Runtime &rt, AllegrexContext &ctx) {
 // 0x08ABC388 (a0, a1): walk the global list at 0x08D7718C; for each node's object (word at +4) call its virtual at
 // vtable +8, then func_08B35FD8(that answer, a0). On a zero answer the object's virtual at vtable +0x28 is called,
 // and a non-zero result there ends the walk with it; v0 = that result, else 0.
-void func_08ABC388(Runtime &rt, AllegrexContext &ctx) {
-    const u32 needle = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x20u);
-    u32 result = 0u;
-    u32 node = word(rt, 0x08D7718Cu);
-    while (node != 0u) {
-        const u32 object = word(rt, node + 4u);
-        const u32 vtable = word(rt, object);
-        ctx.gpr[2] = word(rt, vtable + 8u);
-        const u32 answer = call_full(rt, ctx, ctx.gpr[2], {object, needle}).v0;
-        if (call_set(rt, ctx, 0x08B35FD8u, {answer, needle}) == 0u) {
-            ctx.gpr[2] = word(rt, vtable + 0x28u);
-            const u32 found = call_full(rt, ctx, ctx.gpr[2], {object}).v0;
-            result = found;
-            if (found != 0u) break;
-        }
-        node = word(rt, node);
-    }
-    ctx.gpr[2] = result;
-}
 
 // 0x08ACBC78 (a0 = holder, a1 = a value): lock func_08B34888(holder's word + 0xA8) and run func_08ACBC10 on the
 // holder's word; when neither of its bytes at +0xA5 / +0xA4 is set, func_08ACB788 runs, the virtual at its vtable
@@ -819,7 +799,6 @@ NEW13(0x08C3253Cu, func_08C3253C, Word);
 NEW13(0x08896BE0u, func_08896BE0, Word);
 NEW13(0x08958D50u, func_08958D50, Word);
 NEW13(0x08A99728u, func_08A99728, Word);
-NEW13(0x08ABC388u, func_08ABC388, Word);
 NEW13(0x08BBB790u, func_08BBB790, DoubleWord);
 NEW13(0x08C74068u, func_08C74068, Word);
 NEW13(0x08835B2Cu, func_08835B2C, Word);
