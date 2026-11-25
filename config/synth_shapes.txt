@@ -273,7 +273,6 @@
 # 0x088DD144: lw a0,0xC0(a0) car records, +0x130/+0x134/+0x148/+0x14C/+0x14 objects and tables (more fields at +0x598..+0x640 lie past the 1024-byte cap).
 0x088DD144 reg:a0=struct:1024 field:+0x14=ptr field:+0xC0=ptr field:+0x130=ptr field:+0x134=ptr field:+0x148=ptr field:+0x14C=ptr
 # 0x08B5D788: stores a1/14/0/consts at +0/+8/+0x10/+4/+0xC of a0, then lw s0,0xC(s2) after the stores.
-0x08B5D788 reg:a0=struct:32
 # 0x08912F40: lbu v0,0x28(s2) gates the teardown; lw s0,0xD8/0xE0/0xE8/0xF0/0xF8/0x100/0x108/0x110(s2) are counted links released (use count at +4).
 0x08912F40 reg:a0=struct:1024 field:+0x28=int:0..1 field:+0xD8=ptr field:+0xE0=ptr field:+0xE8=ptr field:+0xF0=ptr field:+0xF8=ptr field:+0x100=ptr field:+0x108=ptr field:+0x110=ptr
 # Shapes for main-session batch 139 (src/game/unsorted/new_batch_main_139.cpp): one line per function, asm evidence above.
