@@ -755,3 +755,18 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# 0x08B5C4B0: `lw v0,0x0(a1)` is the record; its +0x10 is the six-name table whose words 0..0x14 are the strings
+# (0x08B35F60 / 0x08C75AF8 read them). a0 only receives the shared empty-string constant and is the string the callees
+# grow, so a1 is the one that must be a real block.
+0x08B5C4B0 reg:a1=struct:16 field:+0x0=ptr
+# 0x08B38E74: a0 (the text state) reaches its word +0xC (the tokenizer state handed to 08B38938) and +0x10 (the owner
+# object whose +4 count and table slot 4 the end-of-parse path touches).
+0x08B38E74 reg:a0=struct:32 field:+0xC=ptr field:+0x10=ptr
+# 0x08886B00: `lw v1,0x68(a0)` is the record (its +0x26 half is the flag, +0x24 the mode byte, +0xC / +0x10 the two
+# string handles); a0+0x184 / +0x188 are string handles 08B945C4 reads and writes. a2 is the text.
+0x08886B00 reg:a0=struct:512 field:+0x68=ptr field:+0x184=ptr field:+0x188=ptr
+# 0x08B38568: word(a0) seeds the frame, +4 / +8 / +0xC are written, and +0x14 / +0x18 are the entry list begin and end
+# (each entry 0x10 bytes, its +8 byte and +0xC word copied out). A begin pointer near the arena top can make the
+# (end - begin) >> 4 count large or negative - the original spins the same way.
+0x08B38568 reg:a0=struct:32 field:+0x14=ptr field:+0x18=ptr
