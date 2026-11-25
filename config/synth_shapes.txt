@@ -934,6 +934,21 @@
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
 
+# 0x08AA6908: a1 is the source string object 0x08AA65E4 copies.
+0x08AA6908 reg:a1=struct:16
+0x08A738A8 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A1B4C4: lw s0, 0x0(a1) is the map's tree; a null tree takes the release-and-answer-1 path, and a generated tree
+# would be walked as an rb-tree whose nodes the arena does not model (pinned 0).
+0x08A1B4C4 reg:a1=struct:16 field:+0x0=int:0..0
+# 0x08A71D64: byte-identical map insert with key getter 0x08A719B8; tree at 0x0(a1) pinned 0 as above.
+0x08A71D64 reg:a1=struct:16 field:+0x0=int:0..0
+# 0x0885FCA4: lw 0x0(a0) is the holder object; its word at +0x5AC is the object the wait loop polls.
+0x0885FCA4 reg:a0=struct:16 field:+0x0=ptr
+# 0x088B3D38: lw +0x4(a0) is the entry count, +0x8 / +0xC the two words func_088BA424 gets; all pinned 0 so the entry
+# loop is empty and the compression call gets a zero span (0xC + 4 -> 0x10).
+0x088B3D38 reg:a0=struct:16 field:+0x4=int:0..0 field:+0x8=int:0..0 field:+0xC=int:0..0
+# 0x08A83A10: the same holder, virtual +0x40, signed not-less of a0's pair.
+0x08A83A10 reg:a3=struct:16 field:+0x0=ptr
 # 0x08A72AF4: `lw 0(a0)` is the element array and +0xC its count; one or two entries exercise the loop.
 0x08A72AF4 reg:a0=struct:16 field:+0x0=ptr field:+0xC=int:1..2
 # 0x08A8B678: `lw s0, 0x0(a3)` is the holder whose +0x58 method leaves the 64-bit value (same shape as 0x08A8B108).
