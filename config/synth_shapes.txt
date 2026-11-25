@@ -755,3 +755,12 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# 0x08B43B3C: lw a0,0xB0(a0) is the object whose vtable at +0 is read and whose slot 0x3C is called; the holder's own
+# +0x454 table (presence bytes at +0x400, count at +0x8D4) and +0x8DC are past the 1024-byte cap. a2/a3 are the key.
+0x08B43B3C reg:a0=struct:1024 field:+0xB0=ptr
+# 0x08B5F7EC: lw v0,0x0(a0) is the stream's vtable, -0xC(that) the base object whose +0x78 is the streambuf; the stream's
+# own +4 is gcount and the string at a1 has its data at +0 (size at data - 0xC, capacity at -8, flag at -4).
+0x08B5F7EC reg:a0=struct:16 field:+0x0=ptr
+# 0x08B5FE68: the same stream as 0x08B5F7EC (the +4 gcount and the +0x78 streambuf from the vtable at +0).
+0x08B5FE68 reg:a0=struct:16 field:+0x0=ptr
