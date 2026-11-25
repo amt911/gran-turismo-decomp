@@ -276,8 +276,6 @@ static void vector_insert(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ct
     put(rt, vector, buffer);
 }
 
-void func_08C47468(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_insert(rt, ctx, 4u, 0x08C46FE4u, 0x08C46FD4u); }
-void func_08C475C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_insert(rt, ctx, 4u, 0x08C46F64u, 0x08BBB8F8u); }
 void func_08C47EA4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { vector_insert(rt, ctx, 2u, 0x08C46FA4u, 0x08C46F94u); }
 
 
@@ -849,8 +847,6 @@ void func_08BA9710(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { 
 
 #define HOT324(address, name, kind) GT_DECOMP(address, gt::game::hot_batch_324::name, gt::ReturnKind::kind)
 HOT324(0x08C3F648u, func_08C3F648, Word);
-HOT324(0x08C47468u, func_08C47468, Word);
-HOT324(0x08C475C8u, func_08C475C8, Word);
 HOT324(0x08C47EA4u, func_08C47EA4, Word);
 HOT324(0x0881D2ECu, func_0881D2EC, Word);
 // HOT324(0x088CF168u, func_088CF168, Word);  // no comparable synthetic case yet
