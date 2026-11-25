@@ -372,7 +372,25 @@ void func_08AD7CC0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 // Constructs a 0x14-byte node (0x08B9FC30, 0x08B9FB40, 0x08B9F960 on its +0xC part, flag byte 1 at +0xC) and a handle at a0
 // (cleared, flag byte at +8 cleared) that 0x08B9D15C attaches the node to; the flag byte is set last. Answers the handle.
-void func_08AD9E74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x10u); G[2] = 0x08D40000u; G[3] = 0x08D405FCu; G[9] = G[4]; G[8] = G[5]; if (static_cast<std::int32_t>(G[4]) >= 0) { G[2] = word(rt, G[3] + 0x28u) - 1u; G[2] = static_cast<std::int32_t>(G[2]) < static_cast<std::int32_t>(G[4]) ? 1u : 0u; const bool out = G[2] != 0u; G[2] = 0x58u; if (!out) { { const std::int64_t p = static_cast<std::int64_t>(static_cast<std::int32_t>(G[4])) * static_cast<std::int32_t>(G[2]); ctx.lo = static_cast<std::uint32_t>(p); ctx.hi = static_cast<std::uint32_t>(static_cast<std::uint64_t>(p) >> 32); } G[3] = word(rt, G[3] + 0x24u); G[2] = ctx.lo; G[3] += G[2]; G[4] = word(rt, G[3] + 0xCu) & 1u; G[2] = G[3]; if (G[4] != 0u) return; } } G[2] = 0x08CE0000u; if (G[8] != 0u) { G[3] = word(rt, 0x08CDFB3Cu) & 2u; G[5] = 0x08C90B68u; G[7] = 0x08C90B74u; G[6] = 0x6Cu; if (G[3] != 0u) { G[2] = 0x08CE0000u; G[4] = word(rt, 0x08CDFB44u); call_here(rt, ctx, 0x08AD83B8u); } } G[2] = 0u; } }
+// 0x08AD9E74 (a0 = an index, a1 = a flag; v0 = the entry at 0x08D405FC's table or 0): a non-negative index below word(0x08D405FC + 0x28) gives
+// word(0x08D405FC + 0x24) + 0x58 * index; when bit 0 of its word +0xC is set that entry is the answer, else 0. With the flag set and bit 1 of
+// 0x08CDFB3C set, 0x08AD83B8(word(0x08CDFB44), 0x08C90B68, 0x6C, 0x08C90B74) logs that (t0-t3 hold the index, the flag and the caller's t2/t3).
+void func_08AD9E74(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 index = ctx.gpr[4], complain = ctx.gpr[5];
+    GuestFrame frame(ctx, 0x10u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x0u}});
+    const u32 table = 0x08D405FCu;
+    if (static_cast<s32>(index) >= 0 && !(static_cast<s32>(word(rt, table + 0x28u) - 0x1u) < static_cast<s32>(index))) {
+        const u32 entry = word(rt, table + 0x24u) + index * 0x58u;
+        if ((word(rt, entry + 0xCu) & 0x1u) != 0u) {
+            ctx.gpr[2] = entry;
+            return;
+        }
+    }
+    if (complain != 0u && (word(rt, 0x08CDFB3Cu) & 0x2u) != 0u)
+        call_set(rt, ctx, 0x08AD83B8u, {word(rt, 0x08CDFB44u), 0x08C90B68u, 0x6Cu, 0x08C90B74u, index, complain, ctx.gpr[10], ctx.gpr[11]});
+    ctx.gpr[2] = 0u;
+}
 void func_08AEB320(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 table = 0x08D41AD0u;
     GuestFrame frame(ctx, 0x20u);
