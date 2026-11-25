@@ -755,3 +755,11 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# free list at 0x08D75F5C), and the shape format has no global form, so it has no line.
+# 0x08B398CC: `lw v1, 0(a2)` is the state machine word (0 create / 2 rebuild / 3 rebuild-and-extend); 0 keeps the run on
+# the fresh-object path, whose only indirect use is the temporary's own release slot.
+0x08B398CC reg:a2=struct:16 field:+0x0=int:0..0
+# 0x08A54104: `lw v0, 0(a2)` being null selects the node walk from self+0x44; non-null asks *a2's vtable slot 0x90 and
+# 0xA8 (a pointer graph the generator cannot make real), so keep the walk.
+0x08A54104 reg:a2=struct:16 field:+0x0=int:0..0
