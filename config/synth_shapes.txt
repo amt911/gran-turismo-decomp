@@ -1197,3 +1197,8 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+0x08B48638 reg:a0=struct:128
+0x08A81494 reg:a0=struct:128
+0x08AB5084 reg:a0=struct:128
+0x08A5B690 reg:a0=struct:128
