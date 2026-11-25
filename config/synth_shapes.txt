@@ -1197,3 +1197,30 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+# Main-session batch 1117 (src/game/unsorted/new_batch_main_1117.cpp): one line per drafted function that dereferences or passes
+# on an argument register (pointer arguments reach the callees the function calls, or are written at fixed offsets).
+# 0x08A9BCF0 / 0x08A9BD70: the two calls get this+0x4C; no direct dereference, the callees write the object.
+0x08A9BCF0 reg:a0=struct:128
+0x08A9BD70 reg:a0=struct:128
+# 0x08AA2D10: a0 is passed to 0x08A76ABC, and the out block on the stack is filled by the first callee.
+0x08AA2D10 reg:a0=struct:64
+# 0x08AABC8C family: a0 and a1 go on to the tail callee (the name constant is passed as a1 to the first call).
+# 0x08AAFBB8: stores the halfword at +0x14 and the vtable at +0 of a0 (a0 is the object).
+0x08AAFBB8 reg:a0=struct:32
+# 0x08AB133C: stores the byte at +0x14 and the vtable at +0 of a0.
+0x08AB133C reg:a0=struct:32
+# 0x08AC854C: stores a1 at +0x18 and the vtable at +0 of a0.
+0x08AC854C reg:a0=struct:32
+# 0x08AC08FC: reads the two words at a1+0 and a1+4; a0 goes to 0x08AC0880.
+# 0x08AC093C: reads the two words at a1+0 and a1+4; a0 goes to 0x08AC0880.
+# 0x08AC0D80: a0 goes to 0x08AC0AAC with the stack block.
+0x08AC0D80 reg:a0=struct:64
+# 0x08B09618: a0 goes to 0x08B09264, a1 and a0 go to the tail callee.
+# 0x08B0E89C: stores the vtable at +0, zeroes +0x104 and +0x108 of a0; a0+0xF8 goes to 0x08C4C82C.
+0x08B0E89C reg:a0=struct:256
+# 0x08B1F928: a0+0xC and a0 go to the calls; the tail callee gets a0+0xC.
+0x08B1F928 reg:a0=struct:256
+# 0x08B2BD78: zeroes +0x2C and +0x30 of a0; a1 goes to the tail callee.
+# 0x08B372D4: stores a1 at +0x20 and the vtable at +0 of a0.
+0x08B372D4 reg:a0=struct:64
