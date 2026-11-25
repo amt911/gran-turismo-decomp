@@ -1197,3 +1197,42 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+# 0x08B247B0 / 0x08B247E4 / 0x08B24818: sw v0 at 0(a0) after the first call, then the tail gets a0+0x1C.
+0x08B247B0 reg:a0=struct:64
+0x08B247E4 reg:a0=struct:64
+0x08B24818 reg:a0=struct:64
+# 0x08B32EF8: vtable stored at 0(a0), tail call gets a0+4.
+0x08B32EF8 reg:a0=struct:64
+# 0x08B27F74: vtable at 0(a0), zero word at 0xA4(a0).
+0x08B27F74 reg:a0=struct:256
+# 0x08B331E4: zero words at 0x8, 0x10, 0x14 and a byte at 0xC of a0.
+0x08B331E4 reg:a0=struct:32
+# 0x08B4AB98: lwc1 words from 0(a2), 4(a2), 8(a2) (a 3-float vector).
+0x08B4AB98 reg:a2=struct:16
+# 0x08B4BC24..0x08B4CCF0 (pairs): second callee gets a0 = this, which it reads.
+0x08B4BC24 reg:a0=struct:64
+0x08B4BC58 reg:a0=struct:64
+0x08B4BC8C reg:a0=struct:64
+0x08B4C188 reg:a0=struct:64
+0x08B4C1BC reg:a0=struct:64
+0x08B4C27C reg:a0=struct:64
+0x08B4C2B0 reg:a0=struct:64
+0x08B4C374 reg:a0=struct:64
+0x08B4C3A8 reg:a0=struct:64
+0x08B4C468 reg:a0=struct:64
+0x08B4C49C reg:a0=struct:64
+0x08B4C560 reg:a0=struct:64
+0x08B4C594 reg:a0=struct:64
+0x08B4C654 reg:a0=struct:64
+0x08B4C688 reg:a0=struct:64
+0x08B4C79C reg:a0=struct:64
+0x08B4C7D0 reg:a0=struct:64
+0x08B4C918 reg:a0=struct:64
+0x08B4CA60 reg:a0=struct:64
+0x08B4CBA8 reg:a0=struct:64
+0x08B4CCF0 reg:a0=struct:64
+# 0x08BEECE8: word stored at 0(a0) (the out pointer).
+0x08BEECE8 reg:a0=struct:16
+# 0x08A64668: vtable stored at 0(a0), the callee gets a0 and a1 = 0x1C, a2 = old a1.
+0x08A64668 reg:a0=struct:64
