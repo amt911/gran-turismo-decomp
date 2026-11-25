@@ -811,3 +811,12 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# +0x14 / +0x18 / +0x1C / +0x24 / +0x28 / +0x2C are called; +0x40 / +0x44 are buffer bases (used as +0x100 / +0x80
+# and passed to 0x08963418), +0x48 the record whose +8 / +0x10 halves and +0x1C / +0x24 slots the callees touch, and
+# +0x5C the current-instruction pointer handed to 0x089624EC / 0x089624F4.
+0x088AFBA4 reg:a0=struct:96 field:+0x8=ptr field:+0x38=ptr field:+0x40=ptr field:+0x44=ptr field:+0x48=ptr field:+0x5C=ptr
+# 0x08AF6474: `lw v0,0x0(a0)` is the code base the entry offset (a1) is added to, and `lw v0,0x4(a0)` (per global page,
+# `lw a0,0x4(v0)` after `sll page,2`) the global page tables; a2 is the host object whose vtable slots +8 / +0xC the
+# 0xC0 / 0xC1 opcodes call (only one shape line per address, so the important a0 graph is the one declared).
+0x08AF6474 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
