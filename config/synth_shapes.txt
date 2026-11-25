@@ -755,3 +755,11 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# 0x08A368A4: a3 (the source record) is read at +0, +4, +8, +0xC and +0x10, each word the sub-object whose vtable slot
+# (+0x30, +0x3C, +0xC, +0x54) the body calls. a1 is only handed to 0x08A354EC, a2 is the mode compared with 2..5.
+0x08A368A4 reg:a3=struct:32 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr
+# 0x08B12D50: a0 (the state) has the flag byte at +0x258, the bit table pointer at +0x268, the cache index at +0x238,
+# the block base at +0x234, the record pointer at +0x23C, the read buffer at +0x270 and the second table at +0x26C; the
+# two locks at +0x1B8 / +0x1E0 and the record pointer at +0x12C are inside the same block (0x274 bytes, cap 1024).
+0x08B12D50 reg:a0=struct:1024 field:+0x234=ptr field:+0x23C=ptr field:+0x268=ptr field:+0x26C=ptr field:+0x270=ptr
