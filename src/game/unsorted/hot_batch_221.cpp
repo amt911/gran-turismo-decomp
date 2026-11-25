@@ -281,11 +281,6 @@ void func_0882E548(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 void func_0882E8B0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x30u); put(rt, frame.at(0x1Cu), G[19]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x10u), G[16]); put(rt, frame.at(0x20u), G[31]); G[19] = frame.at(8u); G[17] = G[4]; G[4] = G[19]; G[18] = frame.at(4u); call_here(rt, ctx, 0x088297A8u); G[16] = word(rt, frame.at(8u)); G[4] = 0x08C9A2F8u; if (G[16] == 0u) call_here(rt, ctx, 0x08A5BB7Cu); G[4] = G[16]; call_here(rt, ctx, 0x088294D0u); G[16] = G[2]; G[4] = G[19]; call_here(rt, ctx, 0x08A5B9ECu); G[4] = G[16]; call_here(rt, ctx, 0x0885E710u); G[4] = G[2]; call_here(rt, ctx, 0x08917A98u); G[4] = G[18]; G[5] = 0u; if (G[2] != 0u) { call_here(rt, ctx, 0x08A85B1Cu); G[4] = G[17]; if (G[17] != G[18]) { G[5] = word(rt, frame.at(4u)); call_here(rt, ctx, 0x08A5BAD8u); } G[4] = G[18]; call_here(rt, ctx, 0x08A5B9ECu); } else { G[4] = frame.at(0u); G[5] = 1u; call_here(rt, ctx, 0x08A85B1Cu); G[4] = G[17]; if (G[17] != frame.at(0u)) { G[5] = word(rt, frame.at(0u)); call_here(rt, ctx, 0x08A5BAD8u); } G[4] = frame.at(0u); call_here(rt, ctx, 0x08A5B9ECu); } G[19] = word(rt, frame.at(0x1Cu)); G[17] = word(rt, frame.at(0x14u)); G[18] = word(rt, frame.at(0x18u)); G[16] = word(rt, frame.at(0x10u)); } }
 void func_08867D0C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const float f20 = ctx.fpr[20]; { GuestFrame frame(ctx, 0x40u); put(rt, frame.at(0x24u), G[21]); put(rt, frame.at(0x20u), G[20]); put(rt, frame.at(0x1Cu), G[19]); put(rt, frame.at(0x28u), G[31]); put(rt, frame.at(0x18u), G[18]); put(rt, frame.at(0x14u), G[17]); put(rt, frame.at(0x10u), G[16]); put_float(rt, frame.at(0x30u), ctx.fpr[20]); G[21] = G[4]; G[4] += 0x600u; G[19] = G[5]; call_here(rt, ctx, 0x08893788u); G[20] = word(rt, G[2] + 0x263Cu); if (static_cast<std::int32_t>(G[20]) > 0) { G[16] = G[2]; G[18] = 0u; G[17] = G[2] + 0x230Cu; do { G[3] = word(rt, G[19]); G[5] = word(rt, G[16] + 0x22F4u); G[4] = G[19]; G[2] = word(rt, G[3] + 0x1Cu); ctx.fpr[20] = float_at(rt, G[16] + 0x22C4u); G[18] += 1u; call_here(rt, ctx, G[2]); G[4] = G[2]; G[5] = frame.at(0u); G[16] += 4u; if (G[2] != 0u) { G[2] = word(rt, G[2]); G[3] = word(rt, G[2] + 0x10u); call_here(rt, ctx, G[3]); ctx.fpr[13] = ctx.fpr[20]; G[4] = G[21]; G[5] = frame.at(0u); G[1] = 0x42480000u; ctx.fpr[12] = std::bit_cast<float>(G[1]); G[1] = 0x3F800000u; ctx.fpr[14] = std::bit_cast<float>(G[1]); G[6] = G[17]; call_here(rt, ctx, 0x088679D4u); } G[17] += 0x80u; } while (G[20] != G[18]); } G[21] = word(rt, frame.at(0x24u)); G[20] = word(rt, frame.at(0x20u)); G[19] = word(rt, frame.at(0x1Cu)); G[18] = word(rt, frame.at(0x18u)); G[17] = word(rt, frame.at(0x14u)); G[16] = word(rt, frame.at(0x10u)); } ctx.fpr[20] = f20; }
-// 0x088782F8 (a0 = the object; v0 = the last call's, or 0x08D75298 when the counted string is the empty one): 0x08AB85F0 sets a vector up
-// on the frame (+4, its count at +0xC) and 0x08AB856C reads it twice (the second read kept), the first read going to
-// 0x088755B4(object, read) whose result is kept. With the count above 0, 0x088756F0(object, 0x08CA0088, second read) makes a record that
-// 0x0886A9A0(record, 2) turns into a value that 0x08881D28(value, kept result) uses. The counted string (header = data - 0xC) is released
-// at the end: unless it is the empty header 0x08D75298 its count 0x08B60804(data - 4, -1) drops and, at zero or below, 0x08B93554 frees it.
 void func_088782F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     const u32 self = ctx.gpr[4];
     GuestFrame frame(ctx, 0x30u);
@@ -313,7 +308,48 @@ void func_088782F8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
         if (static_cast<s32>(count) <= 0) call_set(rt, ctx, 0x08B93554u, {header, frame.at(0u)});
     }
 }
-void func_0887FA54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x40u); put(rt, frame.at(0x24u), G[17]); put(rt, frame.at(0x34u), G[31]); put(rt, frame.at(0x30u), G[20]); put(rt, frame.at(0x2Cu), G[19]); put(rt, frame.at(0x28u), G[18]); put(rt, frame.at(0x20u), G[16]); G[17] = G[4]; G[4] = 0x60u; G[20] = G[5]; G[19] = G[6]; G[18] = G[17] + 4u; call_here(rt, ctx, 0x08B62344u); G[16] = G[2]; G[2] = 0x08CC1218u; put(rt, G[16], G[2]); G[4] = 0x10u; put(rt, G[17], G[16]); call_here(rt, ctx, 0x08B62344u); G[3] = 0x08CC1258u; G[7] = 1u; put(rt, G[2] + 4u, G[7]); G[6] = G[16]; G[5] = G[16]; put(rt, G[2] + 8u, G[7]); G[4] = G[18]; put(rt, G[2] + 0xCu, G[16]); put(rt, G[2], G[3]); put(rt, G[17] + 4u, G[2]); call_here(rt, ctx, 0x08B8E380u); G[5] = G[19]; G[4] = word(rt, G[20] + 0x74u); G[16] = word(rt, G[17]); G[4] += 4u; call_here(rt, ctx, 0x088854A8u); put(rt, frame.at(4u), G[3]); G[4] = G[16] + 0x10u; put(rt, frame.at(0x10u), G[2]); put(rt, frame.at(0u), G[2]); put(rt, frame.at(0x14u), G[3]); put(rt, G[16] + 0x50u, G[2]); G[2] = word(rt, frame.at(4u)); put(rt, G[16] + 0x54u, G[2]); call_here(rt, ctx, 0x08B4E648u); G[2] = G[17]; G[17] = word(rt, frame.at(0x24u)); G[20] = word(rt, frame.at(0x30u)); G[19] = word(rt, frame.at(0x2Cu)); G[18] = word(rt, frame.at(0x28u)); G[16] = word(rt, frame.at(0x20u)); } }
+// 0x0887FA54 (a0 = the object, a1 = a context, a2 = an argument): 0x08B62344(0x60) gives a block whose first word takes vtable
+// 0x08CC1218; 0x08B62344(0x10) gives a second block whose vtable 0x08CC1258 gets count 1 at +4 and +8 and the first block at +0xC,
+// and the object holds the first block at +0 and the second at +4 (0x08B8E380(object+4, block, block) registers the pair). Then
+// 0x088854A8(word(a1+0x74)+4, a2) gives a pair kept at object+0x50/+0x54 and on the frame (+0/+4, +0x10/+0x14), and
+// 0x08B4E648(block+0x10) runs. v0 = the object.
+void func_0887FA54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4];
+    const u32 argument = ctx.gpr[5];
+    const u32 value = ctx.gpr[6];
+    GuestFrame frame(ctx, 0x40u);
+    SavedRegisters saved(rt, ctx, frame, {{17u, 0x24u}, {31u, 0x34u}, {20u, 0x30u}, {19u, 0x2Cu}, {18u, 0x28u}, {16u, 0x20u}});
+    ctx.gpr[17] = object;
+    ctx.gpr[20] = argument;
+    ctx.gpr[19] = value;
+    ctx.gpr[18] = object + 4u;
+    const u32 first = call_set(rt, ctx, 0x08B62344u, {0x60u});
+    ctx.gpr[16] = first;
+    put(rt, first, 0x08CC1218u);
+    put(rt, object, first);
+    const u32 second = call_set(rt, ctx, 0x08B62344u, {0x10u});
+    put(rt, second + 4u, 1u);
+    put(rt, second + 8u, 1u);
+    put(rt, second + 0xCu, first);
+    put(rt, second, 0x08CC1258u);
+    put(rt, object + 4u, second);
+    call_set(rt, ctx, 0x08B8E380u, {object + 4u, first, first, 1u, ctx.gpr[8], ctx.gpr[9], ctx.gpr[10], ctx.gpr[11]});
+    const u32 block = word(rt, object);
+    const u32 pair = call_set(rt, ctx, 0x088854A8u, {word(rt, argument + 0x74u) + 4u, ctx.gpr[19]});
+    put(rt, frame.at(4u), ctx.gpr[3]);
+    put(rt, frame.at(0x10u), pair);
+    put(rt, frame.at(0u), pair);
+    put(rt, frame.at(0x14u), ctx.gpr[3]);
+    put(rt, block + 0x50u, pair);
+    put(rt, block + 0x54u, word(rt, frame.at(4u)));
+    call_set(rt, ctx, 0x08B4E648u, {block + 0x10u});
+    ctx.gpr[2] = object;
+}
+// 0x088782F8 (a0 = the object; v0 = the last call's, or 0x08D75298 when the counted string is the empty one): 0x08AB85F0 sets a vector up
+// on the frame (+4, its count at +0xC) and 0x08AB856C reads it twice (the second read kept), the first read going to
+// 0x088755B4(object, read) whose result is kept. With the count above 0, 0x088756F0(object, 0x08CA0088, second read) makes a record that
+// 0x0886A9A0(record, 2) turns into a value that 0x08881D28(value, kept result) uses. The counted string (header = data - 0xC) is released
+// at the end: unless it is the empty header 0x08D75298 its count 0x08B60804(data - 4, -1) drops and, at zero or below, 0x08B93554 frees it.
 void func_088A2BF8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x20u); put(rt, frame.at(0x10u), G[20]); put(rt, frame.at(0xCu), G[19]); put(rt, frame.at(0x8u), G[18]); put(rt, frame.at(0x14u), G[31]); put(rt, frame.at(0x4u), G[17]); put(rt, frame.at(0x0u), G[16]); G[2] = G[5] << 2; G[3] = G[5] << 7; G[3] -= G[2]; G[2] = 0x08CC27E8u; G[19] = G[4]; G[18] = G[5]; put(rt, G[4], G[2]); G[4] = G[3] + 4u; call_here(rt, ctx, 0x08B6461Cu); put(rt, G[2], G[18]); G[20] = G[2] + 4u; if (G[18] != 0u) { G[16] = G[20]; G[17] = 0u; do { G[4] = G[16]; G[17] += 1u; call_here(rt, ctx, 0x088A0F44u); G[16] += 0x7Cu; } while (G[18] != G[17]); } G[4] = 0x40u; put(rt, G[19] + 4u, G[20]); call_here(rt, ctx, 0x08B62344u); G[16] = G[2]; G[6] = word(rt, G[19] + 4u); G[4] = G[2]; G[5] = G[18]; call_here(rt, ctx, 0x088A10B4u); put(rt, G[19] + 8u, G[16]); G[4] = G[18]; call_here(rt, ctx, 0x08B6461Cu); put(rt, G[19] + 0xCu, G[2]); if (static_cast<std::int32_t>(G[18]) > 0) { G[3] = 0u; G[4] = 0xFFFFFFFFu; do { G[2] = word(rt, G[19] + 0xCu); G[2] += G[3]; G[3] += 1u; store8(G[2], G[4]); } while (G[18] != G[3]); } G[20] = word(rt, frame.at(0x10u)); G[19] = word(rt, frame.at(0xCu)); G[18] = word(rt, frame.at(0x8u)); G[17] = word(rt, frame.at(0x4u)); G[16] = word(rt, frame.at(0x0u)); } }
 // 0x088B0418 (a0 = the object, a1 and a2 = two holders of whose word +4 the object keeps a reference; v0 = 0x08D752A4): the base
 // constructor 0x08AC0640(object, a1, a2) runs, then the object takes the vtables 0x088B0C18 at +0x30 and 0x08CC2FC0 at +0, clears the words

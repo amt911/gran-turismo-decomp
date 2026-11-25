@@ -344,138 +344,6 @@ void func_088C85E4(Runtime &rt, AllegrexContext &ctx) {
 // rebuilds the object through 08B85EB8, 08B36170 and the virtual at +0x11C. The many stack temporaries are libstdc++
 // strings and the list node; only the addresses the callees take matter.
 
-// 0x08B025D4(self, index): with the 0x4000 flag set on the record at word(self) + index*0xF0, reorders that record in
-// the 0xE8/0xEA/0xE2 link fields: the 6-byte table entry at self+0x7C + (s16)record[0xEA]*6 is looked up in the map
-// rooted at self+0xA0 (08C46D74 / 08C48004), the chosen index is written back and the matching map node is taken
-// (08C48120). Then 08B01778 rebuilds and the record is linked into the ring at self+0xC (index at self+0x1C, nodes at
-// word(self+0x24), 0xF0 bytes each). The stack words with no store (0x30, 0x34, 0x50, 0x70's upper bytes) are read as the
-// original reads them: the frame's own stale contents, not a modelled value.
-void func_08B025D4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 index = ctx.gpr[5];
-    GuestFrame frame(ctx, 0xF0u);
-    const u32 base = word(rt, self);
-    const u32 record = base + index * 0xF0u;
-    (void)call_set(rt, ctx, 0x08AFD994u, {record, self});
-    if ((half_u(rt, record + 0xE2u) & 0x4000u) != 0u) {
-        const u32 table = word(rt, self + 0x7Cu);
-        const u32 slot = table + static_cast<u32>(static_cast<s32>(static_cast<std::int16_t>(half_u(rt, record + 0xEAu)))) * 6u;
-        const s32 entry = static_cast<std::int16_t>(half_u(rt, slot));
-        put8(rt, frame.at(0x70u), self);
-        const u32 p10 = word(rt, frame.at(0x70u));
-        const u32 p30 = word(rt, frame.at(0x30u));
-        const u32 p34 = word(rt, frame.at(0x34u));
-        const u32 target = base + static_cast<u32>(entry) * 0xF0u;
-        put(rt, frame.at(0x10u), p10);
-        put(rt, frame.at(0x00u), p30);
-        put(rt, frame.at(0x04u), p34);
-        put(rt, frame.at(0x7Cu), 0u);
-        put(rt, frame.at(0x78u), target);
-        put(rt, frame.at(0x74u), self);
-        put(rt, frame.at(0x40u), p10);
-        put(rt, frame.at(0x44u), self);
-        put(rt, frame.at(0x48u), target);
-        put(rt, frame.at(0x4Cu), 0u);
-        put(rt, frame.at(0xA0u), p10);
-        put(rt, frame.at(0xA4u), self);
-        put(rt, frame.at(0xA8u), target);
-        put(rt, frame.at(0xACu), 0u);
-        put(rt, frame.at(0x3Cu), 0u);
-        put(rt, frame.at(0x38u), 0u);
-        put(rt, frame.at(0x90u), p30);
-        put(rt, frame.at(0x94u), p34);
-        put(rt, frame.at(0x98u), 0u);
-        put(rt, frame.at(0x9Cu), 0u);
-        put(rt, frame.at(0x14u), self);
-        put(rt, frame.at(0x18u), target);
-        put(rt, frame.at(0x1Cu), 0u);
-        put(rt, frame.at(0x08u), 0u);
-        put(rt, frame.at(0x0Cu), 0u);
-        put(rt, frame.at(0x84u), 0u);
-        put8(rt, frame.at(0x8Cu), byte_u(rt, frame.at(0x10u)));
-        put(rt, frame.at(0x88u), self);
-        s32 node_index = -1;
-        if (target != 0u) {
-            const u32 shifted = static_cast<u32>(static_cast<s32>(target - base) >> 4);
-            node_index = static_cast<std::int16_t>(shifted * 0xEEEEEEEFu);
-        }
-        put16(rt, frame.at(0x82u), static_cast<std::uint16_t>(-1));
-        put16(rt, frame.at(0x80u), static_cast<std::uint16_t>(node_index));
-        u32 walk = 0u;
-        if (node_index >= 0) walk = word(rt, self) + static_cast<u32>(node_index) * 0xF0u;
-        put(rt, frame.at(0xA4u), self);
-        put8(rt, frame.at(0x60u), byte_u(rt, frame.at(0x8Cu)));
-        put(rt, frame.at(0xA8u), walk);
-        put(rt, frame.at(0xA0u), word(rt, frame.at(0x60u)));
-        put(rt, frame.at(0x6Cu), 0u);
-        put(rt, frame.at(0x68u), walk);
-        put(rt, frame.at(0x64u), self);
-        put(rt, frame.at(0xACu), 0u);
-        for (;;) {
-            const u32 current = word(rt, frame.at(0xA8u));
-            if (current == 0u) break;
-            if (record == current) {
-                (void)call_set(rt, ctx, 0x08C48004u, {frame.at(0xB0u), frame.at(0x80u), frame.at(0xA0u)});
-                put(rt, frame.at(0xA0u), word(rt, frame.at(0xB0u)));
-                put(rt, frame.at(0xA4u), word(rt, frame.at(0xB4u)));
-                put(rt, frame.at(0xA8u), word(rt, frame.at(0xB8u)));
-                put(rt, frame.at(0xACu), word(rt, frame.at(0xBCu)));
-            } else {
-                put(rt, frame.at(0xACu), current);
-                const u32 next = call_set(rt, ctx, 0x08C46D74u, {current, frame.at(0xA0u), self});
-                const s32 next_index = static_cast<std::int16_t>(static_cast<std::uint16_t>(next));
-                if (next_index >= 0) put(rt, frame.at(0xA8u), word(rt, frame.at(0xA4u)) + static_cast<u32>(next_index) * 0xF0u);
-                else put(rt, frame.at(0xA8u), 0u);
-            }
-        }
-        const u32 chosen = static_cast<u32>(static_cast<s32>(static_cast<std::int16_t>(half_u(rt, frame.at(0x80u)))));
-        put16(rt, slot, static_cast<std::uint16_t>(chosen));
-        if (static_cast<s32>(chosen) < 0) put16(rt, slot + 2u, static_cast<std::uint16_t>(half_u(rt, slot + 2u) | 0x8000u));
-    }
-    (void)call_set(rt, ctx, 0x08B01778u, {self, index});
-    const s32 link = static_cast<std::int16_t>(half_u(rt, self + 0x1Cu));
-    const u32 links = word(rt, self + 0x24u);
-    u32 node = 0u;
-    if (link >= 0) node = word(rt, links) + static_cast<u32>(link) * 0xF0u;
-    put(rt, frame.at(0xA8u), node);
-    put(rt, frame.at(0xA4u), links);
-    put(rt, frame.at(0xA0u), word(rt, frame.at(0x50u)));
-    put(rt, frame.at(0x5Cu), 0u);
-    put(rt, frame.at(0x58u), node);
-    put(rt, frame.at(0x54u), links);
-    put(rt, frame.at(0xACu), 0u);
-    for (;;) {
-        const u32 current = word(rt, frame.at(0xA8u));
-        if (current == 0u) break;
-        if (record == current) {
-            (void)call_set(rt, ctx, 0x08C48120u, {frame.at(0xC0u), self + 0x1Cu, frame.at(0xA0u)});
-            put(rt, frame.at(0x20u), word(rt, frame.at(0xC0u)));
-            put(rt, frame.at(0x24u), word(rt, frame.at(0xC4u)));
-            put(rt, frame.at(0x28u), word(rt, frame.at(0xC8u)));
-            put(rt, frame.at(0x2Cu), word(rt, frame.at(0xCCu)));
-            break;
-        }
-        put(rt, frame.at(0xACu), current);
-        const s32 step = static_cast<std::int16_t>(static_cast<std::uint16_t>(half_u(rt, current + 0xE8u)));
-        u32 next = 0u;
-        if (step >= 0) next = word(rt, frame.at(0xA4u)) + static_cast<u32>(step) * 0xF0u;
-        put(rt, frame.at(0xA8u), next);
-    }
-    const u32 first = static_cast<u32>(static_cast<s32>(static_cast<std::int16_t>(half_u(rt, self + 0x0Cu))));
-    const u32 ring = self + 0x0Cu;
-    s32 position = -1;
-    put16(rt, record + 0xE8u, static_cast<std::uint16_t>(first));
-    if (record != 0u) {
-        const u32 delta = static_cast<u32>(static_cast<s32>(record - word(rt, word(rt, self + 0x14u))) >> 4);
-        position = static_cast<std::int16_t>(delta * 0xEEEEEEEFu);
-    }
-    if (static_cast<std::int16_t>(half_u(rt, ring)) == -1) put16(rt, ring + 2u, static_cast<std::uint16_t>(position));
-    put16(rt, ring, static_cast<std::uint16_t>(position));
-    const u32 count = word(rt, ring + 4u) + 1u;
-    put(rt, ring + 4u, count);
-    ctx.gpr[2] = count;
-}
-
 // 0x08AC9CC8(self, name, create): looks the name up (08AC99A4 over the pair 08B1CE38 returns); a hit returns
 // entry + 0x28. Without `create` (low byte) 0. Else a new entry (08AC9A68): for the name 0x08CB4948 an object per word
 // of the zero-terminated list 08C3CEDC(0x08D00120) is made (08B62344(20) + 08AD5590, named by 08B37640, through
@@ -601,7 +469,6 @@ void func_08AC9CC8(Runtime &rt, AllegrexContext &ctx) {
 NEWMAIN241(0x0889AD18u, func_0889AD18, Word);
 NEWMAIN241(0x088C85E4u, func_088C85E4, Word);
 NEWMAIN241(0x08AC9CC8u, func_08AC9CC8, Word);
-NEWMAIN241(0x08B025D4u, func_08B025D4, Word);
 
 // ---- from main-session batch 242 (draft 364b63d4116a2d5a2ee4381cb06964c2cd8ed6ea) ----
 // New batch, main session 242: seven functions the recompiler emitted that no src/ file defines or registers. Written
@@ -855,7 +722,6 @@ s32 spine_step(Runtime &rt, AllegrexContext &ctx, u32 address, u32 table_offset,
     }
     return answer(0);
 }
-
 
 // -------------------------------------------------------------------------------------------------------------------
 // 0x08B14188 (a0 = the reader object): a UMD read loop. Takes the handle at 0x08CB4BA0, seeks to +0x254, then reads
@@ -2507,7 +2373,6 @@ void quaternion_product(Runtime &rt, u32 destination, u32 left, u32 right) {
     put_float(rt, destination + 4u, x);
     put_float(rt, destination + 8u, z);
 }
-
 
 // ---------------------------------------------------------------------------------------------------------------------
 // 0x08862438(self, index, source): builds the 0x50-byte record at self + 0x4120 + 0x50 * index from `source` and its
