@@ -8,8 +8,8 @@ A changed lcs-recomp patch skips only when every file it modifies is renderer/di
   python -m tools.verdict_scope BASE HEAD   -> prints "synthetic" or "skip"
   python -m tools.verdict_scope BASE HEAD --only-file F
       -> "only N" (and the N addresses in F) when the PR changes nothing but decomp sources (src/game/**.cpp) and
-         config/synth_shapes.txt: the synthetic gate then installs only the functions those files register (and the
-         addresses whose shape lines are new). A PR cannot change what another function compares except through shared
+         config/synth_shapes.txt (and config/synth_corpus/ADDR.txt): the synthetic gate then installs only the functions
+         those files register (and the addresses whose shape lines or corpus recipes changed). A PR cannot change what another function compares except through shared
          code (headers, host, harness, build, patches), and any of those runs every function as before. User 2026-11-24
          ("y no se pueden acelerar mas las verificaciones"): each scene spent 650-950 s comparing all ~17.5k functions.
 """
@@ -48,6 +48,7 @@ ONLY_SOURCES = re.compile(r"^src/game/.+\.cpp$")
 SHAPES = "config/synth_shapes.txt"
 REGISTRATION = re.compile(r"^[A-Z0-9_]+\(0x(0[89][0-9A-Fa-f]{6})", re.M)
 SHAPE_LINE = re.compile(r"^0x(0[89][0-9A-Fa-f]{6})\b")
+CORPUS = re.compile(r"^config/synth_corpus/(0[89][0-9A-Fa-f]{6})\.txt$")
 
 
 def only_functions(paths, read_head, read_base):
@@ -67,6 +68,10 @@ def only_functions(paths, read_head, read_base):
                 m = SHAPE_LINE.match(line)
                 if m and line not in old:
                     found.add(int(m.group(1), 16))
+            continue
+        corpus = CORPUS.match(path)
+        if corpus:  # one function's synthetic input recipes (PR 817)
+            found.add(int(corpus.group(1), 16))
             continue
         if not ONLY_SOURCES.match(path):
             return None

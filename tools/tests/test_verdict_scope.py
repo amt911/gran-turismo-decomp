@@ -92,3 +92,10 @@ def test_cli_without_only_file_keeps_the_old_answer(monkeypatch):
     monkeypatch.setattr("builtins.print", lambda *a: printed.append(" ".join(map(str, a))))
     vs.main(["x", "BASE", "HEAD"])
     assert printed == ["synthetic"]
+
+
+def test_a_functions_corpus_recipe_adds_that_function():
+    """config/synth_corpus/<ADDR>.txt holds one function's synthetic inputs (PR 817 ran every function for them)."""
+    got = only_functions(["src/game/unsorted/new_batch_main_7.cpp", "config/synth_corpus/08A1A968.txt"], heads, bases)
+    assert got == [0x0880A000, 0x0880A0A0, 0x08A1A968]
+    assert only_functions(["config/synth_corpus/README.md"], heads, bases) is None

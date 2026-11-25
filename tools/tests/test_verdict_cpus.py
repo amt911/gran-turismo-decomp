@@ -60,21 +60,21 @@ def run_verdict(tmp_path: Path, env_extra: dict[str, str], fail_fetches: int = 0
 
 def test_defaults_split_the_desktop(tmp_path):
     lines = run_verdict(tmp_path, {})
-    # gate + three synthetic groups; their order depends on GT_VERIFY_OVERLAP (synthetic first by default)
+    # gate + five synthetic groups (every function installed); their order depends on GT_VERIFY_OVERLAP
     gate = [line for line in lines if "decomp_gate full" in line]
     synth = [line for line in lines if "decomp_gate full" not in line]
     assert len(gate) == 1 and gate[0].startswith("taskset -c 6-11,18-23 ")
-    assert len(synth) == 3 and all(line.startswith("taskset -c 0-5,12-17 ") for line in synth)
+    assert len(synth) == 5 and all(line.startswith("taskset -c 0-5,12-17 ") for line in synth)
 
 
 def test_environment_overrides_both_sets(tmp_path):
     lines = run_verdict(tmp_path, {"GT_GATE_CPUS": "0-11", "GT_SYNTH_CPUS": "0-11"})
-    assert len(lines) == 4 and all(line.startswith("taskset -c 0-11 ") for line in lines)
+    assert len(lines) == 6 and all(line.startswith("taskset -c 0-11 ") for line in lines)
 
 
 def test_a_failed_fetch_is_retried(tmp_path):
     # two verdicts share one object store; a fetch that loses the ref lock must not end the verdict as "no branch"
-    assert len(run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=2)) == 4
+    assert len(run_verdict(tmp_path, {"GT_FETCH_RETRY_S": "0"}, fail_fetches=2)) == 6
 
 
 def test_a_fetch_that_keeps_failing_still_stops(tmp_path):
@@ -108,7 +108,7 @@ def test_boot_exit_after_can_be_overridden(tmp_path):
 
 def test_synth_installs_every_function_by_default(tmp_path):
     synth = [line for line in run_verdict(tmp_path, {}) if "decomp_gate synth" in line]
-    assert len(synth) == 3 and not any("--only" in line for line in synth)
+    assert len(synth) == 5 and not any("--only" in line for line in synth)
 
 
 def test_synth_installs_only_the_prs_functions_when_the_scope_says_so(tmp_path):
@@ -160,4 +160,4 @@ def test_full_scope_gate_waits_for_the_synthetic_groups(tmp_path):
     """Every function installed: the groups take up to ~30 min, so the gate waits for them (verdict 846 lost three
     groups to the lock cap beside the gate)."""
     lines = [line for line in run_verdict(tmp_path, {}, scope="synthetic") if "decomp_gate" in line]
-    assert [("full" in line) for line in lines] == [False, False, False, True]
+    assert [("full" in line) for line in lines] == [False] * 5 + [True]

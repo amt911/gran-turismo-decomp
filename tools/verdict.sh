@@ -60,7 +60,11 @@ else
   # every one hit its timeout (exit 124, verdict 526, 2026-11-10).
   # GT_VERIFY_SYNTH_GROUPS: the scene groups, space-separated. The third group holds the scenes PR 674's functions were verified
   # after (garage, challenge, dirt, manual, challenge2): every scene some function was verified after must stay in the verdict.
-  for group in ${GT_VERIFY_SYNTH_GROUPS:-dealer,race save_garage,circuit,buy,options garage,challenge,dirt,manual,challenge2}; do
+  # Every function installed: five groups of at most three scenes (verdicts 721 and 817 lost a five-scene group to the
+  # 30-minute lock cap at a load of ~160); the PR's functions only: three groups of about 2 min each.
+  groups="dealer,race save_garage,circuit buy,options garage,challenge dirt,manual,challenge2"
+  case "$scope" in only*) groups="dealer,race save_garage,circuit,buy,options garage,challenge,dirt,manual,challenge2";; esac
+  for group in ${GT_VERIFY_SYNTH_GROUPS:-$groups}; do
     t=v${tag}_${group%%,*}
     # Its own lock and its own cores (user, 2026-11-10): a synthetic run is CPU-bound, not paced, so it need not wait for
     # another verdict's real-time gate routes (GT_GATE_CPUS above); one synthetic group at a time on GT_SYNTH_CPUS.
