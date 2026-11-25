@@ -811,3 +811,8 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# body copies from and to, begin is handed to the release call, so all three are arena pointers. a1 (position) and a2
+# (source element) are dereferenced too, but the one shape per address covers a0 and the generator's default register values
+# are 16-byte-aligned arena pointers 70% of the time.
+0x08C48488 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
