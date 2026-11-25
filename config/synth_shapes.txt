@@ -755,3 +755,11 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# 0x08C65724: byte-identical body to 0x08C6500C (only the name constant, the entry vtable and the
+# registration function differ).
+0x08C65724 reg:a2=struct:128 field:+0x6C=ptr
+# 0x08B39B80: `lw v1,0x0(a2)` is the status that picks the case (6, 7, 8 or 4, anything else ends at once),
+# and 0x08B398CC dereferences the same a2, so the node must be a real block with a small status word. a0 (the
+# result object, written at +0 / +4) and a1 (the parser context, only passed on) need no shape.
+0x08B39B80 reg:a2=struct:16 field:+0x0=int:0..9
