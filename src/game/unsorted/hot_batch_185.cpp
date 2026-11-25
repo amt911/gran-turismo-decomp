@@ -608,13 +608,65 @@ void func_08ACA5D4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 void func_08ACA624(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     checked_forward(rt, ctx, 0x08ACA3F4u);
 }
-void func_08AD8464(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x430u); put(rt, frame.at(0x414u), G[5]); G[5] = G[4]; G[4] = frame.at(0u); put(rt, frame.at(0x418u), G[6]); G[6] = frame.at(0x414u); put(rt, frame.at(0x41Cu), G[7]); put(rt, frame.at(0x420u), G[8]); put(rt, frame.at(0x424u), G[9]); put(rt, frame.at(0x428u), G[10]); put(rt, frame.at(0x42Cu), G[11]); call_here(rt, ctx, 0x08B373ECu); G[3] = high_half(0x08CDFB30u); G[2] = word(rt, 0x08CDFB30u); G[4] = frame.at(0u); call_here(rt, ctx, G[2]); } }
+// 0x08AD8464 (a0 = the format, a1-a3 and t0-t3 = its arguments): the seven argument registers are spilled at sp + 0x414 as a variadic argument
+// list, 0x08B373EC(sp, format, sp + 0x414) formats them and the function pointer at 0x08CDFB30 is called with the buffer sp.
+void func_08AD8464(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 format = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x430u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x400u}});
+    const u32 arguments = frame.at(0x414u);
+    put(rt, arguments, ctx.gpr[5]);
+    put(rt, arguments + 0x4u, ctx.gpr[6]);
+    put(rt, arguments + 0x8u, ctx.gpr[7]);
+    put(rt, arguments + 0xCu, ctx.gpr[8]);
+    put(rt, arguments + 0x10u, ctx.gpr[9]);
+    put(rt, arguments + 0x14u, ctx.gpr[10]);
+    put(rt, arguments + 0x18u, ctx.gpr[11]);
+    call_set(rt, ctx, 0x08B373ECu, {frame.at(0u), format, arguments});
+    call_set(rt, ctx, word(rt, 0x08CDFB30u), {frame.at(0u)});
+}
 void func_08ADA4D8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[5] = 0x08C90C3Cu; call_here(rt, ctx, 0x08AD9E74u); G[16] = G[2]; G[2] = 0u; if (G[16] != 0u) { call_here(rt, ctx, 0x08AEB808u); G[2] = load16(G[16] + 0x10u) + 1u; store16(G[16] + 0x10u, G[2]); call_here(rt, ctx, 0x08AEB82Cu); G[2] = 1u; } } G[16] = s0; }
 void func_08ADB938(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x10u); G[16] = G[5]; G[5] = 0x08C90DD0u; call_here(rt, ctx, 0x08ADB278u); G[3] = G[2]; G[2] = 0u; if (G[3] != 0u) { G[2] = 1u; put(rt, G[3] + 0x8Cu, G[2]); put(rt, G[3] + 0x94u, G[16]); put(rt, G[3] + 0x90u, 0u); call_here(rt, ctx, 0x08C7AAE0u); G[2] = 1u; } } G[16] = s0; }
-void func_08AE44C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x50u); G[2] = 1u; put(rt, frame.at(4u), G[5]); G[5] = frame.at(0u); put(rt, frame.at(0u), G[2]); G[2] = word(rt, G[4] + 0x24u); G[4] = sext(load16(G[4] + 0x1Au), 16u); G[3] = sext(load16(G[2]), 16u); put(rt, frame.at(0xCu), G[6]); put(rt, frame.at(8u), G[3]); put(rt, frame.at(0x10u), G[7]); put(rt, frame.at(0x14u), G[8]); put(rt, frame.at(0x18u), G[9]); put(rt, frame.at(0x1Cu), G[10]); put(rt, frame.at(0x20u), G[11]); call_here(rt, ctx, 0x08AE85E8u); } }
-void func_08AE4518(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { { GuestFrame frame(ctx, 0x50u); G[2] = 4u; put(rt, frame.at(4u), G[5]); G[5] = frame.at(0u); put(rt, frame.at(0u), G[2]); G[2] = word(rt, G[4] + 0x24u); G[4] = sext(load16(G[4] + 0x1Au), 16u); G[3] = sext(load16(G[2]), 16u); put(rt, frame.at(0xCu), G[6]); put(rt, frame.at(8u), G[3]); put(rt, frame.at(0x10u), G[7]); put(rt, frame.at(0x14u), G[8]); put(rt, frame.at(0x18u), G[9]); put(rt, frame.at(0x1Cu), G[10]); put(rt, frame.at(0x20u), G[11]); call_here(rt, ctx, 0x08AE85E8u); } }
-// 0x08AE47C4: like 0x08AE4778 with a four-word record on the frame (0xF, a1, a2, a3): when t0 is set it goes to
-// 0x08AE4568(a0, record), otherwise 0x08AE85E8(sign-extended half at a0+0x1A, record) runs.
+// 0x08AE44C8 (a0 = the object, a1-a3 and t0-t3 = the values of a message): a 1 goes at sp + 0, the object's word +0x24 supplies
+// the signed half at +0 of its target for sp + 8, and the register arguments a1, a2, a3, t0, t1, t2, t3 fill sp + 4, 0xC, 0x10, 0x14, 0x18, 0x1C and
+// 0x20; 0x08AE85E8 is then called with the object's signed half at +0x1A and the message at sp.
+void func_08AE44C8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x50u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x40u}});
+    const u32 message = frame.at(0u);
+    const u32 kind = signed_half(rt, word(rt, object + 0x24u));
+    put(rt, message, 0x1u);
+    put(rt, message + 0x4u, ctx.gpr[5]);
+    put(rt, message + 0x8u, kind);
+    put(rt, message + 0xCu, ctx.gpr[6]);
+    put(rt, message + 0x10u, ctx.gpr[7]);
+    put(rt, message + 0x14u, ctx.gpr[8]);
+    put(rt, message + 0x18u, ctx.gpr[9]);
+    put(rt, message + 0x1Cu, ctx.gpr[10]);
+    put(rt, message + 0x20u, ctx.gpr[11]);
+    call_set(rt, ctx, 0x08AE85E8u, {signed_half(rt, object + 0x1Au), message});
+}
+// 0x08AE4518 (a0 = the object, a1-a3 and t0-t3 = the values of a message): a 4 goes at sp + 0, the object's word +0x24 supplies
+// the signed half at +0 of its target for sp + 8, and the register arguments a1, a2, a3, t0, t1, t2, t3 fill sp + 4, 0xC, 0x10, 0x14, 0x18, 0x1C and
+// 0x20; 0x08AE85E8 is then called with the object's signed half at +0x1A and the message at sp.
+void func_08AE4518(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
+    const u32 object = ctx.gpr[4];
+    GuestFrame frame(ctx, 0x50u);
+    SavedRegisters saved(rt, ctx, frame, {{31u, 0x40u}});
+    const u32 message = frame.at(0u);
+    const u32 kind = signed_half(rt, word(rt, object + 0x24u));
+    put(rt, message, 0x4u);
+    put(rt, message + 0x4u, ctx.gpr[5]);
+    put(rt, message + 0x8u, kind);
+    put(rt, message + 0xCu, ctx.gpr[6]);
+    put(rt, message + 0x10u, ctx.gpr[7]);
+    put(rt, message + 0x14u, ctx.gpr[8]);
+    put(rt, message + 0x18u, ctx.gpr[9]);
+    put(rt, message + 0x1Cu, ctx.gpr[10]);
+    put(rt, message + 0x20u, ctx.gpr[11]);
+    call_set(rt, ctx, 0x08AE85E8u, {signed_half(rt, object + 0x1Au), message});
+}
 void func_08AE47C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     GuestFrame frame(ctx, 0x50u);
     SavedRegisters saved(rt, ctx, frame, {{31u, 0x40u}});
@@ -628,6 +680,8 @@ void func_08AE47C4(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     }
     call_set(rt, ctx, 0x08AE85E8u, {signed_half(rt, ctx.gpr[4] + 0x1Au), frame.at(0x0u)});
 }
+// 0x08AE47C4: like 0x08AE4778 with a four-word record on the frame (0xF, a1, a2, a3): when t0 is set it goes to
+// 0x08AE4568(a0, record), otherwise 0x08AE85E8(sign-extended half at a0+0x1A, record) runs.
 void func_08AED9D0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[3] = G[7]; G[12] = G[8]; G[13] = G[9]; G[14] = G[10]; G[2] = G[6]; { GuestFrame frame(ctx, 0x20u); G[15] = G[11]; G[6] = G[5]; G[7] = G[2]; G[8] = G[3]; G[9] = G[12]; G[10] = G[13]; G[11] = G[14]; G[5] = 1u; put(rt, frame.at(0u), G[15]); call_here(rt, ctx, 0x08AED688u); } }
 void func_08AF6FE0(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { G[2] = load16(G[4] + 4u); G[5] = G[4]; G[4] = word(rt, G[4] + 8u); G[2] = G[2] < 2u ? 1u : 0u; G[3] = 1u; G[2] ^= 1u; store16(G[5] + 0xEu, G[2]); ctx.fpr[0] = 0.0f; store8(G[5] + 0x17u, G[3]); store16(G[5] + 0xCu, 0u); put(rt, G[5] + 0x10u, 0u); store8(G[5] + 0x16u, G[3]); ctx.fpr[1] = float_at(rt, G[4]); G[2] = ctx.fpr[1] < ctx.fpr[0] ? 1u : 0u; store16(G[5] + 0x14u, G[2]); }
 void func_08B0B87C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) { const std::uint32_t s0 = G[16]; { GuestFrame frame(ctx, 0x20u); G[6] = frame.at(0u); call_here(rt, ctx, 0x08B0B34Cu); G[16] = G[2]; G[4] = G[2]; G[2] = 0u; if (G[16] != 0u) { call_here(rt, ctx, 0x08B0B104u); if (G[2] == 0u) G[2] = word(rt, frame.at(0u)); else { G[2] = load8(G[16] + 4u) | load8(G[16] + 5u) << 8 | load8(G[16] + 6u) << 16 | static_cast<std::uint32_t>(load8(G[16] + 7u)) << 24; G[2] = 0u - G[2]; } } } G[16] = s0; }
