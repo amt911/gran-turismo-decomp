@@ -934,6 +934,7 @@
 # release path needs real refcounted objects and the null path still writes the three vtables.
 0x08BC12AC reg:a0=struct:1024 field:+0xA0=int:0..0 field:+0x98=int:0..0 field:+0x8C=int:0..0 field:+0x84=int:0..0 field:+0x2C=int:0..0 field:+0x24=int:0..0
 
+# 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
 # 0x0887E978: the holders at a0 + 0x64 and a0 + 0x70 (0x70 + 4 -> 0x74).
 0x0887E978 reg:a0=struct:128
 # 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
