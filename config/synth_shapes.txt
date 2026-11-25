@@ -1557,3 +1557,10 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+# 0x08B1F414: stores this+0, this+4, this+0x10, this+0x14, this+0x20, this+0x24 and passes this+8, this+0x18, this+0x28
+# to 0x08B34DA8 (a0 only).
+0x08B1F414 reg:a0=struct:48
+# 0x08AFD7B0: reads this+0..+0xC (floats, through the slot that 0x08BAC230 returns = this), reads the pointer at +0xD8 and
+# the six floats it points to, writes this+0x38.. through the callees, accumulates into this+0x80.
+0x08AFD7B0 reg:a0=struct:256 field:+0xD8=ptr
