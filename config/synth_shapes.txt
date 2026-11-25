@@ -1197,3 +1197,20 @@
 0x089C6AB4 reg:a0=struct:1024 field:+0x240=ptr
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
+
+# 0x08AFB5B4: stores the vtable at +0 and a zero at +0xD4 of a0 after the base constructor (a three-part struct, 0xE0 bytes).
+0x08AFB5B4 reg:a0=struct:224
+# 0x08B23EF4: stores a1 at +0x38 of a0 (the call on a0+4 runs first).
+0x08B23EF4 reg:a0=struct:64
+# 0x08B23BF0: vtable at +0, a word at +0x38 and two words at +0x40/+0x44 of a0; a0+0x2C is passed on.
+0x08B23BF0 reg:a0=struct:80
+# 0x08B23C8C: the same shape as 0x08B23BF0.
+0x08B23C8C reg:a0=struct:80
+# 0x08B1BFD8: writes +0x84..+0x90 of a0 and passes a0+0x98 on.
+0x08B1BFD8 reg:a0=struct:256
+# 0x08AC2168: writes the object pointer at +0 and the record pointer at +4 of a0.
+0x08AC2168 reg:a0=struct:8
+# 0x08A62B98: writes the vtable and +0x14..+0x58 of a0 (the byte at +0x58 is loaded from a global).
+0x08A62B98 reg:a0=struct:96
+# 0x08A9DB10: writes the vtable and pointer fields at +0..+0x7C of a0.
+0x08A9DB10 reg:a0=struct:128
