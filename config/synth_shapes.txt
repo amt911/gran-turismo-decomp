@@ -88,6 +88,278 @@
 # registration at +0x8DC lie past the 1024-byte cap, so the slot ends where the shape does.
 0x08B437C0 reg:a0=struct:1024 field:+0x0=ptr
 # Synthetic-case input shapes (spec 2026-11-19-synthetic-pointer-graphs-design.md): one line per function, asm evidence above.
+# evidence: `lw $a0, 0x0($a3)` dereferences a3 (the holder of the compared object), whose word is then read 0xC below; a0 is read and written at +0x14 (`lw $v1, 0x14($s2)`) and a2 at +0x10 (`lw $v0, 0x10($a2)`)
+0x08B947FC reg:a3=struct:0x10 field:+0x0=ptr
+0x08C4EA54 reg:a3=struct:0x10 field:+0x0=ptr
+# evidence: 08BE78E8 copies 0x60-byte elements from a2 -- `lw $v0, 0x4($s1)`, `lwc1 0xC($s1)`, `lw $v0, 0x10($s5)` with $s5 = a2 + 0x20 and `lw $v0, 0x10($s6)` with $s6 = a2 + 0x40 -- into a0; a1 is the count (a register)
+0x08BE78E8 reg:a2=struct:0x60 field:+0x4=int:0..255 field:+0x8=int:0..255 field:+0x20=ptr field:+0x30=ptr field:+0x40=ptr field:+0x50=ptr
+# evidence: 08C10EE8 reads the same 0x60-byte elements from a0 (`lw $v0, 0x4($a3)`, `lw $v0, 0x10($s1)` with $s1 = a3 + 0x20) and writes them to a2; a1 is the end pointer (a register)
+0x08C10EE8 reg:a0=struct:0x60 field:+0x4=int:0..255 field:+0x8=int:0..255 field:+0x20=ptr field:+0x30=ptr field:+0x40=ptr field:+0x50=ptr
+# evidence: 08B1C590 reads the counter words at +0x10 / +0x14 (`lw $v0, 0x10($s2)`, `lw $v1, 0x14($s2)`) and the handle at +0x18 (`lw $v0, 0x18($s2)`, `sw $sp, 0x18($s2)`); a1 unused, a2 / a3 are the target's low and high words
+0x08B1C590 reg:a0=struct:0x20 field:+0x10=int:0..4096 field:+0x14=int:0..0 field:+0x18=ptr
+# lw a3,0(a0); lw a0,0(a3): table pointer
+# lw t0,0(a0); lw a0,0(t0): table pointer, stores into the element
+# lw a0,0x18(a0) is passed to the callee
+0x0888B670 reg:a0=struct:32 field:+0x18=ptr
+# lw v0,0x7C(a0); lw v1,0x78(a0) compared
+0x088D09E8 reg:a0=struct:128 field:+0x78=int:0..3 field:+0x7C=int:0..3
+# sw -1,0x248(s0) after the callee
+0x0891FEF0 reg:a0=struct:592
+# lw v0,0(a0); lw v1,0(v0) selects the argument order
+# sw v0,8(s0): result stored at +8
+0x08A61714 reg:a0=struct:16
+# sb 5,4(a0); sw vtable,0(a0)
+0x08A65128 reg:a0=struct:16
+# sw vtable,0(a0); sw 0,4(a0)
+0x08C55D4C reg:a0=struct:16
+# lw v1,4(s1) = +0x5C: member with a virtual, lw a1,0x58(s0)
+0x088A3544 reg:a0=struct:96 field:+0x58=int:0..16 field:+0x5C=ptr
+# lw v0,0(s1): object, lw a1,0x4C0(v0)
+# lw v1,0x130(a0): record with the pair at +0x40/+0x44
+0x088DB018 reg:a0=struct:320 field:+0x130=ptr
+# lw a0,0(a0): object whose vtable slot 0x50 is called
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x089A1214 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x089F8674 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# lw a0,0xA8(a0); lw a1,4(s0); lw a1,8(s0): begin/end pointers
+0x08A05884 reg:a0=struct:192 field:+0xA8=ptr field:+0xAC=ptr field:+0xB0=ptr
+# 0x088951FC: lbu 0x18(a0) is a flag (0 runs on), lw 0x0(a0) is passed to 0x08894B60, lw 0x8/0x24/0x28/0x2C(a0) are counters compared with the queue's, lw 0x1C(a0) is the record pointer dereferenced (+4, +0x24, +0x40).
+0x088951FC reg:a0=struct:48 field:+0x0=ptr field:+0x8=int:0..8 field:+0x18=int:0..2 field:+0x1C=ptr field:+0x24=int:0..3 field:+0x28=int:0..64 field:+0x2C=int:0..64
+# 0x08892C28: lh 0x4(a0) and lh 0x6(a0) are cell counts (the low half of the word at +4 is the first count), lh 0x558/0x560 first slots, lw 0x18/0x28 + 4*slot cell words; real struct > 0x1B00, capped at 1024.
+0x08892C28 reg:a0=struct:1024 field:+0x4=int:0..3
+# 0x0896AD58: lw 0xA0(a0) is the object whose virtuals take the floats at +0xAC..+0xC4 (and +0xA4, +0xA8), lw 0xE0(a0) is the flag word.
+0x0896AD58 reg:a0=struct:240 field:+0xA0=ptr
+# 0x08806C44: a3 holds seven object pointers at +0x0..+0x18, each asked through its vtable (slots 0x3C / 0x40 / 0x50).
+0x08806C44 reg:a3=struct:32 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr field:+0x14=ptr field:+0x18=ptr
+# 0x08A4AFB4: lw s0,0x0(a2) is the object whose virtual +0xC fills the block (a0 is the output string, a1 the count).
+0x08A4AFB4 reg:a2=struct:16 field:+0x0=ptr
+# 0x088C2724: lw 0x24(a0) is the record (halves/bytes/floats up to +0x78), lw 0x4/0x8/0xC(a0) are objects the members at this+4.. point at, lw 0x0(a0) the owner, lw 0x1C(a0) the follower, +0x10 an index.
+0x088C2724 reg:a0=struct:48 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=int:0..4 field:+0x1C=ptr field:+0x24=ptr
+# 0x089F2028: lwc1 0x18/0x1C(a2) are the two weights; a3 / t0 are the weight tables (+0x0..+0x14), a1 the sink with the vtable at +0.
+0x089F2028 reg:a2=struct:32
+# 0x08904A8C: lwc1 4(a2) and lwc1 0(a2) are the input floats (first access), lw 0x60(a1) is the record table and lhu 0x3C(a1) the record count; real struct 0x70.
+0x08904A8C reg:a1=struct:112 field:+0x3C=int:1..4 field:+0x60=ptr
+# 0x08C577F0: lw v1,0(s0) is the stream's vtable, base = this + word(vtable - 0xC); a1 is only the value passed on.
+0x08C577F0 reg:a0=struct:16 field:+0x0=ptr
+# 0x08C57E1C: lw v1,0(s0) is the stream's vtable, base = this + word(vtable - 0xC); a1 is only the value passed on.
+0x08C57E1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08C57F58: lw v1,0(s0) is the stream's vtable, base = this + word(vtable - 0xC); a1 is only the value passed on.
+0x08C57F58 reg:a0=struct:16 field:+0x0=ptr
+# 0x08BFE808: a0 = tree (count word +0x14 incremented); a2 (parent node, word +0x10 compared with the key) and a3 (key words +0 / +4) are left to the default slots.
+0x08BFE808 reg:a0=struct:32 field:+0x14=int:0..8
+# 0x08C25B2C: a0 = tree (count word +0x14 incremented), a2 = parent node (word +0x10 compared with the key), a3 = key (words +0 / +4).
+0x08C25B2C reg:a0=struct:32 field:+0x14=int:0..8
+# 0x088BA534: lw v0,0(a0) is the read cursor (its bytes are copied to a1); the size in a2 picks 1/2/4/8 or the library copy.
+0x088BA534 reg:a0=struct:16 field:+0x0=ptr
+# 0x088F19DC: lw v0,0(a0) is the read cursor (its bytes are copied to a1); the size in a2 picks 1/2/4/8 or the library copy.
+0x088F19DC reg:a0=struct:16 field:+0x0=ptr
+# 0x08BAC46C: a0 is a vector (end at +4), a1 / a2 point at arrays of 0x20-byte elements that are read and written.
+0x08BAC46C reg:a0=struct:16 field:+0x4=ptr
+# 0x08BDB598: a0 is the base of 8-byte heap entries read and written at the hole / parent indices.
+0x08BDB598 reg:a0=struct:1024
+# 0x08B95120: a1 is a tree node: +8 / +0xC children (held at 0 to end the walk), +0x10 / +0x14 strings.
+0x08B95120 reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x10=ptr field:+0x14=ptr
+# 0x08997A4C: a0 is an object: vectors at +0x164 / +0x158, the object at +0x154 (held at 0).
+0x08997A4C reg:a0=struct:400 field:+0x154=int:0..0
+# 0x08A37510: a3 is a holder: lw s0,0(a3) is the object whose vtable slot 0xC runs (only when a2 > 0).
+0x08A37510 reg:a3=struct:16 field:+0x0=ptr
+# 0x08A1EC18: a0 is the buffer (word +0x20 = the reduction), a2 / a3 / t0 / t1 are four output words.
+0x08A1EC18 reg:a0=struct:48 field:+0x20=int:0..8
+# 0x08B9355C: a1 is a tree node: +8 / +0xC children (held at 0), +0x10 a string, +0x18 a shared holder (held at 0).
+0x08B9355C reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x10=ptr field:+0x18=int:0..0
+# 0x0885F46C: lw a0,0(a0) is the object whose byte +0x5AA and word +0x5AC are read.
+0x0885F46C reg:a0=struct:16 field:+0x0=ptr
+# 0x08ABECA0: a0 is an object with 16 records of 0x10 bytes at +0x1C (count +0, block +8, table +0xC).
+0x08ABECA0 reg:a0=struct:336 field:+0x1C=int:0..3 field:+0x24=ptr field:+0x28=ptr field:+0x2C=int:0..3 field:+0x34=ptr field:+0x38=ptr field:+0x3C=int:0..3 field:+0x44=ptr field:+0x48=ptr field:+0x4C=int:0..3 field:+0x54=ptr field:+0x58=ptr field:+0x5C=int:0..3 field:+0x64=ptr field:+0x68=ptr field:+0x6C=int:0..3 field:+0x74=ptr field:+0x78=ptr field:+0x7C=int:0..3 field:+0x84=ptr field:+0x88=ptr field:+0x8C=int:0..3 field:+0x94=ptr field:+0x98=ptr field:+0x9C=int:0..3 field:+0xA4=ptr field:+0xA8=ptr field:+0xAC=int:0..3 field:+0xB4=ptr field:+0xB8=ptr field:+0xBC=int:0..3 field:+0xC4=ptr field:+0xC8=ptr field:+0xCC=int:0..3 field:+0xD4=ptr field:+0xD8=ptr field:+0xDC=int:0..3 field:+0xE4=ptr field:+0xE8=ptr field:+0xEC=int:0..3 field:+0xF4=ptr field:+0xF8=ptr field:+0xFC=int:0..3 field:+0x104=ptr field:+0x108=ptr field:+0x10C=int:0..3 field:+0x114=ptr field:+0x118=ptr
+# 0x0880E0F8: lw s0,0(a0) is a table whose float at +8 picks the row.
+0x0880E0F8 reg:a0=struct:16 field:+0x0=ptr
+# 0x088A2934: a0 is an object: +4 the lock owner, +8 the flag, byte +0x78 picks the copied range; a1 the output block.
+0x088A2934 reg:a0=struct:128 field:+0x4=ptr field:+0x8=int:0..1 field:+0x78=int:0..1
+# Synthetic input shapes for src/game/unsorted/new_batch_main_111.cpp (re-drafts, batch main 111, DRAFT), for host/synth_case.hpp's Shape / parse_shapes.
+# Size = highest offset the function touches + 4, rounded up to 16. `ptr` = the word at that offset is dereferenced again.
+# 0x0892CF9C / 0x0892D1C0: a1 = the sums (bytes +0xBD, +0xC0..+0xCF, halves +0x10A / +0x10C), a2 = the source (bytes/halves up to +0xA).
+0x0892CF9C reg:a1=struct:0x110
+0x0892D1C0 reg:a1=struct:0x110
+# 0x0893B160: lw s1,0xC(a0) is the table base read at +0x328 + 4 * (key >> 1).
+0x0893B160 reg:a0=struct:16 field:+0xC=ptr
+# 0x08959C9C: a0 = two pointers (+0 the first argument, +8 a block whose first byte is read); a1 = the packet (id word, 0x34 bytes).
+0x08959C9C reg:a0=struct:16 field:+0x8=ptr
+# 0x089A54A0: a1 = the key (word +0 is a string), a2 = the output (word +0 read, then assigned).
+0x089A54A0 reg:a1=struct:16 field:+0x0=ptr
+# 0x089CA118: a3 = the holder (words +0 and +4 are objects whose vtables are called).
+0x089CA118 reg:a3=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x089DBCE8: a0 = the object: +0x134 a counted string, six 0xC-byte elements from +0xEC (word +0 a pointer).
+0x089DBCE8 reg:a0=struct:0x150 field:+0x134=ptr field:+0xEC=ptr field:+0xF8=ptr field:+0x104=ptr field:+0x110=ptr field:+0x11C=ptr field:+0x128=ptr
+# 0x08A4037C: a0 = the object: lw v0,0(a0) is its vtable (slot +0x108 called), +0x38 an owned object.
+0x08A4037C reg:a0=struct:0x40 field:+0x0=ptr field:+0x38=ptr
+# 0x08A58394: a1 = the owner: lw s0,0(a1) is an object whose vtable slot +0x120 is called.
+0x08A58394 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A9C340: a0 = this: byte +0x7C, words +0x34 / +0x38 (objects handed on), +0x3C / +0x40 addresses.
+0x08A9C340 reg:a0=struct:0x90 field:+0x34=ptr field:+0x38=ptr
+# 0x08AD17C4: a0 = this (index word +0x1C0), a1 = four floats.
+0x08AD17C4 reg:a0=struct:0x1D0 field:+0x1C0=int:0..3
+# 0x08AE1D6C: a3 = the table (0xC-byte entries, word +4 compared), t3 = the flags word.
+0x08AE1D6C reg:a3=struct:0x100
+0x08AF5164 reg:a0=struct:1024 field:+0x1A8=ptr field:+0x27C=ptr field:+0x0=ptr field:+0xD4=ptr
+0x08B02938 reg:a0=struct:256 field:+0x14=ptr field:+0x24=ptr
+0x08B1F2B8 reg:a0=struct:64
+0x08B34B2C reg:a0=struct:64 field:+0xC=ptr
+0x08B48A74 reg:a0=struct:16
+0x08B7E014 reg:a1=struct:64
+0x08B7E564 reg:a1=struct:64
+0x08BE241C reg:a0=struct:256
+0x08BE6D44 reg:a2=struct:64
+0x08BE834C reg:a0=struct:512
+0x08BF6664 reg:a0=struct:128 field:+0x24=ptr
+0x08C1667C reg:a0=struct:512
+0x08C35F34 reg:a3=struct:16 field:+0x4=ptr
+0x08C3D12C reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
+0x08C4FD6C reg:t0=struct:16
+# 0x0895077C: a0 = state record read at +0x12C..+0x176 (bytes, halfwords, flags); a1/a2 are output/settings records written/read as flat blocks.
+0x0895077C reg:a0=struct:384
+# type byte 0x08D72BB4[index] == 4; 1024 bytes covers the table. a0..a1 is the bytecode buffer (a0 is walked byte by
+# byte, nothing may be assumed about its first byte) and a3 the initial stack value, so no shape makes a program out
+# of them; the empty-buffer exit (`a0 >= a1` returns a3) is the path a shaped a2 leaves comparable.
+0x08B73ED0 reg:a2=struct:1024 field:+0x0=ptr
+# --- one-offs ---------------------------------------------------------------------------------------------
+# 0x08C56A90: a0 is the object; word(a0) is its vtable (read at -0xC for the class offset) and +4 is written.
+0x08C56A90 reg:a0=struct:16
+# 0x0881888C: a0 is the description cell written by 0x08A5BAD8 (a1 = count, a2 = the holder pointer).
+0x0881888C reg:a0=struct:8
+# 0x0888CFCC: a0 holds the table at +4 and the reporter at +0x18, both dereferenced by the callees.
+0x0888CFCC reg:a0=struct:32 field:+0x4=ptr field:+0x18=ptr
+# 0x0892A2C0: a0 is the byte vector {begin, end}; an empty vector (0, 0) takes the grow-by-count path and keeps
+# begin/end values the call itself sets, instead of handing garbage pointers to 0x08BDDBA0.
+0x0892A2C0 reg:a0=struct:8 field:+0x0=int:0..0 field:+0x4=int:0..0
+# 0x08AB1E50: a1 is the destination word 0x08A5BAD8 writes; a3 is the holder pointer whose object answers the divisor.
+0x08AB1E50 reg:a1=struct:8
+0x088777E4 reg:a0=struct:16
+0x088798D0 reg:a0=struct:16
+# 0x08AFB9A4: the constructor writes +0 through +0x28 and hands +0x2C to 0x08B5284C.
+0x08AFB9A4 reg:a0=struct:48
+# 0x08AFC7C8: lw v0,0x1C(a0) is the entry table, lhu s1,0x16(a0) its count; the count is the high half of the word at
+# +0x14, so an int field there keeps it at 0 and the loop on its empty path (a table pointer is set for a real count).
+0x08AFC7C8 reg:a0=struct:32 field:+0x14=int:0..0 field:+0x1C=ptr
+# 0x089ECBAC: lw s0,0x0(a1) is the source whose vtable slot 0x108 answers (a0 only receives the vtable and the fields).
+0x089ECBAC reg:a1=struct:16 field:+0x0=ptr
+# 0x08A641F4: lw s0,0x0(a1) is the source object asked through its vtable slot 0xD0.
+0x08A641F4 reg:a1=struct:16 field:+0x0=ptr
+# 0x08AFAF44: lw v0,0x0(a0) is the vtable whose slots 0x14 / 0x34 answer (0x28 + 4 -> 0x2C).
+0x08AFAF44 reg:a0=struct:48 field:+0x0=ptr
+# 0x08B04C78: lh,0xEC(a1) picks the first entry of the array at word(a0+0x44); a small index keeps the walk on entries.
+0x08B04C78 reg:a1=struct:256 field:+0xEC=int:0..2
+# 0x08B6518C: the two 0x100-byte buffers close at +0x21D; the pointer kept at +0x18 is the caller's (0x21D + 4 -> 0x220).
+0x08B6518C reg:a0=struct:576 field:+0x18=ptr
+# 0x08B6526C: byte-identical body to 0x08B6518C with every argument one register lower.
+0x08B6526C reg:a0=struct:576 field:+0x18=ptr
+# 0x08C65E3C: lw t2,0x0(a1) and lbu v1,0x4(a1) are the two-word source copied to sp+8 / sp+0xC.
+0x08C65E3C reg:a1=struct:16 field:+0x0=ptr
+# 0x08B05500: lh +0x1C / +0x1E are indices, lw +0x24 is a pointer to a table whose first word is the element base
+# (0xF0-byte elements; each element's +0xE8 half indexes the next).
+0x08B05500 reg:a0=struct:64 field:+0x24=ptr
+# 0x088BC21C: a0 is the object; lw +0x24 is the state whose bytes +0xF/+0x6D/+0x6E select the paths and +0xA3 is the
+# count, lw +0x2C is the flagged object (word at +0, floats at +0x14/+0x1C, +0x24 cached set aside) and lw +8 is a
+# second object (floats at +0x10/+0x14). 0x30 bytes cover +0x2C.
+0x088BC21C reg:a0=struct:48 field:+0x8=ptr field:+0x24=ptr field:+0x2C=ptr
+# +0xC98 (unused here) and the 64-entry u16 ring at +0xD2C..+0xDAB. Those fields sit past the parser's 1024-byte cap,
+# so only the base pointer can be laid out; random arena words there still give a valid (if large) length, and the
+# original's own 20 ms synthetic-case deadline ends the cases that scan too long (not comparable, not a mismatch).
+0x08AC30B4 reg:a0=struct:1024
+# 0x08808F2C: lw s1,0x0(a2) is the first object (vtable slots 0xC/0x70 called on it); a2+4/+8/+0xC are copied as smart-pointer slots.
+0x08808F2C reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr
+# 0x088BEC3C: lw s1,0x24(a0) body, lw s6,0x18(a0) tuning, lw a0,0x1C(a0) target object; +8 world (lw a2,0x4(s3)), +0x14 handler, +0xC/+0x10 passed on to 0x088DF13C.
+0x088BEC3C reg:a0=struct:48 field:+0x0=ptr field:+0x8=ptr field:+0xC=int:0..16 field:+0x10=int:0..16 field:+0x14=ptr field:+0x18=ptr field:+0x1C=ptr field:+0x24=ptr
+# 0x088DD144: lw a0,0xC0(a0) car records, +0x130/+0x134/+0x148/+0x14C/+0x14 objects and tables (more fields at +0x598..+0x640 lie past the 1024-byte cap).
+0x088DD144 reg:a0=struct:1024 field:+0x14=ptr field:+0xC0=ptr field:+0x130=ptr field:+0x134=ptr field:+0x148=ptr field:+0x14C=ptr
+# 0x08B5D788: stores a1/14/0/consts at +0/+8/+0x10/+4/+0xC of a0, then lw s0,0xC(s2) after the stores.
+# 0x08912F40: lbu v0,0x28(s2) gates the teardown; lw s0,0xD8/0xE0/0xE8/0xF0/0xF8/0x100/0x108/0x110(s2) are counted links released (use count at +4).
+0x08912F40 reg:a0=struct:1024 field:+0x28=int:0..1 field:+0xD8=ptr field:+0xE0=ptr field:+0xE8=ptr field:+0xF0=ptr field:+0xF8=ptr field:+0x100=ptr field:+0x108=ptr field:+0x110=ptr
+# Shapes for main-session batch 139 (src/game/unsorted/new_batch_main_139.cpp): one line per function, asm evidence above.
+# 0x08948324: 8C940008 lw s4,0x8(a0) (read at +0x5F4/+0x5F8/+0x5F9/+0x530/+0x534/+0x538/+0x58E/+0x579) and
+# 8C82000C lw v0,0xC(a0) (the unit block, read at +0x270+0xA8); a1 is never read. Highest offset 0xC + 4 -> 0x10.
+0x08948324 reg:a0=struct:16 field:+0x8=ptr field:+0xC=ptr
+# 0x08B456D0: 8CB10010 lw s1,0x10(a1) is the record (its +0x14 id, +0x8, +0xC and the entry it returns are read and written) and
+# 8E50000C lw s0,0xC(a1) is passed to the handlers as a2; a0 holds `this`, whose word at +0 is the vtable (slots +0x90 / +0xA0), but a
+# function takes one shape line, so a1 gets it. Highest offset 0x10 + 4 -> 0x14 -> 0x20.
+0x08B456D0 reg:a1=struct:32 field:+0xC=ptr field:+0x10=ptr
+# 0x08AD156C: the count at +0x1C0 decides (below four takes the copy path), the records start at +0x80.
+0x08AD156C reg:a0=struct:1024 field:+0x1C0=int:0..4
+# 0x08B018A4: lw a0,0x0(a0) is the record base, plus 240 bytes per index a1; the container's cursor and storage are
+# at +0x30 / +0x34 (0x34 + 4 -> 0x38 -> 0x40).
+0x08B018A4 reg:a0=struct:64 field:+0x0=ptr field:+0x30=ptr field:+0x34=ptr
+# 0x08B5156C: the object a0 is written at +0 / +4 / +8 / +0xC / +0x14 and +0xC20.
+0x08B5156C reg:a0=struct:1024
+# 0x08AE074C: no shape: a0 is an INDEX into the global object table (08ADDCD4 tests a0 < 0 and a0 <= count - 1),
+# not a pointer. The only globals it reads are the two float constants at 0x08CB60B0 / 0x08CB60B4 in .rodata.
+# 0x08B0957C: a1 is the 0x24-byte source of the copy (nine reads, the last at +0x20); a0 is only written.
+0x08B0957C reg:a1=struct:64
+# 0x08B17570: the object is written from +0 up to +0x19FC; the arena cap (1024) is the whole shape possible here.
+0x08B17570 reg:a0=struct:1024
+# 0x08B4DFF4: the 4x4 matrix at +0x00..+0x3C is read and written in place (0x38 + 4 -> 0x3C -> size 64).
+0x08B4DFF4 reg:a0=struct:64
+# 0x08B95080: a1 is the chain node: +0x8 next (zero stops the chain), +0xC subtree (zero stops the recursion),
+# +0x14 the holder whose refcount 08B60804 reads at holder - 4 and whose cell is holder - 0xC.
+0x08B95080 reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x14=ptr
+# 0x08C5380C / 0x08C538B4 / 0x08C5395C: the object's floats at +0x00..+0x20 are read (0x20 + 4 -> 0x24, size 48);
+# a1 / a2 / a3 are only written (four bytes each).
+0x08C5380C reg:a0=struct:48
+0x08C538B4 reg:a0=struct:48
+0x08C5395C reg:a0=struct:48
+0x08C73C00 reg:a0=struct:16 field:+0x0=ptr
+# --- the conditional copy assignments (14): lw s0, 0x0(a1) is the source object; a0 is the destination holder the
+# callees 0x08A5BAD8 / 0x08A76F20 dereference.
+0x0880A698 reg:a1=struct:16
+0x08835334 reg:a1=struct:16
+0x089BA138 reg:a1=struct:16
+0x089C218C reg:a1=struct:16
+0x089ED128 reg:a1=struct:16
+0x089F5574 reg:a1=struct:16
+0x089F7DB0 reg:a1=struct:16
+0x08A0817C reg:a1=struct:16
+0x08A2D22C reg:a1=struct:16
+# 0x0887AFB4: sw vtable 0x0(a0), sw the record 0x4(s1=a0) and 0x8(s1=a0+4); the globals 0x08D753E8 (byte read) and
+# 0x08D753F0 (word written) cannot be shaped here.
+0x0887AFB4 reg:a0=struct:16
+# 0x08B54104: lwl/lwr read three words at +0x0 / +0x4 / +0x8 of a0; a1 and a2 are 4x4 matrices read 0x40 bytes deep.
+0x08B54104 reg:a0=struct:16
+# 0x08C53A04..0x08C53BFC: a0 is the parameter block of floats read up to +0x28 (0x28 + 4 -> 0x2C -> 48); a1/a2/a3 are
+# the float outputs (stores through them).
+0x08C53A04 reg:a0=struct:48
+0x08C53AAC reg:a0=struct:48
+0x08C53B54 reg:a0=struct:48
+0x08C53BFC reg:a0=struct:48
+# --- the holder-cast template (14 instances): a1 is the source holder, *a1 the object the cast tests; a0 is the
+# output holder the reset writes. The class getter, the instance test and the nil fallback take it from there.
+0x08A2E4C8 reg:a1=struct:4 field:+0x0=ptr
+0x08A52264 reg:a1=struct:4 field:+0x0=ptr
+0x08A5973C reg:a1=struct:4 field:+0x0=ptr
+0x08A59C00 reg:a1=struct:4 field:+0x0=ptr
+0x08A5A0C8 reg:a1=struct:4 field:+0x0=ptr
+0x08A82EC0 reg:a1=struct:4 field:+0x0=ptr
+0x08A8A3B8 reg:a1=struct:4 field:+0x0=ptr
+0x08A8C1EC reg:a1=struct:4 field:+0x0=ptr
+0x08A9B8FC reg:a1=struct:4 field:+0x0=ptr
+# 0x08BBB988: lw a0,0x4(a0) is the entry table and lw a0,0x1C(a0) the owner the lookup runs on; a2 is the output
+# record (stored, not read).
+0x08BBB988 reg:a0=struct:32 field:+0x4=ptr field:+0x1C=ptr
+# 0x08C7366C: lw v1,0x0(a0) is the string the scan indexes and lw v0,-0xC(v1) its length.
+0x08C7366C reg:a0=struct:4 field:+0x0=ptr
+# 0x08B22204: the constructor writes +0..+0x6C of a0 (vtable, members, sub-objects at +4 / +0x34 / +0x40).
+0x08B22204 reg:a0=struct:112
+# 0x08BF7980: a1 is a list node: word at +0xC is the recursive chain, +8 the next node, +0x10 the block and +0x14
+# the holder's object. One node only (both links null) so the free of the node itself is the case, not a chain.
+0x08BF7980 reg:a1=struct:32 field:+0x8=int:0..0 field:+0xC=int:0..0 field:+0x10=ptr field:+0x14=ptr
+# 0888B748: a0's key table is at +4 (the first thing dereferenced) and the reporter at +0x18; a1 is the key.
+0x0888B748 reg:a0=struct:0x20 field:+0x4=ptr field:+0x18=ptr
+# 08BBC804: a1 is the pointer to the holder pointer; pinned null so no previous object is released through its
+# virtual +4 (a call through an arena word) and the allocate-and-copy path runs; a2 is the 0x4AC-byte source.
+0x08BBC804 reg:a1=struct:0x10 field:+0x0=int:0..0
+# 08C491E4: a3 is the sort descriptor — a fixed word offset at +0, the struct holding the record table at +4.
+0x08C491E4 reg:a3=struct:0x8 field:+0x0=int:0..1 field:+0x4=ptr
+# 08C73B40: a0's word 0 is the byte base and its count is the word 12 bytes below it; a1 is a value, a2 the start
+# index, a3 a context (null answers -1 early).
+0x08C73B40 reg:a0=struct:0x10 field:+0x0=ptr
 # 0x088E5454: `lw $a0, 0x0($a0)` — a0's first word is the owner block read at +0x548 / +0x54C / +0x114.
 0x088E5454 reg:a0=struct:16 field:+0x0=ptr
 # 0x08902C00 / 0x08905000: `lwc1 $f3, 0x20($a0)`… a1 reads its +0x14, a2 is passed as an object pointer, and a3 / t0
@@ -666,6 +938,7 @@
 0x089BF568 reg:a0=struct:1024 field:+0x264=ptr
 # 0x08A78D20: `lw s0, 0(a1)` is the object put into the destination slot a0 through 0x08A77444.
 0x08A78D20 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
 # 0x0887E978: the holders at a0 + 0x64 and a0 + 0x70 (0x70 + 4 -> 0x74).
 0x0887E978 reg:a0=struct:128
 # 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
