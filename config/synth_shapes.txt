@@ -755,3 +755,12 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# node it fills has bit 1 of self->+0xC set; the node itself comes from the static list head word(0x08D4095C) + 4 (its
+# next) and +8 (the signed key), so a case needs that global to hold a live list — a global, not a register, shape.
+# a1 (user) is only stored, a2 is a table column (small int), a3 picks 0/1 for the allocation and t0 is the divisor.
+0x08AE3158 reg:a0=struct:32 field:+0x10=ptr
+# 0x08B2811C: `lw v0,0x14(a0)` heads the s16 chain read at +2*first, `lw t3,0x10(a0)` is the 0x8000-byte ring read at
+# ring+index, `lw v1,0x18(a0)` the 4-byte-per-node chain, `lw t5,0x30(a0)` the search budget; a1 is the input bytes read
+# for up to a2 (capped at 0x102) bytes.
+0x08B2811C reg:a0=struct:64 field:+0x10=ptr field:+0x14=ptr field:+0x18=ptr
