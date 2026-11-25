@@ -755,3 +755,11 @@
 0x08A39928 reg:a0=struct:32 field:+0x0=ptr
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
+
+# 0x08BF5120: a0 is the container (begin, end, capacity at +0, +4, +8; 0x28-byte elements). All three are zeroed so the
+# grow path runs with a zero count (0x08BF5300: count = ((end - begin) >> 3) * 0xCCCCCCCD, 0 since both are 0); a non-zero
+# pair would make `last - position` a wild element count in the shift at 0x08BF5240.
+0x08BF5120 reg:a0=struct:16 field:+0x0=int:0..0 field:+0x4=int:0..0 field:+0x8=int:0..0
+# 0x089EB244: a0 is the object (words +0x188 / +0x18C, +0x19C, +0x1A0); the four are pointers so the +0x19C word is not
+# negative (the early return at 0x089EB2A0) and the virtual +0xCC at 0x089EB410 / 0x089EB520 lands on a real vtable.
+0x089EB244 reg:a0=struct:1024 field:+0x188=ptr field:+0x18C=ptr field:+0x19C=ptr field:+0x1A0=ptr
