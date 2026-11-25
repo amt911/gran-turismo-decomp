@@ -2073,3 +2073,8 @@
 0x08A9E53C reg:a0=struct:64 field:+0x20=ptr
 0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
 0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
+
+# 0x08B7A3BC: qsort(base = a0, count = a1, size = a2, compare = a3). a0 is the element block (swapped from +0 on; a1
+# counts elements, a2 is the element size). a1/a2 are plain values and a3 is a comparator address the harness cannot
+# synthesise, so only the cases with count < 2 (nothing moves) can compare.
+0x08B7A3BC reg:a0=struct:16
