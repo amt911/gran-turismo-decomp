@@ -2170,3 +2170,35 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08AF2978: `lw a0,0x0(a0)` is the object handed to 0x08AF296C (its member is then read at +0x40 by the tail target).
+0x08AF2978 reg:a0=struct:16 field:+0x0=ptr
+# 0x08B0DCE0: the destructor stores vtable 0x08CD7C08 at +0 and hands this + 0xF8 to 0x08B0C24C (so the block runs past 0xFC).
+0x08B0DCE0 reg:a0=struct:256
+# 0x08B1F8E8: vtable 0x08CD9488 at +0, member at +0xC handed to 0x08B28DC4 (0xC + 4 -> 0x10).
+0x08B1F8E8 reg:a0=struct:32
+# 0x08B248BC: vtable 0x08CD9610 at +0, member at +0x1C handed to 0x08B28DC4 (0x1C + 4 -> 0x20).
+0x08B248BC reg:a0=struct:32
+# 0x0881A9CC: a0-a3 are read by 0x0881A840; t0 is an offset added to its answer and t1 a shift count (plain integers,
+# not shapeable).
+0x0881A9CC reg:a0=struct:64
+# 0x08862C4C / 0x08894328 / 0x088978F8 / 0x088F4B9C / 0x0890B158: `lw v1,0x4(a0)` is the object called through its
+# vtable word 0 with (object, *this); the pair is cleared after the call.
+0x08862C4C reg:a0=struct:16 field:+0x4=ptr
+0x08894328 reg:a0=struct:16 field:+0x4=ptr
+0x088978F8 reg:a0=struct:16 field:+0x4=ptr
+0x088F4B9C reg:a0=struct:16 field:+0x4=ptr
+# 0x089385B0: vtable 0x08CC67E8 at +0, `lw v1,0x4(a0)` is released with 0x08938E48, and this + 0x28 is the tail call's object.
+0x089385B0 reg:a0=struct:64 field:+0x4=ptr
+# 0x089B4D94: vtable 0x08CCB198 at +0, second vtable word at +0x38, and this + 0x22C is handed to 0x08A5B9EC (real size 0x230).
+0x089B4D94 reg:a0=struct:576
+# 0x089F9BB8: `lw a0,0x0(a0)` is the object 0x08BE5888 takes (with the word at +4) and 0x08B35254 releases; the word at
+# +0 is read again after the first call.
+0x089F9BB8 reg:a0=struct:16 field:+0x0=ptr
+# 0x08A19020: this + 0x14 is assigned from the frame's word when it is not the frame itself (0x14 + 4 -> 0x18).
+0x08A19020 reg:a0=struct:32
+0x08A85594 reg:a1=struct:32
+# 0x08A95B74 / 0x08A97484: the unsigned byte at a1 + 0x14 is copied.
+0x08A95B74 reg:a1=struct:32
+# 0x08A9563C: vtable 0x08CBE0E0 at +0, `lw v1,0x14(a0)` is released with 0x08B35254.
+0x08A9563C reg:a0=struct:32
