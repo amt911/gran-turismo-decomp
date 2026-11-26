@@ -1584,6 +1584,16 @@
 0x08A647F4 reg:a0=struct:32
 0x08A64AA0 reg:a0=struct:32
 0x08A82B40 reg:a1=struct:32
+# 0x08A97A0C: sink writes a0+0 (the object word) and refcounts the object's +4.
+0x08A97A0C reg:a0=struct:16
+# 0x08A98C7C: same sink; a1 is the element count the ctor (0x08A98B54) multiplies by 4 for its own allocation.
+0x08A98C7C reg:a0=struct:16
+# 0x08AB01CC: same sink, a0+0 written.
+0x08AB01CC reg:a0=struct:16
+# 0x08AB1950: same sink, a0+0 written.
+0x08AB1950 reg:a0=struct:16
+# 0x08AB2EB0: sink 0x08A70EC8 -> 0x08A76AB4, a0+0 written; a1 is a count for the ctor 0x08AB2B1C.
+0x08AB2EB0 reg:a0=struct:16
 0x08A7C054 reg:a0=struct:16 field:+0x0=ptr
 0x08AC4570 reg:a0=struct:16
 0x08AC6AA0 reg:a0=struct:16
