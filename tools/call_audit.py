@@ -194,6 +194,10 @@ def call_sites(words: Sequence[int]) -> list[tuple[int, frozenset[int]]]:
             window = set()
             i += 2
             continue
+        if word >> 26 == 0 and word & 0x3F == 0x09:     # jalr (a virtual call): its arguments are not the next call's
+            window = set()
+            i += 2
+            continue
         window.update(reads_writes(word)[1])
         i += 1
     return sites
@@ -203,6 +207,7 @@ def call_sites(words: Sequence[int]) -> list[tuple[int, frozenset[int]]]:
 
 _START = re.compile(r"^void func_([0-9A-F]{8})\([^)]*\) \{(.*)$", re.MULTILINE)
 _CALL = re.compile(r"\b(\w+)\(rt, ctx, 0x([0-9A-Fa-f]{8})u?")
+_ANY_CALL = re.compile(r"\b(\w+)\(rt, ctx,")
 _ASSIGN = re.compile(r"(?:\bG|ctx\.gpr)\[(\d+)\]\s*=(?!=)")
 _V1_READ = re.compile(r"(?:\bG|ctx\.gpr)\[3\](?!\s*=[^=])")
 _HELPER = re.compile(r"^\w+ (\w+)\(Runtime &rt, AllegrexContext &ctx, u32 target[^)]*\) \{\n(.*?)^\}",
@@ -294,19 +299,27 @@ def missing_arguments(address: int, body: str, words_of: WordsOf, memo: dict[int
     if not words:
         return []
     memo = {} if memo is None else memo
-    fewest: dict[int, int] = {}
+    c_counts: dict[int, list[int]] = {}
     for _, target, count in c_calls(body, helpers):
-        fewest[target] = min(count, fewest.get(target, count))
+        c_counts.setdefault(target, []).append(count)
+    sites = call_sites(words)
+    asm_counts = {target: sum(1 for t, _ in sites if t == target) for target, _ in sites}
+    seen: dict[int, int] = {}
     assigned = assigned_regs(body)
     found = []
-    for target, written in call_sites(words):
-        if target not in fewest:
+    for target, written in sites:
+        if target not in c_counts:
             continue
+        index = seen.get(target, 0)
+        seen[target] = index + 1
+        counts = c_counts[target]
+        # As many C calls as jal sites: pair them in order (a first call with one argument and a second with two
+        # are both right); otherwise compare with the C call that passes the fewest.
+        passed = counts[index] if len(counts) == asm_counts[target] else min(counts)
         needed = written & callee_params(target, words_of, memo)
         for reg in sorted(needed):
-            position = ARGS.index(reg)
-            if position >= fewest[target] and reg not in assigned and (target, NAMES[reg], fewest[target]) not in found:
-                found.append((target, NAMES[reg], fewest[target]))
+            if ARGS.index(reg) >= passed and reg not in assigned and (target, NAMES[reg], passed) not in found:
+                found.append((target, NAMES[reg], passed))
     return found
 
 
@@ -321,8 +334,8 @@ def lost_v1(body: str, helpers: set[str]) -> list[str]:
             pending = False
         if re.search(r"(?:\bG|ctx\.gpr)\[3\]\s*=(?!=)", code):
             pending = False
-        for helper, _, _ in c_calls(code, CALL_HELPERS | frozenset(helpers)):
-            pending = helper in helpers
+        for call in _ANY_CALL.finditer(code):              # literal or computed target (call_virtual)
+            pending = call.group(1) in helpers
     return hits
 
 

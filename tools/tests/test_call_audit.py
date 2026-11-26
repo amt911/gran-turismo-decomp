@@ -279,3 +279,25 @@ def test_a_jump_inside_the_function_is_not_a_tail_call():
     callee = 0x08900000
     funcs = {callee: [j(callee + 12), NOP, NOP, addu(V0, A0, 0), JR_RA, NOP]}   # j to its own 4th word
     assert ca.callee_params(callee, words_of_map(funcs)) == frozenset({A0})
+
+
+def test_calls_to_one_target_pair_in_order_when_the_counts_match():
+    words = [jal(TARGET), addiu(A0, S0, 0),                       # first call: a0 only (a1 passed through)
+             addiu(A1, S0, 0), jal(TARGET), addiu(A0, S1, 0x50), JR_RA, NOP]
+    body = "call(rt, ctx, 0x08900000u, {first});\ncall(rt, ctx, 0x08900000u, {self + 0x50u, first});"
+    assert ca.missing_arguments(CALLER, body, _funcs(words)) == []
+    one_call = "call(rt, ctx, 0x08900000u, {first});"                # counts differ: the fewest is compared
+    assert ca.missing_arguments(CALLER, one_call, _funcs(words)) == [(TARGET, "a1", 1)]
+
+
+def test_registers_set_for_a_virtual_call_are_not_the_next_calls():
+    jalr = (V0 << 21) | (31 << 11) | 0x09                        # jalr v0
+    words = [lw(A0, 0x54, A0), jalr, addiu(A1, 0, 0), jal(TARGET), NOP, JR_RA, NOP]
+    assert ca.call_sites(words) == [(TARGET, frozenset())]
+
+
+def test_a_call_with_a_computed_target_ends_the_pending_v1():
+    body = ("x = call(rt, ctx, 0x08900000u, {a});\n"
+            "answer = call_virtual(rt, ctx, target, target, {holder});\n"
+            "put(rt, frame.at(0x34u), ctx.gpr[3]);\n")
+    assert ca.lost_v1(body, {"call"}) == []

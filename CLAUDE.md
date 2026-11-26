@@ -371,5 +371,10 @@ so each hit is checked against the asm.
 First run over `src/`:
 - **Before refining:** 2,448 hits, mostly false positives. The causes were family helpers taken for argument-less calls,
   windows that crossed branches, stack spills, local `j` jumps, and unknown import stubs.
-- **After refining:** 15 hits. They include the logo bug, and the samples checked are plausible missing arguments.
-- **Still to do:** triage those 15.
+- **After refining:** 9 hits (with the logo fix, #938), all triaged.
+  - 3 real bugs, fixed in #942: a wrong race index, a wrong reserve size, and a copy from the wrong matrix.
+  - 2 stale registers that held the right value, made explicit in #942.
+  - 4 known false positives: imports whose arity is unknown, and linear order around a loop test.
+
+The synthetic gate passes these bugs with or without their fixes (FINDINGS), so the audit is the only check that sees
+them.
