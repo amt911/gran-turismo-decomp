@@ -65,7 +65,9 @@ def test_new_shape_lines_add_their_address():
 def test_anything_else_runs_every_function():
     for path in ["include/gt/game/hot_common.hpp", "host/guest_call.cpp", "tools/decomp_gate.py", "CMakeLists.txt",
                  "src/game/unsorted/x.hpp", "config/extra_seeds.txt", "tools/patches/lcs-recomp/0060-mem.patch"]:
-        assert only_functions(["src/game/unsorted/new_batch_main_7.cpp", path], heads, bases) is None, path
+        # every one of these exists on BASE (a header new in the PR is the PR's own: see the test below)
+        assert only_functions(["src/game/unsorted/new_batch_main_7.cpp", path], heads,
+                              lambda p: "old\n" if p == path else bases(p)) is None, path
 
 
 def test_deleted_file_or_nothing_registered_runs_every_function():
@@ -99,3 +101,14 @@ def test_a_functions_corpus_recipe_adds_that_function():
     got = only_functions(["src/game/unsorted/new_batch_main_7.cpp", "config/synth_corpus/08A1A968.txt"], heads, bases)
     assert got == [0x0880A000, 0x0880A0A0, 0x08A1A968]
     assert only_functions(["config/synth_corpus/README.md"], heads, bases) is None
+
+
+def test_a_header_new_in_the_pr_only_reaches_the_prs_own_sources():
+    """A header BASE does not have can only be included by files the PR changes (PR 721's hot_v2.hpp ran every function)."""
+    def head(path):
+        return {"include/gt/game/hot_v9.hpp": "#pragma once\n"}.get(path) or heads(path)
+    got = only_functions(["src/game/unsorted/new_batch_main_7.cpp", "include/gt/game/hot_v9.hpp"], head, bases)
+    assert got == [0x0880A000, 0x0880A0A0]
+    # a header main already has is shared code: every function, as before
+    assert only_functions(["src/game/unsorted/new_batch_main_7.cpp", "include/gt/game/hot_common.hpp"], heads,
+                          lambda p: "old\n" if p == "include/gt/game/hot_common.hpp" else bases(p)) is None

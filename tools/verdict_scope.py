@@ -48,6 +48,7 @@ ONLY_SOURCES = re.compile(r"^src/game/.+\.cpp$")
 SHAPES = "config/synth_shapes.txt"
 REGISTRATION = re.compile(r"^[A-Z0-9_]+\(0x(0[89][0-9A-Fa-f]{6})", re.M)
 SHAPE_LINE = re.compile(r"^0x(0[89][0-9A-Fa-f]{6})\b")
+NEW_HEADER = re.compile(r"^(include|src)/.+\.(h|hpp)$")
 CORPUS = re.compile(r"^config/synth_corpus/(0[89][0-9A-Fa-f]{6})\.txt$")
 
 
@@ -73,6 +74,8 @@ def only_functions(paths, read_head, read_base):
         if corpus:  # one function's synthetic input recipes (PR 817)
             found.add(int(corpus.group(1), 16))
             continue
+        if NEW_HEADER.match(path) and read_base(path) is None and read_head(path) is not None:
+            continue  # a header BASE does not have: only the PR's changed sources can include it (PR 721)
         if not ONLY_SOURCES.match(path):
             return None
         text = read_head(path)
