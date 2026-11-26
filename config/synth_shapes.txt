@@ -2170,3 +2170,19 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 08B3EA3C (fields at +0x640/+0x644 and a store at a0+0x640 are past the 1024-byte struct limit), 08AD87B4 and 08B1A174
+# (no direct dereference of an argument: the callee reads it).
+# 0x08B2082C: a0 = struct; +0x0 the first value (2..8), +0x4 the limit (0..8), +0xC a byte the test reads.
+0x08B2082C reg:a0=struct:16 field:+0x0=int:2..8 field:+0x4=int:0..8
+# 0x088AA6F4: a0 = struct whose +0x0 is a pointer to the holder (its +0x10 is passed to the lookup).
+0x088AA6F4 reg:a0=struct:32 field:+0x0=ptr
+# 0x088FE03C: a0 = struct written at +0x0 (the store of a1).
+0x088FE03C reg:a0=struct:16
+# 0x08917B08: a0 = struct whose +0xC is a pointer to the owner (the byte store lands at owner+0x2107, past the struct limit).
+0x08917B08 reg:a0=struct:16 field:+0xC=ptr
+# 0x0891A568 / 0x0891A6D4: a0 = object with its vtable word at +0 and a child pointer at +0x1F8.
+0x0891A568 reg:a0=struct:512 field:+0x1F8=ptr
+0x0891A6D4 reg:a0=struct:512 field:+0x1F8=ptr
+# 0x08AC26E4: a1 = a pointer to a struct whose +0x0 is a pointer (the bytes at its +2 are read by the cursor walk).
+0x08AC26E4 reg:a1=struct:16 field:+0x0=ptr
