@@ -2172,3 +2172,25 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# main batch 1585 input shapes (draft, unverified). Functions that dereference an argument register.
+# 0x08A328D4: self (a0) fields +0x420 (begin/end pointers) and +0x42C (owned object); struct cut at 1024 (asm reads 0x42C).
+# 0x08A72C14: count at +0xC (signed, loop when > 0), array of pointers at +0.
+0x08A72C14 reg:a0=struct:64 field:+0x0=ptr field:+0xC=int:0..3
+# 0x08A7E450: two objects; self and other both get a link pointer at +0x1C.
+# 0x08B1D430: array at +0x2C, count at +0x34 (1..8).
+0x08B1D430 reg:a0=struct:64 field:+0x2C=ptr field:+0x34=int:1..8
+# 0x0885D7C4: writes self+0x4C and the slots from +0x50 to +0x158.
+0x0885D7C4 reg:a0=struct:512
+# 0x08893ED8: writes the three words of the block and self+0 / self+4.
+0x08893ED8 reg:a0=struct:16
+# 0x08A38FD4: writes the object fields up to +0xD4 and the words +0x50..+0xCC.
+0x08A38FD4 reg:a0=struct:256
+# 0x08A9E358: string object at self+0x20; its data pointer at +0, size at -0xC, capacity at -8.
+0x08A9E358 reg:a0=struct:64 field:+0x20=ptr
+# 0x08B0FC00: a2 is the source of two words; a0 the output (0x3C bytes).
+# 0x08B0FE5C: same as 0x08B0FC00.
+# 0x088D2904: writes self+8 and the slots up to +0x2FC.
+0x088D2904 reg:a0=struct:1024
+# 0x08887520: holder: word +0 = object (virtual at +8), word +4 = node (strong count at +4, weak at +8).
+0x08887520 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
