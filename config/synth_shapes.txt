@@ -2081,3 +2081,12 @@
 # +4 of that block), and the state word at +4 is compared with 0 / 0xA1 / 0xB3 / 0xCD (`beql v1,0xA1`, `slti` 0xA2,
 # `beq 0xB3`, `bne 0xCD`). Real struct 0x88.
 0x08BE2F7C reg:a0=struct:136 field:+0x0=ptr field:+0x4=int:0..0xCD field:+0x8=ptr field:+0x50=int:0..16 field:+0x54=ptr field:+0x58=ptr field:+0x5C=int:0..16 field:+0x60=ptr field:+0x64=int:0..16 field:+0x68=int:0..16 field:+0x70=ptr field:+0x74=ptr field:+0x78=ptr field:+0x7C=ptr field:+0x80=ptr field:+0x84=ptr
+# 0x08B4E878: a0 is the output block read and written at +0x30..+0x3C; a1 (matrix, +0..+0x2C) and a2 (vector, +0x30..+0x38)
+# are the same size but the shape format allows one reg: word per line.
+0x08B4E878 reg:a0=struct:64
+# 0x08AD2F20: writes the 16-bit fields at +4..+0xE and words up to +0x78 of a0.
+0x08AD2F20 reg:a0=struct:128
+# 0x08ABCEF0: the vtable goes to +0 and a zero byte to +0x84 of a0.
+0x08ABCEF0 reg:a0=struct:256
+# 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
+0x08B1A4F4 reg:a0=struct:16
