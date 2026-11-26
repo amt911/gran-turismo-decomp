@@ -2179,3 +2179,27 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+0x08A876C8 reg:a0=struct:96
+0x08A87D18 reg:a0=struct:96
+0x08A89AE0 reg:a0=struct:96
+0x08A8A5A0 reg:a0=struct:96
+0x08A8C2D8 reg:a0=struct:96
+0x08A90534 reg:a0=struct:96
+0x08A90574 reg:a0=struct:96
+0x08A95A6C reg:a0=struct:96
+0x08A95F3C reg:a0=struct:96
+0x08A9737C reg:a0=struct:96
+0x08A986B4 reg:a0=struct:96
+0x08A9B9A8 reg:a0=struct:96
+0x08A9B9E8 reg:a0=struct:96
+0x08A9BBF0 reg:a0=struct:96
+0x08A9BC70 reg:a0=struct:96
+0x08A9BCF0 reg:a0=struct:96
+0x08A9BD70 reg:a0=struct:96
+0x08AA2D10 reg:a0=struct:96
+0x08AABC8C reg:a0=struct:96
+0x08AAC154 reg:a0=struct:96
+0x08AAC67C reg:a0=struct:96
+0x08AAF634 reg:a0=struct:96
+0x08AAF674 reg:a0=struct:96
