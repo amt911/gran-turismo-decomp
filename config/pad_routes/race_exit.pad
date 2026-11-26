@@ -1,0 +1,19 @@
+# Race exit: the race route, then pause -> Exit, then Exit from the Starting Grid back to the Single Player hub
+# (user report 2026-11-26: with --decomp on the game stayed on the GT logo forever after that last Exit; culprit
+# func_088D8918, docs/FINDINGS.md "Leaving the Starting Grid hung on the GT logo"). Times after the last WAIT are
+# vblanks: 900 START (pause), RIGHT RIGHT CROSS (Exit), then RIGHT x4 + CROSS on the Starting Grid's Exit icon.
+# Pass: the run ends on the bright Single Player hub, not on the black GT-logo screen.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:CROSS,
+WAIT:seek=0x1d0332c0,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd7d200,300:CROSS,
+WAIT:seek=0x1d043c80,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cc98cc0,400:CROSS,
+WAIT:seek=0x1d19db00,900:START,960:RIGHT,1000:RIGHT,1040:CROSS,2000:RIGHT,2030:RIGHT,2060:RIGHT,2090:RIGHT,2130:CROSS
