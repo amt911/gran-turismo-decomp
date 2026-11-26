@@ -1558,6 +1558,18 @@
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
 
+# One register per line, so a1 is the shaped one; a0 (the out holder) is only written through by the init.
+#
+# 0x08A58458: construct 0x08A58394 does `lw s0,0x0(a1)`, tests it, then `lw v0,0x120(*s0)` and calls that vtbl slot.
+0x08A58458 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A5FA2C: construct 0x08A5F3F8 stores a1 at +0x14 of the block; a1 is the holder word the class keeps.
+0x08A5FA2C reg:a1=struct:16 field:+0x0=ptr
+# 0x08A69084: construct 0x08A68D48 -> 0x08A70B1C -> 0x08A71E28(block+0x14, a1) -> `lw v0,0x0(a1)` is an object it refcounts.
+0x08A69084 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A6B6E8: construct 0x08A6B590 calls 0x08B88F44(block+0x1C, a1), `lw s0,0x0(a1)` is the counted object (control block at -0xC/-4).
+0x08A6B6E8 reg:a1=struct:16 field:+0x0=ptr
+# 0x08A6D3C0: construct 0x08A6D290 tail-calls 0x08B88F44(block+0x14, a1); same `lw s0,0x0(a1)` counted object.
+0x08A6D3C0 reg:a1=struct:16 field:+0x0=ptr
 # 0x08A8066C: stores the vtable at +0, a1 and a2 are passed on; the object at +0x14..+0x18 is written through.
 0x08A8066C reg:a0=struct:64
 # 0x08A9E768: lw v0 = [a0+0x20] is the object of 0x08BEED1C; a0 is also returned.
