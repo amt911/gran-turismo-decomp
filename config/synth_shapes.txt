@@ -1570,3 +1570,20 @@
 0x08AAB9D8 reg:a0=struct:16 field:+0x0=ptr
 # 0x08AF9F58: `lw s1,0x0(a2)` is the inner object; 0x08AF8904 also takes a2 as its a1 and reads +0x28 of it.
 0x08AF9F58 reg:a2=struct:64 field:+0x0=ptr
+# 0x08AFB814: a0 is the object the base constructor 0x08AFB4E8 and this function write (vtable at +0, members up to
+# +0x2C in the base).
+0x08AFB814 reg:a0=struct:64
+# 0x08B4CE38: a0 is read at +0/+4/+8/+0xC and written back by 0x08B4B864 (the quaternion multiply).
+0x08B4CE38 reg:a0=struct:16
+# 0x08A7B030: `sw v0,0x0(a0)` stores the vtable word; a0+0x18 and a0+0x1C are passed on.
+0x08A7B030 reg:a0=struct:64
+# 0x08A805AC: `sw v0,0x0(a0)` stores the vtable word; a0+0x14 and a0+0x18 are passed on.
+0x08A805AC reg:a0=struct:64
+# 0x08A9E2A4 .. 0x08A9E5F4 (seven): `lw s0,0x20(a0)` is the owner pointer passed to 0x08BEED1C.
+0x08A9E2A4 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E428 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E484 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E4E0 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E53C reg:a0=struct:64 field:+0x20=ptr
+0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
+0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
