@@ -1128,7 +1128,6 @@
 
 # 0x0895DEC8: word(a0+8) is the car and word(a0+0xC) the state block, both dereferenced (car up to +0x6C4, state up
 # to +0x29C), so a0 is a pair of pointers.
-0x0895DEC8 reg:a0=struct:16 field:+0x8=ptr field:+0xC=ptr
 # points at the record whose +0x7E count, +0x64 / +0x68 / +0x6C floats and +0x20 float drive the walk. Real size 0xE4.
 # a1 (the request) is dereferenced too (+0x38 / +0x3C the object array, +0x60 the linked-list head) but the format takes
 # one register per address, so it keeps the generator's arena pointer.
