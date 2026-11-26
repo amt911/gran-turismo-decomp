@@ -2172,3 +2172,25 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# Main-session batch 1574 (src/game/unsorted/new_batch_main_1574.cpp): one line per drafted function that dereferences an argument.
+# Gated-pair family (a1 holds the pointer whose word is s0; first call and the rest read through a0/a1):
+0x088087B0 reg:a1=struct:16 field:+0x0=ptr
+0x0880EF48 reg:a1=struct:16 field:+0x0=ptr
+0x0881BC80 reg:a1=struct:16 field:+0x0=ptr
+0x088247AC reg:a1=struct:16 field:+0x0=ptr
+0x08846ED0 reg:a1=struct:16 field:+0x0=ptr
+0x08854844 reg:a1=struct:16 field:+0x0=ptr
+0x088588EC reg:a1=struct:16 field:+0x0=ptr
+0x089692C4 reg:a1=struct:16 field:+0x0=ptr
+# Object a0 with the pointer field the function loads first:
+0x08A9BFAC reg:a0=struct:256 field:+0x38=ptr
+0x08A9C4C4 reg:a0=struct:256 field:+0x78=ptr
+0x08A9C52C reg:a0=struct:256 field:+0x74=ptr
+0x08B21E00 reg:a0=struct:256 field:+0x5C=ptr field:+0x60=ptr
+0x088913B8 reg:a0=struct:128 field:+0x44=ptr field:+0x48=ptr field:+0x4C=ptr
+0x088DA288 reg:a0=struct:256 field:+0xA8=int:0..255 field:+0xAC=int:0..255
+# a1 is the source record of 0x0892FC20 (+8..+0x14 read):
+0x0892FC20 reg:a1=struct:32 field:+0x10=ptr field:+0x14=ptr
+# 0x08B1AF14 reads the text at a1 (a zero-filled struct gives an empty text):
+0x08B1AF14 reg:a1=struct:16
