@@ -2179,3 +2179,55 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x089B67AC..0x08A44C7C (18 "build then register" factories): a0 is the container the freshly built object is
+# registered with (func_08A76AB4(container, &block) and friends); the object itself comes from the allocator, so only
+# the container needs an object slot.
+0x089B67AC reg:a0=struct:16
+# 0x089B9828: the same factory shape.
+0x089B9828 reg:a0=struct:16
+# 0x089CC710: the same factory shape.
+0x089CC710 reg:a0=struct:16
+# 0x089D08B0: the same factory shape.
+0x089D08B0 reg:a0=struct:16
+# 0x089E23E0: the same factory shape.
+0x089E23E0 reg:a0=struct:16
+# 0x08A37CBC: the same factory shape.
+0x08A37CBC reg:a0=struct:16
+# 0x08A393EC: the same factory shape.
+0x08A393EC reg:a0=struct:16
+# 0x08A39CCC: the same factory shape.
+0x08A39CCC reg:a0=struct:16
+# 0x08A3AE10: the same factory shape.
+0x08A3AE10 reg:a0=struct:16
+# 0x08A3E6FC: the same factory shape.
+0x08A3E6FC reg:a0=struct:16
+# 0x08A3F7F8: the same factory shape.
+0x08A3F7F8 reg:a0=struct:16
+# 0x08A3F898: the same factory shape.
+0x08A3F898 reg:a0=struct:16
+# 0x08A3F938: the same factory shape.
+0x08A3F938 reg:a0=struct:16
+# 0x08A402D4: the same factory shape.
+0x08A402D4 reg:a0=struct:16
+# 0x08A41118: the same factory shape.
+0x08A41118 reg:a0=struct:16
+# 0x08A43BC8: the same factory shape.
+0x08A43BC8 reg:a0=struct:16
+# 0x08A44C7C: the same factory shape.
+0x08A44C7C reg:a0=struct:16
+# 0x089FE4A8: a0 is the object itself: the vtable words go to +0 and +0x38, then the tail call func_08A17B10 writes
+# a1 at +0x120 and zero at +0x124..+0x130, so 0x140 bytes. a1 is stored, never dereferenced (a plain value).
+0x089FE4A8 reg:a0=struct:0x140
+# 0x08A4DE78: sb 0x24(a0), sw 0x20(a0), and the base constructor 0x08B36290 writes the head of the same object.
+0x08A4DE78 reg:a0=struct:64
+# 0x0899A984: halfwords cleared up to +0x12A, two vtable words written.
+0x0899A984 reg:a0=struct:320
+# 0x089FF1C0: members up to +0x98 and a sub-object built at +0x78 from this.
+0x089FF1C0 reg:a0=struct:1024
+# 0x08A03D58: floats at +0x20..+0x2C and -1 at +0x30.
+0x08A03D58 reg:a0=struct:64
+# 0x08A1A8C0: members at +0x64, +0x90 and sub-objects at +0x68 / +0x44 / +0x30.
+0x08A1A8C0 reg:a0=struct:256
+# 0x08A32B74: sw zero,0x42C(a0); capped at 1024.
+0x08A32B74 reg:a0=struct:1024
