@@ -3466,3 +3466,20 @@ value in `a0`, `race_cars` found no human car, the snapshot never became valid (
   (exit 3), or locally a guest access outside RAM at `0x08B12CCC`, and the fast gate compared 387 of a 5711 floor.
   Before drafting, leave setjmp/longjmp-like functions (register save/restore into a record) as recompiled code. A
   verdict with any route exiting 3+ or a `FLOOR:` line is a failure even when "0 mismatched" is printed.
+
+### Leaving the Starting Grid hung on the GT logo: `call()` hands back v0 only
+
+**Symptom.** With `--decomp on`, race -> pause -> Exit -> Starting Grid -> Exit stayed on the black GT-logo screen forever
+(user report 2026-11-26, ThinkPad); `--decomp off` returned to the Single Player hub.
+**Cause.** `func_088D8918` (src/game/unsorted/new_batch_main_21.cpp) arms a deadline with the 64-bit helper `func_088D9C24`
+(`now + 5`, v0 low / v1 high) and then waits for it one `func_08B2E2B8` (sleep) at a time. The decompiled body stored a
+constant 1 as the high word instead of the helper's v1, so the deadline sat ~71 minutes ahead; it also called the sleep
+without its argument (`a0 = 10000` in the asm's delay slot). A first fix read `ctx.gpr[3]` after `call()`, which is still
+garbage: `call_guest` runs the callee on a copy of the context and `call()` returns only v0. A 64-bit result needs the
+`GuestResult` (`call_guest(..., {}).v1`) or a helper that copies it (`call_keep`, `call_g`, `callf`, `call_virtual`).
+**Why the gates missed it.** The function sleeps, so every call is `not comparable` (diff and synthetic), and no route left
+a race's Starting Grid. **Found by** bisecting the 1,400 functions merged since 2026-11-24 with a local
+`GT_DECOMP_SKIP_FILE` (12 runs of the new `config/pad_routes/race_exit.pad`). A scan of every `call(` followed by a read
+of `ctx.gpr[3]` found no other case.
+
+Found: 2026-11-26 · decomp
