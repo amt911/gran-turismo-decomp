@@ -2170,3 +2170,48 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08AB1444: a1 is the source object; the byte at +0x14 is copied to a0's +0x14 after 0x08A781D4(a0, a1).
+0x08AB1444 reg:a1=struct:32
+# 0x08AB3E04: lw a1,0x0(a1) is the word handed to 0x08B1EA48(this + 0x14, word); a0 owns +0x14 and +0x24.
+0x08AB3E04 reg:a1=struct:16 field:+0x0=ptr
+# 0x08AC3784: byte-identical body to 0x08AC32C4.
+0x08AC3784 reg:a0=struct:16 field:+0x4=ptr
+# 0x08AD68C8: +0x20 is the member freed through 0x08B64654 (a0 also goes to 0x08B2B6F4 first).
+0x08AD68C8 reg:a0=struct:48 field:+0x20=ptr
+# 0x08AFC92C: +4 of a0 and a1 are the compared words; +0 of a0 is the object handed to 0x08B35FD8.
+0x08AFC92C reg:a0=struct:16 field:+0x4=int:0..2 field:+0x0=ptr
+# 0x08B091DC: lw s0,0x0(a0) is the object destroyed (0x08B09290(s0 + 0x10), tail 0x08B64654(s0)).
+0x08B091DC reg:a0=struct:16 field:+0x0=ptr
+# 0x08B17308: the flag byte at +0x19DD and the sub-objects +0x1900/+0x1984 lie past the 1024 cap: needs a scene.
+0x08B17308 reg:a0=struct:1024
+# 0x08B48CB8: the selector word at +8 picks the answered string (no pointer read).
+0x08B48CB8 reg:a0=struct:16 field:+0x8=int:0..3
+# 0x08B48DCC: the selector word at +0x14 picks the answered string (no pointer read).
+0x08B48DCC reg:a0=struct:32 field:+0x14=int:0..3
+# 0x08C21258: +8 and +0xC are the two words passed to 0x08A8B098 as a2/a3 (a1 is that builder's source object).
+0x08C21258 reg:a0=struct:16 field:+0x8=int:0..4 field:+0xC=int:0..4
+# 0x08809608: a0 is the string handle assigned from the local (0x08A5BAD8(this, local[0])).
+0x08809608 reg:a0=struct:32
+# 0x08893E90: lw v1,0x4(a0) is the object whose vtable slot 0 is called with (obj, this->+0) after 0x08893C78.
+0x08893E90 reg:a0=struct:16 field:+0x4=ptr
+# 0x088A2A1C: +0xC is the signed-byte table indexed by a1, +4 the entry array the scaled index goes into.
+0x088A2A1C reg:a0=struct:16 field:+0xC=ptr field:+0x4=ptr
+# 0x088DB524: the bytes at +0x5B8 and +0x25 lie past the 1024 cap: needs a scene (0x088D9E58(this) first).
+0x088DB524 reg:a0=struct:1024
+# 0x089391F4: +0x1C is the lazily created member (word) and +0x20 the flag byte cleared after it.
+0x089391F4 reg:a0=struct:48
+# 0x08A6969C: word +0 receives the object 0x08AACAF8(0x08CFF060) answers.
+0x08A6969C reg:a0=struct:16
+# 0x08A6B9EC: lw s0,0x0(a0) is the object tail-called through 0x08A81C60 (null -> 0x08A5BB7C).
+0x08A6B9EC reg:a0=struct:16 field:+0x0=ptr
+# 0x08AA2B40: lw s0,0x0(a0) is the object called through vtable slot 0x3C (null -> 0x08A5BB7C).
+0x08AA2B40 reg:a0=struct:16 field:+0x0=ptr
+# 0x08AA9028: lw s0,0x4(a0) is the object tail-called through 0x08C3139C (null -> 0x08A5BB7C).
+0x08AA9028 reg:a0=struct:16 field:+0x4=ptr
+# 0x08AA9360: lw s0,0x4(a0) is the object tail-called through 0x08C3132C (null -> 0x08A5BB7C).
+0x08AA9360 reg:a0=struct:16 field:+0x4=ptr
+# 0x08AA9558: lw s0,0x4(a0) is the object tail-called through 0x08C312FC (null -> 0x08A5BB7C).
+0x08AA9558 reg:a0=struct:16 field:+0x4=ptr
+# 0x08AB70A4: lw s0,0xC(a0) is the object tail-called through 0x08AAE4E4 (null -> 0x08A5BB7C).
+0x08AB70A4 reg:a0=struct:32 field:+0xC=ptr
