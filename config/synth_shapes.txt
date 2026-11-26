@@ -1584,6 +1584,22 @@
 # 0x08B2BD78: zeroes +0x2C and +0x30 of a0; a1 goes to the tail callee.
 # 0x08B372D4: stores a1 at +0x20 and the vtable at +0 of a0.
 0x08B372D4 reg:a0=struct:64
+# 0x08AFB5B4: stores the vtable at +0 and a zero at +0xD4 of a0 after the base constructor (a three-part struct, 0xE0 bytes).
+0x08AFB5B4 reg:a0=struct:224
+# 0x08B23EF4: stores a1 at +0x38 of a0 (the call on a0+4 runs first).
+0x08B23EF4 reg:a0=struct:64
+# 0x08B23BF0: vtable at +0, a word at +0x38 and two words at +0x40/+0x44 of a0; a0+0x2C is passed on.
+0x08B23BF0 reg:a0=struct:80
+# 0x08B23C8C: the same shape as 0x08B23BF0.
+0x08B23C8C reg:a0=struct:80
+# 0x08B1BFD8: writes +0x84..+0x90 of a0 and passes a0+0x98 on.
+0x08B1BFD8 reg:a0=struct:256
+# 0x08AC2168: writes the object pointer at +0 and the record pointer at +4 of a0.
+0x08AC2168 reg:a0=struct:8
+# 0x08A62B98: writes the vtable and +0x14..+0x58 of a0 (the byte at +0x58 is loaded from a global).
+0x08A62B98 reg:a0=struct:96
+# 0x08A9DB10: writes the vtable and pointer fields at +0..+0x7C of a0.
+0x08A9DB10 reg:a0=struct:128
 # Main-session batch 1115 (src/game/unsorted/new_batch_main_1115.cpp): one line per drafted function that dereferences
 # an argument register itself (the others only pass a0..a3 on to a callee or call with constants, no shape needed).
 0x08B04D5C reg:a0=struct:16 field:+0x0=ptr
