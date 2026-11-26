@@ -2175,3 +2175,35 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08A560DC: this+0xC / +0x10 / +0x14 are stored and read back (the 0x10-byte block is 0x08B36018's).
+0x08A560DC reg:a0=struct:0x18
+# 0x08AC1FE0: word(this+0x38) is the vector head (count at head-4, 0x2C-byte elements with the vtable at +0); the half
+# at +0x3E bit 0 skips it and the half at +0x3C is cleared.
+0x08AC1FE0 reg:a0=struct:0x40 field:+0x38=ptr
+# 0x08AD5460: the accepted record writes this+0xC (byte 1), this+8 and this+4.
+0x08AD5460 reg:a0=struct:0x10
+# 0x08B48398: word(this+0x28) is the allocator the two 0x44/0x10 blocks come from.
+0x08B48398 reg:a0=struct:0x2C field:+0x28=ptr
+# 0x08910DF4: word(this+0x14) is the element whose counts at +4 / +8 are decremented and whose vtable slots 8 / 0xC are
+# called when a count reached 1.
+0x08910DF4 reg:a0=struct:0x18 field:+0x14=ptr
+# 0x08917C70: word(this+0xC) is the object whose +0x1FC8 counter, +0x1FCC byte and +0x1FCD flag are updated.
+0x08917C70 reg:a0=struct:0x10 field:+0xC=ptr
+# 0x08919114: word(this+0x1F8) is the object; its float +0x14 / +0x18 and the range object at word(+0x24) are read.
+0x08919114 reg:a0=struct:0x1FC field:+0x1F8=ptr
+# 0x089FCC98: the constructor writes this+0 / +0x38 (vtables) and hands this+0x64 / this+0x68 to 0x08B85EB8 / 0x08A5D414.
+0x089FCC98 reg:a0=struct:0x6C
+# 0x088A2FA4: word(this+0xC) and word(this+8) are objects released through 0x08B61FC0 / vtable slot 4; word(this+4) is
+# the vector head (count at head-4, 0x7C-byte elements with the vtable at +0).
+0x088A2FA4 reg:a0=struct:0x10 field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr
+# 0x08B7AFDC: word(this+0x148) is the callback list (count at +4, callbacks from +8), word(this+0x3C) the tail hook.
+0x08B7AFDC reg:a0=struct:0x14C field:+0x148=ptr field:+0x3C=ptr
+# 0x08A58564: word(this+0x1C) or word(word(this+0x18)+0xC) is the size; word(this+0x14) is the object whose vtable slot
+# 0x120 answers the amount.
+0x08A58564 reg:a0=struct:0x20 field:+0x14=ptr field:+0x18=ptr field:+0x1C=ptr
+# 0x08B0A458: word(this) is the holder whose +0x110 slot takes the 0x00020CE0-byte object.
+0x08B0A458 reg:a0=struct:0x4 field:+0x0=ptr
+# 0x08BA6470: word(this+8) is the container (its +0x48 / +0x40 and the half at +0x10 are read), word(this+0x10) and
+# word(this+0x14) are handed to 0x08AFA208.
+0x08BA6470 reg:a0=struct:0x18 field:+0x8=ptr
