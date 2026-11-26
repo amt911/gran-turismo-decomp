@@ -31075,7 +31075,7 @@ void func_0888D20C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
     if (session != 0u) {
         const std::uint32_t message = call_guest(rt, ctx, 0x0889414Cu, {word(rt, self + 12u)});
         if (word(rt, message) == 9u && !(static_cast<std::int32_t>(word(rt, session + 28u)) < static_cast<std::int32_t>(word(rt, message + 4u)))) {
-            const std::uint32_t race = call_guest(rt, ctx, 0x088DA788u, {word(rt, self + 4u)});
+            const std::uint32_t race = call_guest(rt, ctx, 0x088DA788u, {word(rt, self + 4u), b});   // a1 = s2 = b
             ctx.gpr[2] = call_guest(rt, ctx, 0x0888D088u, {self, a, b, word(rt, race + 116u), 1u});
             return;
         }
