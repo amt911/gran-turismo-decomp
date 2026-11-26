@@ -1132,6 +1132,14 @@
 # 0x08941D74: the block array written from a0 + 0x4A8 + (a2*3 + i)*0x268 up to +0x264 of the third block
 # (0x4A8 + 2*0x268 + 0x264 = 0xAAC, past one 1024-byte block; a1 is a byte lane only read, a2 a small index).
 0x08941D74 reg:a0=struct:1024
+# +0x14 / +0x18 / +0x1C / +0x24 / +0x28 / +0x2C are called; +0x40 / +0x44 are buffer bases (used as +0x100 / +0x80
+# and passed to 0x08963418), +0x48 the record whose +8 / +0x10 halves and +0x1C / +0x24 slots the callees touch, and
+# +0x5C the current-instruction pointer handed to 0x089624EC / 0x089624F4.
+0x088AFBA4 reg:a0=struct:96 field:+0x8=ptr field:+0x38=ptr field:+0x40=ptr field:+0x44=ptr field:+0x48=ptr field:+0x5C=ptr
+# 0x08AF6474: `lw v0,0x0(a0)` is the code base the entry offset (a1) is added to, and `lw v0,0x4(a0)` (per global page,
+# `lw a0,0x4(v0)` after `sll page,2`) the global page tables; a2 is the host object whose vtable slots +8 / +0xC the
+# 0xC0 / 0xC1 opcodes call (only one shape line per address, so the important a0 graph is the one declared).
+0x08AF6474 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
 # 0x088BA628: a0 is the destination record — memset 0x2BC then writes up to +0x2B0 + 3*4 (the tail call's vector), so
 # 0x2C0 bytes. a1 (the source) is only read (bytes at +0..+0x97), so it keeps the generator's own arena layout:
 # config/synth_shapes.txt takes one struct per address.
@@ -2111,6 +2119,10 @@
 0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
 0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
 
+# 0x08B7A3BC: qsort(base = a0, count = a1, size = a2, compare = a3). a0 is the element block (swapped from +0 on; a1
+# counts elements, a2 is the element size). a1/a2 are plain values and a3 is a comparator address the harness cannot
+# synthesise, so only the cases with count < 2 (nothing moves) can compare.
+0x08B7A3BC reg:a0=struct:16
 # +0x70/+0x74, +0x78/+0x7C and +0x80/+0x84 (data at the first, count at the second: `lw v1,0x74(a0)` then the ll/sc on
 # +4 of that block), and the state word at +4 is compared with 0 / 0xA1 / 0xB3 / 0xCD (`beql v1,0xA1`, `slti` 0xA2,
 # `beq 0xB3`, `bne 0xCD`). Real struct 0x88.
