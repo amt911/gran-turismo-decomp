@@ -2179,3 +2179,8 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+#
+# 0x08B5E2CC: a0 is the registry descriptor this function fills (+0 the value, +4 / +0xC the two 14-word tables, +8 the
+#   count, +0x10 the second table object).
+0x08B5E2CC reg:a0=struct:32
