@@ -2105,6 +2105,10 @@
 0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
 0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
 
+# 0x08B7A3BC: qsort(base = a0, count = a1, size = a2, compare = a3). a0 is the element block (swapped from +0 on; a1
+# counts elements, a2 is the element size). a1/a2 are plain values and a3 is a comparator address the harness cannot
+# synthesise, so only the cases with count < 2 (nothing moves) can compare.
+0x08B7A3BC reg:a0=struct:16
 # +0x70/+0x74, +0x78/+0x7C and +0x80/+0x84 (data at the first, count at the second: `lw v1,0x74(a0)` then the ll/sc on
 # +4 of that block), and the state word at +4 is compared with 0 / 0xA1 / 0xB3 / 0xCD (`beql v1,0xA1`, `slti` 0xA2,
 # `beq 0xB3`, `bne 0xCD`). Real struct 0x88.
