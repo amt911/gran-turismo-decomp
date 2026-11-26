@@ -1558,6 +1558,30 @@
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
 
+# main-1116 draft: a0 = writable object. Wrappers pass it on (struct:64), initialisers write +0 and +0x14 (struct:32), getters use this+0x4C (struct:256).
+0x08A7B168 reg:a0=struct:64
+0x08A7C3E4 reg:a0=struct:64
+0x08A83044 reg:a0=struct:64
+0x08A846F0 reg:a0=struct:64
+0x08A85088 reg:a0=struct:64
+0x08A85A10 reg:a0=struct:64
+0x08A87D18 reg:a0=struct:64
+0x08A89AE0 reg:a0=struct:64
+0x08A8A5A0 reg:a0=struct:64
+0x08A8C2D8 reg:a0=struct:64
+0x08A90534 reg:a0=struct:64
+0x08A90574 reg:a0=struct:64
+0x08A95F3C reg:a0=struct:64
+0x08A986B4 reg:a0=struct:64
+0x08A9B9A8 reg:a0=struct:64
+0x08A9B9E8 reg:a0=struct:64
+0x08A84CD0 reg:a0=struct:32
+0x08A8548C reg:a0=struct:32
+0x08A95A6C reg:a0=struct:32
+0x08A9737C reg:a0=struct:32
+0x08A98250 reg:a0=struct:16
+0x08A9BBF0 reg:a0=struct:256
+0x08A9BC70 reg:a0=struct:256
 # 0x08B247B0 / 0x08B247E4 / 0x08B24818: sw v0 at 0(a0) after the first call, then the tail gets a0+0x1C.
 0x08B247B0 reg:a0=struct:64
 0x08B247E4 reg:a0=struct:64
