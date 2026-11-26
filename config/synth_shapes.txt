@@ -1129,6 +1129,13 @@
 # 0x088D390C (a0 = p, a1 = self, a2 = out, a3 = mode): `lw a0, 0x0(a0)` is the handle 0x088DB5C4 and 0x088FAB84 take (it is
 # dereferenced, so it must be a valid pointer). self is only written (+0 / +4 / +8 / +0x154 / +0x15C / +0x160..+0x174), out's
 # three words are written, mode is only passed on.
+# 0x08A4E6F4: `lw s4,0x78(s1)` is the sprite-table object handed to 0x08A50634 / 0x08A50AC0, `lw v0,0x98(s1)` the
+#            16-byte entry array, `lw a0,0xA4(s1)` the texture object of the type-2 pass, and `lw v0,0x9C(s1)` bounds the
+#            loop (kept at 0..3 so the walk stays inside the arena).
+0x08A4E6F4 reg:a0=struct:1024 field:+0x78=ptr field:+0x98=ptr field:+0x9C=int:0..3 field:+0xA4=ptr
+# 0x08AACE40: `lw a0,0x80(s7)` is the special node the mode-0 path releases (0x08A69D3C) and the fill path replaces
+#            with the 0x08CB3374 node; the map searched by the inlined inserts sits at +0x68 and is left as arena data.
+0x08AACE40 reg:a0=struct:1024 field:+0x80=ptr
 # 0x0895DEC8: word(a0+8) is the car and word(a0+0xC) the state block, both dereferenced (car up to +0x6C4, state up
 # to +0x29C), so a0 is a pair of pointers.
 # 0x08C65724: byte-identical body to 0x08C6500C (only the name constant, the entry vtable and the
