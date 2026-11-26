@@ -1558,6 +1558,26 @@
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
 
+# argument register. The vtable constructors (0x08A68D18 ... 0x08AC9294) store their vtable at +0 of a0 after the base
+# constructor call; 0x08AF2CF4 stores a1 at +0 of a0; 0x08AFBD10 clears the byte at +0x50 of a0. No other function in the
+# batch reads memory through an argument or a global itself (their callees do; those are not shaped here).
+0x08A68D18 reg:a0=struct:256
+0x08A725D0 reg:a0=struct:256
+0x08AB4A88 reg:a0=struct:256
+0x08AB4AB8 reg:a0=struct:256
+0x08AB4AE8 reg:a0=struct:256
+0x08AB4B18 reg:a0=struct:256
+0x08ABF8A0 reg:a0=struct:256
+0x08AC01F8 reg:a0=struct:256
+0x08AC0E34 reg:a0=struct:256
+0x08AC44E0 reg:a0=struct:256
+0x08AC4540 reg:a0=struct:256
+0x08AC6A10 reg:a0=struct:256
+0x08AC6A70 reg:a0=struct:256
+0x08AC8BDC reg:a0=struct:256
+0x08AC9294 reg:a0=struct:256
+0x08AF2CF4 reg:a0=struct:256
+0x08AFBD10 reg:a0=struct:256
 0x08A64914 reg:a0=struct:16
 0x08A64BC0 reg:a0=struct:16
 0x08AA64A4 reg:a1=struct:16
