@@ -3484,6 +3484,16 @@ of `ctx.gpr[3]` found no other case.
 
 Found: 2026-11-26 · decomp
 
+### Brand logos missing in Car Selection > By Manufacturer: a call lost its second argument
+
+**Symptom.** With `--decomp on` the maker folders of Car Selection > By Manufacturer were empty (no brand logo; user
+report 2026-11-26); `--decomp off` showed them. **Cause.** `func_08A17818` (src/game/unsorted/new_batch_main_21.cpp) copies
+the selected maker's entry into the global at `0x08CF6244` with `func_08B855E0(0x08CF6244, node + 8)`; the asm sets
+`a1 = node + 8` before the branch that guards the call, and the decompiled body passed only `a0`, so the copy read a stale
+`a1`. (It also read `0x08CF6244` after the allocation instead of in the call's delay slot, before it.) **Why the gates
+missed it.** No route opened that view, and synthetic cases do not check what a callee does with a register the caller
+leaves stale. **Found by** bisecting the functions merged since 2026-11-24 with `config/pad_routes/car_maker.pad` and a
+pixel check of the folder (11 runs). The same file held the race-exit hang (`func_088D8918`, entry above).
 ### Missing argument registers: the synthetic gate passes the bug and its fix alike
 
 **What.** The first `tools.call_audit` run found 3 more decompiled calls that drop an argument the original sets, and

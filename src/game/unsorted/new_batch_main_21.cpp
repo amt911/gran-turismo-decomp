@@ -531,7 +531,9 @@ void func_08A17818(Runtime &rt, AllegrexContext &ctx) {
         list = call(rt, ctx, 0x08A17698u);
         const u32 node = word(rt, list);
         if (node + 8u != 0x08CF6244u) {
-            call(rt, ctx, 0x08B855E0u, {0x08CF6244u});
+            // a1 = node + 8 (addiu a1, s0, 0x8 before the branch): the copy's source. Without it the copy read a stale
+            // a1 and the maker list lost its brand logos (Car Selection > By Manufacturer, 2026-11-26).
+            call(rt, ctx, 0x08B855E0u, {0x08CF6244u, node + 8u});
             if (node + 0xCu != 0x08CF6248u) {
                 const u32 first = word(rt, node + 0xCu);
                 if (first != 0u) call(rt, ctx, 0x08A5BA08u, {first});
@@ -551,8 +553,8 @@ void func_08A17818(Runtime &rt, AllegrexContext &ctx) {
             call(rt, ctx, 0x08B8542Cu, {value - 0xCu, frame.at(0x00u)});
         }
         call(rt, ctx, 0x08A5BC54u, {holder, 0x10u, 4u});
+        const u32 previous = word(rt, 0x08CF6244u);   // read in the allocation's delay slot, before the call
         const u32 allocated = call(rt, ctx, 0x08B62344u, {0x130u});
-        const u32 previous = word(rt, 0x08CF6244u);
         call(rt, ctx, 0x08B0DBF8u, {allocated});
         put(rt, allocated, 0x08CD05C0u);
         if (call(rt, ctx, 0x08B0EA48u, {allocated, previous}) != 0u) {
