@@ -1133,6 +1133,9 @@
 # 0x088D9178: the object whose deadline pair is +0x708 / +0x70C and whose time is +0x90 / +0x94; the four 0x2F8 cells
 # hang off the pointer at +0xC0 (beyond the 1024-byte cap, so only the first three fields are shaped).
 0x088D9178 reg:a0=struct:1024 field:+0x90=int:0..65535 field:+0x94=int:0..65535 field:+0xC0=ptr
+# 0x088D390C (a0 = p, a1 = self, a2 = out, a3 = mode): `lw a0, 0x0(a0)` is the handle 0x088DB5C4 and 0x088FAB84 take (it is
+# dereferenced, so it must be a valid pointer). self is only written (+0 / +4 / +8 / +0x154 / +0x15C / +0x160..+0x174), out's
+# three words are written, mode is only passed on.
 # 0x08A4E6F4: `lw s4,0x78(s1)` is the sprite-table object handed to 0x08A50634 / 0x08A50AC0, `lw v0,0x98(s1)` the
 #            16-byte entry array, `lw a0,0xA4(s1)` the texture object of the type-2 pass, and `lw v0,0x9C(s1)` bounds the
 #            loop (kept at 0..3 so the walk stays inside the arena).
