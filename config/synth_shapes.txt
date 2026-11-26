@@ -2179,3 +2179,20 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08B57598: a2 is the vertex source — 0x08B57F14 reads +0/+4/+8/+0xC and the float format loads the word at +0.
+0x08B57598 reg:a2=struct:16 field:+0x4=ptr
+# 0x0890B7AC: the intrusive pointer at +0x100 and the five owned members whose element sits at member+4.
+0x0890B7AC reg:a0=struct:264 field:+0x104=ptr field:+0x2C=ptr field:+0x24=ptr field:+0x1C=ptr field:+0x14=ptr field:+0xC=ptr field:+0x4=ptr
+# 0x08982D24: the constructor writes +0x0..+0x23C of a0 (real size 0x240).
+0x08982D24 reg:a0=struct:576
+# 0x08987DC0: a0 carries the string at +4 and the output pointer at +0xC; a1 is written from +0x34 on.
+0x08987DC0 reg:a0=struct:32
+# 0x08988708: the same body, storing the parsed 64-bit value through word(a0+0xC).
+0x08988708 reg:a0=struct:32
+# 0x08988898: the same body with the third parser.
+0x08988898 reg:a0=struct:32
+# 0x089313D0: a1 is the output record written from +0 up to +0x4E (real size 0x50); a0 is the lookup id.
+0x089313D0 reg:a1=struct:80
+# 0x08A9C998: a1 points at the record slot (word(a1) is the object whose vtable slot 0x11C runs).
+0x08A9C998 reg:a1=struct:16 field:+0x0=ptr
