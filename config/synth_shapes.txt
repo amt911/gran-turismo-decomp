@@ -1126,6 +1126,48 @@
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
+# 0x088AD9E0: a0 = the eight 0x44-byte slots (+0x84 flags, +0x98 node, +0x70/+0x80 points, energy +0x48, limits +0x42C/+0x430), all past 1024.
+0x088AD9E0 reg:a0=struct:1024
+#   the axis state (byte +9, floats +0x7C, +0x84, +0x88), *(a0+0x24) the axis record (bytes +0x10, +0x12, +0x15, +0x96,
+#   floats +0x20, +0x54, +0x58, +0x5C), *(a0+0x2C) the band (floats +0x20, +0x24). a1 is only handed to 0x088BF1FC and
+#   a2 (two floats) to it as the t0 output and then written; neither is dereferenced here.
+0x088BF3BC reg:a0=struct:48 field:+0x8=ptr field:+0x14=ptr field:+0x24=ptr field:+0x2C=ptr
+# 0x08AE991C (a0 = {begin, end}): both words are entry indices into the 0x38-byte table at 0x08D40A3C (word +0 is the
+# begin, +4 the end), kept small so the walk stays inside the table block.
+0x08AE991C reg:a0=struct:16 field:+0x0=int:0..16 field:+0x4=int:0..16
+# 0x08BA86F4: a0 is the vector, its three words at +0 / +4 / +8 are pointers (begin, end, capacity) the body reads,
+# rewrites and frees; a1 = position, a2 = count, a3 = the value {word +0, control block +4}.
+0x08BA86F4 reg:a0=struct:0x10 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
+# zero takes the one-node path this shape keeps reachable; the populated path reads +0x3C / +0x40 as the element
+# array (12 bytes per element) and is left to a corpus case. a0 is the out object (only stored and handed to
+# 0x08A5BAB8), a2 the other container (word +0 and +4).
+0x08AAEE04 reg:a1=struct:0x40 field:+0x14=int:0..6 field:+0x38=int:0..0
+# Main-session batch 1020 (src/game/unsorted/new_batch_main_1020.cpp): one line per drafted function that dereferences
+# an argument register, asm evidence in the comment.
+# 0x088B3428: only stores into a0 (0x08CC30D0 at +0, 0 at +4 and again at +4 at the end), so the block just has to exist.
+0x088B3428 reg:a0=struct:8
+# 0x088D9178: the object whose deadline pair is +0x708 / +0x70C and whose time is +0x90 / +0x94; the four 0x2F8 cells
+# hang off the pointer at +0xC0 (beyond the 1024-byte cap, so only the first three fields are shaped).
+0x088D9178 reg:a0=struct:1024 field:+0x90=int:0..65535 field:+0x94=int:0..65535 field:+0xC0=ptr
+# 0x088D390C (a0 = p, a1 = self, a2 = out, a3 = mode): `lw a0, 0x0(a0)` is the handle 0x088DB5C4 and 0x088FAB84 take (it is
+# dereferenced, so it must be a valid pointer). self is only written (+0 / +4 / +8 / +0x154 / +0x15C / +0x160..+0x174), out's
+# three words are written, mode is only passed on.
+# 0x08A4E6F4: `lw s4,0x78(s1)` is the sprite-table object handed to 0x08A50634 / 0x08A50AC0, `lw v0,0x98(s1)` the
+#            16-byte entry array, `lw a0,0xA4(s1)` the texture object of the type-2 pass, and `lw v0,0x9C(s1)` bounds the
+#            loop (kept at 0..3 so the walk stays inside the arena).
+0x08A4E6F4 reg:a0=struct:1024 field:+0x78=ptr field:+0x98=ptr field:+0x9C=int:0..3 field:+0xA4=ptr
+# 0x08AACE40: `lw a0,0x80(s7)` is the special node the mode-0 path releases (0x08A69D3C) and the fill path replaces
+#            with the 0x08CB3374 node; the map searched by the inlined inserts sits at +0x68 and is left as arena data.
+0x08AACE40 reg:a0=struct:1024 field:+0x80=ptr
+# 0x0895DEC8: word(a0+8) is the car and word(a0+0xC) the state block, both dereferenced (car up to +0x6C4, state up
+# to +0x29C), so a0 is a pair of pointers.
+# 0x08C65724: byte-identical body to 0x08C6500C (only the name constant, the entry vtable and the
+# registration function differ).
+0x08C65724 reg:a2=struct:128 field:+0x6C=ptr
+# 0x08B39B80: `lw v1,0x0(a2)` is the status that picks the case (6, 7, 8 or 4, anything else ends at once),
+# and 0x08B398CC dereferences the same a2, so the node must be a real block with a small status word. a0 (the
+# result object, written at +0 / +4) and a1 (the parser context, only passed on) need no shape.
+0x08B39B80 reg:a2=struct:16 field:+0x0=int:0..9
 # points at the record whose +0x7E count, +0x64 / +0x68 / +0x6C floats and +0x20 float drive the walk. Real size 0xE4.
 # a1 (the request) is dereferenced too (+0x38 / +0x3C the object array, +0x60 the linked-list head) but the format takes
 # one register per address, so it keeps the generator's arena pointer.
@@ -1295,7 +1337,6 @@
 # 0x08BA86F4: a0 is the vector: begin at +0, end at +4 and capacity at +8 are all pointers the body reads,
 # rewrites and (on the growth path) frees; a1 is the position, a2 the count, a3 the value {word, pointer at +4}
 # whose +4 is the intrusive control object the body bumps and drops (count at +4, vtable at +0).
-0x08BA86F4 reg:a0=struct:0x10 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
 # counters at +0x1560, flag bytes at +0x1C34 / +0x1C35), +0x4 the holder whose +0x618 the entry update takes,
 # +0x8 the argument of 0x08918438 and +0x18 the object 0x088936DC answers for. a2 is the request (read up to
 # +0x70 and +0x50 + 2 * count), a1 is only handed on.
@@ -2140,3 +2181,14 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+0x08A876C8 reg:a0=struct:96
+0x08AABC8C reg:a0=struct:96
+0x08AAC154 reg:a0=struct:96
+0x08AAC67C reg:a0=struct:96
+0x08AAF634 reg:a0=struct:96
+0x08AAF674 reg:a0=struct:96
+# 0x08A730D8 / 0x08A87C28 / 0x08AB173C: lw s1,0(a1) is the holder's value, passed on; a0 is the output object.
+# 0x08B89338 / 0x08C49B00: a0 is the record vector (end pointer at +0x4); a1 and a2 are record ranges.
+# 0x088062D0: lw s0,0(a0) is the object pointer, null-checked and passed to the registrations.
+0x088062D0 reg:a0=struct:16 field:+0x0=ptr
