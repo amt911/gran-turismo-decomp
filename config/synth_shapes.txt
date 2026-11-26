@@ -2185,9 +2185,7 @@
 # Main-session batch 1611 (src/game/unsorted/new_batch_main_1611.cpp): one line per drafted function that dereferences
 # an argument register, asm evidence in the comment. The 28 thunks dereference nothing themselves (they pass a0/a1 on), so no line.
 # 0x08A84CD0: stores a1 at +0x14 and the vtable at +0 of a0 (after 0x08A76ACC(a0, a1)).
-0x08A84CD0 reg:a0=struct:32
 # 0x08A8548C: same shape as 0x08A84CD0 with vtable 0x08CB8578.
-0x08A8548C reg:a0=struct:32
 0x08A876C8 reg:a0=struct:96
 0x08AABC8C reg:a0=struct:96
 0x08AAC154 reg:a0=struct:96
