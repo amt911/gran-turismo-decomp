@@ -128,7 +128,6 @@ void convert_from_source(Runtime &rt, AllegrexContext &ctx, u32 lookup, u32 chec
     ctx.gpr[2] = call(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
 }
 
-
 // --- a float field of a looked-up object, 6 sites ---
 
 // 0x08981620 family (a0 = the output string, a1 unused, a2 = a count, a3 = pointer to the source object): with a count of at
@@ -172,7 +171,6 @@ void update_float_field(Runtime &rt, AllegrexContext &ctx, u32 lookup, u32 read_
     put_float(rt, holder + 0xF0u + write_offset, value);
     ctx.gpr[2] = call(rt, ctx, 0x08A5B9ECu, {frame.at(0u)});
 }
-
 
 // --- two indexed lookups forward to a virtual ---
 
@@ -323,30 +321,6 @@ void func_088A2274(Runtime &rt, AllegrexContext &ctx) {
         put(rt, to, word(rt, from));
     }
     tail_call(ctx, 0x08B3457Cu, {word(rt, self + 4u) + 4u});
-}
-
-// 0x088D2DE0 (f12 = angle): wraps the angle to [-pi, pi) with +-pi shifts, and hands anything outside [-3pi, 3pi] to the
-// modulo-2pi function 0x088D2D88 (f12 unchanged, a tail call). v0 unused, f0 = the wrapped angle.
-void func_088D2DE0(Runtime &rt, AllegrexContext &ctx) {
-    constexpr float kPi = 3.14159274101257324f;
-    const float value = ctx.fpr[12];
-    if (value < -kPi) {
-        if (value < -3.0f * kPi) {
-            tail_call(ctx, 0x088D2D88u, {});
-            return;
-        }
-        ctx.fpr[0] = value + kPi;
-        return;
-    }
-    if (value >= kPi) {
-        if (3.0f * kPi < value) {
-            tail_call(ctx, 0x088D2D88u, {});
-            return;
-        }
-        ctx.fpr[0] = value - kPi;
-        return;
-    }
-    ctx.fpr[0] = value;
 }
 
 // 0x08955AD0 (a0 = self, a1 = output vector, a2 = index, f12 = blend): interpolates the three floats of the record index*12 of
@@ -899,7 +873,6 @@ void func_08BD787C(Runtime &rt, AllegrexContext &ctx) { release_counted_and_disp
 NEW19(0x0880D054u, func_0880D054, Word);
 NEW19(0x0885BFE0u, func_0885BFE0, Word);
 NEW19(0x088A2274u, func_088A2274, Word);
-NEW19(0x088D2DE0u, func_088D2DE0, Float);
 NEW19(0x088D3DA0u, func_088D3DA0, Word);
 NEW19(0x08955AD0u, func_08955AD0, Word);
 NEW19(0x0898A220u, func_0898A220, Word);
