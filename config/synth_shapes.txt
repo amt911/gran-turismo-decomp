@@ -1565,6 +1565,19 @@
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
 
+# 0x08B3498C -> 0x08B34890: `lw v1, 0x20(s0)` (0x20 + 4 -> 0x24) and `sb ...` on the same object; a1 is masked to a byte.
+0x08B3498C reg:a0=struct:64
+# 0x08B1E2B4 -> 0x08B1E048: a0 is handed on as the second argument of 0x08B35FD8 (the name a table entry is matched
+# against).
+0x08B1E2B4 reg:a0=struct:64
+# 0x08B21CE0 -> 0x08B21C64: `lhu v0, 0x4(a0)`, so a0 must reach +0x6 (0x4 + 2 -> 0x8).
+0x08B21CE0 reg:a0=struct:16
+# 0x08B28BBC -> 0x08B28768: the body writes +0x57, +0x68, +0x6C; the callee reads the byte at +0x56 and writes +0x98
+# (0x98 + 1 -> 0x9C -> 0xA0). No field: the callee's vtable dispatch is guarded by the byte at +0x56, left zero.
+0x08B28BBC reg:a0=struct:160
+# 0x08AA03C0 -> 0x08AA027C: a1 is the object kept in s3 and a0 is the callee's own stack block, so the caller's a0 gets
+# the struct (0x3C bytes of the object are within the callee's reach; capped at 64).
+0x08AA03C0 reg:a0=struct:64
 # 0x08A707F4: `addiu $a1, $a1, 0x18` then `lw $s0, 0x0($a1)` inside func_08B88F44 — the member at +0x18 is the source object.
 0x08A707F4 reg:a1=struct:32 field:+0x18=ptr
 # 0x08A89B4C: the same with `addiu $a1, $a1, 0x14`.
