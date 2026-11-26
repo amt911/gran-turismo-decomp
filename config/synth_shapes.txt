@@ -2181,3 +2181,6 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+0x08C77004 reg:a0=struct:256
+0x08C771D4 reg:a0=struct:256
