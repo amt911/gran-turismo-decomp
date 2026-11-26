@@ -1126,6 +1126,13 @@
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
+# Main-session batch 1020 (src/game/unsorted/new_batch_main_1020.cpp): one line per drafted function that dereferences
+# an argument register, asm evidence in the comment.
+# 0x088B3428: only stores into a0 (0x08CC30D0 at +0, 0 at +4 and again at +4 at the end), so the block just has to exist.
+0x088B3428 reg:a0=struct:8
+# 0x088D9178: the object whose deadline pair is +0x708 / +0x70C and whose time is +0x90 / +0x94; the four 0x2F8 cells
+# hang off the pointer at +0xC0 (beyond the 1024-byte cap, so only the first three fields are shaped).
+0x088D9178 reg:a0=struct:1024 field:+0x90=int:0..65535 field:+0x94=int:0..65535 field:+0xC0=ptr
 # 0x088D390C (a0 = p, a1 = self, a2 = out, a3 = mode): `lw a0, 0x0(a0)` is the handle 0x088DB5C4 and 0x088FAB84 take (it is
 # dereferenced, so it must be a valid pointer). self is only written (+0 / +4 / +8 / +0x154 / +0x15C / +0x160..+0x174), out's
 # three words are written, mode is only passed on.
