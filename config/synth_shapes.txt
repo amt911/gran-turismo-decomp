@@ -1127,6 +1127,9 @@
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
 0x08B25968 reg:a0=struct:64 field:+0x0=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr field:+0x18=ptr field:+0x1C=ptr field:+0x20=int:0..15 field:+0x24=ptr field:+0x28=int:0..0
+# Main-session batch 1083 (new_batch_main_1083.cpp): 0x08B7CABC strtod. a1 is the string read byte by byte (lbu/lb at +0..), a2 the optional end pointer
+# stored at, a0 the reent struct (errno word at +0, allocator state through the callees).
+0x08B7CABC reg:a1=struct:64
 # 0x0895A2F8: a0 = object: +0 world (passed to 0x08959180), +8 state (many fields to +0x710), +0xC car (+0x270 wheels).
 0x0895A2F8 reg:a0=struct:16 field:+0x0=ptr field:+0x8=ptr field:+0xC=ptr
 # stores the new block's pointer there, so a0 must be a writable block; 16 bytes covers the word it writes), and the
@@ -2077,3 +2080,13 @@
 0x08A9E53C reg:a0=struct:64 field:+0x20=ptr
 0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
 0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
+
+# 0x08B4E878: a0 is the output block read and written at +0x30..+0x3C; a1 (matrix, +0..+0x2C) and a2 (vector, +0x30..+0x38)
+# are the same size but the shape format allows one reg: word per line.
+0x08B4E878 reg:a0=struct:64
+# 0x08AD2F20: writes the 16-bit fields at +4..+0xE and words up to +0x78 of a0.
+0x08AD2F20 reg:a0=struct:128
+# 0x08ABCEF0: the vtable goes to +0 and a zero byte to +0x84 of a0.
+0x08ABCEF0 reg:a0=struct:256
+# 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
+0x08B1A4F4 reg:a0=struct:16
