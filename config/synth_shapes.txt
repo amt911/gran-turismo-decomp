@@ -2079,3 +2079,13 @@
 0x08A9E53C reg:a0=struct:64 field:+0x20=ptr
 0x08A9E598 reg:a0=struct:64 field:+0x20=ptr
 0x08A9E5F4 reg:a0=struct:64 field:+0x20=ptr
+
+# 0x08B4E878: a0 is the output block read and written at +0x30..+0x3C; a1 (matrix, +0..+0x2C) and a2 (vector, +0x30..+0x38)
+# are the same size but the shape format allows one reg: word per line.
+0x08B4E878 reg:a0=struct:64
+# 0x08AD2F20: writes the 16-bit fields at +4..+0xE and words up to +0x78 of a0.
+0x08AD2F20 reg:a0=struct:128
+# 0x08ABCEF0: the vtable goes to +0 and a zero byte to +0x84 of a0.
+0x08ABCEF0 reg:a0=struct:256
+# 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
+0x08B1A4F4 reg:a0=struct:16
