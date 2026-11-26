@@ -531,7 +531,9 @@ void func_08A17818(Runtime &rt, AllegrexContext &ctx) {
         list = call(rt, ctx, 0x08A17698u);
         const u32 node = word(rt, list);
         if (node + 8u != 0x08CF6244u) {
-            call(rt, ctx, 0x08B855E0u, {0x08CF6244u});
+            // a1 = node + 8 (addiu a1, s0, 0x8 before the branch): the copy's source. Without it the copy read a stale
+            // a1 and the maker list lost its brand logos (Car Selection > By Manufacturer, 2026-11-26).
+            call(rt, ctx, 0x08B855E0u, {0x08CF6244u, node + 8u});
             if (node + 0xCu != 0x08CF6248u) {
                 const u32 first = word(rt, node + 0xCu);
                 if (first != 0u) call(rt, ctx, 0x08A5BA08u, {first});
@@ -551,8 +553,8 @@ void func_08A17818(Runtime &rt, AllegrexContext &ctx) {
             call(rt, ctx, 0x08B8542Cu, {value - 0xCu, frame.at(0x00u)});
         }
         call(rt, ctx, 0x08A5BC54u, {holder, 0x10u, 4u});
+        const u32 previous = word(rt, 0x08CF6244u);   // read in the allocation's delay slot, before the call
         const u32 allocated = call(rt, ctx, 0x08B62344u, {0x130u});
-        const u32 previous = word(rt, 0x08CF6244u);
         call(rt, ctx, 0x08B0DBF8u, {allocated});
         put(rt, allocated, 0x08CD05C0u);
         if (call(rt, ctx, 0x08B0EA48u, {allocated, previous}) != 0u) {
@@ -1437,19 +1439,24 @@ void func_088D8918(Runtime &rt, AllegrexContext &ctx) {
             fire = true;
         }
     } else {
-        // Arm one: the low word comes out of the 64-bit add helper, the high word is 1.
-        const u32 low = call(rt, ctx, 0x088D9C24u,
-                             {self, stored_high, word(rt, self + 0x90u), word(rt, self + 0x94u)});
+        // Arm one: the 64-bit add helper (now + 5) returns the deadline in v0 (low) and v1 (high); both are stored
+        // (sw v0, 0x700 / sw v1, 0x704). call() only hands back v0 (the callee runs on a copy of the context), so the
+        // high word comes from the GuestResult. A constant 1 as the high word put the deadline ~71 minutes ahead and
+        // the wait below never ended: the game hung on the GT logo when leaving a race's Starting Grid (2026-11-26).
+        const GuestResult deadline = call_guest(rt, ctx, 0x088D9C24u,
+                                                {self, stored_high, word(rt, self + 0x90u), word(rt, self + 0x94u)}, {});
+        const u32 low = deadline.v0;
+        const u32 high = deadline.v1;
         put(rt, self + 0x700u, low);
-        put(rt, self + 0x704u, 1u);
+        put(rt, self + 0x704u, high);
         if (flag == 0u) {
             ctx.gpr[2] = 0u;
             return;
         }
         const u32 now_high = word(rt, self + 0x94u);
-        if (static_cast<s32>(now_high) < 1) {
+        if (static_cast<s32>(now_high) < static_cast<s32>(high)) {
             fire = false;
-        } else if (static_cast<s32>(now_high) > 1) {
+        } else if (now_high != high) {
             fire = true;
         } else {
             fire = word(rt, self + 0x90u) >= low;
@@ -1459,7 +1466,7 @@ void func_088D8918(Runtime &rt, AllegrexContext &ctx) {
         // Wait for the deadline one frame at a time; 08B1A844 answering non-zero ends the wait early.
         for (;;) {
             if (call(rt, ctx, 0x08B1A844u) != 0u) break;
-            call(rt, ctx, 0x08B2E2B8u);
+            call(rt, ctx, 0x08B2E2B8u, {0x2710u});   // a0 = 10000 (addiu a0, zero, 0x2710 in the branch's delay slot)
             const u32 now_high = word(rt, self + 0x94u);
             const u32 deadline_high = word(rt, self + 0x704u);
             const u32 now_low = word(rt, self + 0x90u);
