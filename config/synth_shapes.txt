@@ -2182,6 +2182,12 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+0x08A876C8 reg:a0=struct:96
+0x08AABC8C reg:a0=struct:96
+0x08AAC154 reg:a0=struct:96
+0x08AAC67C reg:a0=struct:96
+0x08AAF634 reg:a0=struct:96
+0x08AAF674 reg:a0=struct:96
 # 0x08A730D8 / 0x08A87C28 / 0x08AB173C: lw s1,0(a1) is the holder's value, passed on; a0 is the output object.
 # 0x08B89338 / 0x08C49B00: a0 is the record vector (end pointer at +0x4); a1 and a2 are record ranges.
 # 0x088062D0: lw s0,0(a0) is the object pointer, null-checked and passed to the registrations.
