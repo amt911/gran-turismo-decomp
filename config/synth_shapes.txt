@@ -1576,6 +1576,52 @@
 0x08B22C3C reg:a0=struct:16
 0x08B26A9C reg:a0=struct:64
 0x08A71A2C reg:a0=struct:32
+# Input shapes for new_batch_main_1112.cpp (main-session batch 1112). One line per address; evidence from tools.disasm.
+# 0x08AF4CBC: lw v1,0(a0) is the vtable; slot +8 is called with (sp, a0).
+0x08AF4CBC reg:a0=struct:16 field:+0x0=ptr
+# 0x08AFB7E4: vtable word stored at +0 of a0.
+0x08AFB7E4 reg:a0=struct:16
+# 0x08B14BBC: vtable word stored at +0 of a0.
+0x08B14BBC reg:a0=struct:16
+# 0x08B208F0: a1 stored at +0 and the call's result at +4.
+0x08B208F0 reg:a0=struct:8
+# 0x08B28CA4: bytes at +0x28 and +0x29 cleared.
+0x08B28CA4 reg:a0=struct:48
+# 0x08B2AFB0: vtable word stored at +0 of a0.
+0x08B2AFB0 reg:a0=struct:16
+# 0x08B2E2E4: lw s0,0(a0) is the object tail-called with the other call's result.
+0x08B2E2E4 reg:a0=struct:16 field:+0x0=ptr
+# 0x08A5BBE0: lw v1,0x35AC(lui 0x2) relocated to the global 0x08CFFAAC, whose word is dereferenced at +0x10.
+# 0x08A75A54: lw v0,4(a1), then *(v0-4) is read and +4 passed to the call.
+0x08A75A54 reg:a1=struct:16 field:+0x4=ptr
+# 0x08AB2AE8: vtable at +0, zero word at +0x24.
+0x08AB2AE8 reg:a0=struct:40
+# 0x08AB5498: vtable at +0, zero word at +0x1C.
+0x08AB5498 reg:a0=struct:32
+# 0x08AB5E94: vtable at +0, zero word at +0x24.
+0x08AB5E94 reg:a0=struct:40
+# 0x08AC09A8: the pair at +0/+4 of a2 is copied into the stack block.
+0x08AC09A8 reg:a2=struct:16
+# 0x08AC84E4: vtable at +0, zero word at +0x18.
+0x08AC84E4 reg:a0=struct:32
+# 0x08AC8518: same body as 0x08AC84E4.
+0x08AC8518 reg:a0=struct:32
+# 0x08AD07EC: words at +0x360/+0x364 cleared, +0x368 passed to the tail call (real struct 0x370, capped at 1024).
+0x08AD07EC reg:a0=struct:1024
+# 0x08AFB64C: vtable at +0, zero word at +0xD4.
+0x08AFB64C reg:a0=struct:224
+# 0x08AFB680: same body as 0x08AFB64C.
+0x08AFB680 reg:a0=struct:224
+# 0x08B0CC38: vtable at +0, a0+0x20 passed to the tail call.
+0x08B0CC38 reg:a0=struct:0x40
+# 0x08B15F8C: vtable at +0, a0+0xF8 passed to the tail call.
+0x08B15F8C reg:a0=struct:0x100
+# 0x08B17C10: vtable at +0, a0+0xA0 passed to the tail call.
+0x08B17C10 reg:a0=struct:0xB0
+# 0x08B1A580: word at +0x5C and byte at +0x60 cleared, a0+0x2C passed to a call.
+0x08B1A580 reg:a0=struct:0x64
+# 0x08B1F844: vtable at +0, a0+0xC passed to the tail call.
+0x08B1F844 reg:a0=struct:16
 # Shapes for new_batch_main_1118 (one line per function address).
 # Copy ctors over 0x08A782D8: a1 is the copied object; its +0x10 head pointer is nulled so the base copy stays
 # shallow (a non-null one walks a linked node tree). a0 (this) is always a slot pointer.
