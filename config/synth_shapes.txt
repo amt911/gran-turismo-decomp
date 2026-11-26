@@ -1133,6 +1133,8 @@
 # 0x08AACE40: `lw a0,0x80(s7)` is the special node the mode-0 path releases (0x08A69D3C) and the fill path replaces
 #            with the 0x08CB3374 node; the map searched by the inlined inserts sits at +0x68 and is left as arena data.
 0x08AACE40 reg:a0=struct:1024 field:+0x80=ptr
+# 0x0895DEC8: word(a0+8) is the car and word(a0+0xC) the state block, both dereferenced (car up to +0x6C4, state up
+# to +0x29C), so a0 is a pair of pointers.
 # 0x08C65724: byte-identical body to 0x08C6500C (only the name constant, the entry vtable and the
 # registration function differ).
 0x08C65724 reg:a2=struct:128 field:+0x6C=ptr
