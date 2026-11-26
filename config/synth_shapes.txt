@@ -2179,3 +2179,23 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# Main-session batch 1610 (src/game/unsorted/new_batch_main_1610.cpp): one line per drafted function that dereferences an
+# argument register, asm evidence in the comment.
+# 0x08AF4B1C: lw v1,0(a0) is the object; its vtable slot 8 is called with a0 = a stack temporary (the object's vtable at +0).
+0x08AF4B1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08AF75DC: lhu +0x16 is the index, lw +0x1C is the base pointer (base + index * 32 is passed on).
+# 0x08917F78: the table word at a1 + a2 * 4 + 8 is passed on (a2 is an index).
+# 0x08AC0194: sw v0,0(a0) stores the vtable word into the object.
+0x08AC0194 reg:a0=struct:16
+# 0x08B48BFC: lw a0,0(a0) is a word whose value is 0, 1 or other.
+0x08B48BFC reg:a0=struct:16 field:+0x0=int:0..2
+# 0x08BBD380: the result is stored at a0 (output word).
+0x08BBD380 reg:a0=struct:16
+# 0x08BEF08C: the float copy reads from a0 and writes to a2 (both blocks).
+# 0x08B102D0: lw v0,0(s0) is the object's vtable; slot 0x3C is the tail call.
+0x08B102D0 reg:a0=struct:16 field:+0x0=ptr
+# 0x088D5AC8: the holder at a0 points at the word that gets the three halfwords (+0x30, +0x32, +0x34).
+0x088D5AC8 reg:a0=struct:16 field:+0x0=ptr
+# 0x088D5D54: the holder at a0 points at the words read for the three halfwords (+0x30, +0x32, +0x34).
+0x088D5D54 reg:a0=struct:16 field:+0x0=ptr
