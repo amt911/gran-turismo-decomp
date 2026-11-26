@@ -2179,3 +2179,30 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08AAFBB8: stores the halfword a1 at +0x14 of a0 and the vtable 0x08CD3838 at +0.
+0x08AAFBB8 reg:a0=struct:32
+# 0x08AB133C: stores the byte a1 at +0x14 of a0 and the vtable 0x08CD3728 at +0.
+0x08AB133C reg:a0=struct:32
+# 0x08AC08FC: lw a1+0 and a1+4 (an 8-byte value copied into a stack block).
+0x08AC08FC reg:a1=struct:8
+# 0x08AC093C: lw a1+0 and a1+4 (the same copy, placed at block +0x10).
+0x08AC093C reg:a1=struct:8
+# 0x08AC854C: stores a1 at +0x18 of a0 and the vtable 0x08CD67A0 at +0.
+0x08AC854C reg:a0=struct:32
+# 0x08B03408: lwc1 of the three floats at a2+0, +4, +8.
+0x08B03408 reg:a2=struct:12
+# 0x08B0E89C: stores the vtable 0x08CD7C68 at +0 of a0 and zero words at +0x104 and +0x108; the second call gets a0+0xF8.
+0x08B0E89C reg:a0=struct:272
+# 0x08B2BD78: stores zero words at +0x2C and +0x30 of a0.
+0x08B2BD78 reg:a0=struct:64
+# 0x08B372D4: stores a1 at +0x20 of a0 and the vtable 0x08CDA898 at +0.
+0x08B372D4 reg:a0=struct:48
+# 0x08A6D24C: stores the vtable 0x08CB7328 at +0 of a0; the tail call gets a0+0x14.
+0x08A6D24C reg:a0=struct:32
+# 0x08ABDEEC: lw 0x0(a0) is the object; its vtable slot 0x10 is called (slot target not built by the generator: draft only).
+0x08ABDEEC reg:a0=struct:16 field:+0x0=ptr
+# 0x08B4EAD4: writes the four words of a0 at +0, +4, +8, +0xC from the callee's output block.
+0x08B4EAD4 reg:a0=struct:16
+# 0x08B28ED4: lwc1 of a0+8 and the float write back to a0+8.
+0x08B28ED4 reg:a0=struct:16
