@@ -2170,3 +2170,45 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08B84938: t2 selects the bit pattern (no memory).
+# 0x0890B454: 0x0890B428 reads the count at a0+0x5C and indexes with a1 (12-byte rows from +0x44); the entry's byte +8 is read.
+# 0x089C7274: 0x089C7128 reads the table word a0+0x2C (and a0+0x14 via 0x08C00B08); the entry's word +0 is read.
+0x089C7274 reg:a0=struct:0x30 field:+0x2C=ptr
+# 0x08ADDABC: 0x08ADB314 compares word[a0] with 0x44584753, then the record's word +8 is read.
+# 0x08A5BB2C: word[a1] is passed to 0x08A5BAD8.
+0x08A5BB2C reg:a1=struct:0x10
+# 0x08ADDAE8: 0x08ADB314 compares word[a0] with 0x44584753, then the record's word +0xC is read.
+# 0x089557FC: 0x089557AC reads word[a0+8] and its byte +0x74B; that object's half +0x74C is the answer.
+0x089557FC reg:a0=struct:0x10 field:+0x8=ptr
+# 0x08AE1CBC: a0 is a table index for 0x08ADDCD4 (negative answers null); the record's half +0xEA is written.
+# 0x08AF27F4: 0x08AF27B4 reads word[a0] then its word +0x10; 0x08AF1280 reads the answer's word +4.
+0x08AF27F4 reg:a0=struct:0x10 field:+0x0=ptr
+# 0x088DF394: 0x088D9E58 reads byte a0+0x1E; this body reads byte a0+0x5B8 and writes byte a0+0x25.
+0x088DF394 reg:a0=struct:1024
+# 0x0892FABC: 0x0892F95C reads word[a0+0x10] (then its word +0) and uses a1/a2 as its selectors.
+# 0x089893A4: word[a0+0x1E0] is the object handed to 0x089CC068.
+0x089893A4 reg:a0=struct:0x1F0 field:+0x1E0=ptr
+# 0x08AF5630: the half +0x9A is a count and the word +0xA0 the table read by 0x08C3FD78.
+0x08AF5630 reg:a0=struct:0xB0 field:+0xA0=ptr
+# 0x088A7C20: 0x08AF569C reads word[a0] (then the structure), and this body reads word[a0+0x9C].
+0x088A7C20 reg:a0=struct:0xA0
+# 0x089327A0: the signed byte +0x10 is the selector.
+0x089327A0 reg:a0=struct:0x20 field:+0x10=int:0..255
+# 0x089556F4: word[a0] is passed to 0x0894D074 (its word +0xDC), and 0x08945ECC reads word[a0+8].
+0x089556F4 reg:a0=struct:0x10 field:+0x0=ptr
+# 0x08A934C4: word[a0+4] is the owner, whose word +0x30 is the object; its word +0x30 is read.
+0x08A934C4 reg:a0=struct:0x10 field:+0x4=ptr
+# 0x08B0B4CC: word[a0] must stay zero and word[a0+4] is the object handed to 0x08B0B448.
+0x08B0B4CC reg:a0=struct:0x10 field:+0x0=int:0..0 field:+0x4=ptr
+# 0x08935F88: the byte +0x10 is the selector (0xFF clears it) and 0x08935D44 writes the output at sp.
+0x08935F88 reg:a0=struct:0x20 field:+0x10=int:0..255
+# 0x08ABC9D0: word[a0] is the object whose vtable word +0x30 is tail-called.
+0x08ABC9D0 reg:a0=struct:0x10 field:+0x0=ptr
+# 0x08ACE9DC: the record is a0 + a1*236 (byte +0x41D and word +0x3E0), followed by 0x08ACE96C(a0, record + 0x334).
+# 0x08AD1700: the word +0x1C0 is cleared, 0x08AD1528 reads +0x40 and +0x1C0, and 0x08AD1660 reads +0x1C0.
+0x08AD1700 reg:a0=struct:0x1D0
+# 0x08AD1CE0: word[a0+0x1C] is the object whose vtable word +0x24 is called.
+0x08AD1CE0 reg:a0=struct:0x20 field:+0x1C=ptr
+# 0x08AD384C: 0x08AD3638 reads word[a0+0x1C] (kept null here); word[a0+0x30] is handed to 0x08B64654.
+0x08AD384C reg:a0=struct:0x40 field:+0x1C=int:0..0 field:+0x30=ptr
