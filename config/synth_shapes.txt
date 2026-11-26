@@ -1126,6 +1126,13 @@
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
+#   the axis state (byte +9, floats +0x7C, +0x84, +0x88), *(a0+0x24) the axis record (bytes +0x10, +0x12, +0x15, +0x96,
+#   floats +0x20, +0x54, +0x58, +0x5C), *(a0+0x2C) the band (floats +0x20, +0x24). a1 is only handed to 0x088BF1FC and
+#   a2 (two floats) to it as the t0 output and then written; neither is dereferenced here.
+0x088BF3BC reg:a0=struct:48 field:+0x8=ptr field:+0x14=ptr field:+0x24=ptr field:+0x2C=ptr
+# 0x08AE991C (a0 = {begin, end}): both words are entry indices into the 0x38-byte table at 0x08D40A3C (word +0 is the
+# begin, +4 the end), kept small so the walk stays inside the table block.
+0x08AE991C reg:a0=struct:16 field:+0x0=int:0..16 field:+0x4=int:0..16
 # 0x08BA86F4: a0 is the vector, its three words at +0 / +4 / +8 are pointers (begin, end, capacity) the body reads,
 # rewrites and frees; a1 = position, a2 = count, a3 = the value {word +0, control block +4}.
 0x08BA86F4 reg:a0=struct:0x10 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
