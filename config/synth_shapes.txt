@@ -1562,6 +1562,11 @@
 0x08A81494 reg:a0=struct:128
 0x08AB5084 reg:a0=struct:128
 0x08A5B690 reg:a0=struct:128
+# 0x08AFB814: a0 is the object the base constructor 0x08AFB4E8 and this function write (vtable at +0, members up to
+# +0x2C in the base).
+0x08AFB814 reg:a0=struct:64
+# 0x08B4CE38: a0 is read at +0/+4/+8/+0xC and written back by 0x08B4B864 (the quaternion multiply).
+0x08B4CE38 reg:a0=struct:16
 # 0x08A7B030: `sw v0,0x0(a0)` stores the vtable word; a0+0x18 and a0+0x1C are passed on.
 0x08A7B030 reg:a0=struct:64
 # 0x08A805AC: `sw v0,0x0(a0)` stores the vtable word; a0+0x14 and a0+0x18 are passed on.
