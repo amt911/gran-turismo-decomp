@@ -2179,3 +2179,22 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08885B90: a0 object; +0x190/+0x194 are released vtable objects (zero = skip); +0x6C list head zero; +0x184/+0x188 nodes.
+# 0x08939BF4: a0 object whose +4 must be zero for the body to run.
+# 0x089D0900: constructor writes the object; reads only the flag word at +0x14C.
+0x089D0900 reg:a0=struct:512 field:+0x14C=int:0..255
+# 0x08911A20: a0 source ref (+0 value, +4 counted object zero); a1 destination with an empty second field.
+# 0x088E939C: constructor writes the object only.
+0x088E939C reg:a0=struct:768
+# 0x0897F89C: a0 object with a list head at +0x1E4 (empty list: the head points to itself is not built; zero stays a null list).
+0x0897F89C reg:a0=struct:512 field:+0x1E4=ptr
+# 0x08A8DE58: a1 object; the counted pointers at +0x50/+0x58/+0x60/+0x68 are zero so only the list bookkeeping runs.
+# 0x08871794: constructor writes a three-part object (vtable at +0, parts at +0x4C and +0x28).
+0x08871794 reg:a0=struct:16
+# 0x08AF623C: a0 object with a block table pointer at +0x9C and a count halfword at +0x98; a2 is a record array.
+0x08AF623C reg:a0=struct:512 field:+0x98=int:0..2 field:+0x9C=ptr
+# 0x08AF54BC: same object shape as 0x08AF623C.
+0x08AF54BC reg:a0=struct:512 field:+0x98=int:0..2 field:+0x9C=ptr
+# 0x089E8964: constructor writes the object only.
+0x089E8964 reg:a0=struct:512
