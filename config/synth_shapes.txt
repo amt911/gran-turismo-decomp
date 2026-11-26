@@ -1558,6 +1558,44 @@
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
 
+# 0x08A707F4: `addiu $a1, $a1, 0x18` then `lw $s0, 0x0($a1)` inside func_08B88F44 — the member at +0x18 is the source object.
+0x08A707F4 reg:a1=struct:32 field:+0x18=ptr
+# 0x08A89B4C: the same with `addiu $a1, $a1, 0x14`.
+0x08A89B4C reg:a1=struct:24 field:+0x14=ptr
+# 0x08A9D2AC: func_08A9D0D4 starts with `lw $v0, 0x0($s3)` where s3 = a2, then `lw $v0, -0xC($v0)` (its length).
+0x08A9D2AC reg:a2=struct:16 field:+0x0=ptr
+# 0x08A9E300: `lw $a0, 0x20($a0)` in the call's delay slot is the object handed to func_08BEED1C (0x20 + 4 -> 0x24).
+0x08A9E300 reg:a0=struct:36 field:+0x20=ptr
+# 0x08A9E3FC: byte-identical prologue, the same `lw $a0, 0x20($a0)` now going to func_08B89054.
+0x08A9E3FC reg:a0=struct:36 field:+0x20=ptr
+# 0x08AA0668: the wrapper's a0 becomes the callee's a1 and reaches func_08A69B3C, which reads it as a C string
+# (`lb $v0, 0x0($a1)`); a zero byte takes the empty-string path.
+0x08AA0668 reg:a0=struct:4 field:+0x0=int:0..0
+# 0x08AA0A18: the same string argument, one layer deeper (a1 of func_08AA0984 -> a1 of func_08AA0690 -> func_08A69B3C).
+0x08AA0A18 reg:a0=struct:4 field:+0x0=int:0..0
+# 0x08AA5F7C / 0x08AA5FA8 / 0x08AA5FD4 / 0x08AA6000: func_08AA5D90 masks a1 and calls func_08AA5D2C, whose `lw $s0, 0x0($a0)`
+# is the object behind the vtable (a null one asserts).
+0x08AA5F7C reg:a0=struct:16 field:+0x0=ptr
+0x08AA5FD4 reg:a0=struct:16 field:+0x0=ptr
+0x08AA6000 reg:a0=struct:16 field:+0x0=ptr
+0x08AA6058 reg:a0=struct:16 field:+0x0=ptr
+# 0x08AA6084 / 0x08AA60AC: func_08AA5DE4 hands a0 straight to func_08AA5D2C's `lw $s0, 0x0($a0)`.
+0x08AA6084 reg:a0=struct:16 field:+0x0=ptr
+# 0x08AAB5B4 / 0x08AAB738: func_08B88F44 does `lw $s0, 0x0($a1)` — a1 is the refcounted object read at -0xC / -0x8 / -0x4;
+# a0 is only written (`sw $v0, 0x0($s1)`).
+0x08AAB5B4 reg:a1=struct:16 field:+0x0=ptr
+0x08AAB738 reg:a1=struct:16 field:+0x0=ptr
+# 0x08AAB654: func_08BEED1C starts with `lw $v1, 0x0($a0)` and reads -0xC($v1); a1 is the source chars, a2 the length.
+0x08AAB654 reg:a0=struct:16 field:+0x0=ptr
+# 0x08AC097C: a1 travels a1 -> a2 of func_08AC0880 -> a3 of func_08AC0F08, which reads +0x0 and +0x4 as a pair
+# (`lw $v0, 0x0($s3)` / `lw $v1, 0x4($s3)`); the wrapper's a0 is unused down that chain.
+0x08AC097C reg:a1=struct:8
+# 0x08B11A70: func_08B0CE24 writes +0x0 .. +0x24 of a0 and returns it, then +0x3C is cleared and +0x24 goes to func_08B17E84.
+0x08B11A70 reg:a0=struct:64
+# 0x08B4E758: func_08B4E734 copies 0x40 bytes from a1 into a0 (`lv.q 0x0..0x30($a1)`), so a1 is the 0x40-byte source block.
+0x08B4E758 reg:a1=struct:64
+# 0x08B577A8: func_08B57F14 reads a1's four words (+0x0 .. +0xC) as the packed values; no pointer among them.
+0x08B577A8 reg:a1=struct:16
 # main-1116 draft: a0 = writable object. Wrappers pass it on (struct:64), initialisers write +0 and +0x14 (struct:32), getters use this+0x4C (struct:256).
 0x08A7B168 reg:a0=struct:64
 0x08A7C3E4 reg:a0=struct:64
