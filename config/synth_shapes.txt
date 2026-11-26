@@ -2175,3 +2175,42 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# 0x08ADCDE8: a0 is the object handed to the 0x08ADB278 lookup (its +0x28 / +0x14 are followed); a3 is the optional
+# three-word out (the asm only guards it against zero). The object gets the slot, since the lookup runs first.
+0x08ADCDE8 reg:a0=struct:64 field:+0x0=ptr
+# 0x0886E888: a0 = self: the vtable at +0 and the block at +0x70 / +0x74, whose first word the tail call reads.
+0x0886E888 reg:a0=struct:128
+# 0x0886F51C: a0 = self: `lw v0,0x70(a0)` is the member whose +0x90 / +0x130..+0x13C are used; a2 is a text pointer only
+# read at its first byte; a3 is the tag or zero.
+0x0886F51C reg:a0=struct:128 field:+0x70=ptr
+# 0x0888A6AC: a0 = out, the two-word answer block (*out = the new object, out+4 = the shared vtable).
+0x0888A6AC reg:a0=struct:16
+# 0x0888A78C: byte-identical body to 0x0888A6AC.
+0x0888A78C reg:a0=struct:16
+# 0x08AE11A0: a0 is the object 0x08AEB808 enters and 0x08ADE328 collects into a stack scratch.
+0x08AE11A0 reg:a0=struct:64 field:+0x0=ptr
+# 0x08AE1338: the same shape, collected by 0x08ADE3A8.
+0x08AE1338 reg:a0=struct:64 field:+0x0=ptr
+# 0x08AE160C: the same shape, collected by 0x08ADE4AC.
+0x08AE160C reg:a0=struct:64 field:+0x0=ptr
+# 0x08B29CBC: a0 = the cipher state 0x08B2933C / 0x08B29348 / 0x08B2936C read; a2 / a1 are the byte buffers (a2 read,
+# a1 written) and a3 the length.
+0x08B29CBC reg:a0=struct:256 field:+0x0=ptr
+# 0x088DECFC: a0 = self: `lw a0,0xC0(a0)` is the table the 760-byte entries are taken from and `lw,0x134` the handler
+# whose virtual +0x90 runs.
+0x088DECFC reg:a0=struct:512 field:+0xC0=ptr field:+0x134=ptr
+# 0x08917D38: a0 = self: `lw a0,0xC(a0)` is the object whose +0x1FC7 / +0x1FCC / +0x1FCD bytes are read and written.
+0x08917D38 reg:a0=struct:16 field:+0xC=ptr
+# 0x08B01070: a1 = the container: `lw v0,0x60(a1)` is the record table (84-byte records, +0x52 names the next).
+0x08B01070 reg:a1=struct:128 field:+0x60=ptr
+# 0x0886057C: a0 = self: `lw a0,0(a0)` is the owner whose +0x3F50 table leads to the records; a3 is the value
+# 0x088975D0 fills the buffer with, a2 the 80-byte stride index.
+0x0886057C reg:a0=struct:16 field:+0x0=ptr
+# 0x0886AC1C: a0 = self: the vtable at +0, words up to +0x64 and bytes +0x20 / +0x63 are written; a1 is a text pointer
+# read at its first byte only.
+0x0886AC1C reg:a0=struct:128
+# 0x08ACF920: a0 = self: records written up to +0x5FC (the real struct is bigger than the 1024 cap).
+0x08ACF920 reg:a0=struct:1024
+# 0x08895C9C: a0 = self: the block at +0x1C, the shared member at +0x20, words up to +0x34 and bytes +0x18 / +0x30.
+0x08895C9C reg:a0=struct:64
