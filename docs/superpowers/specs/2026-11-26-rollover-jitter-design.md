@@ -1,6 +1,6 @@
 # Rollover: the car shakes while the simulation drives it — design
 
-Status: proposed 2026-11-26, waiting for the user's approval. Follows `2026-11-18-rollover-physics-design.md`
+Status: approved by the user 2026-11-26 ("vale, sigue"); phase 1 corrected the same day after reading FACTS (a draw-time write does not show). Follows `2026-11-18-rollover-physics-design.md`
 (rollover 0.5.0, `style = "realistic"`).
 
 ## Problem (user report 2026-11-26: "la física de rollovers tiembla mucho")
@@ -22,18 +22,24 @@ The rotation shows the same pattern: `kup` is non-zero in the same steps.
 
 ## Design
 
-### Phase 1 — draw the simulation's pose (mod only, no host change)
+### Phase 1 — write the simulation's pose after the game's step (mod only, no host change)
 
-The host already offers `GT_HOOK_CAR_DRAW`, which rewrites the pose just before drawing (MODS.md, API v7), and the mod
-does not use it yet. While the simulation drives:
+A write at `GT_HOOK_CAR_DRAW` does not work. FACTS "Rollover physics research", observation 1, shows that the camera
+and the car's draw matrix are built from the state after the world step, before the car-draw hook runs, and that a
+draw-time write leaves the frame byte-identical. The mod's world-step hook already calls `call_original` (the game's
+step) and can act after it returns, so while the simulation drives, the mod's world-step hook works like this:
 
-1. **Draw hook.** The mod registers `GT_HOOK_CAR_DRAW` and writes the simulation's current pose there: position, axes
-   and Euler angles from the quaternion, the same `car_set_pose` path `write_pose` uses. The velocity and rates stay
-   untouched, as MODS.md asks.
-2. **Pre-step write.** This stays as it is, so the physics state the game sees at the start of its step is unchanged.
+1. **Before `call_original`:** as today, it simulates one step and writes the simulated pose, so the game's step starts
+   from it and its contacts and suspension see the right pose.
+2. **Right after `call_original`:**
+   - It reads what the game's step did. That reading is the velocity change the barrier-hit detection uses (`sim_hit_dv`),
+     and the `kd`/`kup` the log measures. Both move here from the start of the next step.
+   - Then it writes the simulated pose again, with the same `car_set_pose`.
 
-The picture is then the simulation's, whatever the game's step does in between. Expected: the drawn pose equals the
-simulated one to float precision.
+The state the camera and the renderer read is then the simulation's pose. The next step starts from it as well
+(`kd` about 0).
+
+**Expected:** a gap of 0 m between the pose after the step and the simulated one, so the drawn car is the simulated car.
 
 ### Phase 2 — only if phase 1 leaves a visible effect (host API v8, research first)
 
@@ -47,10 +53,9 @@ designed before phase 1 is measured.
 
 ## Checks (in-game, `tools/mod_rollover_check.sh --sim`)
 
-- **New judge `drawn`.** While the simulation drives, the pose at the draw hook equals the simulated pose: position
-  within 1 cm and up vector within 0.001. The mod logs both from the hook.
-  - **Sabotage `--sabotage-nodraw`:** the hook is registered but writes nothing. The judge must fail, with the gap
-    near today's 0.27 m.
+- **New judge `poststep`.** While the simulation drives, the pose the next step starts from (`kd`) equals the
+  simulated pose: position within 1 cm and up vector within 0.001.
+  - **Sabotage `--sabotage-nopost`:** no post-step write. The judge must fail, with `kd` near today's 0.27 m.
 - **Existing judges.** The `barrier` and `pose` judges and the others keep passing.
 - **Frames.** A frame-to-frame comparison over the simulated steps measures the car's on-screen displacement against
   the simulation's motion, as the visible-jitter number before and after.
