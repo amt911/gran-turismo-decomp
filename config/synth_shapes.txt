@@ -1558,6 +1558,24 @@
 # 0x08AF4294: lw a1, 0x4(a1), else lw a1, 0x8(a1), is the object whose vtable slot 8 answers.
 0x08AF4294 reg:a1=struct:16 field:+0x4=ptr field:+0x8=ptr
 
+# 0x08A8066C: stores the vtable at +0, a1 and a2 are passed on; the object at +0x14..+0x18 is written through.
+0x08A8066C reg:a0=struct:64
+# 0x08A9E768: lw v0 = [a0+0x20] is the object of 0x08BEED1C; a0 is also returned.
+0x08A9E768 reg:a0=struct:64 field:+0x20=ptr
+# 0x08AA0A40: 0x08AA0690 is given a0 as its second argument; the result is returned.
+0x08AA0A40 reg:a0=struct:64
+# 0x08AB34FC: the object is written at +0..+0x2C (vtable, then a1, a2, a3, zero).
+0x08AB34FC reg:a0=struct:64
+# 0x08B09BF4: loads the pointer at +0 of a0, then writes +0x114 and +0x118 through it.
+0x08B09BF4 reg:a0=struct:32 field:+0x0=ptr
+# 0x08B1660C: vtable at +0, +0x10, +0xA0, +0xA4 written.
+0x08B1660C reg:a0=struct:256
+# 0x08B1FAB4: a0+0xC is the inner object for 0x08B344E0 and the tail call; a0 is passed on.
+0x08B1FAB4 reg:a0=struct:64
+# 0x08B32880: vtable at +0, zero words at +4/+8, bytes +0xC..+0x14 zero, +0x18 = block.
+0x08B32880 reg:a0=struct:64
+# 0x08AFAB1C: loads the words at +0x10, +0x14, +0x18, +0x1C of a0 for 0x08B52CE4; the inner object is a0+0x2C.
+0x08AFAB1C reg:a0=struct:64 field:+0x10=int:0..0 field:+0x14=int:0..0 field:+0x18=int:0..0 field:+0x1C=int:0..0
 # 0x08A82B8C: lw v0,0x18(a1) / lw v1,0x1C(a1) are copied into this+0x18/+0x1C.
 0x08A82B8C reg:a1=struct:0x20
 # 0x08A86FF4: the word from a1 goes to sp+0 and into the member at this+0x14; a0 is the constructed object.
