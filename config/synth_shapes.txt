@@ -2172,3 +2172,25 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+# Main-session batch 1577 (src/game/unsorted/new_batch_main_1577.cpp): one line per drafted function (all 30 read the record at +0 of a1).
+# Each body: word(a1) must be a pointer for the probe and 0x08A76F20 to be reached; a0 is passed through, not dereferenced here.
+0x08A3DAA0 reg:a1=struct:16 field:+0x0=ptr
+0x08A3F028 reg:a1=struct:16 field:+0x0=ptr
+0x08A3F140 reg:a1=struct:16 field:+0x0=ptr
+0x08A3F2B4 reg:a1=struct:16 field:+0x0=ptr
+0x08A40D78 reg:a1=struct:16 field:+0x0=ptr
+0x08A40F10 reg:a1=struct:16 field:+0x0=ptr
+0x08A44734 reg:a1=struct:16 field:+0x0=ptr
+0x08A52900 reg:a1=struct:16 field:+0x0=ptr
+0x08A5A5AC reg:a1=struct:16 field:+0x0=ptr
+0x08A61AA0 reg:a1=struct:16 field:+0x0=ptr
+0x08A68E3C reg:a1=struct:16 field:+0x0=ptr
+0x08A6ADD0 reg:a1=struct:16 field:+0x0=ptr
+0x08A6C490 reg:a1=struct:16 field:+0x0=ptr
+0x08A703B8 reg:a1=struct:16 field:+0x0=ptr
+0x08A81174 reg:a1=struct:16 field:+0x0=ptr
+0x08A85A50 reg:a1=struct:16 field:+0x0=ptr
+0x08A87D58 reg:a1=struct:16 field:+0x0=ptr
+0x08A88FC4 reg:a1=struct:16 field:+0x0=ptr
+0x08A8C318 reg:a1=struct:16 field:+0x0=ptr
