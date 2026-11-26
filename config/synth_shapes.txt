@@ -2175,3 +2175,62 @@
 0x08ABCEF0 reg:a0=struct:256
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
+
+#
+# 0x0885DF24: a0 is the object whose member at +0x5B4 is read and whose table at +0x5BC receives the node (real struct
+#   past 0x5BC, capped at 1024). a1/a2/a3/t0 are descriptor words, t1 a byte.
+0x0885DF24 reg:a0=struct:1024
+#
+# 0x088B42C8: a0 is the object written at +0..+0xC, with the halfword at +0x10 and the bytes at +0x12 / +0x13.
+0x088B42C8 reg:a0=struct:20
+#
+# 0x088D7158: a0 is the object read at +0x130 and +0x640 (real struct past 0x644, capped at 1024).
+0x088D7158 reg:a0=struct:1024
+#
+# 0x089BA420: a0 and a1 are both objects read through their vtable (word at +0); one reg per line, a0 first.
+0x089BA420 reg:a0=struct:4 field:+0x0=ptr
+#
+# 0x089CF190: a0 is the object with the pending indices at +0x1A0 / +0x198, the flags at +0x14C and +0x1C0
+#   (0x1C0 + 4 -> 0x1C4).
+0x089CF190 reg:a0=struct:452
+#
+# 0x08A1F520: a2 points at the holder pointer (only dereferenced when a1 == 1); a0 is unused.
+0x08A1F520 reg:a2=struct:4 field:+0x0=ptr
+#
+# 0x08A24C50: a0 is the object whose blocks at +0x68 / +0x64 are released and whose members at +0x34 / +0x10 are
+#   destroyed (0x68 + 4 -> 0x6C).
+0x08A24C50 reg:a0=struct:108
+#
+# 0x08A2D930: the guarded construction again (vtable +0, allocation +0x14, guard answer +0x18).
+0x08A2D930 reg:a0=struct:28
+#
+# 0x08A737EC / 0x08A96560: a0 only receives the field at +0x14; a3 points at the holder pointer (word at +0).
+0x08A737EC reg:a3=struct:4 field:+0x0=ptr
+0x08A96560 reg:a3=struct:4 field:+0x0=ptr
+#
+# 0x08A9FDA0 / 0x08AA0800: a0 is only returned / passed on; a1 is a value (0x08A9FDA0 falls back to the holder at
+#   0x08CF6FDC when it is null).
+0x08A9FDA0 reg:a0=struct:16
+0x08AA0800 reg:a0=struct:16
+#
+# 0x08AD5C34: a0 is the constructed object filled up to the byte at +0x10C (0x10C + 1 -> 0x110).
+0x08AD5C34 reg:a0=struct:272
+#
+# 0x08B2AD5C: a0 is the counted table written at +0, +4, +8 and +0xC.
+0x08B2AD5C reg:a0=struct:16
+#
+# 0x08B2C7E8: a0 holds the lock at +0x58, the list bounds at +4 / +8 and the first node at +0xC (0x58 + 4 -> 0x5C).
+0x08B2C7E8 reg:a0=struct:92 field:+0xC=ptr
+#
+# 0x08B41FAC: a0 is the object whose table at +0x8DC is walked (real struct past 0x8E0, capped at 1024).
+0x08B41FAC reg:a0=struct:1024
+#
+# 0x08B63924: a0 holds the words at +8 / +0xC and the kind byte at +0x14 (0x14 + 1 -> 0x18).
+0x08B63924 reg:a0=struct:24
+#
+# 0x08C49D08: a0's word at +4 is the record end; a1 (destination) and a2 (source) are 6-byte record buffers, one reg per
+#   line, so only the descriptor is described.
+0x08C49D08 reg:a0=struct:8
+#
+# 0x08818948: a2 points at the holder pointer (only read when a1 > 0); a0 is the destination value object.
+0x08818948 reg:a2=struct:4 field:+0x0=ptr
