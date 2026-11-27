@@ -2536,3 +2536,8 @@
 # 0x08A57784: this at a0, word stored at +0x1C
 # 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
+
+# 0x08929104: a0 is the object ("fp") every sub-initialiser is given a member of; the body writes +0x1F70..+0x21A0 and
+# the block at +0x2058 (+0x6C..+0x88, floats at +0x7C / +0x80, the word 3 at +0x84), so it must be a writable block.
+# Real size 0x21A8, capped at 1024 like the other big constructors.
+0x08929104 reg:a0=struct:1024
