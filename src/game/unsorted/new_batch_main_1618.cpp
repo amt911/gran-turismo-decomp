@@ -229,15 +229,6 @@ void func_08B28E38(Runtime &rt, AllegrexContext &ctx) {
 
 // 0x08B7B2E4 (a0 = a 0x5C-byte record): the callee-saved registers and f20..f31 are stored into it (no frame, nothing
 // restored). v0 = 0.
-void func_08B7B2E4(Runtime &rt, AllegrexContext &ctx) {
-    const u32 record = ctx.gpr[4];
-    for (unsigned index = 0u; index < 8u; ++index) put(rt, record + index * 4u, ctx.gpr[16u + index]);
-    put(rt, record + 0x20u, ctx.gpr[29]);
-    put(rt, record + 0x24u, ctx.gpr[30]);
-    put(rt, record + 0x28u, ctx.gpr[31]);
-    for (unsigned index = 0u; index < 12u; ++index) put_float(rt, record + 0x2Cu + index * 4u, ctx.fpr[20u + index]);
-    ctx.gpr[2] = 0u;
-}
 
 // 0x08C7A688 (a0 = this, a1 = source): the source's vtable word goes to this, its +0x20 goes to this + the offset the
 // vtable keeps at -0xC, its +0x24 to this + 8; then 0x08C786B4(this + 0xC, that +0x20 value) and 0x08C553B0(this, source + 4).
@@ -420,7 +411,6 @@ NEW1618(0x08A54ED4u, func_08A54ED4, Word);
 NEW1618(0x08A9E700u, func_08A9E700, Word);
 NEW1618(0x08AD0FD8u, func_08AD0FD8, Void);
 NEW1618(0x08B28E38u, func_08B28E38, Word);
-NEW1618(0x08B7B2E4u, func_08B7B2E4, Word);
 NEW1618(0x088D464Cu, func_088D464C, Word);
 NEW1618(0x089498F4u, func_089498F4, Word);
 NEW1618(0x08A12980u, func_08A12980, DoubleWord);
