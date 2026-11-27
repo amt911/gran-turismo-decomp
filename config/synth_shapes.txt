@@ -2193,7 +2193,6 @@
 # 0x0891A508: swc1 f0 stores 10.0f at a0+0xA8 after the call (a0 is the object, at least 0xAC bytes).
 0x0891A508 reg:a0=struct:176
 # 0x08A98250: sw v0 (the vtable) at 0(s0) = a0 after the call.
-0x08A98250 reg:a0=struct:16
 # Main-session batch 1610 (src/game/unsorted/new_batch_main_1610.cpp): one line per drafted function that dereferences an
 # argument register, asm evidence in the comment.
 # 0x08AF4B1C: lw v1,0(a0) is the object; its vtable slot 8 is called with a0 = a stack temporary (the object's vtable at +0).
