@@ -2291,6 +2291,10 @@
 # 0x1C4 + 1 -> 0x1C8 (456) is the whole extent touched here; the sub-objects at +0x28 .. +0x90 and
 # the block at +0x1B0 belong to the callees.
 0x08869900 reg:a0=struct:456
+# element virtuals (through a vtable the generator cannot build) are not called; +0x3C is the block 0x08A72B94 sizes and
+# releases, and +0x10 / +0x1C / +0x4C / +0x54 are the smart pointers 0x08A780B0 / 0x08A5B930 / 0x08A5B9EC read (zero keeps
+# their release paths out of a wild callee).
+0x08A63A6C reg:a0=struct:96 field:+0x10=int:0..0 field:+0x1C=int:0..0 field:+0x24=int:0..0 field:+0x28=int:0..0 field:+0x2C=int:0..0 field:+0x3C=ptr field:+0x4C=int:0..0 field:+0x54=int:0..0
 # 0x08808CC8: `sw v0,0(s0)` builds the object, then 0x08A76AB4(a0, sp) stores it at *a0 (0x08A5BAB8: sw v0,0(a0)).
 0x08808CC8 reg:a0=struct:16
 # 0x0884CC98: same final store through 0x08A76AB4(a0, sp); a0 is the slot the built 0x28-byte object goes into.
@@ -2300,3 +2304,7 @@
 # 0x0899CA0C: byte-identical shape, builder 0x0899C900 instead of 0x0899C6E0.
 0x0899CA0C reg:a0=struct:16
 # 0x089C3B74: same final store through 0x08965854 -> 0x089BA130 -> 0x08A76AB4; a0 is the slot, f12/f13 the floats.
+
+# 0x08993E5C: the object at a0 is written at +0, +0x38, +0x120..+0x14C and handed to 0x08A0D658; a1 is only stored as
+# the member's word by 0x08A17B10, never dereferenced here. Real struct 0x150.
+0x08993E5C reg:a0=struct:336
