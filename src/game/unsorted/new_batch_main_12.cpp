@@ -464,7 +464,7 @@ void func_08A6C528(Runtime &rt, AllegrexContext &ctx) {
     const u32 end = offset + length;
     u32 table = word(rt, self + 0x14u);
     if (end > word(rt, table - 0xCu)) {
-        call(rt, ctx, 0x08B86674u, {self + 0x14u});
+        call(rt, ctx, 0x08B86674u, {self + 0x14u, end, 0u});   // a1 = offset + length, a2 = 0 (the asm sets both)
         table = word(rt, self + 0x14u);
     }
     if (static_cast<s32>(word(rt, table - 4u)) >= 0) {
