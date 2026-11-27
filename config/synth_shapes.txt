@@ -2552,3 +2552,12 @@
 
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+# 0x089773D0: a0 is the indexed table base: base = a0 + 4*index (a1), the four signed byte counters live at
+#   base + 0x158 .. base + 0x15B (read, grown and shrunk here; a1 = -1 reaches +0x154). The bit-mask table read by the
+#   first loop is the static 0x08CDE7A8 (four words), not reachable from a register.
+0x089773D0 reg:a0=struct:1024
+# 0x089AA038: a0+0x58 and a0+0xB0 are the two rectangle bases (first indexed by 4*word(a0+0x5C), second by 64*word(a0+0xB4)),
+#   +0x60 is the flag 0x089A8C70 tests (byte) and +0x5C must be non-negative for it to answer 1. a1 receives the 16-byte
+#   result (a1 is one register only, so it stays the generator's slot pointer).
+0x089AA038 reg:a0=struct:1024 field:+0x58=ptr field:+0xB0=ptr field:+0x5C=int:0..3 field:+0xB4=int:0..3 field:+0x60=int:1..1
