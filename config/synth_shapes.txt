@@ -2428,7 +2428,6 @@
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
 # 0x0881A708: the sink 0x08A76AB4 (0x08A5BAB8) inserts the new block into the list header at a0 (+0 pointer, counters).
-0x0881A708 reg:a0=struct:32
 # 0x08920154: the constructor writes a0+0x0..+0x10 and the base 0x08925FE4 fills the same object.
 0x08920154 reg:a0=struct:32
 # 0x08A3346C: the constructor writes a0+0x0..+0x1C (vtable, bytes, halves).
