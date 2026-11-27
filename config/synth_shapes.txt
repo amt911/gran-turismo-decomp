@@ -2182,6 +2182,7 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+0x089B1124 reg:a0=struct:512
 # Synthetic-case input shapes, main-session batch 1620 (src/game/unsorted/new_batch_main_1620.cpp).
 # One line per address, one reg per line (host/synth_case.cpp); the asm evidence is the comment above each shape.
 # 0x0891E198: a0 is the object; fields written up to +0x238, the vtable at +0.
