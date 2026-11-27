@@ -2795,3 +2795,21 @@
 0x0885C704 reg:a0=struct:0x90 field:+0x0=ptr
 # 0x08A643B8: the object at +0x28 of a0 points to a record whose -4 is dereferenced.
 0x08A643B8 reg:a0=struct:0x3C field:+0x28=ptr
+
+# Synthetic-case input shapes for main-2081 (draft; one line per address).
+# 0x08A4DAA0: reads the flag word at +0x58 of a0, writes +0x28 and +0x3C.
+0x08A4DAA0 reg:a0=struct:96 field:+0x58=int:0..1023 field:+0x3C=int:0..255
+# 0x08B245FC: reads a1's +0x8, +0x10, +0x14 and writes the pair at a0.
+# 0x08B1B074: reads +0x28 and +0x2C of a0.
+0x08B1B074 reg:a0=struct:64 field:+0x28=int:0..3 field:+0x2C=int:0..3
+# 0x089FA1F4: writes a0 and reads the range at a1.
+# 0x08AA462C: reads the vtable pointer at +0 of a1.
+0x08AA462C reg:a1=struct:16 field:+0x0=ptr
+# 0x089D6418: writes the object at a0 (+0x24..+0x38).
+0x089D6418 reg:a0=struct:64
+# 0x08890A1C: reads the record pointer at +0 of a0.
+0x08890A1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08B0FF00: reads the two-word source at a3 and writes a0.
+# 0x08B0FFA4: the same as 0x08B0FF00.
+# 0x08AFA2BC: reads the list head at +0x34 of a0.
+0x08AFA2BC reg:a0=struct:64 field:+0x34=ptr
