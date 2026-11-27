@@ -95,6 +95,26 @@ def test_select_phase_b_needs_a_prologue_and_no_branch_into_the_middle():
     assert rejected[BASE + 0x40] == REASON_NO_EVIDENCE
 
 
+def test_select_phase_b_accepts_a_function_whose_own_branches_land_inside_it():
+    # 924 Phase B functions were refused as "entered-by-branch" only because of their own if/loop branches (2026-11-27): the spec
+    # refuses a branch from another function into the middle, never the function's own control flow.
+    words, funcs = lay([PROLOGUE] + RET + [NOP] * 5,                       # emitted
+                       [PROLOGUE, 0x24020001, 0x1440FFFF, NOP] + RET + [NOP] * 2)  # 0x20 dead: bnez $v0 back to 0x24 (own loop)
+    seeds, rejected = select(words, BASE, funcs, emitted={BASE}, elf_words=[], phase="B")
+    assert seeds == [BASE + 0x20]
+    assert rejected == {}
+
+
+def test_select_phase_b_still_refuses_a_branch_from_a_later_function_into_the_middle():
+    words, funcs = lay([PROLOGUE] + RET + [NOP] * 5,                       # emitted
+                       [PROLOGUE, 0x24020001, NOP, NOP] + RET + [NOP] * 2,  # 0x20 dead, prologue
+                       [PROLOGUE, NOP, NOP, NOP] + RET + [NOP] * 2)         # 0x40 dead, its branch goes back into 0x20's middle
+    words[0x40 // 4 + 1] = 0x10000000 | (((BASE + 0x28) - (BASE + 0x44) - 4) >> 2 & 0xFFFF)
+    seeds, rejected = select(words, BASE, funcs, emitted={BASE}, elf_words=[], phase="B")
+    assert rejected[BASE + 0x20] == "entered-by-branch"
+    assert BASE + 0x40 in seeds
+
+
 def test_write_seeds_and_read_seed_file_round_trip_elf_vaddrs(tmp_path: Path):
     write_seeds(tmp_path / "c" / "s.txt", [0x20, 0x10, 0x20])
     assert (tmp_path / "c" / "s.txt").read_text().splitlines()[-2:] == ["0x00000010", "0x00000020"]
