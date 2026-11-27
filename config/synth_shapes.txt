@@ -2411,3 +2411,8 @@
 # One line per address; the asm evidence is the comment above each shape.
 # 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
+
+#   the axis state (byte +9, floats +0x7C, +0x84, +0x88), *(a0+0x24) the axis record (bytes +0x10, +0x12, +0x15, +0x96,
+#   floats +0x20, +0x54, +0x58, +0x5C), *(a0+0x2C) the band (floats +0x20, +0x24). a1 is only handed to 0x088BF1FC and
+#   a2 (two floats) to it as the t0 output and then written; neither is dereferenced here.
+0x088BF3BC reg:a0=struct:48 field:+0x8=ptr field:+0x14=ptr field:+0x24=ptr field:+0x2C=ptr
