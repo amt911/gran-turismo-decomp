@@ -2501,7 +2501,6 @@
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
 # 0x088AD9E0: a0 = the eight 0x44-byte slots (+0x84 flags, +0x98 node, +0x70/+0x80 points, energy +0x48, limits +0x42C/+0x430), all past 1024.
-0x088AD9E0 reg:a0=struct:1024
 # 0x089A6CBC: stores the vtable and the embedded objects at +0x14..+0x38 of a0 (a 0x40-byte object).
 # 0x0891C290: a0 is written at +0x0..+0x84 (vtable, three embedded holders).
 # 0x089C1C94: a0 is written at +0x0..+0xE0 (vtable, blocks at +0x80 / +0x90 / +0xB0 / +0xD0, float constants).
