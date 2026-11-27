@@ -1126,6 +1126,22 @@
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
+# 0x08883E74: self is the record: +0x4C / +0x50 are the shared pointer it swaps and whose old block it releases (kept 0 so
+# the old one is not an arbitrary control block), +0x16F0 / +0x16EC / +0x16F4 its state words. Real size 0x16F8, capped;
+# +0x16F4 is past the cap and reads as the arena's zero, which takes the body (a non-zero one returns at once).
+0x08883E74 reg:a0=struct:1024 field:+0x4C=ptr field:+0x50=int:0..0
+# 0x08900A38: a0 is the constructed object (vtable words +0 / +4 / +8, floats and sub-objects up to +0x4B4). Real size
+# 0x4B8, capped.
+0x08900A38 reg:a0=struct:1024
+# 0x08BA82A8: a0 is the vector {block +0, begin +4, capacity +8} of 8-byte elements (a1 is the position, a3 the value
+# {word +0, shared-pointer control block +4}). Same convention as 0x08C0E874: only +0 is a pointer, so begin / capacity
+# stay small integers instead of pointing at unrelated blocks.
+0x08BA82A8 reg:a0=struct:16 field:+0x0=ptr
+# 0x08BA996C: byte-identical body to 0x08BA82A8, only the callees differ.
+0x08BA996C reg:a0=struct:16 field:+0x0=ptr
+# 0x08A930E8: a0 is the record whose +0x38 is the holder (word(+4) checked, vtable slot 0x11C called with it); a3 holds the
+# list node pointer (word(a3) walked, word(node + 8) is its string key).
+0x08A930E8 reg:a0=struct:64 field:+0x38=ptr
 # 0x088AD9E0: a0 = the eight 0x44-byte slots (+0x84 flags, +0x98 node, +0x70/+0x80 points, energy +0x48, limits +0x42C/+0x430), all past 1024.
 0x088AD9E0 reg:a0=struct:1024
 #   the axis state (byte +9, floats +0x7C, +0x84, +0x88), *(a0+0x24) the axis record (bytes +0x10, +0x12, +0x15, +0x96,
