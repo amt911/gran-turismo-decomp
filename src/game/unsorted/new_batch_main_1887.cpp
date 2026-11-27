@@ -56,37 +56,9 @@ s32 trunc_word(float value) {
 // 0x0894F0AC (a0 = object, f12 = angle in degrees): f20 = f12 * 0.017453293, clamped to the +-limit at the object
 // at *(a0+0xC)+0x78, stored at *(a0+8)+0x520, then the object is refreshed (0x089567C0) and the work continues in
 // a tail call to 0x0894E9C0 with a0.
-void func_0894F0AC(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    GuestFrame frame(ctx, 0x20u);
-    const float scale = std::bit_cast<float>(0x3C8EFA35u);
-    float angle = psp_mul(float_reg(ctx, 12), scale);
-    const u32 limits = word(rt, self + 0xCu);
-    const u32 holder = word(rt, self + 0x8u);
-    const float limit = float_at(rt, limits + 0x78u);
-    if (angle < -limit) {
-        angle = -limit;
-    } else if (limit < angle) {
-        angle = limit;
-    }
-    call(rt, ctx, 0x089567C0u, {self});
-    put_float(rt, holder + 0x520u, angle);
-    tail_call(ctx, 0x0894E9C0u, {self});
-}
 
 // 0x08951280 (a0 = object, a1 = pointer): fills a 0x230-byte frame through 0x08958324, then 0x0894C460 at +0x110,
 // 0x0895077C with the frame halves and 0x089511BC with the caller's pointer.
-void func_08951280(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 pointer = ctx.gpr[5];
-    GuestFrame frame(ctx, 0x230u);
-    const u32 inner = frame.at(0x20u);
-    const u32 outer = frame.at(0x110u);
-    call(rt, ctx, 0x08958324u, {frame.at(0u)});
-    call(rt, ctx, 0x0894C460u, {outer, self, 0u, 0u});
-    call(rt, ctx, 0x0895077Cu, {self, inner, outer, 0u});
-    call(rt, ctx, 0x089511BCu, {inner, outer, pointer});
-}
 
 // 0x08869900: builds the object at a0 (the 0x1A0 vtable, the 0x1A4 block, the 0x1B0 member) and marks +0x1C4.
 
@@ -280,8 +252,6 @@ void func_089C1C94(Runtime &rt, AllegrexContext &ctx) {
 
 #define NEW901(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1887::name, gt::ReturnKind::kind)
 NEW901(0x0891C290u, func_0891C290, Word);
-NEW901(0x0894F0ACu, func_0894F0AC, Word);
-NEW901(0x08951280u, func_08951280, Word);
 NEW901(0x089A6CBCu, func_089A6CBC, Word);
 NEW901(0x089C1C94u, func_089C1C94, Word);
 NEW901(0x089FA30Cu, func_089FA30C, Word);
