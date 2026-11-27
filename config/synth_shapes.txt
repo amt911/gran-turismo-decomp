@@ -2287,6 +2287,10 @@
 # 0x088062D0: lw s0,0(a0) is the object pointer, null-checked and passed to the registrations.
 0x088062D0 reg:a0=struct:16 field:+0x0=ptr
 
+# +0x1A0 (0x08CD70F8), the three words +0x1A4 / +0x1A8 / +0x1AC (zeroed) and the byte at +0x1C4 (1).
+# 0x1C4 + 1 -> 0x1C8 (456) is the whole extent touched here; the sub-objects at +0x28 .. +0x90 and
+# the block at +0x1B0 belong to the callees.
+0x08869900 reg:a0=struct:456
 # element virtuals (through a vtable the generator cannot build) are not called; +0x3C is the block 0x08A72B94 sizes and
 # releases, and +0x10 / +0x1C / +0x4C / +0x54 are the smart pointers 0x08A780B0 / 0x08A5B930 / 0x08A5B9EC read (zero keeps
 # their release paths out of a wild callee).
