@@ -2182,6 +2182,21 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+#
+# 0x08B5E2CC: a0 is the registry descriptor this function fills (+0 the value, +4 / +0xC the two 14-word tables, +8 the
+#   count, +0x10 the second table object).
+0x08B5E2CC reg:a0=struct:32
+# 0x08A67244 / 0x08A67454: `sb` at +4, `sw` vtable at +0 and a word at +4 of a0 (the tagged object, a three-word block).
+0x08A67244 reg:a0=struct:16
+# 0x08A67454: the same store shape with tag 0x28.
+0x08A67454 reg:a0=struct:16
+# 0x08ABCC1C: lw v0,0x0(a0) is the child object; its vtable (lw 0x0(child)) and slot 0x28 are read, a0 only holds the child.
+0x08ABCC1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08918340: lw a0,0xC(a0) is the member handed to 0x08927758.
+0x08918340 reg:a0=struct:16 field:+0xC=ptr
+# 0x0891A508: swc1 f0 stores 10.0f at a0+0xA8 after the call (a0 is the object, at least 0xAC bytes).
+0x0891A508 reg:a0=struct:176
+# 0x08A98250: sw v0 (the vtable) at 0(s0) = a0 after the call.
 # an argument register. Nested pointers (0885E81C: word(a0) then +0x5AC of that object; the 088A62xx accessors: index byte
 # at +8 of the table) are not expressible here: the pointee is zero-filled, so the index is 0.
 # 0x088D5A8C: stores a halfword at (word(a0) + 0x18).
@@ -2430,3 +2445,5 @@
 0x08A43C18 reg:a0=struct:96
 # 0x08A57784: this at a0, word stored at +0x1C
 0x08A57784 reg:a0=struct:64
+# 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
+# 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
