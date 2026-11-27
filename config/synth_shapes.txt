@@ -2182,6 +2182,9 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+0x08C127F0 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
+0x08C14B28 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
+0x08C29EE4 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
 # 0x088703D4: this at a0, its +0xC word is the body whose float at +0x84 is read and zeroed
 # 0x0894F0AC: this at a0; +0x8 is the list pointer (float stored at +0x520), +0xC the body (float at +0x78)
 # 0x089BEBDC: this at a0, fields written up to +0x2E0
