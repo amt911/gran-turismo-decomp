@@ -2284,3 +2284,7 @@
 # 0x0899CA0C: byte-identical shape, builder 0x0899C900 instead of 0x0899C6E0.
 0x0899CA0C reg:a0=struct:16
 # 0x089C3B74: same final store through 0x08965854 -> 0x089BA130 -> 0x08A76AB4; a0 is the slot, f12/f13 the floats.
+
+# 0x08993E5C: the object at a0 is written at +0, +0x38, +0x120..+0x14C and handed to 0x08A0D658; a1 is only stored as
+# the member's word by 0x08A17B10, never dereferenced here. Real struct 0x150.
+0x08993E5C reg:a0=struct:336
