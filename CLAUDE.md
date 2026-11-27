@@ -349,3 +349,32 @@ verification (synthetic gate, sabotage, canary before a PR) was the bottleneck. 
 - Verdict trees are full builds, so the boot canary is reliable there. Two desktop worktrees that link a prebuilt
   generated library (built for an older `src/`) could not boot main at all.
 - First run: batch 1086, synthetic 1/1, sabotage 1/1, canary clean, PR in about 12 minutes.
+
+## Call audit — `tools.call_audit` (user, 2026-11-26: "si funciona bien escríbelo en el claude.md")
+
+On 2026-11-26 two decompiled functions broke play under `--decomp on`, and none of the gates saw them:
+
+- `func_088D8918` hung the game on the GT logo after leaving a race's Starting Grid (#936).
+- `func_08A17818` lost the brand logos in Car Selection (#938).
+
+Both were a call missing an argument register: the deadline's high word (v1) dropped after `call()`, and a copy without
+its source `a1`. The callee runs on a copy of the caller's context, so it reads a stale register; synthetic cases then
+compare like with like, and a callee that sleeps is never compared at all.
+
+`.venv/bin/python -m tools.call_audit [FILE.cpp ...]` reads the C and the original asm and flags:
+- every call where the original writes an argument register that the callee reads but the C does not pass;
+- every read of `ctx.gpr[3]` after a v0-only `call()`.
+
+Run it with `frame_audit` on each batch: decomp workflow, step 5b. It is a lint: the analysis is linear and approximate,
+so each hit is checked against the asm.
+
+First run over `src/`:
+- **Before refining:** 2,448 hits, mostly false positives. The causes were family helpers taken for argument-less calls,
+  windows that crossed branches, stack spills, local `j` jumps, and unknown import stubs.
+- **After refining:** 9 hits (with the logo fix, #938), all triaged.
+  - 3 real bugs, fixed in #942: a wrong race index, a wrong reserve size, and a copy from the wrong matrix.
+  - 2 stale registers that held the right value, made explicit in #942.
+  - 4 known false positives: imports whose arity is unknown, and linear order around a loop test.
+
+The synthetic gate passes these bugs with or without their fixes (FINDINGS), so the audit is the only check that sees
+them.
