@@ -926,7 +926,7 @@ void func_08A641F4(Runtime &rt, AllegrexContext &ctx) {
     call_indirect(rt, ctx, word(rt, word(rt, object) + 0xD0u), {object, temporary, arg2, arg3});
     call(rt, ctx, 0x08A63F1Cu, {self, 0u});
     if (word(rt, self + 0x50u) == 1u) {
-        call(rt, ctx, 0x08A6158Cu);
+        call(rt, ctx, 0x08A6158Cu, {self});   // a0 = s1 = self (the stale a0 held it too)
         call_result(rt, ctx, 0x08A615D4u, {self, 0u});
     }
     ctx.gpr[2] = call(rt, ctx, 0x08A5B9ECu, {temporary});
