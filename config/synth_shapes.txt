@@ -2575,3 +2575,10 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+0x08A8C828 reg:a0=struct:128 field:+0x40=ptr
+0x08BE78E8 reg:a2=struct:96
+0x08998560 reg:a0=struct:400
+0x0892BD4C reg:a0=struct:640
+0x0887F600 reg:a0=struct:128
+0x088FF120 reg:a0=struct:16
