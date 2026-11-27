@@ -2572,3 +2572,5 @@
 # func_08907D6C read them); a1 is the output pointer array, a2 the limit, a3 the first index, f12 / f13 / f14 the
 # walk parameters.
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
+# 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
+0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr

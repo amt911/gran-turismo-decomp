@@ -9,7 +9,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_1117 {
+namespace new_batch_main_1881 {
 namespace {
 
 using namespace gt::game::hot;
@@ -99,7 +99,7 @@ void call_then_vtable(Runtime &rt, AllegrexContext &ctx, u32 callee, u32 vtable)
 
 // 0x08A6D24C (a0 = object, a1 = argument): calls 0x08A76ACC(this), vtable 0x08CB7328 at +0, then tail-calls 0x08B88F44(this+0x14, a1).
 
-}  // namespace new_batch_main_1117
+}  // namespace new_batch_main_1881
 }  // namespace gt::game
 
-#define NEWM(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1117::name, gt::ReturnKind::kind)
+#define NEWM(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1881::name, gt::ReturnKind::kind)
