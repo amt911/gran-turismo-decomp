@@ -2427,6 +2427,20 @@
 # 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
+# 0x0881A708: the sink 0x08A76AB4 (0x08A5BAB8) inserts the new block into the list header at a0 (+0 pointer, counters).
+# 0x08920154: the constructor writes a0+0x0..+0x10 and the base 0x08925FE4 fills the same object.
+0x08920154 reg:a0=struct:32
+# 0x08A3346C: the constructor writes a0+0x0..+0x1C (vtable, bytes, halves).
+0x08A3346C reg:a0=struct:32
+# 0x08A4449C: the constructor writes a0+0x0..+0x1C.
+0x08A4449C reg:a0=struct:32
+# 0x08A87E8C: the sink 0x08A76AB4 inserts the new block into the list header at a0.
+0x08A87E8C reg:a0=struct:32
+# 0x0884C52C: the constructor writes a0+0x0..+0x22 (vtable, words, halves).
+0x0884C52C reg:a0=struct:48
+# 0x08A4EE1C: the state row is 0xA8 bytes; +0x78 is the table member 0x08A50634 / 0x08A50288 read through,
+# +0x98 is the ring base the 16-byte entries are written at and +0x9C its count.
+0x08A4EE1C reg:a0=struct:192 field:+0x78=ptr field:+0x98=ptr field:+0x9C=int:0..8
 # 0x0881BAC0: a0 is `this`; the 30 records of 8 bytes at +0x354 (0x354 + 30 * 8 = 0x444, past the 1024-byte cap but inside
 # one 4 KiB block) are handed to 0x088A5EE0 / 0x088A6164 and written from sp by 0x088A6C18. a1..a3 and t0 are the key.
 # 0x08B73D9C: lw v0,0x74(a1) is the holder's pointer word, lw a1,0x4CC(a0) / 0x4CC(a1) / 0x4E4(a1) the counters; the scene at
