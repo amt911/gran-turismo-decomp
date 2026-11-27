@@ -2182,6 +2182,30 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+# an argument register. Nested pointers (0885E81C: word(a0) then +0x5AC of that object; the 088A62xx accessors: index byte
+# at +8 of the table) are not expressible here: the pointee is zero-filled, so the index is 0.
+# 0x088D5A8C: stores a halfword at (word(a0) + 0x18).
+0x088D5A8C reg:a0=struct:16 field:+0x0=ptr
+# 0x089833AC: floats at +0xA0 and +0xC0.
+0x089833AC reg:a0=struct:0xC4
+# 0x08A4D2D4: word at +0x78 is the argument of the call.
+0x08A4D2D4 reg:a0=struct:0x80 field:+0x78=ptr
+# 0x08AC3308 and 0x08B1A06C: word at +0 is the argument of the call.
+0x08AC3308 reg:a0=struct:4 field:+0x0=ptr
+# 0x0885E81C: word at +0 is the inner object (its +0x5AC is the argument; not expressible).
+0x0885E81C reg:a0=struct:4 field:+0x0=ptr
+# 0x0887F7C8: word at +0x74 is the argument base.
+0x0887F7C8 reg:a0=struct:0x78 field:+0x74=ptr
+# 0x088A62C4 .. 0x088A63F4: word at +0 is the record table (index byte at its +8, zero here).
+0x088A62C4 reg:a0=struct:4 field:+0x0=ptr
+0x088A62E4 reg:a0=struct:4 field:+0x0=ptr
+0x088A6304 reg:a0=struct:4 field:+0x0=ptr
+0x088A6324 reg:a0=struct:4 field:+0x0=ptr
+0x088A6344 reg:a0=struct:4 field:+0x0=ptr
+0x088A63D4 reg:a0=struct:4 field:+0x0=ptr
+0x088A63F4 reg:a0=struct:4 field:+0x0=ptr
+# 0x08A66AD0: stores at +0 and +4 of a0.
+0x08A66AD0 reg:a0=struct:16
 # Main-session batch 1610 (src/game/unsorted/new_batch_main_1610.cpp): one line per drafted function that dereferences an
 # argument register, asm evidence in the comment.
 # 0x08AF4B1C: lw v1,0(a0) is the object; its vtable slot 8 is called with a0 = a stack temporary (the object's vtable at +0).
