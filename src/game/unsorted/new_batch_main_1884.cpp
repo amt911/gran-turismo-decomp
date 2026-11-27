@@ -10,7 +10,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_1621 {
+namespace new_batch_main_1884 {
 namespace {
 
 using namespace gt::game::hot;
@@ -35,10 +35,59 @@ void put_byte(Runtime &rt, u32 address, u32 value) { rt.memory().store8(address,
 
 // 0x08A987EC (a0 = this, a1 = a count): vtable 0x08CB7108; this+0x14 / +0x18 / +0x1C take the block of count * 4 bytes
 // from 0x08A5BC20, then 0x08A76AA0(sp+4), 0x08B85AF4(block, count, sp+4, sp) and 0x08A5B9EC(sp+4). v0 = the block.
+void func_08A987EC(Runtime &rt, AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x30u);
+    const u32 self = ctx.gpr[4];
+    const u32 count = ctx.gpr[5];
+    const u32 bytes = count << 2;
+    const u32 out = frame.at(4u);
+    call(rt, ctx, 0x08A76ACCu, {self});
+    put(rt, self, 0x08CB7108u);
+    put(rt, self + 0x14u, 0u);
+    put(rt, self + 0x18u, 0u);
+    put(rt, self + 0x1Cu, 0u);
+    const u32 block = call(rt, ctx, 0x08A5BC20u, {bytes, 4u});
+    put(rt, self + 0x1Cu, block + bytes);
+    put(rt, self + 0x14u, block);
+    put(rt, self + 0x18u, block);
+    call(rt, ctx, 0x08A76AA0u, {out});
+    call(rt, ctx, 0x08B85AF4u, {block, count, out, frame.at(0u)});
+    call(rt, ctx, 0x08A5B9ECu, {out});
+    const u32 first = word(rt, self + 0x14u);
+    put(rt, self + 0x18u, bytes + first);
+    put_byte(rt, self + 0x20u, 0u);
+    ctx.gpr[2] = first;
+}
 
 // 0x08AD03EC (a0 = this): the object's fields are set (-2 at +0, flags at +4..+F, 4.0f at +0x42C, zeros in between),
 // 0x08B2DE38(sp, 0x20, 1) and 0x08B37640(this+0x11, 0x08CB49E0, sp) run, then 0x08CB4A00..+4 is copied to this+0x211
 // and the byte at 0x08CB4A04 to this+0x215; v0 = the word at 0x08CB4A00.
+void func_08AD03EC(Runtime &rt, AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x30u);
+    const u32 self = ctx.gpr[4];
+    put(rt, self, 0xFFFFFFFEu);
+    put(rt, self + 0x428u, 1u);
+    put(rt, self + 0x420u, 1u);
+    put(rt, self + 0x424u, 1u);
+    put_byte(rt, self + 0x10u, 1u);
+    put(rt, self + 0x42Cu, 0x40800000u);
+    put_byte(rt, self + 0xCu, 1u);
+    put(rt, self + 0x8u, 0x20u);
+    put_byte(rt, self + 0x4u, 0u);
+    put_byte(rt, self + 0x6u, 0u);
+    put_byte(rt, self + 0xDu, 0u);
+    put_byte(rt, self + 0xEu, 0u);
+    put_byte(rt, self + 0xFu, 0u);
+    put(rt, self + 0x414u, 0u);
+    put(rt, self + 0x418u, 0u);
+    put(rt, self + 0x41Cu, 0u);
+    put(rt, self + 0x430u, 0u);
+    call(rt, ctx, 0x08B2DE38u, {frame.at(0u), 0x20u, 1u});
+    call(rt, ctx, 0x08B37640u, {self + 0x11u, 0x08CB49E0u, frame.at(0u)});
+    for (u32 i = 0; i < 4u; ++i) put_byte(rt, self + 0x211u + i, byte_at(rt, 0x08CB4A00u + i));
+    put_byte(rt, self + 0x215u, byte_at(rt, 0x08CB4A04u));
+    ctx.gpr[2] = word(rt, 0x08CB4A00u);
+}
 
 // 0x0891C290 (a0 = this): vtable 0x08CC5CA0; the three embedded holders at +0x2C, +0x58, +0x84 are cleared by 0x089263EC
 // (each slot is set to 0x08CC6178 right after its call) and registered by 0x08926488 with the two strings, then the
@@ -69,6 +118,8 @@ void draft_08AFB_group(Runtime &rt, AllegrexContext &ctx) {
     call(rt, ctx, 0x08AFA88Cu, {self, a1, a2, a3, t0, t1, t2});
 }
 
+void func_08AFBB50(Runtime &rt, AllegrexContext &ctx) { draft_08AFB_group(rt, ctx); }
+void func_08AFBC0C(Runtime &rt, AllegrexContext &ctx) { draft_08AFB_group(rt, ctx); }
 
 // 0x08A63A6C (a0 = this): vtable 0x08CCB980; while the vector at +0x24..+0x28 is not empty, the last element (its vtable
 // slots 0xC and 4) is destroyed and the end pointer steps back by 4; then 0x08A72B94(this+0x3C-word, this), two 0x08A5B9EC
@@ -76,7 +127,11 @@ void draft_08AFB_group(Runtime &rt, AllegrexContext &ctx) {
 // +0x1C if not null, and the tail of the chain 0x08A780B0(this). v0 = the last call's result.
 
 }  // namespace
-}  // namespace new_batch_main_1621
+}  // namespace new_batch_main_1884
 }  // namespace gt::game
 
-#define NEW1621(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1621::name, gt::ReturnKind::kind)
+#define NEW1621(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1884::name, gt::ReturnKind::kind)
+NEW1621(0x08A987ECu, func_08A987EC, Word);
+NEW1621(0x08AD03ECu, func_08AD03EC, Word);
+NEW1621(0x08AFBB50u, func_08AFBB50, Word);
+NEW1621(0x08AFBC0Cu, func_08AFBC0C, Word);
