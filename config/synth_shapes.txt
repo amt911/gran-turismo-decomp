@@ -2308,3 +2308,7 @@
 # 0x08993E5C: the object at a0 is written at +0, +0x38, +0x120..+0x14C and handed to 0x08A0D658; a1 is only stored as
 # the member's word by 0x08A17B10, never dereferenced here. Real struct 0x150.
 0x08993E5C reg:a0=struct:336
+
+# 0x0885F22C: `lw v1,0x0(v0)` is the object (v0 = a0); its +0x4634 float is written and 0x0885F0B8's +0x18 float too.
+# The object is bigger than the 1024-byte shape cap, so its high fields stay the arena's own words.
+0x0885F22C reg:a0=struct:16 field:+0x0=ptr
