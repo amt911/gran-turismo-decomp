@@ -2574,3 +2574,10 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+# 0x08B03408: lwc1 at 0x0 / 0x4 / 0x8(a2) copies the float3 into the frame's float4 (the fourth word is the constant
+#   1.0f); a0/a1 are only passed on.
+0x08B03408 reg:a2=struct:16
+# 0x08A5D888: lw a0,0x18(a1) / lw a1,0x1C(a1) are copied into a0 (skipped when a0 == a1); a0 is only written, and a
+#   shape line carries one reg, so a1 is the one constrained.
+0x08A5D888 reg:a1=struct:32
