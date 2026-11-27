@@ -2424,3 +2424,10 @@
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
+
+# 0x08B4D994: a1 is A (lwc1 0x0..0x3C) and a2 is B (lwc1 0x0..0x28); a0 is the 4x4 output it stores (swc1 0x0..0x3C).
+# A is the shaped one so the products have a controlled left operand; B and the output are arena words.
+0x08B4D994 reg:a1=struct:64
+# 0x08AB8104: a0 is the table object (lw 0x1480(a0) count, entries of 0xA4 bytes); +0x1480 is past the 1024-byte shape cap,
+# so the count itself comes from arena data and only the low count values reach the entry paths.
+0x08AB8104 reg:a0=struct:1024
