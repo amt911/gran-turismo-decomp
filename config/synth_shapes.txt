@@ -2184,17 +2184,11 @@
 
 # 0x0894E614: the constructor writes 0 / +4 / +0xC / +0x10..+0x1C / +0x20 / +0xDC, and builds the members at +0x64 (0xE4
 # bytes in) and +0xE0. Real struct 0xE4, rounded to 256.
-0x0894E614 reg:a0=struct:256
 # 0x08956470: `lw v1,0x8(s0)` is the inner object whose +0x758 float is read.
-0x08956470 reg:a0=struct:16 field:+0x8=ptr
 # 0x089628B0: the object at +0 is read at +0, filled at +0x3C, and its members at +8 / +0x40 are built.
-0x089628B0 reg:a0=struct:64 field:+0x0=ptr
 # 0x08A3552C: vtable +0 is written and the members at +0x14..+0x24 are built.
-0x08A3552C reg:a0=struct:64
 # 0x08A3AA50: vtable +0, words +0x14..+0x2C and the two members at +0x30 / +0x34.
-0x08A3AA50 reg:a0=struct:64
 # 0x08A54ED4: vtable +0, the block at +0x38..+0x4C, and +0x50..+0x58.
-0x08A54ED4 reg:a0=struct:128
 # 0x08A9E700: `lw s1,0x20(s0)` is the object the formatted text is handed to.
 0x08A9E700 reg:a0=struct:64 field:+0x20=ptr
 # 0x08AD0FD8: a1 is read as three signed bytes at +0 / +1 / +2; a0 only receives three floats.
@@ -2204,13 +2198,9 @@
 # 0x08B7B2E4: the 0x5C-byte record receives s0-s7 / sp / fp / ra and f20-f31.
 0x08B7B2E4 reg:a0=struct:128
 # 0x089498F4: the signed half at +0x150 is saved and replaced and the byte at +0x155 is read. Real struct 0x158.
-0x089498F4 reg:a0=struct:512
 # 0x08A12980: the record's words +4 / +8 / +0x10 are read.
-0x08A12980 reg:a0=struct:32
 # 0x0884C5F4: vtable +0, +0x18 / +0x1C, halves +0x20 / +0x22.
-0x0884C5F4 reg:a0=struct:64
 # 0x089B41E8: vtable +0, table +0x38, word +0x60, and the members at +0x118..+0x120. Real struct 0x124.
-0x089B41E8 reg:a0=struct:512
 0x08C127F0 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
 0x08C14B28 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
 0x08C29EE4 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
