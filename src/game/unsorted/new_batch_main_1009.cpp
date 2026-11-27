@@ -277,86 +277,6 @@ void func_089D291C(Runtime &rt, AllegrexContext &ctx) {
 // count == 0, else the last call's.
 // The compared cases need a0 = a container whose +0 is a live block (shapes: a0 struct 16, +0 ptr) and a3 = a live
 // 12-byte range (shapes: a3 struct 16).
-void func_08C0E874(Runtime &rt, AllegrexContext &ctx) {
-    const u32 container = ctx.gpr[4];
-    const u32 position = ctx.gpr[5];
-    const u32 count = ctx.gpr[6];
-    const u32 elements = ctx.gpr[7];
-    GuestFrame frame(ctx, 0x60u);
-    put(rt, frame.at(0x20u), count);  // the `sw` in the count test's delay slot
-    if (count == 0u) return;
-    const u32 estimate =
-        static_cast<u32>(static_cast<s32>(word(rt, container + 8u) - word(rt, container + 4u)) >> 2) * kElementEstimate;
-    if (estimate < count) {
-        const u32 distance =
-            static_cast<u32>(static_cast<s32>(word(rt, container + 4u) - word(rt, container)) >> 2) * kElementEstimate;
-        put(rt, frame.at(0xCu), distance);
-        if (0x15555555u - distance < count) (void)call_set(rt, ctx, 0x08B5ADDCu, {0x08CA8644u});
-        const u32 limit = distance < count ? count : distance;
-        const u32 total = distance + limit;
-        const u32 bytes = total < distance ? 0xFFFFFFFCu : (total << 4) - (total << 2);
-        const u32 block = call_set(rt, ctx, 0x08A5BC20u, {bytes, 4u});
-        const u32 first = call_set(rt, ctx, 0x08C0E0F8u, {word(rt, container), position, block, frame.at(5u)});
-        const u32 middle = call_set(rt, ctx, 0x08C0E1ACu, {first, count, elements, frame.at(4u)});
-        (void)call_set(rt, ctx, 0x08C0E0F8u,
-                       {position, word(rt, container + 4u), (count << 4) - (count << 2) + middle, frame.at(3u)});
-        const u32 end_position =
-            call_set(rt, ctx, 0x08C0DC90u, {word(rt, container), word(rt, container + 4u), frame.at(2u)});
-        const u32 old_block = word(rt, container);
-        if (old_block != 0u)
-            (void)call_set(rt, ctx, 0x08A5BC54u,
-                           {old_block, static_cast<u32>(static_cast<s32>(word(rt, container + 8u) - old_block) >> 2) << 2,
-                            4u});
-        put(rt, container + 8u, block + bytes);
-        put(rt, container + 4u, end_position);
-        put(rt, container, block);
-        ctx.gpr[2] = block + bytes;
-        return;
-    }
-    const u32 range_begin = word(rt, elements);
-    const u32 range_size = insert_zero(word(rt, elements + 4u) - range_begin, 0u, 5u);
-    put(rt, frame.at(0x10u), 0u);
-    put(rt, frame.at(0x14u), 0u);
-    put(rt, frame.at(0x18u), 0u);
-    const u32 temp_block = call_set(rt, ctx, 0x08B35840u, {0x10u, range_size});
-    put(rt, frame.at(0x18u), temp_block + range_size);
-    put(rt, frame.at(0x10u), temp_block);
-    put(rt, frame.at(0x14u), temp_block);
-    const u32 guard_end = call_set(rt, ctx, 0x08C0D7F8u, {range_begin, word(rt, elements + 4u), temp_block, frame.at(1u)});
-    put(rt, frame.at(0x14u), guard_end);
-    const u32 begin = word(rt, container + 4u);
-    const u32 shifted = static_cast<u32>(static_cast<s32>(begin - position) >> 2);
-    const u32 ahead = shifted * kElementEstimate;
-    if (count < ahead) {
-        (void)call_set(rt, ctx, 0x08C0E054u, {begin - ((count << 4) - (count << 2)), begin, begin, frame.at(8u)});
-        const u32 moved = begin - ((count << 4) - (count << 2));
-        const u32 steps = static_cast<u32>(static_cast<s32>(moved - position) >> 2) * kElementEstimate;
-        put(rt, container + 4u, begin + ((count << 4) - (count << 2)));
-        if (steps > 0) {
-            u32 source = begin - 0xCu;
-            u32 target = moved - 0xCu;
-            for (u32 done = 0u;;) {
-                if (source != target) (void)call_set(rt, ctx, 0x08C0E654u, {source, target});
-                if (++done == steps) break;
-                source -= 0xCu;
-                target -= 0xCu;
-            }
-        }
-        (void)call_set(rt, ctx, 0x08C0E814u, {position, position + ((count << 4) - (count << 2)), frame.at(0x10u)});
-    } else {
-        const u32 guard = frame.at(0x10u);
-        (void)call_set(rt, ctx, 0x08C0E30Cu, {begin, count - ahead, guard, frame.at(7u)});
-        const u32 extra = count - ahead;
-        const u32 filled = word(rt, container + 4u) + ((extra << 4) - (extra << 2));
-        put(rt, container + 4u, filled);
-        (void)call_set(rt, ctx, 0x08C0E258u, {position, begin, filled, frame.at(6u)});
-        put(rt, container + 4u, word(rt, container + 4u) + (shifted << 2));
-        (void)call_set(rt, ctx, 0x08C0E814u, {position, begin, guard});
-    }
-    const u32 guard_block = word(rt, frame.at(0x10u));
-    (void)call_set(rt, ctx, 0x08BE5888u, {guard_block, word(rt, frame.at(0x14u)), frame.at(0u)});
-    if (guard_block != 0u) (void)call_set(rt, ctx, 0x08B35254u, {guard_block});
-}
 
 // 0x08990A1C(reader = a0): splits the text the reader's stream (a0->+0x12C) delivers into lines. 0x08A39BE0(stream,
 // buffer, 0x101) reads up to 0x101 bytes onto the frame (NUL-terminated at the returned length); the line counter is
@@ -552,6 +472,5 @@ void func_08A543C8(Runtime &rt, AllegrexContext &ctx) {
 #define NEW1009(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1009::name, gt::ReturnKind::kind)
 NEW1009(0x0891EB20u, func_0891EB20, Word);
 NEW1009(0x089D291Cu, func_089D291C, Word);
-NEW1009(0x08C0E874u, func_08C0E874, Word);
 NEW1009(0x08990A1Cu, func_08990A1C, Word);
 NEW1009(0x08A543C8u, func_08A543C8, Word);
