@@ -1713,7 +1713,7 @@ void func_0888B748(Runtime &rt, AllegrexContext &ctx) {
     const u32 kind = word(rt, call(rt, ctx, 0x088DA788u, {word(rt, self + 4u), key}) + 0x54u);
     if (rt.memory().load8(entry + 8u) == 0u) {
         if (call(rt, ctx, 0x088DC858u, {word(rt, self + 4u), key}) == 0u &&
-            call(rt, ctx, 0x088DB2C8u, {word(rt, self + 4u)}) != 0u && kind == 5u) {
+            call(rt, ctx, 0x088DB2C8u, {word(rt, self + 4u), key}) != 0u && kind == 5u) {
             put(rt, frame.at(0u), 0x23u);
             put(rt, frame.at(8u), key);
             call(rt, ctx, 0x088936A4u, {word(rt, self + 0x18u), frame.at(0u)});
