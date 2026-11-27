@@ -32,7 +32,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_1017 {
+namespace new_batch_main_1879 {
 namespace {
 
 using namespace gt::game::hot;
@@ -283,12 +283,43 @@ u32 select_remainder(Runtime &rt, AllegrexContext &ctx, u32 pair, u32 begin, u32
 
 // 0x08BA9DB8: the insertion through the mirror library's eight callees.
 // 0x08BDC338: the insertion through the second library's eight callees.
+void func_08BDC338(Runtime &rt, AllegrexContext &ctx) { insert_shared_values(rt, ctx, kInsertSecond); }
 
 // 0x08AE991C (a0 = {begin, end}, a1 = key, a2 = group, a3 = kind, t0 = wanted).
+void func_08AE991C(Runtime &rt, AllegrexContext &ctx) {
+    GuestFrame frame(ctx, 0x20u);
+    const u32 pair = ctx.gpr[4];
+    const u32 key = ctx.gpr[5];
+    const u32 group = ctx.gpr[6];
+    const s32 kind = static_cast<s32>(ctx.gpr[7]);
+    const s32 wanted_register = static_cast<s32>(ctx.gpr[8]);
+    const u32 wanted = static_cast<u32>(wanted_register < 1 ? 1 : wanted_register);
+    const u32 begin = word(rt, pair);
+    const u32 end = word(rt, pair + 4u);
+    if (kind == 1) {
+        ctx.gpr[2] = select_entry(rt, ctx, pair, begin, end, key, group, wanted, true);
+        return;
+    }
+    if (kind < 2) {
+        if (kind == 0) {
+            ctx.gpr[2] = select_entry(rt, ctx, pair, begin, end, key, group, wanted, false);
+            return;
+        }
+    } else if (kind == 2) {
+        ctx.gpr[2] = select_remainder(rt, ctx, pair, begin, end, key, group, wanted);
+        return;
+    }
+    // Out of range: -1, printed through 0x08AD83B8 when the global flag asks for it.
+    if ((word(rt, 0x08CDFB3Cu) & 1u) != 0u)
+        call(rt, ctx, 0x08AD83B8u, {word(rt, 0x08CDFB40u), 0x08C91AB4u, 0x1CBu, 0x08C91AE4u});
+    ctx.gpr[2] = 0xFFFFFFFFu;
+}
 
 // 0x08874820 (a0 = object, a1 = stream/table object, a2 = string).
 
-} // namespace new_batch_main_1017
+} // namespace new_batch_main_1879
 } // namespace gt::game
 
-#define NEW1017(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1017::name, gt::ReturnKind::kind)
+#define NEW1017(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1879::name, gt::ReturnKind::kind)
+NEW1017(0x08BDC338u, func_08BDC338, Word);
+NEW1017(0x08AE991Cu, func_08AE991C, Word);

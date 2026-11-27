@@ -2411,3 +2411,8 @@
 # One line per address; the asm evidence is the comment above each shape.
 # 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
+
+0x08BDC338 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0x8=ptr
+# 0x08AE991C (a0 = {begin, end}): both words are entry indices into the 0x38-byte table at 0x08D40A3C (word +0 is the
+# begin, +4 the end), kept small so the walk stays inside the table block.
+0x08AE991C reg:a0=struct:16 field:+0x0=int:0..16 field:+0x4=int:0..16
