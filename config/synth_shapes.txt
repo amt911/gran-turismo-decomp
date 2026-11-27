@@ -2424,3 +2424,6 @@
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
+
+# 0x08961784: flag byte at +0x48 gates the body; objects at +0x10 and +0x44 are dropped (count at +4 / +8).
+0x08961784 reg:a0=struct:128 field:+0x0=ptr field:+0x10=ptr field:+0x44=ptr field:+0x48=int:0..1
