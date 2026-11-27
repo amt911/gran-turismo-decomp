@@ -2411,3 +2411,18 @@
 # One line per address; the asm evidence is the comment above each shape.
 # 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
+
+# 0x0894F0AC: lw v0,0xC(a0) is the object whose +0x78 float bounds the angle; lw s1,0x8(a0) receives it at +0x520.
+0x0894F0AC reg:a0=struct:16 field:+0x8=ptr field:+0xC=ptr
+# 0x08951280: a0 goes to 0x0894C460/0x0895077C unchanged (the frame buffers are the outputs); a1 is only forwarded.
+0x08951280 reg:a0=struct:1024
+# 0x089FA30C: the same {begin, end, ..., flag} range read from a1.
+0x089FA30C reg:a1=struct:16 field:+0x0=ptr field:+0x4=ptr field:+0xC=int:0..64
+# 0x089A6CBC: the object written through +0x38 (0x3C <= 64); a1 is only stored on the frame for 0x089A32B4.
+0x089A6CBC reg:a0=struct:64
+# 0x08A188E0: the object written at +0x280..+0x28C (0x290 <= 1024); a0-a3 are forwarded to 0x08B2E05C.
+0x08A188E0 reg:a0=struct:1024
+# 0x0891C290: the object whose three +0x2C/+0x58/+0x84 blocks are built (a1 of each 0x08926488 is a table constant).
+0x0891C290 reg:a0=struct:1024
+# 0x089C1C94: the object built through +0xDC (0xE0 <= 256).
+0x089C1C94 reg:a0=struct:256
