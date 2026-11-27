@@ -1126,6 +1126,8 @@
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
+# 0x088AD9E0: a0 = the eight 0x44-byte slots (+0x84 flags, +0x98 node, +0x70/+0x80 points, energy +0x48, limits +0x42C/+0x430), all past 1024.
+0x088AD9E0 reg:a0=struct:1024
 #   the axis state (byte +9, floats +0x7C, +0x84, +0x88), *(a0+0x24) the axis record (bytes +0x10, +0x12, +0x15, +0x96,
 #   floats +0x20, +0x54, +0x58, +0x5C), *(a0+0x2C) the band (floats +0x20, +0x24). a1 is only handed to 0x088BF1FC and
 #   a2 (two floats) to it as the t0 output and then written; neither is dereferenced here.
@@ -2225,3 +2227,271 @@
 0x088FE08C reg:a0=struct:16
 # 0x088DBF0C: a0's +0x130 is the inner object, +0x5BF the flag, +0x5C4 the state, +0x640 the handle.
 0x088DBF0C reg:a0=struct:1024 field:+0x130=ptr
+#
+# 0x08B5E2CC: a0 is the registry descriptor this function fills (+0 the value, +4 / +0xC the two 14-word tables, +8 the
+#   count, +0x10 the second table object).
+0x08B5E2CC reg:a0=struct:32
+# 0x08A67244 / 0x08A67454: `sb` at +4, `sw` vtable at +0 and a word at +4 of a0 (the tagged object, a three-word block).
+0x08A67244 reg:a0=struct:16
+# 0x08A67454: the same store shape with tag 0x28.
+0x08A67454 reg:a0=struct:16
+# 0x08ABCC1C: lw v0,0x0(a0) is the child object; its vtable (lw 0x0(child)) and slot 0x28 are read, a0 only holds the child.
+0x08ABCC1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08918340: lw a0,0xC(a0) is the member handed to 0x08927758.
+0x08918340 reg:a0=struct:16 field:+0xC=ptr
+# 0x0891A508: swc1 f0 stores 10.0f at a0+0xA8 after the call (a0 is the object, at least 0xAC bytes).
+0x0891A508 reg:a0=struct:176
+# 0x08A98250: sw v0 (the vtable) at 0(s0) = a0 after the call.
+# an argument register. Nested pointers (0885E81C: word(a0) then +0x5AC of that object; the 088A62xx accessors: index byte
+# at +8 of the table) are not expressible here: the pointee is zero-filled, so the index is 0.
+# 0x088D5A8C: stores a halfword at (word(a0) + 0x18).
+0x088D5A8C reg:a0=struct:16 field:+0x0=ptr
+# 0x089833AC: floats at +0xA0 and +0xC0.
+0x089833AC reg:a0=struct:0xC4
+# 0x08A4D2D4: word at +0x78 is the argument of the call.
+0x08A4D2D4 reg:a0=struct:0x80 field:+0x78=ptr
+# 0x08AC3308 and 0x08B1A06C: word at +0 is the argument of the call.
+0x08AC3308 reg:a0=struct:4 field:+0x0=ptr
+# 0x0885E81C: word at +0 is the inner object (its +0x5AC is the argument; not expressible).
+0x0885E81C reg:a0=struct:4 field:+0x0=ptr
+# 0x0887F7C8: word at +0x74 is the argument base.
+0x0887F7C8 reg:a0=struct:0x78 field:+0x74=ptr
+# 0x088A62C4 .. 0x088A63F4: word at +0 is the record table (index byte at its +8, zero here).
+0x088A62C4 reg:a0=struct:4 field:+0x0=ptr
+0x088A62E4 reg:a0=struct:4 field:+0x0=ptr
+0x088A6304 reg:a0=struct:4 field:+0x0=ptr
+0x088A6324 reg:a0=struct:4 field:+0x0=ptr
+0x088A6344 reg:a0=struct:4 field:+0x0=ptr
+0x088A63D4 reg:a0=struct:4 field:+0x0=ptr
+0x088A63F4 reg:a0=struct:4 field:+0x0=ptr
+# 0x08A66AD0: stores at +0 and +4 of a0.
+0x08A66AD0 reg:a0=struct:16
+# Main-session batch 1610 (src/game/unsorted/new_batch_main_1610.cpp): one line per drafted function that dereferences an
+# argument register, asm evidence in the comment.
+# 0x08AF4B1C: lw v1,0(a0) is the object; its vtable slot 8 is called with a0 = a stack temporary (the object's vtable at +0).
+0x08AF4B1C reg:a0=struct:16 field:+0x0=ptr
+# 0x08AF75DC: lhu +0x16 is the index, lw +0x1C is the base pointer (base + index * 32 is passed on).
+# 0x08917F78: the table word at a1 + a2 * 4 + 8 is passed on (a2 is an index).
+# 0x08AC0194: sw v0,0(a0) stores the vtable word into the object.
+0x08AC0194 reg:a0=struct:16
+# 0x08B48BFC: lw a0,0(a0) is a word whose value is 0, 1 or other.
+0x08B48BFC reg:a0=struct:16 field:+0x0=int:0..2
+# 0x08BBD380: the result is stored at a0 (output word).
+0x08BBD380 reg:a0=struct:16
+# 0x08BEF08C: the float copy reads from a0 and writes to a2 (both blocks).
+# 0x08B102D0: lw v0,0(s0) is the object's vtable; slot 0x3C is the tail call.
+0x08B102D0 reg:a0=struct:16 field:+0x0=ptr
+# 0x088D5AC8: the holder at a0 points at the word that gets the three halfwords (+0x30, +0x32, +0x34).
+0x088D5AC8 reg:a0=struct:16 field:+0x0=ptr
+# 0x088D5D54: the holder at a0 points at the words read for the three halfwords (+0x30, +0x32, +0x34).
+0x088D5D54 reg:a0=struct:16 field:+0x0=ptr
+# 0x089B67AC..0x08A44C7C (18 "build then register" factories): a0 is the container the freshly built object is
+# registered with (func_08A76AB4(container, &block) and friends); the object itself comes from the allocator, so only
+# the container needs an object slot.
+0x089B67AC reg:a0=struct:16
+# 0x089B9828: the same factory shape.
+0x089B9828 reg:a0=struct:16
+# 0x089CC710: the same factory shape.
+0x089CC710 reg:a0=struct:16
+# 0x089D08B0: the same factory shape.
+0x089D08B0 reg:a0=struct:16
+# 0x089E23E0: the same factory shape.
+0x089E23E0 reg:a0=struct:16
+# 0x08A37CBC: the same factory shape.
+# 0x08A393EC: the same factory shape.
+# 0x08A39CCC: the same factory shape.
+# 0x08A3AE10: the same factory shape.
+# 0x08A3E6FC: the same factory shape.
+# 0x08A3F7F8: the same factory shape.
+# 0x08A3F898: the same factory shape.
+# 0x08A3F938: the same factory shape.
+# 0x08A402D4: the same factory shape.
+# 0x08A41118: the same factory shape.
+# 0x08A43BC8: the same factory shape.
+# 0x08A44C7C: the same factory shape.
+# 0x089FE4A8: a0 is the object itself: the vtable words go to +0 and +0x38, then the tail call func_08A17B10 writes
+# a1 at +0x120 and zero at +0x124..+0x130, so 0x140 bytes. a1 is stored, never dereferenced (a plain value).
+0x089FE4A8 reg:a0=struct:0x140
+# 0x08A4DE78: sb 0x24(a0), sw 0x20(a0), and the base constructor 0x08B36290 writes the head of the same object.
+# 0x0899A984: halfwords cleared up to +0x12A, two vtable words written.
+# 0x089FF1C0: members up to +0x98 and a sub-object built at +0x78 from this.
+# 0x08A03D58: floats at +0x20..+0x2C and -1 at +0x30.
+0x08A03D58 reg:a0=struct:64
+# 0x08A1A8C0: members at +0x64, +0x90 and sub-objects at +0x68 / +0x44 / +0x30.
+# 0x08A32B74: sw zero,0x42C(a0); capped at 1024.
+# 0x0894E614: the constructor writes 0 / +4 / +0xC / +0x10..+0x1C / +0x20 / +0xDC, and builds the members at +0x64 (0xE4
+# bytes in) and +0xE0. Real struct 0xE4, rounded to 256.
+# 0x08956470: `lw v1,0x8(s0)` is the inner object whose +0x758 float is read.
+# 0x089628B0: the object at +0 is read at +0, filled at +0x3C, and its members at +8 / +0x40 are built.
+# 0x08A3552C: vtable +0 is written and the members at +0x14..+0x24 are built.
+# 0x08A3AA50: vtable +0, words +0x14..+0x2C and the two members at +0x30 / +0x34.
+# 0x08A54ED4: vtable +0, the block at +0x38..+0x4C, and +0x50..+0x58.
+# 0x08A9E700: `lw s1,0x20(s0)` is the object the formatted text is handed to.
+0x08A9E700 reg:a0=struct:64 field:+0x20=ptr
+# 0x08AD0FD8: a1 is read as three signed bytes at +0 / +1 / +2; a0 only receives three floats.
+0x08AD0FD8 reg:a1=struct:16
+# 0x08B28E38: the float at +8 is read and the one at +0 is accumulated.
+0x08B28E38 reg:a0=struct:16
+# 0x08B7B2E4: the 0x5C-byte record receives s0-s7 / sp / fp / ra and f20-f31.
+0x08B7B2E4 reg:a0=struct:128
+# 0x089498F4: the signed half at +0x150 is saved and replaced and the byte at +0x155 is read. Real struct 0x158.
+# 0x08A12980: the record's words +4 / +8 / +0x10 are read.
+# 0x0884C5F4: vtable +0, +0x18 / +0x1C, halves +0x20 / +0x22.
+# 0x089B41E8: vtable +0, table +0x38, word +0x60, and the members at +0x118..+0x120. Real struct 0x124.
+0x08C127F0 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
+0x08C14B28 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
+0x08C29EE4 reg:a2=struct:16 field:+0x0=ptr field:+0x4=ptr
+# 0x088703D4: this at a0, its +0xC word is the body whose float at +0x84 is read and zeroed
+# 0x0894F0AC: this at a0; +0x8 is the list pointer (float stored at +0x520), +0xC the body (float at +0x78)
+# 0x089BEBDC: this at a0, fields written up to +0x2E0
+# 0x089D8DB0: this at a0, fields written up to +0xA8
+# 0x089F6128: this at a0, fields written up to +0xA0
+# 0x08A0FE50: this at a0, flags word at +0x60, sub-objects at +0x64..+0x74
+# 0x08A1A794: this at a0, fields written up to +0x24
+# 0x08A43C18: this at a0, list heads at +0x14 / +0x2C, +0x44 written
+# 0x08A57784: this at a0, word stored at +0x1C
+# 0x0881BAC0: a0 is `this`; the 30 records of 8 bytes at +0x354 (0x354 + 30 * 8 = 0x444, past the 1024-byte cap but inside
+# one 4 KiB block) are handed to 0x088A5EE0 / 0x088A6164 and written from sp by 0x088A6C18. a1..a3 and t0 are the key.
+0x0881BAC0 reg:a0=struct:1024
+# 0x08B73D9C: lw v0,0x74(a1) is the holder's pointer word, lw a1,0x4CC(a0) / 0x4CC(a1) / 0x4E4(a1) the counters; the scene at
+# a0 and the holder at a1 are both walked four words at a time for 306 table bytes (0x4E8 > the cap, inside one block).
+0x08B73D9C reg:a0=struct:1024
+# 0x08996CBC: swc1 f12,0x20(a0) and the accumulation at 0x20(a0); the rest of the object is only handed to 0x08996A18.
+0x08996CBC reg:a0=struct:32
+# 0x08A72364: lw v0,0x0(a0) is the vtable, its +0x108 the virtual that runs, and +0x38 the object replaced.
+0x08A72364 reg:a0=struct:64 field:+0x0=ptr
+# 0x08BD48FC: lw v1,0x10(a0) picks the path (3, 2 or else), lw at +0xC is the record index (negative walks them all),
+# lw at +0x4 the object whose +0x30 is the 0x30-byte record table and +0x10 its u16 count, +0x14 the signed byte key and
+# +0x18 the float handed to 0x08AF2978.
+0x08BD48FC reg:a0=struct:32 field:+0x4=ptr field:+0x10=int:0..3
+# 0x089A6CBC: stores the vtable and the embedded objects at +0x14..+0x38 of a0 (a 0x40-byte object).
+# 0x0891C290: a0 is written at +0x0..+0x84 (vtable, three embedded holders).
+# 0x089C1C94: a0 is written at +0x0..+0xE0 (vtable, blocks at +0x80 / +0x90 / +0xB0 / +0xD0, float constants).
+# 0x08AFBB50: a0 is written at +0x0..+0xE0 (vtables, two zero words) and passed on to 0x08AFA88C.
+0x08AFBB50 reg:a0=struct:224
+# 0x08AFBC0C: the same as 0x08AFBB50.
+0x08AFBC0C reg:a0=struct:224
+# 0x08AAFBB8: stores the halfword a1 at +0x14 of a0 and the vtable 0x08CD3838 at +0.
+# 0x08AB133C: stores the byte a1 at +0x14 of a0 and the vtable 0x08CD3728 at +0.
+# 0x08AC08FC: lw a1+0 and a1+4 (an 8-byte value copied into a stack block).
+0x08AC08FC reg:a1=struct:8
+# 0x08AC093C: lw a1+0 and a1+4 (the same copy, placed at block +0x10).
+0x08AC093C reg:a1=struct:8
+# 0x08AC854C: stores a1 at +0x18 of a0 and the vtable 0x08CD67A0 at +0.
+# 0x08B03408: lwc1 of the three floats at a2+0, +4, +8.
+0x08B03408 reg:a2=struct:12
+# 0x08B0E89C: stores the vtable 0x08CD7C68 at +0 of a0 and zero words at +0x104 and +0x108; the second call gets a0+0xF8.
+# 0x08B2BD78: stores zero words at +0x2C and +0x30 of a0.
+0x08B2BD78 reg:a0=struct:64
+# 0x08B372D4: stores a1 at +0x20 of a0 and the vtable 0x08CDA898 at +0.
+# 0x08A6D24C: stores the vtable 0x08CB7328 at +0 of a0; the tail call gets a0+0x14.
+0x08A6D24C reg:a0=struct:32
+# 0x08ABDEEC: lw 0x0(a0) is the object; its vtable slot 0x10 is called (slot target not built by the generator: draft only).
+0x08ABDEEC reg:a0=struct:16 field:+0x0=ptr
+# 0x08B4EAD4: writes the four words of a0 at +0, +4, +8, +0xC from the callee's output block.
+0x08B4EAD4 reg:a0=struct:16
+# 0x08B28ED4: lwc1 of a0+8 and the float write back to a0+8.
+0x08B28ED4 reg:a0=struct:16
+0x089B1124 reg:a0=struct:512
+# Synthetic-case input shapes, main-session batch 1620 (src/game/unsorted/new_batch_main_1620.cpp).
+# One line per address, one reg per line (host/synth_case.cpp); the asm evidence is the comment above each shape.
+# 0x0891E198: a0 is the object; fields written up to +0x238, the vtable at +0.
+# 0x08932B74: a0 is read at +0x40 and +0x44 (ints passed on); a1..t0 are output words the callee fills (not shaped).
+0x08932B74 reg:a0=struct:80 field:+0x40=int:0..255 field:+0x44=int:0..255
+# 0x0897D930: a1 is the source of nine words at +0x0..+0x20 copied into the object (a0, written up to +0x34).
+# 0x08A5102C: a0 is the object; fields written up to +0x5D.
+# 0x08AC2168: a0 is the out slot (one word written).
+# 0x0892145C: a0 is the object; fields written up to +0x35.
+# 0x089CBA20: a0 is the object; fields written up to +0x160.
+# 0x089FA008: a0 is the object; words at +0..+0xC written.
+# 0x08A7DC44: a0 is an object whose word at +0 is the vtable; slot 0x118 is called (target unresolved, may be skipped).
+0x08A7DC44 reg:a0=struct:288 field:+0x0=ptr
+# 0x08B56FD8: a0 is a 4x4 float matrix; twelve of its words are read (+0..+0x2C).
+0x08B56FD8 reg:a0=struct:48
+# 0x08896970: a0 is the object; fields written up to +0x100.
+# 0x08AFB6B4: a0 is the object; word +0 written (the vtable).
+0x08AFB6B4 reg:a0=struct:16
+# 0x08AFB74C: as 0x08AFB6B4.
+0x08AFB74C reg:a0=struct:16
+# 0x08A5CCA8: a0 is the object; word +0 written.
+0x08A5CCA8 reg:a0=struct:8
+# 0x08A75B38: a0 is the object; words +0..+8 written.
+0x08A75B38 reg:a0=struct:16
+# 0x08898DB4: a0 is the object; fields written up to +0x40.
+# 0x088CEDC4: a0 is the object; fields written up to +0x158.
+# 0x0898D3DC: a0 is the object; fields written up to +0x1F8.
+# 0x08A24DAC: a0 is the object; fields written up to +0x8C.
+# 0x08B4AE1C: a1 is a point (two floats read at +0 / +4).
+0x08B4AE1C reg:a1=struct:8
+0x08C77004 reg:a0=struct:256
+0x08C771D4 reg:a0=struct:256
+# Main-session batch 1626 (src/game/unsorted/new_batch_main_1626.cpp): one line per drafted function that dereferences an argument register.
+# 0x08984608: the object at a0 gets the vtable, stores at +0x0..+0xEC and sub-objects (0x08964224 / 0x0896418C).
+0x08984608 reg:a0=struct:512
+# Main-session batch 1611 (src/game/unsorted/new_batch_main_1611.cpp): one line per drafted function that dereferences
+# an argument register, asm evidence in the comment. The 28 thunks dereference nothing themselves (they pass a0/a1 on), so no line.
+# 0x08A84CD0: stores a1 at +0x14 and the vtable at +0 of a0 (after 0x08A76ACC(a0, a1)).
+# 0x08A8548C: same shape as 0x08A84CD0 with vtable 0x08CB8578.
+0x08A876C8 reg:a0=struct:96
+0x08AABC8C reg:a0=struct:96
+0x08AAC154 reg:a0=struct:96
+0x08AAC67C reg:a0=struct:96
+0x08AAF634 reg:a0=struct:96
+0x08AAF674 reg:a0=struct:96
+# 0x08A730D8 / 0x08A87C28 / 0x08AB173C: lw s1,0(a1) is the holder's value, passed on; a0 is the output object.
+# 0x08B89338 / 0x08C49B00: a0 is the record vector (end pointer at +0x4); a1 and a2 are record ranges.
+# 0x088062D0: lw s0,0(a0) is the object pointer, null-checked and passed to the registrations.
+0x088062D0 reg:a0=struct:16 field:+0x0=ptr
+
+# +0x1A0 (0x08CD70F8), the three words +0x1A4 / +0x1A8 / +0x1AC (zeroed) and the byte at +0x1C4 (1).
+# 0x1C4 + 1 -> 0x1C8 (456) is the whole extent touched here; the sub-objects at +0x28 .. +0x90 and
+# the block at +0x1B0 belong to the callees.
+0x08869900 reg:a0=struct:456
+# element virtuals (through a vtable the generator cannot build) are not called; +0x3C is the block 0x08A72B94 sizes and
+# releases, and +0x10 / +0x1C / +0x4C / +0x54 are the smart pointers 0x08A780B0 / 0x08A5B930 / 0x08A5B9EC read (zero keeps
+# their release paths out of a wild callee).
+0x08A63A6C reg:a0=struct:96 field:+0x10=int:0..0 field:+0x1C=int:0..0 field:+0x24=int:0..0 field:+0x28=int:0..0 field:+0x2C=int:0..0 field:+0x3C=ptr field:+0x4C=int:0..0 field:+0x54=int:0..0
+# 0x08808CC8: `sw v0,0(s0)` builds the object, then 0x08A76AB4(a0, sp) stores it at *a0 (0x08A5BAB8: sw v0,0(a0)).
+0x08808CC8 reg:a0=struct:16
+# 0x0884CC98: same final store through 0x08A76AB4(a0, sp); a0 is the slot the built 0x28-byte object goes into.
+0x0884CC98 reg:a0=struct:16
+# 0x0899C7F4: same final store through 0x089BA130 -> 0x08A76AB4 -> 0x08A5BAB8; a0 is the slot.
+0x0899C7F4 reg:a0=struct:16
+# 0x0899CA0C: byte-identical shape, builder 0x0899C900 instead of 0x0899C6E0.
+0x0899CA0C reg:a0=struct:16
+# 0x089C3B74: same final store through 0x08965854 -> 0x089BA130 -> 0x08A76AB4; a0 is the slot, f12/f13 the floats.
+
+# 0x08993E5C: the object at a0 is written at +0, +0x38, +0x120..+0x14C and handed to 0x08A0D658; a1 is only stored as
+# the member's word by 0x08A17B10, never dereferenced here. Real struct 0x150.
+0x08993E5C reg:a0=struct:336
+
+# 0x0885F22C: `lw v1,0x0(v0)` is the object (v0 = a0); its +0x4634 float is written and 0x0885F0B8's +0x18 float too.
+# The object is bigger than the 1024-byte shape cap, so its high fields stay the arena's own words.
+
+# One line per address; the asm evidence is the comment above each shape.
+# 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
+# virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
+
+# 0x0881BAC0: a0 is `this`; the 30 records of 8 bytes at +0x354 (0x354 + 30 * 8 = 0x444, past the 1024-byte cap but inside
+# one 4 KiB block) are handed to 0x088A5EE0 / 0x088A6164 and written from sp by 0x088A6C18. a1..a3 and t0 are the key.
+# 0x08B73D9C: lw v0,0x74(a1) is the holder's pointer word, lw a1,0x4CC(a0) / 0x4CC(a1) / 0x4E4(a1) the counters; the scene at
+# a0 and the holder at a1 are both walked four words at a time for 306 table bytes (0x4E8 > the cap, inside one block).
+# 0x08996CBC: swc1 f12,0x20(a0) and the accumulation at 0x20(a0); the rest of the object is only handed to 0x08996A18.
+# 0x089CB2B4: the four containers at +0x12C, +0x138, +0x144 and +0x150 (begin, end at +4, capacity at +8) and the vtable
+# words at +0 and +0x38; the highest field is +0x158.
+0x089CB2B4 reg:a0=struct:352
+# 0x08A72364: lw v0,0x0(a0) is the vtable, its +0x108 the virtual that runs, and +0x38 the object replaced.
+# 0x08BD48FC: lw v1,0x10(a0) picks the path (3, 2 or else), lw at +0xC is the record index (negative walks them all),
+# lw at +0x4 the object whose +0x30 is the 0x30-byte record table and +0x10 its u16 count, +0x14 the signed byte key and
+# +0x18 the float handed to 0x08AF2978.
+# 0x088703D4: this at a0, its +0xC word is the body whose float at +0x84 is read and zeroed
+# 0x0894F0AC: this at a0; +0x8 is the list pointer (float stored at +0x520), +0xC the body (float at +0x78)
+# 0x089BEBDC: this at a0, fields written up to +0x2E0
+# 0x089D8DB0: this at a0, fields written up to +0xA8
+# 0x089F6128: this at a0, fields written up to +0xA0
+# 0x08A0FE50: this at a0, flags word at +0x60, sub-objects at +0x64..+0x74
+# 0x08A1A794: this at a0, fields written up to +0x24
+# 0x08A43C18: this at a0, list heads at +0x14 / +0x2C, +0x44 written
+# 0x08A57784: this at a0, word stored at +0x1C
+# 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
+# 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).

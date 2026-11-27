@@ -154,6 +154,11 @@ never per function. Settings measured and decided by the user on 2026-10-12:
   5. **Frame audit**: `.venv/bin/python -m tools.frame_audit FILE.cpp` (no file: every `src/**/*.cpp`) must
      report 0 wrong. The gate does not see stack layout, so a `GuestFrame` size that differs from the
      original's `addiu $sp, $sp, -N` passes it and its sabotage (FINDINGS).
+  5b. **Call audit**: `.venv/bin/python -m tools.call_audit FILE.cpp` must report no new finding for the batch's
+     functions. It flags a call that passes fewer argument registers than the original sets for a callee that reads
+     them, and a read of v1 after a v0-only `call()`. Both are invisible to the gates: the callee runs on a copy of
+     the caller's context, so it reads a stale register, and a callee that sleeps is never compared. Two such bugs
+     broke play on 2026-11-26 (FINDINGS). It is a lint: each hit is checked against the asm.
   6. Restore, full gate, update README counts + ROADMAP, regenerate the progress map, commit
      (`feat(src/game): N more hot functions — … (diff T functions, 0 mismatches)`), PR, merge.
 - **Branches the gate did not take** (`tools.decomp_gate coverage TAG --only ...`): the fast gate proves only the paths its
