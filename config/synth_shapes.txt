@@ -2574,3 +2574,8 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+#   own +4 / +8 and released through the vtable at +0: slot +8 then +0xC), the dirty flag byte at +0x14 (the lbu that
+#   gates the whole body) and the mutex id at +0x18. The virtuals are followed through the +0 word, so a synthetic vtable
+#   is a slot pointer like the rest; the real class instance the gate picks as a0 needs no shape.
+0x089614D8 reg:a0=struct:32 field:+0x0=ptr field:+0x8=ptr field:+0xC=ptr field:+0x10=ptr field:+0x14=int:1..1
