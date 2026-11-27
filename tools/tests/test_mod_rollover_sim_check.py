@@ -5,10 +5,11 @@ import pytest
 from tools import mod_rollover_sim_check as sc
 
 
-def sim(st, n, pos=(-300.0, 250.0, 1.0), vel=(0.0, 0.0, 0.0), w=(0.0, 0.0, 0.0), upz=1.0, lowest=0.0, contacts=4, bottom=4, ground=0.0, E=0.0, comz=1.0, kd=(0.0, 0.0)):
+def sim(st, n, pos=(-300.0, 250.0, 1.0), vel=(0.0, 0.0, 0.0), w=(0.0, 0.0, 0.0), upz=1.0, lowest=0.0, contacts=4, bottom=4, ground=0.0, E=0.0, comz=1.0, kd=(0.0, 0.0),
+        kstep=None):
     f = lambda v: ",".join(f"{x:.3f}" for x in v)  # noqa: E731
     return (f"[mod:rollover] SIM st={st} n={n} pos={f(pos)} vel={f(vel)} w={f(w)} up.z={upz:.3f} lowest={lowest:.3f} contacts={contacts}/{bottom} ground={ground:.3f} "
-            f"E={E:.0f} com.z={comz:.3f} kd={kd[0]:.4f},{kd[1]:.4f}")
+            f"E={E:.0f} com.z={comz:.3f} kd={kd[0]:.4f},{kd[1]:.4f}" + ("" if kstep is None else f" kstep={kstep:.4f}"))
 
 
 def st_line(st, speed=30.0, upz=1.0, since=0, pos=(-300.0, 250.0, 1.0)):
@@ -176,3 +177,27 @@ def test_replay_pairs_by_steps_since_takeover():
     assert "no REPLAY start" in sc.judge_replay("\n".join(live))[1]
     no_rep_takeover = ["[mod:rollover] REPLAY start"]
     assert "no takeover in the replay" in sc.judge_replay("\n".join(live + no_rep_takeover))[1]
+
+
+def test_poststep_the_simulated_pose_survives_the_games_step():
+    v = 12.0
+    step = v / 60
+    # rollover >= 0.5.1: the mod rewrites the pose after the game's step; the next step starts from it (kd ~0) while the game's step moved it (kstep ~ v/60)
+    good = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(0.0001, 0.0), kstep=step) for n in range(1, 40))
+    ok, why = sc.judge_poststep(sc.parse_sim(good))
+    assert ok, why
+    assert "0.2000" in why  # the game's own motion, now undone, is reported
+    # the post-step write missing (sabotage 17): the car is drawn one step of motion off (the 2026-11-26 shake)
+    shaky = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(step, 0.002), kstep=step) for n in range(1, 40))
+    ok, why = sc.judge_poststep(sc.parse_sim(shaky))
+    assert not ok and "drawn" in why
+    twisted = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(0.0, 0.01), kstep=step) for n in range(1, 40))
+    assert not sc.judge_poststep(sc.parse_sim(twisted))[0]
+    # nothing to undo: the game's step never moved the car, so a kd of 0 proves nothing
+    still = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(0.0, 0.0), kstep=0.0) for n in range(1, 40))
+    assert not sc.judge_poststep(sc.parse_sim(still))[0]
+    # a mod before 0.5.1 (no kstep field): not judged, and said so
+    old = "\n".join(sim(100 + n, n, vel=(v, 0, 0), kd=(step, 0.0)) for n in range(1, 40))
+    ok, why = sc.judge_poststep(sc.parse_sim(old))
+    assert ok and "not judged" in why
+    assert not sc.judge_poststep([])[0]
