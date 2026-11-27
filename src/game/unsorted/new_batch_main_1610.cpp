@@ -104,14 +104,6 @@ void func_08AD9708(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 }
 
 // 0x08AF4B1C (a0 = object): slot 8 of the object's vtable runs with a0 = a stack temporary, then func_08AF4B0C(temporary).
-void func_08AF4B1C(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x50u);
-    const std::uint32_t self = ctx.gpr[4];
-    ctx.gpr[5] = self;
-    const std::uint32_t slot = word(rt, word(rt, self) + 0x8u);
-    (void)call_set(rt, ctx, slot, {frame.at(0u)});
-    (void)call_set(rt, ctx, 0x08AF4B0Cu, {frame.at(0u)});
-}
 
 // 0x08B2BCA0 (a0 = object): func_08B344E0(object) and func_08B2BC5C(object) run, then func_08B3457C(object) is a tail call.
 
@@ -341,7 +333,6 @@ void func_088D5D54(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 
 #define NEW1610(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1610::name, gt::ReturnKind::kind)
 NEW1610(0x08AD9708u, func_08AD9708, Float);
-NEW1610(0x08AF4B1Cu, func_08AF4B1C, Word);
 NEW1610(0x08B09618u, func_08B09618, Word);
 NEW1610(0x08ADB0D8u, func_08ADB0D8, Word);
 NEW1610(0x08AF75DCu, func_08AF75DC, Word);
