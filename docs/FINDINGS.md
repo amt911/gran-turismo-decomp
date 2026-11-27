@@ -3510,3 +3510,24 @@ argument is invisible to the gate. Only reading the asm finds it, which is what 
 (decomp workflow step 5b).
 
 Found: 2026-11-26 · decomp
+
+### 924 dead functions were never seeded: the "entered by a branch" rule counted the function's own branches
+
+**Symptom.** After Phase B2, `tools.extra_seeds select --phase B` refused 925 of the 1,998 unreferenced functions, 924 of
+them as `entered-by-branch`, and no more seeds seemed to exist: the functions stayed "not installed", so nothing could
+register or verify them.
+
+**Cause.** The rule built one set of conditional-branch targets over the whole `.text`, the candidate's own instructions
+included, and refused any function with a target strictly inside it. Every function with an `if` or a loop has such a
+target. The spec (emit-unreferenced design, § 4) refuses only an entry that another function's branch enters. All 924
+had only their own branches landing inside them.
+
+**Fix.** The rule now keeps, for each target, the sites that branch there, and refuses a candidate only when a site
+outside `[start, start + size)` lands inside it. Phase B3 seeds the 924 (`verify: ok`: 924 of 924 emitted, no block of
+the baseline lost). The one refusal left, `0x00380938`, has no prologue and no reference.
+
+**Why it isn't obvious.** The rejection report read like the boundary risk the spec warned about (code entered
+mid-function), so the 924 looked like a design limit, not a bug. Splitting the rejections by where the branch comes
+from showed all 924 were self-branches.
+
+Found: 2026-11-27 · tools
