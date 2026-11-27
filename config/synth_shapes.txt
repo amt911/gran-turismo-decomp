@@ -2428,22 +2428,13 @@
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
 # 0x088703D4: this at a0, its +0xC word is the body whose float at +0x84 is read and zeroed
-0x088703D4 reg:a0=struct:32 field:+0xC=ptr
 # 0x0894F0AC: this at a0; +0x8 is the list pointer (float stored at +0x520), +0xC the body (float at +0x78)
-0x0894F0AC reg:a0=struct:32 field:+0x8=ptr field:+0xC=ptr
 # 0x089BEBDC: this at a0, fields written up to +0x2E0
-0x089BEBDC reg:a0=struct:768
 # 0x089D8DB0: this at a0, fields written up to +0xA8
-0x089D8DB0 reg:a0=struct:192
 # 0x089F6128: this at a0, fields written up to +0xA0
-0x089F6128 reg:a0=struct:192
 # 0x08A0FE50: this at a0, flags word at +0x60, sub-objects at +0x64..+0x74
-0x08A0FE50 reg:a0=struct:128
 # 0x08A1A794: this at a0, fields written up to +0x24
-0x08A1A794 reg:a0=struct:64
 # 0x08A43C18: this at a0, list heads at +0x14 / +0x2C, +0x44 written
-0x08A43C18 reg:a0=struct:96
 # 0x08A57784: this at a0, word stored at +0x1C
-0x08A57784 reg:a0=struct:64
 # 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
