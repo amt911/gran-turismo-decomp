@@ -2287,6 +2287,10 @@
 # 0x088062D0: lw s0,0(a0) is the object pointer, null-checked and passed to the registrations.
 0x088062D0 reg:a0=struct:16 field:+0x0=ptr
 
+# element virtuals (through a vtable the generator cannot build) are not called; +0x3C is the block 0x08A72B94 sizes and
+# releases, and +0x10 / +0x1C / +0x4C / +0x54 are the smart pointers 0x08A780B0 / 0x08A5B930 / 0x08A5B9EC read (zero keeps
+# their release paths out of a wild callee).
+0x08A63A6C reg:a0=struct:96 field:+0x10=int:0..0 field:+0x1C=int:0..0 field:+0x24=int:0..0 field:+0x28=int:0..0 field:+0x2C=int:0..0 field:+0x3C=ptr field:+0x4C=int:0..0 field:+0x54=int:0..0
 # 0x08808CC8: `sw v0,0(s0)` builds the object, then 0x08A76AB4(a0, sp) stores it at *a0 (0x08A5BAB8: sw v0,0(a0)).
 0x08808CC8 reg:a0=struct:16
 # 0x0884CC98: same final store through 0x08A76AB4(a0, sp); a0 is the slot the built 0x28-byte object goes into.
