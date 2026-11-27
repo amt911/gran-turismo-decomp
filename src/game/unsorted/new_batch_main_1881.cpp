@@ -9,7 +9,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_1117 {
+namespace new_batch_main_1881 {
 namespace {
 
 using namespace gt::game::hot;
@@ -92,6 +92,16 @@ void call_then_vtable(Runtime &rt, AllegrexContext &ctx, u32 callee, u32 vtable)
 // 0x08B372D4 (a0 = object, a1 = a word): calls 0x08B36290(this), stores a1 at +0x20, vtable 0x08CDA898 at +0; v0 = vtable.
 
 // 0x08C72C44 (a0 = object, a1 = pointer to a block): calls 0x08B5C450(this, a1+0x1C); v0 = this.
+void func_08C72C44(Runtime &rt, AllegrexContext &ctx) {
+    const u32 self = ctx.gpr[4];
+    const u32 argument = ctx.gpr[5];
+    {
+        Saved2 saved(ctx);
+        GuestFrame frame(ctx, 0x10u);
+        call(rt, ctx, 0x08B5C450u, {self, argument + 0x1Cu});
+    }
+    ctx.gpr[2] = self;
+}
 
 // 0x08A5F438 (a0 = object, a1 = source object): calls 0x08A782D8(this), copies the word at source+0x14 to +0x14, vtable 0x08CBDFD0 at +0; v0 = vtable.
 
@@ -99,7 +109,8 @@ void call_then_vtable(Runtime &rt, AllegrexContext &ctx, u32 callee, u32 vtable)
 
 // 0x08A6D24C (a0 = object, a1 = argument): calls 0x08A76ACC(this), vtable 0x08CB7328 at +0, then tail-calls 0x08B88F44(this+0x14, a1).
 
-}  // namespace new_batch_main_1117
+}  // namespace new_batch_main_1881
 }  // namespace gt::game
 
-#define NEWM(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1117::name, gt::ReturnKind::kind)
+#define NEWM(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1881::name, gt::ReturnKind::kind)
+NEWM(0x08C72C44u, func_08C72C44, Word);
