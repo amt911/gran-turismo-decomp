@@ -29,7 +29,7 @@ import sys
 TAG = r"\[mod:rollover\] "
 NUM = r"-?(?:\d+\.?\d*(?:e[+-]?\d+)?|nan|inf)"
 VEC = rf"({NUM}),({NUM}),({NUM})"
-SIM = re.compile(TAG + rf"SIM st=(\d+) n=(\d+) pos={VEC} vel={VEC} w={VEC} up\.z=({NUM}) lowest=({NUM}) contacts=(\d+)/(\d+) ground=({NUM}) E=({NUM}) com\.z=({NUM}) kd=({NUM}),({NUM})")
+SIM = re.compile(TAG + rf"SIM st=(\d+) n=(\d+) pos={VEC} vel={VEC} w={VEC} up\.z=({NUM}) lowest=({NUM}) contacts=(\d+)/(\d+) ground=({NUM}) E=({NUM}) com\.z=({NUM}) kd=({NUM}),({NUM})(?: kstep=({NUM}))?")
 ST = re.compile(TAG + rf"ST st=(\d+) pos={VEC} vel={VEC} speed=({NUM}) up\.z=({NUM}) since=(-?\d+)")
 TAKEOVER = re.compile(TAG + rf"TAKEOVER st=(\d+) reason=(\d) v={VEC} w={VEC} up\.z=({NUM})")
 HIT = re.compile(TAG + rf"HIT st=(\d+) dv={VEC}")
@@ -73,7 +73,7 @@ def parse_sim(text):
         g = m.groups()
         out.append({"st": int(g[0]), "n": int(g[1]), "pos": (f(g[2]), f(g[3]), f(g[4])), "vel": (f(g[5]), f(g[6]), f(g[7])), "w": (f(g[8]), f(g[9]), f(g[10])),
                     "upz": f(g[11]), "lowest": f(g[12]), "contacts": int(g[13]), "bottom": int(g[14]), "ground": f(g[15]), "E": f(g[16]), "comz": f(g[17]),
-                    "kd": f(g[18]), "kup": f(g[19])})
+                    "kd": f(g[18]), "kup": f(g[19]), "kstep": None if g[20] is None else f(g[20])})
     return out
 
 
@@ -110,6 +110,33 @@ def judge_pose(sims):
         return False, (f"the pose the game reports differs from the simulation's by more than one step of motion (excess {worst_pos:.3f} m, up vector {worst_up:.3f}): "
                        f"the simulation's pose does not reach the game")
     return True, f"{len(judged)} steps at speed, the pose at the start of each step is the written one within a step of motion (excess {worst_pos:.4f} m, up {worst_up:.4f})"
+
+
+MAX_POSTSTEP_KD = 0.01      # m: rollover >= 0.5.1 rewrites the simulated pose after the game's step, so the next step starts from it (spec 2026-11-26 rollover-jitter)
+MAX_POSTSTEP_KUP = 0.001    # up-vector units
+MIN_UNDONE_STEP = 0.02      # m: the mean motion the game's step added (kstep) must be real, or a kd of 0 proves nothing
+
+
+def judge_poststep(sims):
+    """The pose the camera and the renderer read is the simulation's: the game's own step still moves the written pose (kstep, about |v|/60 and its
+    suspension), and the mod puts the simulated pose back right after it (docs/FACTS.md "Rollover physics research": the camera and the draw matrix are
+    built from the post-step state). Before 0.5.1 the car was drawn one step of motion off the simulation and shook (kd 0.27 m a step, 2026-11-26)."""
+    judged = [s for s in sims if s["n"] >= 2]
+    if not judged:
+        return False, "no simulated steps: nothing to judge"
+    with_kstep = [s for s in judged if s["kstep"] is not None]
+    if not with_kstep:
+        return True, "not judged: the mod logs no kstep (rollover before 0.5.1, no post-step write)"
+    undone = sum(s["kstep"] for s in with_kstep) / len(with_kstep)
+    if undone < MIN_UNDONE_STEP:
+        return False, f"the game's step moved the car by {undone:.4f} m on average: nothing was undone, kd proves nothing"
+    worst = max(s["kd"] for s in with_kstep)
+    worst_up = max(s["kup"] for s in with_kstep)
+    if worst > MAX_POSTSTEP_KD or worst_up > MAX_POSTSTEP_KUP:
+        return False, (f"the car is drawn off the simulation by up to {worst:.4f} m (up vector {worst_up:.4f}) after the game's step "
+                       f"(which moved it {undone:.4f} m a step): the post-step write is missing")
+    return True, (f"{len(with_kstep)} steps: the game's step moved the car {undone:.4f} m on average and the simulated pose was put back "
+                  f"(kd at most {worst:.4f} m, up {worst_up:.4f})")
 
 
 def sim_hit_count(text):
@@ -286,11 +313,13 @@ def main(argv):
     if mode in ("sim", "others", "tip"):
         verdicts.append(("barrier", judge_barrier(text, tip=(mode == "tip"))))
         verdicts.append(("pose", judge_pose(parse_sim(text))))
+        verdicts.append(("poststep", judge_poststep(parse_sim(text))))
     elif mode == "drop":
         verdicts.append(("drop", judge_drop(text)))
     elif mode == "slide":
         verdicts.append(("slide", judge_slide(text)))
         verdicts.append(("pose", judge_pose(parse_sim(text))))
+        verdicts.append(("poststep", judge_poststep(parse_sim(text))))
     elif mode == "replay":
         verdicts.append(("replay", judge_replay(text)))
     ok = True
