@@ -2411,4 +2411,3 @@
 # One line per address; the asm evidence is the comment above each shape.
 # 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
-0x08AF4B1C reg:a0=struct:16 field:+0x0=ptr
