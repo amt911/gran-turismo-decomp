@@ -2552,3 +2552,14 @@
 
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+# 0x08950438: lw v0,0xC(a0) is the block whose +0x270+0x10 byte is the mode; a1/a2/a3 are three byte flags written and
+# t0 a state word (set to 1), so a0 carries the only pointer.
+0x08950438 reg:a0=struct:32 field:+0xC=ptr
+# 0x0887C0A8: lw v0,0x60(a1) is the holder whose +0xF0 (table handed to 0x08B21590) and +0xF4 (word compared with the
+# state) are read; a0 is the state the results land in (+8/+0xC/+0x10..+0x40).
+0x0887C0A8 reg:a1=struct:256 field:+0x60=ptr
+# 0x088865C8: a0 is the object the constructor fills from +0 up to +0x2B8+0x60 (0xEC block, fields, 16 records).
+0x088865C8 reg:a0=struct:1024
+# 0x0897B364: a0 is the object the constructor fills from +0 up to +0x204 (vtables, tables at +0x94/+0xEC, fields).
+0x0897B364 reg:a0=struct:1024
