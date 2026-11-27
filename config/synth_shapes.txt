@@ -2429,19 +2429,14 @@
 
 # 0x0881BAC0: a0 is `this`; the 30 records of 8 bytes at +0x354 (0x354 + 30 * 8 = 0x444, past the 1024-byte cap but inside
 # one 4 KiB block) are handed to 0x088A5EE0 / 0x088A6164 and written from sp by 0x088A6C18. a1..a3 and t0 are the key.
-0x0881BAC0 reg:a0=struct:1024
 # 0x08B73D9C: lw v0,0x74(a1) is the holder's pointer word, lw a1,0x4CC(a0) / 0x4CC(a1) / 0x4E4(a1) the counters; the scene at
 # a0 and the holder at a1 are both walked four words at a time for 306 table bytes (0x4E8 > the cap, inside one block).
-0x08B73D9C reg:a0=struct:1024
 # 0x08996CBC: swc1 f12,0x20(a0) and the accumulation at 0x20(a0); the rest of the object is only handed to 0x08996A18.
-0x08996CBC reg:a0=struct:32
 # 0x089CB2B4: the four containers at +0x12C, +0x138, +0x144 and +0x150 (begin, end at +4, capacity at +8) and the vtable
 # words at +0 and +0x38; the highest field is +0x158.
 0x089CB2B4 reg:a0=struct:352
 # 0x08A72364: lw v0,0x0(a0) is the vtable, its +0x108 the virtual that runs, and +0x38 the object replaced.
-0x08A72364 reg:a0=struct:64 field:+0x0=ptr
 # 0x08BD48FC: lw v1,0x10(a0) picks the path (3, 2 or else), lw at +0xC is the record index (negative walks them all),
 # lw at +0x4 the object whose +0x30 is the 0x30-byte record table and +0x10 its u16 count, +0x14 the signed byte key and
 # +0x18 the float handed to 0x08AF2978.
-0x08BD48FC reg:a0=struct:32 field:+0x4=ptr field:+0x10=int:0..3
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
