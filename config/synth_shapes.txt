@@ -2487,6 +2487,11 @@
 # 0x08AF4B1C: lw v1,0(a0) is the object's vtable, lw v0,8(v1) the slot called with a0 = a stack temporary. The
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
+# 0x089A6CBC: stores the vtable and the embedded objects at +0x14..+0x38 of a0 (a 0x40-byte object).
+# 0x0891C290: a0 is written at +0x0..+0x84 (vtable, three embedded holders).
+# 0x089C1C94: a0 is written at +0x0..+0xE0 (vtable, blocks at +0x80 / +0x90 / +0xB0 / +0xD0, float constants).
+# 0x08AFBB50: a0 is written at +0x0..+0xE0 (vtables, two zero words) and passed on to 0x08AFA88C.
+# 0x08AFBC0C: the same as 0x08AFBB50.
 # 0x0894F0AC: lw v0,0xC(a0) is the object whose +0x78 float bounds the angle; lw s1,0x8(a0) receives it at +0x520.
 # 0x08951280: a0 goes to 0x0894C460/0x0895077C unchanged (the frame buffers are the outputs); a1 is only forwarded.
 # 0x089FA30C: the same {begin, end, ..., flag} range read from a1.
