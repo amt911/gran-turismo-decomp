@@ -575,7 +575,7 @@ void func_088ACFD8(Runtime &rt, AllegrexContext &ctx) {
     constexpr float kOne = 1.0f;
     constexpr float kNegativeOne = -1.0f;
     const u32 band_c = self + 0x3F0u;
-    (void)call_set(rt, ctx, 0x08B4D080u, {frame.at(0x88u)});
+    (void)call_set(rt, ctx, 0x08B4D080u, {frame.at(0x88u), matrix_b});   // a1 = a3: the matrix it copies from
     const u32 slot_a = word(rt, self + 0x3CCu);
     (void)call_set(rt, ctx, 0x08B4AD90u, {frame.at(0x40u), matrix_a, self + 0x294u + slot_a * 40u});
     (void)call_set(rt, ctx, 0x088AB868u, {frame.at(0x50u), matrix_a, band_c});
