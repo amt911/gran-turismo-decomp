@@ -2551,5 +2551,27 @@
 # 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
 
+# 0x08AB8DFC: a0 is the row array (each entry a pointer to a float block); a1 = rows, a2 = float count (>>3 groups),
+# a3 = group stride (<<5), t0 / t1 are the two output words (t0 the max absolute, t1 the ratio).
+0x08AB8DFC reg:a0=struct:64 field:+0x0=ptr
+# 0x089CC0E0: a0 is a std::string's data pointer (the rep's length sits at a0 - 0xC, read as a signed word; bytes from
+# a0 onward), a1 the destination string (first byte cleared), a2 the limit, a3 the starting width, t0 the body length.
+0x089CC0E0 reg:a0=struct:1024
+# 0x08876664: a0 is the object whose five pointer pairs (+4 .. +0x28) are rebuilt; every input slot is cleared first.
+0x08876664 reg:a0=struct:64
+# 0x08B905CC: a0 is the object: the owned controls at +4 / +0xC / +0x14 / +0x1C and the pair released first at
+# +0x20 / +0x24.
+0x08B905CC reg:a0=struct:64 field:+0x4=ptr field:+0xC=ptr field:+0x14=ptr field:+0x1C=ptr field:+0x20=ptr field:+0x24=ptr
+# 0x088A09DC: a0 is the object built (rows at +0x18 and +0x88, up to +0x8F8); a1 / a2 default to each other and are
+# used as the two source base pointers (self +8 / self +0xC), f12 is the interpolation value.
+0x088A09DC reg:a0=struct:1024
+# 0x08912A10: a0 is the object built (up to +0xBF0); func_08B28DCC gets it whole.
+0x08912A10 reg:a0=struct:1024
+# 0x089763C0: a0 holds the string at +4 and the three-float output block pointer at +0xC; a1 is the parse stream.
+0x089763C0 reg:a0=struct:32 field:+0x4=ptr field:+0xC=ptr
+# 0x08907E44: a0 holds the 0x30-byte cell table pointer at +0x30 and the cell count at +0x2C (func_08907D5C /
+# func_08907D6C read them); a1 is the output pointer array, a2 the limit, a3 the first index, f12 / f13 / f14 the
+# walk parameters.
+0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
