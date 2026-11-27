@@ -368,7 +368,6 @@ constexpr InsertOps kInsert996C{0x08BA9338u, 0x08BA9388u, 0x08BA91F8u, 0x08BA924
                                 0x08BA92E8u, 0x08BA9298u, 0x0888879Cu, 0x08B8E594u, 0x08CA0740u};
 
 void func_08BA82A8(Runtime &rt, AllegrexContext &ctx) { insert_vector(rt, ctx, kInsert82A8); }
-void func_08BA996C(Runtime &rt, AllegrexContext &ctx) { insert_vector(rt, ctx, kInsert996C); }
 
 // 0x08C0D100 (vector, position, value): insert of one 0x40-byte element {vtable +0, words +4/+8, floats +0xC..+0x1C,
 // sub-objects +0x20 / +0x30} into the vector {block +0, begin +4, capacity end +8}. With room the element before begin is
@@ -480,5 +479,4 @@ void func_08A930E8(Runtime &rt, AllegrexContext &ctx) {
 NEW1011(0x08883E74u, func_08883E74, Word);
 NEW1011(0x08900A38u, func_08900A38, Word);
 NEW1011(0x08BA82A8u, func_08BA82A8, Word);
-NEW1011(0x08BA996Cu, func_08BA996C, Word);
 NEW1011(0x08A930E8u, func_08A930E8, Word);
