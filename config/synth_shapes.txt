@@ -2182,6 +2182,50 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+# Synthetic-case input shapes for main session 1598 (batch 1598): one line per function that dereferences an argument
+# register, with the asm evidence above each.
+# 0x08B56674: sixteen lv.s of a1's 0x40 bytes (S000..S033, a1 as the source).
+0x08B56674 reg:a1=struct:64
+# 0x08B62450: the record block starts at a1 - 0x30 (handler word at +4, word at +0xC), the object at a1 + 0x20.
+0x08B62450 reg:a1=struct:64
+# 0x08A17CD8: lw a0 then the flag word at +0 of that object.
+0x08A17CD8 reg:a0=struct:16 field:+0x0=ptr
+# 0x0892FCE0: a0 is the map: key at +8 / +0xC, slot and scratch word at +0x10 / +0x14.
+0x0892FCE0 reg:a0=struct:32
+# 0x08B0EC60: a0 is constructed in place and receives the 0x3C-byte payload at +0.
+0x08B0EC60 reg:a0=struct:64
+# 0x088941A0: lw a0 is the source block whose 0x24 bytes are copied.
+0x088941A0 reg:a0=struct:16 field:+0x0=ptr
+# 0x08900350: object fields up to +0x4A4 (1024 is the shape cap).
+0x08900350 reg:a0=struct:1024
+# 0x08AD5460: a0 is the object whose +0xC / +8 / +4 are written.
+0x08AD5460 reg:a0=struct:16
+# 0x08B48398: a0's +0x28 is the allocator port the block and the text come from.
+0x08B48398 reg:a0=struct:64 field:+0x28=ptr
+# 0x088725E4: a0's +0x5C is the display-list pointer the packet words go through.
+0x088725E4 reg:a0=struct:96 field:+0x5C=ptr
+# 0x08B0A458: lw a0 is the owner whose +0x110 holds the answer.
+0x08B0A458 reg:a0=struct:16 field:+0x0=ptr
+# 0x08BA6470: a0's +8 is the node, +0x10 / +0x14 go to the per-index call.
+0x08BA6470 reg:a0=struct:24 field:+0x8=ptr
+# 0x08C2E994: a3 is the predicate object: vtable at +0, its virtual at +8.
+0x08C2E994 reg:a3=struct:16 field:+0x0=ptr
+# 0x088A61A4: lw a0 is the owner (+0x4CC flag, +0x4C8 block, byte +8 count, word +0xC argument).
+0x088A61A4 reg:a0=struct:16 field:+0x0=ptr
+# 0x08AE11A0 / 0x08AE1338 / 0x08AE160C / 0x08AE1794: a0 is the collector key (a1 of 0x08ADE328 / 0x08ADE2B4).
+0x08AE11A0 reg:a0=struct:64
+0x08AE1338 reg:a0=struct:64
+0x08AE160C reg:a0=struct:64
+0x08AE1794 reg:a0=struct:64
+# 0x08B01070: a1's +0x60 is the table of 84-byte records; a0's signed half +4 is the starting index.
+0x08B01070 reg:a1=struct:128 field:+0x60=ptr
+# 0x08B1C590: a0's +0x10 / +0x14 are the deadline pair and +0x18 the handle.
+# 0x0887B768: a0 is the pool (count +0xC, bitmap +0x28, counter +0x24, records from +0x60, owner at +0).
+0x0887B768 reg:a0=struct:1024 field:+0x0=ptr
+# 0x088FE08C: a0 is the output pair (+0 / +4).
+0x088FE08C reg:a0=struct:16
+# 0x088DBF0C: a0's +0x130 is the inner object, +0x5BF the flag, +0x5C4 the state, +0x640 the handle.
+0x088DBF0C reg:a0=struct:1024 field:+0x130=ptr
 #
 # 0x08B5E2CC: a0 is the registry descriptor this function fills (+0 the value, +4 / +0xC the two 14-word tables, +8 the
 #   count, +0x10 the second table object).
