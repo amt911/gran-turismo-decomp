@@ -2424,5 +2424,4 @@
 # virtual call's target has to resolve inside the arena, so +0 is a pointer; the object itself is read at +0 only.
 
 # 0x08A8DB4C: a0 is `this` handed to 0x08A8DAB4; a1 is forwarded to the local's constructor.
-0x08A8DB4C reg:a0=struct:1024
 # 0x08A26ED8: the member at +0x28 of a0 is taken and cleared (0x28 + 4 -> 0x2C, in a 48-byte block).
