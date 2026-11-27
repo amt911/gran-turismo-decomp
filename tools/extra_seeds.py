@@ -182,7 +182,13 @@ def select(words: Sequence[int], base: int, functions: Mapping[int, int], emitte
     for a in emitted_starts:
         start = (a - base) // 4
         emitted_branch_targets |= _branch_targets(words[start:start + extent[a] // 4], a)
-    outside_branch_targets = _branch_targets(words, base)
+    # conditional branch target -> the sites that branch there, so a function's own if/loop branches are told apart from a branch
+    # of another function into its middle (only the latter refuses it: 924 Phase B functions were refused by their own branches)
+    branch_sites: dict[int, list[int]] = defaultdict(list)
+    for i, w in enumerate(words):
+        if _is_conditional_branch(w):
+            branch_sites[_branch_target(w, base + 4 * i)].append(base + 4 * i)
+    branch_targets = sorted(branch_sites)
 
     def body(address: int) -> Sequence[int]:
         start = (address - base) // 4
@@ -213,7 +219,9 @@ def select(words: Sequence[int], base: int, functions: Mapping[int, int], emitte
             if not _has_prologue(body(address)):
                 rejected[address] = REASON_NO_EVIDENCE
                 continue
-            if any(address < t < address + functions[address] for t in outside_branch_targets):
+            end = address + functions[address]
+            inner = branch_targets[bisect.bisect_right(branch_targets, address):bisect.bisect_left(branch_targets, end)]
+            if any(not address <= site < end for t in inner for site in branch_sites[t]):
                 rejected[address] = REASON_ENTERED_BY_BRANCH
                 continue
         seeds.append(address)
