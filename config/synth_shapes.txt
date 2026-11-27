@@ -2182,6 +2182,8 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+0x08C77004 reg:a0=struct:256
+0x08C771D4 reg:a0=struct:256
 # Main-session batch 1626 (src/game/unsorted/new_batch_main_1626.cpp): one line per drafted function that dereferences an argument register.
 # 0x08984608: the object at a0 gets the vtable, stores at +0x0..+0xEC and sub-objects (0x08964224 / 0x0896418C).
 0x08984608 reg:a0=struct:512
