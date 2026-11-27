@@ -13,7 +13,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_926 {
+namespace new_batch_main_1889 {
 namespace {
 
 using namespace gt::game::hot;
@@ -149,9 +149,23 @@ u32 insert_bits(u32 target, u32 value, unsigned position, unsigned size) {
 
 // 0x08A26ED8 (a0 = an object): 0x08B344E0(object), the member at +0x28 is taken and cleared in 0x08B3457C's delay slot,
 // the frame is popped, and a non-null member is tail-called through 0x08B1B99C; otherwise v0 = 0x08B3457C's answer.
+void func_08A26ED8(Runtime &rt, AllegrexContext &ctx) {
+    const u32 self = ctx.gpr[4];
+    u32 member = 0u;
+    {
+        GuestFrame frame(ctx, 0x10u);
+        (void)call(rt, ctx, 0x08B344E0u, {self});
+        member = word(rt, self + 0x28u);
+        put(rt, self + 0x28u, 0u);
+        ctx.gpr[2] = call(rt, ctx, 0x08B3457Cu, {self});
+    }
+    if (member == 0u) return;
+    tail_call(ctx, 0x08B1B99Cu, {member});
+}
 
 } // namespace
-} // namespace new_batch_main_926
+} // namespace new_batch_main_1889
 } // namespace gt::game
 
-#define NEW926(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_926::name, gt::ReturnKind::kind)
+#define NEW926(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1889::name, gt::ReturnKind::kind)
+NEW926(0x08A26ED8u, func_08A26ED8, Word);
