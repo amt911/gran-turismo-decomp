@@ -379,58 +379,6 @@ void func_08871794(Runtime &rt, AllegrexContext &ctx) {
     ctx.gpr[2] = v0;
 }
 
-void func_08AF623C(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 dst = ctx.gpr[5];
-    const u32 src = ctx.gpr[6];
-    const u32 count = ctx.gpr[7];
-    GuestFrame frame(ctx, 0x50u);
-    const u32 sp = ctx.gpr[29];
-    if (word(rt, self + 0x9Cu) == 0u) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    call(rt, ctx, 0x08C3FBF0u, {sp + 0x10u, 0u});
-    if (src != 0u) {
-        const u32 end = src + count * 28u;
-        u32 rec = src;
-        while (rec != end) {
-            const u32 id = word(rt, rec);
-            const u32 mask_at = sp + 0x10u + ((static_cast<u32>(static_cast<s32>(id) >> 5)) << 2);
-            put(rt, mask_at, word(rt, mask_at) | (1u << (id & 31u)));
-            const u32 table = word(rt, self + 0x9Cu);
-            call(rt, ctx, 0x08AF5CE4u, {dst + (id << 5), table + (id << 7), rec + 4u});
-            rec += 0x1Cu;
-        }
-    }
-    const u32 limit = static_cast<u32>(rt.memory().load16(self + 0x98u)) << 7;
-    ctx.gpr[2] = limit;
-    const u32 table = word(rt, self + 0x9Cu);
-    const u32 blk_end = table + limit;
-    if (table == blk_end) return;
-    u32 blk = table;
-    u32 out = dst;
-    u32 index = 0u;
-    do {
-        const u32 mask_word = word(rt, sp + 0x10u + ((index >> 5) << 2));
-        const u32 clear = ((mask_word >> (index & 31u)) & 1u) ^ 1u;
-        ctx.gpr[2] = clear;
-        if (clear != 0u) {
-            call(rt, ctx, 0x08AF56D8u, {sp, blk + 0x40u, blk + 0x5Cu, byte_at(rt, blk + 0xCu)});
-            put(rt, out, word(rt, sp));
-            put(rt, out + 4u, word(rt, sp + 4u));
-            put(rt, out + 8u, word(rt, sp + 8u));
-            put(rt, out + 0xCu, word(rt, sp + 0xCu));
-            put(rt, out + 0x10u, word(rt, blk + 0x50u));
-            put(rt, out + 0x14u, word(rt, blk + 0x54u));
-            put(rt, out + 0x18u, word(rt, blk + 0x58u));
-            put8(rt, out + 0x1Cu, 0u);
-        }
-        index += 1u;
-        blk += 0x80u;
-        out += 0x20u;
-    } while (blk != blk_end);
-}
 
 void func_08AF54BC(Runtime &rt, AllegrexContext &ctx) {
     const u32 self = ctx.gpr[4];
@@ -558,6 +506,5 @@ NEWM(0x08911A20u, func_08911A20, Word);
 NEWM(0x088E939Cu, func_088E939C, Word);
 NEWM(0x0897F89Cu, func_0897F89C, Word);
 NEWM(0x08871794u, func_08871794, Word);
-NEWM(0x08AF623Cu, func_08AF623C, Word);
 NEWM(0x08AF54BCu, func_08AF54BC, Word);
 NEWM(0x089E8964u, func_089E8964, Word);
