@@ -2604,6 +2604,16 @@
 0x08B2AEC4 reg:a1=struct:16 field:+0x4=int:0..0 field:+0x8=int:0..0
 # 0x08AF1E98: a0 = self, +0 / +4 / +8 written (the 0x330 block is a separate allocation).
 0x08AF1E98 reg:a0=struct:16
+# 0x08B03408: lwc1 at 0x0 / 0x4 / 0x8(a2) copies the float3 into the frame's float4 (the fourth word is the constant
+#   1.0f); a0/a1 are only passed on.
+# 0x08A5D888: lw a0,0x18(a1) / lw a1,0x1C(a1) are copied into a0 (skipped when a0 == a1); a0 is only written, and a
+#   shape line carries one reg, so a1 is the one constrained.
+0x08A5D888 reg:a1=struct:32
+0x08A8C828 reg:a0=struct:128 field:+0x40=ptr
+0x08998560 reg:a0=struct:400
+0x0892BD4C reg:a0=struct:640
+0x0887F600 reg:a0=struct:128
+0x088FF120 reg:a0=struct:16
 # 0x08897C94: stores the allocated object at *a0 and the static at a0+4 (a0 only receives the two stores).
 0x08897C94 reg:a0=struct:16
 # 0x0887D5F4: lw at a0+0x5C and a0+0x54 are the two holders (vtable at +0, counts at +4 / +8).
@@ -2758,7 +2768,6 @@
 #   +0x60 is the flag 0x089A8C70 tests (byte) and +0x5C must be non-negative for it to answer 1. a1 receives the 16-byte
 #   result (a1 is one register only, so it stays the generator's slot pointer).
 0x089AA038 reg:a0=struct:1024 field:+0x58=ptr field:+0xB0=ptr field:+0x5C=int:0..3 field:+0xB4=int:0..3 field:+0x60=int:1..1
-0x08998560 reg:a0=struct:400
 # 0x08ADCDE8: a0 is the object handed to the 0x08ADB278 lookup (its +0x28 / +0x14 are followed); a3 is the optional
 # three-word out (the asm only guards it against zero). The object gets the slot, since the lookup runs first.
 0x08ADCDE8 reg:a0=struct:64 field:+0x0=ptr
