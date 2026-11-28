@@ -3117,3 +3117,8 @@
 0x08A95B74 reg:a1=struct:32
 # 0x08A9563C: vtable 0x08CBE0E0 at +0, `lw v1,0x14(a0)` is released with 0x08B35254.
 0x08A9563C reg:a0=struct:32
+
+# 0x089BA420: a0 and a1 are both objects read through their vtable (word at +0); the code reads word(word(a0)+0x178)
+#   and word(word(a1)+0x17C). The shape format allows one reg per function and a0 is the object whose virtual is
+#   called first always, so a0 is shaped with its vtable word at +0 (a1 gets an arena pointer from the generator).
+0x089BA420 reg:a0=struct:4 field:+0x0=ptr
