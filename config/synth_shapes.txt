@@ -2662,7 +2662,6 @@
 # 0x089313D0: a1 is the output record written from +0 up to +0x4E (real size 0x50); a0 is the lookup id.
 0x089313D0 reg:a1=struct:80
 # 0x08A9C998: a1 points at the record slot (word(a1) is the object whose vtable slot 0x11C runs).
-0x08A9C998 reg:a1=struct:16 field:+0x0=ptr
 # 0x08950438: a0 holds the block at +0xC (its +0x270 is the mode block); a1 / a2 / a3 are three byte flags written,
 # t0 an output word (set to 1).
 0x08950438 reg:a0=struct:32 field:+0xC=ptr
