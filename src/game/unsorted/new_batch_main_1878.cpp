@@ -27,7 +27,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_1014 {
+namespace new_batch_main_1878 {
 namespace {
 
 using namespace gt::game::hot;
@@ -112,8 +112,8 @@ inline constexpr u32 kRowLayout = 0x08CDE508u;
 // 0x089419D8 (a0 = the record written, a1 = the source, a2 = the strength byte, a3 = the kind, t0 = extra, f12 = scale).
 
 } // namespace
-} // namespace new_batch_main_1014
+} // namespace new_batch_main_1878
 } // namespace gt::game
 
-#define MAIN1014(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1014::name, gt::ReturnKind::kind)
+#define MAIN1014(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1878::name, gt::ReturnKind::kind)
 
