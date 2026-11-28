@@ -2795,3 +2795,8 @@
 0x0885C704 reg:a0=struct:0x90 field:+0x0=ptr
 # 0x08A643B8: the object at +0x28 of a0 points to a record whose -4 is dereferenced.
 0x08A643B8 reg:a0=struct:0x3C field:+0x28=ptr
+
+# 0x0881CAEC (a0 = this): writes the vtable at +0, the allocated record at +0x14 and the table entry at +0x18;
+# 0x20 covers the last write. It also reads/writes the globals 0x08D75128 (guard byte) and 0x08D75130 (entry), which
+# the arena keeps empty, so the guard's build path is the case.
+0x0881CAEC reg:a0=struct:32
