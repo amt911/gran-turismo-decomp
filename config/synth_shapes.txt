@@ -2750,7 +2750,6 @@
 0x08925424 reg:a0=struct:1024
 # 0x08AFD7B0: a0 is the object: floats at +0/+4/+8/+0xC (negated into the rotation) and the points pointer at +0xD8,
 # whose +0x10/+0x14/+0x18 floats are read too.
-0x08AFD7B0 reg:a0=struct:256 field:+0xD8=ptr
 # 0x089283AC: the object is read at +0x1FB8 (the transition), +0x1D1C (the state), +0x1FC, +0x2050 and +0x1FB0, and written
 # at +0x2054; a0 is the whole object, whose members run past the 1 KiB shape cap.
 0x089283AC reg:a0=struct:1024 field:+0x1FC=int:0..0x40
@@ -2763,10 +2762,8 @@
 # 0x08AF623C: a0 object; +0x98 is the u16 block count and +0x9C the pointer to the 0x80-byte block table
 #   (its +0xC byte selects the rotation order at 0x08AF56D8, +0x40..+0x4C and +0x50..+0x58 are the copied
 #   floats). a2 is the source record array (id word first, 0x1C bytes each) and a1 the output record array.
-0x08AF623C reg:a0=struct:512 field:+0x98=int:0..2 field:+0x9C=ptr
 0x08A34AB8 reg:a0=struct:40 field:+0x14=ptr
 0x088D4310 reg:a0=struct:256
 0x088F1358 reg:a0=struct:32 field:+0x18=ptr
 0x08A58518 reg:a0=struct:32 field:+0x14=ptr
-0x089FE4A8 reg:a0=struct:512
 0x08873ADC reg:a0=struct:64 field:+0xC=ptr field:+0x14=ptr
