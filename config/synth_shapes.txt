@@ -2742,3 +2742,25 @@
 # 0x08CDE6EC..0x08CDE6EF, and +0x10A / +0x10E / +0x10F of 0x08CDE508 (0x08CDE612 / 0x08CDE616 / 0x08CDE617) — all
 # static game data, readable as-is.
 0x0895E6A8 reg:a1=struct:16
+# Main-session batch 2106 (src/game/unsorted/new_batch_main_2106.cpp): one line per drafted function that dereferences an
+# argument register or a global. 0x08AB4950 passes a0 (the object) on to 0x08A76AB4 and 0x08B60804 reads its list links.
+0x08AB4950 reg:a0=struct:64
+# Main-session batch 2108 (src/game/unsorted/new_batch_main_2108.cpp): one line per drafted function that dereferences an argument register.
+# func_08925424 writes every field of the object at a0 (fields +0x1F8..+0x284, sub-objects at +0x200 / +0x220).
+0x08925424 reg:a0=struct:1024
+# 0x08AFD7B0: a0 is the object: floats at +0/+4/+8/+0xC (negated into the rotation) and the points pointer at +0xD8,
+# whose +0x10/+0x14/+0x18 floats are read too.
+0x08AFD7B0 reg:a0=struct:256 field:+0xD8=ptr
+# 0x089283AC: the object is read at +0x1FB8 (the transition), +0x1D1C (the state), +0x1FC, +0x2050 and +0x1FB0, and written
+# at +0x2054; a0 is the whole object, whose members run past the 1 KiB shape cap.
+0x089283AC reg:a0=struct:1024 field:+0x1FC=int:0..0x40
+# 0x089344D8: the struct is compared word by word from +0 to +0x104 against the block 0x08936584 fills, and the byte at
+# +0x15E is checked (0x160 is the last word read, +0x15E the last byte).
+0x089344D8 reg:a0=struct:352
+# 0x088F20E4: a1 is the settings block (floats +0..+0x3C, the count byte +0x40, the flag +0x41, the value +0x42 and the
+# halfwords +0x44 / +0x46); a0 is the renderer, read at +0x840 / +0x844 (past the shape cap).
+0x088F20E4 reg:a1=struct:80
+# 0x08AF623C: a0 object; +0x98 is the u16 block count and +0x9C the pointer to the 0x80-byte block table
+#   (its +0xC byte selects the rotation order at 0x08AF56D8, +0x40..+0x4C and +0x50..+0x58 are the copied
+#   floats). a2 is the source record array (id word first, 0x1C bytes each) and a1 the output record array.
+0x08AF623C reg:a0=struct:512 field:+0x98=int:0..2 field:+0x9C=ptr
