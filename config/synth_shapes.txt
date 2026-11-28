@@ -2575,3 +2575,8 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+#   *(a0+0x14) the axis state (byte +9, floats +0x7C, +0x84, +0x88), *(a0+0x24) the axis record (bytes +0x10,
+#   +0x12, +0x15, +0x96, floats +0x20, +0x54, +0x58, +0x5C), *(a0+0x2C) the band (floats +0x20, +0x24). a1 is
+#   only handed to 0x088BF1FC; a2 (two floats) is written and handed to it as the t0 output, never dereferenced.
+0x088BF3BC reg:a0=struct:48 field:+0x8=ptr field:+0x14=ptr field:+0x24=ptr field:+0x2C=ptr
