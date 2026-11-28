@@ -2901,9 +2901,7 @@
 # at +0x3E bit 0 skips it and the half at +0x3C is cleared.
 0x08AC1FE0 reg:a0=struct:0x40 field:+0x38=ptr
 # 0x08AD5460: the accepted record writes this+0xC (byte 1), this+8 and this+4.
-0x08AD5460 reg:a0=struct:0x10
 # 0x08B48398: word(this+0x28) is the allocator the two 0x44/0x10 blocks come from.
-0x08B48398 reg:a0=struct:0x2C field:+0x28=ptr
 # 0x08910DF4: word(this+0x14) is the element whose counts at +4 / +8 are decremented and whose vtable slots 8 / 0xC are
 # called when a count reached 1.
 0x08910DF4 reg:a0=struct:0x18 field:+0x14=ptr
@@ -2922,10 +2920,8 @@
 # 0x120 answers the amount.
 0x08A58564 reg:a0=struct:0x20 field:+0x14=ptr field:+0x18=ptr field:+0x1C=ptr
 # 0x08B0A458: word(this) is the holder whose +0x110 slot takes the 0x00020CE0-byte object.
-0x08B0A458 reg:a0=struct:0x4 field:+0x0=ptr
 # 0x08BA6470: word(this+8) is the container (its +0x48 / +0x40 and the half at +0x10 are read), word(this+0x10) and
 # word(this+0x14) are handed to 0x08AFA208.
-0x08BA6470 reg:a0=struct:0x18 field:+0x8=ptr
 #
 # 0x0885DF24: a0 is the object whose member at +0x5B4 is read and whose table at +0x5BC receives the node (real struct
 #   past 0x5BC, capped at 1024). a1/a2/a3/t0 are descriptor words, t1 a byte.
