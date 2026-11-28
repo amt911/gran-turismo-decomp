@@ -315,22 +315,6 @@ void guarded_init(Runtime &rt, AllegrexContext &ctx, u32 argument, u32 vtable, u
 // 0x0885DF24 (a0 = object with a member at +0x5B4 and a table at +0x5BC, a1/a2/a3/t0 = the descriptor, t1 = a byte):
 // 0x08896CD8(a0 + 0x5BC, a3, a1, t0, t1) creates the node; on success its word +4 is a2, 0x088F9480(a0's +0x5B4) runs,
 // 0x0889717C(a3) gates 0x088F8924(node), and the byte at +0x50 is t1.
-void func_0885DF24(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 first = ctx.gpr[5];
-    const u32 second = ctx.gpr[6];
-    const u32 third = ctx.gpr[7];
-    const u32 fourth = ctx.gpr[8];
-    const u32 flag = ctx.gpr[9] & 0xFFu;
-    GuestFrame frame(ctx, 0x20u);
-    SavedRegs saved(ctx, {16u, 17u, 18u, 19u, 20u, 21u, 22u});
-    const u32 node = call(rt, ctx, 0x08896CD8u, {self + 0x5BCu, third, first, fourth, flag});
-    if (node == 0u) return;
-    put(rt, node + 4u, second);
-    call(rt, ctx, 0x088F9480u, {word(rt, self + 0x5B4u)});
-    if (call(rt, ctx, 0x0889717Cu, {third}) != 0u) call(rt, ctx, 0x088F8924u, {node});
-    put8(rt, node + 0x50u, flag);
-}
 
 // 0x0888ACDC (a0 = object): 20, 4, 3 and 4 members of 0xA8 bytes each from +0, +0xD78, +0x1018 and +0x12B8 go through
 // 0x0888A86C, the byte at +0x1C34 is cleared, and the object tail-calls 0x0888AB4C with 0.
@@ -574,7 +558,6 @@ void func_08A96560(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW1587(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1587::name, gt::ReturnKind::kind)
-NEW1587(0x0885DF24u, func_0885DF24, Word);
 NEW1587(0x08818948u, func_08818948, Word);
 NEW1587(0x088B42C8u, func_088B42C8, Word);
 NEW1587(0x088D7158u, func_088D7158, Word);
