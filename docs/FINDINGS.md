@@ -3466,3 +3466,68 @@ value in `a0`, `race_cars` found no human car, the snapshot never became valid (
   (exit 3), or locally a guest access outside RAM at `0x08B12CCC`, and the fast gate compared 387 of a 5711 floor.
   Before drafting, leave setjmp/longjmp-like functions (register save/restore into a record) as recompiled code. A
   verdict with any route exiting 3+ or a `FLOOR:` line is a failure even when "0 mismatched" is printed.
+
+### Leaving the Starting Grid hung on the GT logo: `call()` hands back v0 only
+
+**Symptom.** With `--decomp on`, race -> pause -> Exit -> Starting Grid -> Exit stayed on the black GT-logo screen forever
+(user report 2026-11-26, ThinkPad); `--decomp off` returned to the Single Player hub.
+**Cause.** `func_088D8918` (src/game/unsorted/new_batch_main_21.cpp) arms a deadline with the 64-bit helper `func_088D9C24`
+(`now + 5`, v0 low / v1 high) and then waits for it one `func_08B2E2B8` (sleep) at a time. The decompiled body stored a
+constant 1 as the high word instead of the helper's v1, so the deadline sat ~71 minutes ahead; it also called the sleep
+without its argument (`a0 = 10000` in the asm's delay slot). A first fix read `ctx.gpr[3]` after `call()`, which is still
+garbage: `call_guest` runs the callee on a copy of the context and `call()` returns only v0. A 64-bit result needs the
+`GuestResult` (`call_guest(..., {}).v1`) or a helper that copies it (`call_keep`, `call_g`, `callf`, `call_virtual`).
+**Why the gates missed it.** The function sleeps, so every call is `not comparable` (diff and synthetic), and no route left
+a race's Starting Grid. **Found by** bisecting the 1,400 functions merged since 2026-11-24 with a local
+`GT_DECOMP_SKIP_FILE` (12 runs of the new `config/pad_routes/race_exit.pad`). A scan of every `call(` followed by a read
+of `ctx.gpr[3]` found no other case.
+
+Found: 2026-11-26 · decomp
+
+### Brand logos missing in Car Selection > By Manufacturer: a call lost its second argument
+
+**Symptom.** With `--decomp on` the maker folders of Car Selection > By Manufacturer were empty (no brand logo; user
+report 2026-11-26); `--decomp off` showed them. **Cause.** `func_08A17818` (src/game/unsorted/new_batch_main_21.cpp) copies
+the selected maker's entry into the global at `0x08CF6244` with `func_08B855E0(0x08CF6244, node + 8)`; the asm sets
+`a1 = node + 8` before the branch that guards the call, and the decompiled body passed only `a0`, so the copy read a stale
+`a1`. (It also read `0x08CF6244` after the allocation instead of in the call's delay slot, before it.) **Why the gates
+missed it.** No route opened that view, and synthetic cases do not check what a callee does with a register the caller
+leaves stale. **Found by** bisecting the functions merged since 2026-11-24 with `config/pad_routes/car_maker.pad` and a
+pixel check of the folder (11 runs). The same file held the race-exit hang (`func_088D8918`, entry above).
+### Missing argument registers: the synthetic gate passes the bug and its fix alike
+
+**What.** The first `tools.call_audit` run found 3 more decompiled calls that drop an argument the original sets, and
+the callee reads:
+- `func_0888D20C` passes the race index `a1 = b` to `func_088DA788` (it was dropped);
+- `func_08A6C528` passes `end, 0` to the reserve `func_08B86674`;
+- `func_088ACFD8` passes the source matrix `a1 = a3` to the copy `func_08B4D080`.
+
+Two more passed a stale register that happened to hold the right value (`func_0888B748`, `func_08A641F4`).
+**Why it isn't obvious.** With the fixes reverted, the synthetic cases of the three still compare equal
+(`decomp_gate synth --only`, dealer: 2, 1 and 2 cases equal): the stale register and the right one point at data the
+generated inputs make alike (zeroed arenas, equal shapes), and a copy into the dead stack is not compared. So a dropped
+argument is invisible to the gate. Only reading the asm finds it, which is what the call audit automates
+(decomp workflow step 5b).
+
+Found: 2026-11-26 · decomp
+
+### 924 dead functions were never seeded: the "entered by a branch" rule counted the function's own branches
+
+**Symptom.** After Phase B2, `tools.extra_seeds select --phase B` refused 925 of the 1,998 unreferenced functions, 924 of
+them as `entered-by-branch`, and no more seeds seemed to exist: the functions stayed "not installed", so nothing could
+register or verify them.
+
+**Cause.** The rule built one set of conditional-branch targets over the whole `.text`, the candidate's own instructions
+included, and refused any function with a target strictly inside it. Every function with an `if` or a loop has such a
+target. The spec (emit-unreferenced design, § 4) refuses only an entry that another function's branch enters. All 924
+had only their own branches landing inside them.
+
+**Fix.** The rule now keeps, for each target, the sites that branch there, and refuses a candidate only when a site
+outside `[start, start + size)` lands inside it. Phase B3 seeds the 924 (`verify: ok`: 924 of 924 emitted, no block of
+the baseline lost). The one refusal left, `0x00380938`, has no prologue and no reference.
+
+**Why it isn't obvious.** The rejection report read like the boundary risk the spec warned about (code entered
+mid-function), so the 924 looked like a design limit, not a bug. Splitting the rejections by where the branch comes
+from showed all 924 were self-branches.
+
+Found: 2026-11-27 · tools
