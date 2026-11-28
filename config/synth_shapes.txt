@@ -2580,3 +2580,7 @@
 # 0x08CDE6EC..0x08CDE6EF, and +0x10A / +0x10E / +0x10F of 0x08CDE508 (0x08CDE612 / 0x08CDE616 / 0x08CDE617) — all
 # static game data, readable as-is.
 0x0895E6A8 reg:a1=struct:16
+
+# 0x08AFD7B0: a0 is the object: floats at +0/+4/+8/+0xC (negated into the rotation) and the points pointer at +0xD8,
+# whose +0x10/+0x14/+0x18 floats are read too.
+0x08AFD7B0 reg:a0=struct:256 field:+0xD8=ptr
