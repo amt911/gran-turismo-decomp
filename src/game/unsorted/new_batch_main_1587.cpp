@@ -326,22 +326,6 @@ void guarded_init(Runtime &rt, AllegrexContext &ctx, u32 argument, u32 vtable, u
 // 0x089BA420 (a0 = object, a1 = an argument object): when the object's virtual +0x178 answers non-zero, the argument
 // object's word +0x17C is called with (a1, the same virtual's answer); the same for virtual +0x16C and the word at
 // +0x170, which is the function's tail call.
-void func_089BA420(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 other = ctx.gpr[5];
-    GuestFrame frame(ctx, 0x10u);
-    SavedRegs saved(ctx, {16u, 17u, 18u});
-    if (call_indirect(rt, ctx, word(rt, word(rt, self) + 0x178u), {self}) != 0u) {
-        const u32 handler = word(rt, word(rt, other) + 0x17Cu);
-        const u32 argument = call_indirect(rt, ctx, word(rt, word(rt, self) + 0x178u), {self});
-        call_indirect(rt, ctx, handler, {other, argument});
-    }
-    if (call_indirect(rt, ctx, word(rt, word(rt, self) + 0x16Cu), {self}) != 0u) {
-        const u32 handler = word(rt, word(rt, other) + 0x170u);
-        const u32 argument = call_indirect(rt, ctx, word(rt, word(rt, self) + 0x16Cu), {self});
-        tail_call(ctx, handler, {other, argument});
-    }
-}
 
 void func_08A2D930(Runtime &rt, AllegrexContext &ctx) {
     guarded_init(rt, ctx, ctx.gpr[5], 0x08CBE6A0u, 0x28u, 0x08B0A0CCu, 0x08D77148u, 0x08D77150u, 0x08CD1E00u);
@@ -561,7 +545,6 @@ void func_08A96560(Runtime &rt, AllegrexContext &ctx) {
 NEW1587(0x08818948u, func_08818948, Word);
 NEW1587(0x088B42C8u, func_088B42C8, Word);
 NEW1587(0x088D7158u, func_088D7158, Word);
-NEW1587(0x089BA420u, func_089BA420, Word);
 NEW1587(0x089CF190u, func_089CF190, Word);
 NEW1587(0x08A1F520u, func_08A1F520, Word);
 NEW1587(0x08A24C50u, func_08A24C50, Word);
