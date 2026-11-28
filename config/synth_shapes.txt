@@ -2575,6 +2575,10 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+# main-2092 draft shapes (best effort, unverified). Deeper chains (vtable slots behind the pointed records) are not modelled.
+# 0x08A9C998: lw s0,0(a1) is the out slot; its record is null-checked, then its vtable slot 0x11C is called.
+0x08A9C998 reg:a1=struct:16 field:+0x0=ptr
 #   own +4 / +8 and released through the vtable at +0: slot +8 then +0xC), the dirty flag byte at +0x14 (the lbu that
 #   gates the whole body) and the mutex id at +0x18. The virtuals are followed through the +0 word, so a synthetic vtable
 #   is a slot pointer like the rest; the real class instance the gate picks as a0 needs no shape.
@@ -2658,7 +2662,6 @@
 # 0x089313D0: a1 is the output record written from +0 up to +0x4E (real size 0x50); a0 is the lookup id.
 0x089313D0 reg:a1=struct:80
 # 0x08A9C998: a1 points at the record slot (word(a1) is the object whose vtable slot 0x11C runs).
-0x08A9C998 reg:a1=struct:16 field:+0x0=ptr
 # 0x08950438: a0 holds the block at +0xC (its +0x270 is the mode block); a1 / a2 / a3 are three byte flags written,
 # t0 an output word (set to 1).
 0x08950438 reg:a0=struct:32 field:+0xC=ptr
