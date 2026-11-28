@@ -3005,3 +3005,64 @@
 0x088D2904 reg:a0=struct:1024
 # 0x08887520: holder: word +0 = object (virtual at +8), word +4 = node (strong count at +4, weak at +8).
 0x08887520 reg:a0=struct:16 field:+0x0=ptr field:+0x4=ptr
+# Synthetic input shapes for the main-2077 draft batch. One line per address; only functions that dereference an argument register.
+# 0x0888B85C: reads a0[0x18] (the callee's object pointer).
+0x0888B85C reg:a0=struct:0x20 field:+0x18=ptr
+# 0x0899485C: lw s2,0x11C(s1) is the word read under the lock (0x11C + 4 -> 0x120).
+0x0899485C reg:a0=struct:288
+# 0x089947C4: byte-identical body, the word at +0x118 (0x118 + 4 -> 0x11C, 288 covers both).
+0x089947C4 reg:a0=struct:288
+# 0x08931F48: stores vtable 0x08CC67A8 at +0 and passes the object on; nothing else is read here.
+0x08931F48 reg:a0=struct:16
+# 0x08931F9C: byte-identical body to 0x08931F48.
+0x08931F9C reg:a0=struct:16
+# 0x08ABA064: writes +0, +4, +8 and +0x18; the list head 0x08D77180 (global) is read and rewritten in place.
+0x08ABA064 reg:a0=struct:32
+# 0x08B2C9B0: vtable at +0, then 0x08B2C2C8(this + 0x58) (0x58 + 4 -> 0x5C, 128 covers the subobject).
+0x08B2C9B0 reg:a0=struct:128
+# 0x088C6454: vtable at +0 and the block pointer at +4.
+0x088C6454 reg:a0=struct:16
+# 0x08B1CF70: vtable at +0, 0x08B28DCC(this + 4), a1/a2 at +0x2C/+0x30 and zero at +0x34 (0x34 + 4 -> 0x38).
+0x08B1CF70 reg:a0=struct:64
+# 0x08845A78: word(+0x14) is the companion value and word(+0x18) the object destroyed through slot 0 of its vtable.
+0x08845A78 reg:a0=struct:32 field:+0x18=ptr
+# 0x08AB9F60: writes vtable, node and +0x18; the list head 0x08D77180 (global) is read and rewritten in place.
+0x08AB9F60 reg:a0=struct:32
+# 0x0887EA1C: 0x0886AA0C(this, 2) builds the member, then the object at +0x74 (companion +0x70) is destroyed.
+0x0887EA1C reg:a0=struct:128 field:+0x74=ptr
+# 0x08C73A28: word(a0) is the buffer, its length at buffer - 0xC and the search starts at buffer + a2.
+0x08C73A28 reg:a0=struct:16 field:+0x0=ptr
+# 0x08B2FEB4: vtable at +0, then 0x08B2F1B4(this + 0x964C) (far past the 1024-byte shape cap; a0 is still made valid).
+0x08B2FEB4 reg:a0=struct:1024
+# 0x08B118A4: vtable and the members +4, +0x14, +0x40, +0x4C, +0x58, +0x64, the words +0x90..+0x9C.
+0x08B118A4 reg:a0=struct:1024
+# 0x089BB87C: 0x08A7E88C(this, 0x08CF6FDC) builds the subobject, then vtable/+0x38..+0x60 are written.
+0x089BB87C reg:a0=struct:1024
+# 0x0886F1F4: 0x0886AA0C(this, 5) and (this, 2) run first, then the object at +0x74 (companion +0x70) is destroyed.
+0x0886F1F4 reg:a0=struct:128 field:+0x74=ptr
+# 0x089CC068: a0 is the object 0x089CC040 inspects (only the stack local at sp + 4 is written here).
+0x089CC068 reg:a0=struct:1024
+# 0x08A6B518: word(this + 0x1C) is the heap block whose -0xC / -4 words decide the free.
+0x08A6B518 reg:a0=struct:32 field:+0x1C=ptr
+# 0x08B21BF8: vtable, 0x08B28DCC(this + 4), 0x08C4FB18(this + 0x34, this), 0x08C4FB30(this + 0x40), words up to +0x6C.
+0x08B21BF8 reg:a0=struct:112
+# 0x08B17848: a0 = self; the words +0x24 / +0x1C / +0x18 / +0x14, the byte +0x28 and the 0x5C-byte register block that
+# 0x08B7B2E4 stores at +0x2C are written, so the struct runs to 0x2C + 0x5C = 0x88 (136) bytes.
+0x08B17848 reg:a0=struct:136
+0x0889436C reg:a1=struct:16 field:+0x0=ptr
+0x088A78D4 reg:a1=struct:16 field:+0x0=ptr
+0x08A58EF0 reg:a1=struct:32 field:+0x18=ptr field:+0x1C=ptr
+0x08A8C4F8 reg:a0=struct:96 field:+0x30=ptr field:+0x50=ptr
+0x08A6BCB0 reg:a0=struct:8 field:+0x0=ptr
+0x08A6BD88 reg:a1=struct:8 field:+0x0=ptr
+0x08A783B4 reg:a1=struct:32 field:+0x10=ptr
+0x08A93578 reg:a1=struct:16 field:+0x4=ptr
+0x08AA6664 reg:a0=struct:32 field:+0x18=ptr
+0x08B29858 reg:a2=struct:64
+0x08BFE9FC reg:a0=struct:32 field:+0x8=ptr field:+0xC=ptr
+0x08BFEAD4 reg:a0=struct:32 field:+0x8=ptr field:+0xC=ptr
+0x08C1D458 reg:a0=struct:32 field:+0x8=ptr field:+0xC=ptr
+0x08C35350 reg:a0=struct:32 field:+0x8=ptr field:+0xC=ptr
+0x0884D6A0 reg:a3=struct:8 field:+0x0=ptr field:+0x4=ptr
+0x088F5594 reg:a0=struct:16
+0x089CC59C reg:a0=struct:32 field:+0x14=ptr field:+0x10=ptr field:+0xC=ptr
