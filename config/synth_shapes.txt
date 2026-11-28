@@ -2575,3 +2575,8 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+# tuning block), the byte 0x08CF35ED, the signed-half table 0x08CDE6F0..0x08CDE6FE, the bytes
+# 0x08CDE6EC..0x08CDE6EF, and +0x10A / +0x10E / +0x10F of 0x08CDE508 (0x08CDE612 / 0x08CDE616 / 0x08CDE617) — all
+# static game data, readable as-is.
+0x0895E6A8 reg:a1=struct:16
