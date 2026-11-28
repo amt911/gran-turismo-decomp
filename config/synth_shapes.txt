@@ -1126,6 +1126,15 @@
 # 0x08A3CBB0: the vtable 0x08CD1A10 at +0, then a tail call of 0x08B28D34(a0 + 0x14).
 0x08A3CBB0 reg:a0=struct:32 field:+0x0=ptr
 
+# owner and self[0xB04] the object whose 0xA8 virtual fills the four entries; real struct 0xB90.
+# 0x0891EE68: a1 is the pose state — mode at +0x21C, elapsed at +0x218, the two pickers at +0x220 / +0x224 and the
+# table flag at +0x228; the mode and the table index stay small so the paths run instead of reading far outside the tables.
+0x0891EE68 reg:a1=struct:560 field:+0x21C=int:0..3 field:+0x220=int:0..2 field:+0x224=int:0..3 field:+0x228=int:0..1
+# 0x08AD2438: the node list sits at self+0x2A4 and its level is the signed half at +0x2AA, which indexes 0x7C-byte nodes;
+# the word at +0x2A8 puts 0x8000 in that half, so a case leaves the walk at once instead of iterating garbage nodes.
+0x08AD2438 reg:a0=struct:688 field:+0x2A8=int:0x80000000..0x80000000
+# 0x089DC564: a0 is the destination vector the frame temporaries are assigned into.
+0x089DC564 reg:a0=struct:16
 # 0x08B5C4B0: `lw v0,0x0(a1)` is the record; its +0x10 is the six-name table whose words 0..0x14 are the strings
 # (0x08B35F60 / 0x08C75AF8 read them). a0 only receives the shared empty-string constant and is the string the callees
 # grow, so a1 is the one that must be a real block.
