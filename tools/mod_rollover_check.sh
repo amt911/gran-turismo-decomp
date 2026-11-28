@@ -36,7 +36,8 @@
 #   --sim-replay the `circuit` route with a fake hit (GT_MOD_ROLLOVER_FAKE=m30:9): the same takeover live and in the replay, simulated poses within 0.5 m at the same step after it
 #   --others     with --sim: deformation, reset-to-track, cheats, analog-pedals, draw-distance and orbit-camera enabled too (the run must still pass)
 #   Each of these must FAIL: --sabotage-restitution (=13: restitution 1.0; with --drop), --sabotage-nofriction (=14; --slide), --sabotage-nopose (=15: the simulation runs but its pose is never sent to the game; --sim),
-#   --sabotage-notakeover (=16; --sim). The legacy modes below run the mod with style = "arcade" (the 0.4.0 scripted roll); --sabotage-flipflag (=4) is gone: the flag hooks are the host's now
+#   --sabotage-notakeover (=16; --sim). --sabotage-nopost (=17; --sim, rollover >= 0.5.1): no post-step write, the car is drawn one step of motion off the
+#   simulation (the 2026-11-26 shake): the `poststep` judge must FAIL. The legacy modes below run the mod with style = "arcade" (the 0.4.0 scripted roll); --sabotage-flipflag (=4) is gone: the flag hooks are the host's now
 #   (host/tests/tilt_free_test.cpp pins which readers get 1, flip machine excluded).
 # Env: ROUTE (a pad route file, default config/pad_routes/rollover.pad), MOD_CHECK_NO_LOCK=1 (no lock: the caller holds tools/cpu_lock.sh),
 # GT_MODS_REPO (default ../gt-mods), BUILD (default build), OUT (default recomp/analysis/mod_rollover_check, gitignored; never /tmp),
@@ -53,7 +54,7 @@ decomp=off seconds=150 every=30 sabotage=0 simmode= others=0 toggle=0 roll_only=
 while [ $# -gt 0 ]; do
   case $1 in
     --sim) simmode=sim;; --drop) simmode=drop;; --slide) simmode=slide;; --tip) simmode=tip;; --sim-replay) simmode=replay;; --others) others=1;;
-    --sabotage-restitution) sabotage=13;; --sabotage-nofriction) sabotage=14;; --sabotage-nopose) sabotage=15;; --sabotage-notakeover) sabotage=16;;
+    --sabotage-restitution) sabotage=13;; --sabotage-nofriction) sabotage=14;; --sabotage-nopose) sabotage=15;; --sabotage-notakeover) sabotage=16;; --sabotage-nopost) sabotage=17;;
     --without-mod) sabotage=5;; --sabotage-noflag) sabotage=1;; --sabotage-noimpulse) sabotage=2;; --sabotage-threshold0) sabotage=3;; --sabotage-nobox) sabotage=6;; --sabotage-pushupright) sabotage=7;; --sabotage-nocap) sabotage=8;; --sabotage-liveonly) sabotage=10;; --replay) replay=1;; --frames) frames=1;; --frames-window) fwindow=$2; shift;; --without-box) nobox_frames=1;;
     --toggle-off) toggle=1;; --toggle-at) toggle_at=$2; shift;; --roll-only) roll_only=1;; --recover) recover=1;;
     --decomp) decomp=$2; shift;; --seconds) seconds=$2; shift;; --every) every=$2; shift;;

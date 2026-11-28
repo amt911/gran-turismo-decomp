@@ -1,0 +1,11 @@
+# Car Selection > By Manufacturer: the race route up to Car Selection, then the list dropdown (UP, CROSS) and its fourth
+# entry "By Manufacturer" (DOWN x3, CROSS). Pass: the Peugeot folder shows the brand logo (user report 2026-11-26: with
+# --decomp on the maker folders were empty; culprit func_08A17818, docs/FINDINGS.md "Brand logos missing").
+# Times after the last WAIT are vblanks.
+3300:START,
+WAIT:seek=0x1fa48900,2300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cdb9140,300:CROSS,
+WAIT:seek=0x1d04fc40,300:CROSS,
+WAIT:seek=0x1cf2a980,300:CROSS,
+WAIT:seek=0x1cd6db80,300:UP,360:CROSS,420:DOWN,450:DOWN,480:DOWN,520:CROSS
