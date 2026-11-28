@@ -2767,3 +2767,8 @@
 0x088F1358 reg:a0=struct:32 field:+0x18=ptr
 0x08A58518 reg:a0=struct:32 field:+0x14=ptr
 0x08873ADC reg:a0=struct:64 field:+0xC=ptr field:+0x14=ptr
+
+# Synthetic input shapes for batch main-2218 (drafts in src/game/unsorted/new_batch_main_2218.cpp).
+# 0x089C9834: a0 is the object written all over (vtable +0x00, list heads +0x14..+0x30, flags +0x44..+0x47,
+# list block +0x48, copied words +0x60..+0x7C). Highest field is +0x7C (+4 -> 0x80), so 128 bytes.
+0x089C9834 reg:a0=struct:128
