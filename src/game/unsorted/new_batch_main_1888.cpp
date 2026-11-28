@@ -12,7 +12,7 @@
 #include <initializer_list>
 
 namespace gt::game {
-namespace new_batch_main_922 {
+namespace new_batch_main_1888 {
 namespace {
 
 using namespace gt::game::hot;
@@ -71,6 +71,15 @@ private:
 
 // ---- 0x08A8DB4C (a0 = this): fills a 0x20-byte local (0x08A75BDC(local, a1)), 0x08A8DAB4(this, local, 1), then
 // releases the local (0x08A75A88(local)); v0 is the last call's. ----
+void func_08A8DB4C(Runtime &rt, AllegrexContext &ctx) { GuestFrame frame(ctx, 0x20u);
+    SavedRegisters saved(ctx);
+    const u32 self = ctx.gpr[4];
+    ctx.gpr[16] = self;
+    const u32 local = frame.at(0u);
+    call(rt, ctx, 0x08A75BDCu, {local, ctx.gpr[5]});
+    call(rt, ctx, 0x08A8DAB4u, {self, local, 1u});
+    call(rt, ctx, 0x08A75A88u, {local});
+}
 
 // ---- 0x08AB57A4: copy 0x08A7026C, cast 0x08AB56F8. ----
 
@@ -127,7 +136,8 @@ private:
 // 0x08B1FC48(*(a0 + 4), a1). ----
 
 } // namespace
-} // namespace new_batch_main_922
+} // namespace new_batch_main_1888
 } // namespace gt::game
 
-#define NEW922(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_922::name, gt::ReturnKind::kind)
+#define NEW922(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_1888::name, gt::ReturnKind::kind)
+NEW922(0x08A8DB4Cu, func_08A8DB4C, Word);

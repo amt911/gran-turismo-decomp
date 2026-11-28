@@ -3494,5 +3494,40 @@ the selected maker's entry into the global at `0x08CF6244` with `func_08B855E0(0
 missed it.** No route opened that view, and synthetic cases do not check what a callee does with a register the caller
 leaves stale. **Found by** bisecting the functions merged since 2026-11-24 with `config/pad_routes/car_maker.pad` and a
 pixel check of the folder (11 runs). The same file held the race-exit hang (`func_088D8918`, entry above).
+### Missing argument registers: the synthetic gate passes the bug and its fix alike
+
+**What.** The first `tools.call_audit` run found 3 more decompiled calls that drop an argument the original sets, and
+the callee reads:
+- `func_0888D20C` passes the race index `a1 = b` to `func_088DA788` (it was dropped);
+- `func_08A6C528` passes `end, 0` to the reserve `func_08B86674`;
+- `func_088ACFD8` passes the source matrix `a1 = a3` to the copy `func_08B4D080`.
+
+Two more passed a stale register that happened to hold the right value (`func_0888B748`, `func_08A641F4`).
+**Why it isn't obvious.** With the fixes reverted, the synthetic cases of the three still compare equal
+(`decomp_gate synth --only`, dealer: 2, 1 and 2 cases equal): the stale register and the right one point at data the
+generated inputs make alike (zeroed arenas, equal shapes), and a copy into the dead stack is not compared. So a dropped
+argument is invisible to the gate. Only reading the asm finds it, which is what the call audit automates
+(decomp workflow step 5b).
 
 Found: 2026-11-26 · decomp
+
+### 924 dead functions were never seeded: the "entered by a branch" rule counted the function's own branches
+
+**Symptom.** After Phase B2, `tools.extra_seeds select --phase B` refused 925 of the 1,998 unreferenced functions, 924 of
+them as `entered-by-branch`, and no more seeds seemed to exist: the functions stayed "not installed", so nothing could
+register or verify them.
+
+**Cause.** The rule built one set of conditional-branch targets over the whole `.text`, the candidate's own instructions
+included, and refused any function with a target strictly inside it. Every function with an `if` or a loop has such a
+target. The spec (emit-unreferenced design, § 4) refuses only an entry that another function's branch enters. All 924
+had only their own branches landing inside them.
+
+**Fix.** The rule now keeps, for each target, the sites that branch there, and refuses a candidate only when a site
+outside `[start, start + size)` lands inside it. Phase B3 seeds the 924 (`verify: ok`: 924 of 924 emitted, no block of
+the baseline lost). The one refusal left, `0x00380938`, has no prologue and no reference.
+
+**Why it isn't obvious.** The rejection report read like the boundary risk the spec warned about (code entered
+mid-function), so the 924 looked like a design limit, not a bug. Splitting the rejections by where the branch comes
+from showed all 924 were self-branches.
+
+Found: 2026-11-27 · tools
