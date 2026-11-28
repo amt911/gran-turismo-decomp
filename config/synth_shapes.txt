@@ -2575,3 +2575,13 @@
 0x08907E44 reg:a0=struct:64 field:+0x2C=int:0..16 field:+0x30=ptr
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
+
+# 0x089283AC: the object is read at +0x1FB8 (the transition), +0x1D1C (the state), +0x1FC, +0x2050 and +0x1FB0, and written
+# at +0x2054; a0 is the whole object, whose members run past the 1 KiB shape cap.
+0x089283AC reg:a0=struct:1024 field:+0x1FC=int:0..0x40
+# 0x089344D8: the struct is compared word by word from +0 to +0x104 against the block 0x08936584 fills, and the byte at
+# +0x15E is checked (0x160 is the last word read, +0x15E the last byte).
+0x089344D8 reg:a0=struct:352
+# 0x088F20E4: a1 is the settings block (floats +0..+0x3C, the count byte +0x40, the flag +0x41, the value +0x42 and the
+# halfwords +0x44 / +0x46); a0 is the renderer, read at +0x840 / +0x844 (past the shape cap).
+0x088F20E4 reg:a1=struct:80
