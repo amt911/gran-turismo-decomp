@@ -2734,3 +2734,8 @@
 0x08ACF920 reg:a0=struct:1024
 # 0x08895C9C: a0 = self: the block at +0x1C, the shared member at +0x20, words up to +0x34 and bytes +0x18 / +0x30.
 0x08895C9C reg:a0=struct:64
+
+# tuning block), the byte 0x08CF35ED, the signed-half table 0x08CDE6F0..0x08CDE6FE, the bytes
+# 0x08CDE6EC..0x08CDE6EF, and +0x10A / +0x10E / +0x10F of 0x08CDE508 (0x08CDE612 / 0x08CDE616 / 0x08CDE617) — all
+# static game data, readable as-is.
+0x0895E6A8 reg:a1=struct:16
