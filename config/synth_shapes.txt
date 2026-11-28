@@ -2771,12 +2771,10 @@
 0x08A58518 reg:a0=struct:32 field:+0x14=ptr
 0x08873ADC reg:a0=struct:64 field:+0xC=ptr field:+0x14=ptr
 # 0x0890B7AC: a0 is the owner: +0x100 is the held object (vtable at +0, counts at +4 and +8), +0x28..+0x0 are (value, object) pairs.
-0x0890B7AC reg:a0=struct:272 field:+0x100=ptr field:+0x4=ptr field:+0x8=ptr field:+0xC=ptr field:+0x14=ptr field:+0x1C=ptr field:+0x24=ptr field:+0x2C=ptr
 # main session 2088 (draft-only batch): input shapes for the functions that dereference an argument.
 # 0x089DE688: a0 is the object the constructor fills (stores only).
 0x089DE688 reg:a0=struct:512
 # 0x089D0900: a0 is the object; its word at +0x14C (flags) and +0xE0 are read before they are rewritten.
-0x089D0900 reg:a0=struct:512 field:+0x14C=int:0..65535 field:+0xE0=int:0..255
 # 0x08ACEBC4: constructs the object in a0, writing fields up to +0x518.
 # 0x08AB8FD8: a0 is an array of row pointers, t0/t1/t2 are the float outs.
 # 0x08B49014: the mode word at +0x10 of a0 (0..8 covers the 1/2 and 3/4 cases).
