@@ -312,3 +312,69 @@ verdict passes or fails on changed. What did it:
 - **Still serial:** the full gate waits for the synthetic groups (`GT_VERIFY_OVERLAP=0`). Overlapping them in one tree
   lost the fast gate in 775 and 830, so the earlier note that they run beside each other no longer holds. With the
   groups at a few minutes this costs little.
+
+## Claude as a drafter: no MCP servers, no skills (user, 2026-11-25: "anota ese descubrimiento ... en el Claude.md")
+
+Every `claude -p` drafting session (the Claude engine of `gt-delegate/tools/delegate.sh`, Sonnet or Haiku) started all
+~20 user-scope MCP servers (rea with ~300 tools, playwright, shadcn, inkscape, magicui...). Their tool definitions went out
+with every request of a 30-90 minute session, and the user saw the Sonnet usage climb. Drafting needs none of them: run
+drafter sessions with `--strict-mcp-config --mcp-config '{"mcpServers":{}}' --disable-slash-commands` (no MCP servers, no
+skills). The repo's `CLAUDE.md`/`AGENTS.md` still load, so the rules still bind. Measured the same day: a session that only
+skipped its function still paid the whole startup context, so do not hand a model a batch it will skip (the remaining
+pool was all large functions: give Sonnet one large function per session instead).
+
+## Status answers include the decompilation percentage (user, 2026-11-25)
+
+When the user asks how things are going ("¿cómo llevas todo?" or similar), the answer always gives the decompilation
+percentage of main, functions and bytes, and the change since the previous answer. It comes from `tools.progress` over
+main's `src/` (the README's figures lag behind):
+
+```
+git archive origin/main src | tar -x -C /tmp/main-src
+.venv/bin/python -m tools.progress --functions recomp/analysis/functions.tsv --src /tmp/main-src/src
+```
+
+2026-11-25 19:10: functions 18096 / 23208 (77.97 %), bytes 2754360 / 4175084 (65.97 %).
+
+## Batch verification on the helper machines (user, 2026-11-25: "que no paren los dispositivos externos")
+
+With verdicts down to minutes, the helper machines (laptops, lent desktop) sat idle while the desktop's per-batch
+verification (synthetic gate, sabotage, canary before a PR) was the bottleneck. They now run that verification too:
+- The main session's `rvauto.sh` (one loop per machine) takes an unverified draft batch only when the verdict queue is
+  empty and that machine has no verdict. It sends the branch as a `git bundle`, and the machine runs the same scripts the
+  desktop uses (`vmain.sh`, `canary.sh`: regenerate, build, frame audit, synthetic gate over the 11 scenes, sabotage on the
+  covering scenes, 90 s diff run + save_garage boot) in its verdict tree.
+- The amended commit comes back as a bundle; the desktop pushes it, opens the PR and queues the verdict. While a batch
+  runs, the machine's verdict loop waits (a busy flag), so a verdict never shares that tree.
+- Verdict trees are full builds, so the boot canary is reliable there. Two desktop worktrees that link a prebuilt
+  generated library (built for an older `src/`) could not boot main at all.
+- First run: batch 1086, synthetic 1/1, sabotage 1/1, canary clean, PR in about 12 minutes.
+
+## Call audit — `tools.call_audit` (user, 2026-11-26: "si funciona bien escríbelo en el claude.md")
+
+On 2026-11-26 two decompiled functions broke play under `--decomp on`, and none of the gates saw them:
+
+- `func_088D8918` hung the game on the GT logo after leaving a race's Starting Grid (#936).
+- `func_08A17818` lost the brand logos in Car Selection (#938).
+
+Both were a call missing an argument register: the deadline's high word (v1) dropped after `call()`, and a copy without
+its source `a1`. The callee runs on a copy of the caller's context, so it reads a stale register; synthetic cases then
+compare like with like, and a callee that sleeps is never compared at all.
+
+`.venv/bin/python -m tools.call_audit [FILE.cpp ...]` reads the C and the original asm and flags:
+- every call where the original writes an argument register that the callee reads but the C does not pass;
+- every read of `ctx.gpr[3]` after a v0-only `call()`.
+
+Run it with `frame_audit` on each batch: decomp workflow, step 5b. It is a lint: the analysis is linear and approximate,
+so each hit is checked against the asm.
+
+First run over `src/`:
+- **Before refining:** 2,448 hits, mostly false positives. The causes were family helpers taken for argument-less calls,
+  windows that crossed branches, stack spills, local `j` jumps, and unknown import stubs.
+- **After refining:** 9 hits (with the logo fix, #938), all triaged.
+  - 3 real bugs, fixed in #942: a wrong race index, a wrong reserve size, and a copy from the wrong matrix.
+  - 2 stale registers that held the right value, made explicit in #942.
+  - 4 known false positives: imports whose arity is unknown, and linear order around a loop test.
+
+The synthetic gate passes these bugs with or without their fixes (FINDINGS), so the audit is the only check that sees
+them.
