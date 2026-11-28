@@ -2956,3 +2956,60 @@
 0x0884D6A0 reg:a3=struct:8 field:+0x0=ptr field:+0x4=ptr
 0x088F5594 reg:a0=struct:16
 0x089CC59C reg:a0=struct:32 field:+0x14=ptr field:+0x10=ptr field:+0xC=ptr
+# Main-session batch 1574 (src/game/unsorted/new_batch_main_1574.cpp): one line per drafted function that dereferences an argument.
+# Gated-pair family (a1 holds the pointer whose word is s0; first call and the rest read through a0/a1):
+0x088087B0 reg:a1=struct:16 field:+0x0=ptr
+0x0880EF48 reg:a1=struct:16 field:+0x0=ptr
+0x0881BC80 reg:a1=struct:16 field:+0x0=ptr
+0x088247AC reg:a1=struct:16 field:+0x0=ptr
+0x08846ED0 reg:a1=struct:16 field:+0x0=ptr
+0x08854844 reg:a1=struct:16 field:+0x0=ptr
+0x088588EC reg:a1=struct:16 field:+0x0=ptr
+0x089692C4 reg:a1=struct:16 field:+0x0=ptr
+# Object a0 with the pointer field the function loads first:
+0x08A9BFAC reg:a0=struct:256 field:+0x38=ptr
+0x08A9C4C4 reg:a0=struct:256 field:+0x78=ptr
+0x08A9C52C reg:a0=struct:256 field:+0x74=ptr
+0x08B21E00 reg:a0=struct:256 field:+0x5C=ptr field:+0x60=ptr
+0x088913B8 reg:a0=struct:128 field:+0x44=ptr field:+0x48=ptr field:+0x4C=ptr
+0x088DA288 reg:a0=struct:256 field:+0xA8=int:0..255 field:+0xAC=int:0..255
+# a1 is the source record of 0x0892FC20 (+8..+0x14 read):
+0x0892FC20 reg:a1=struct:32 field:+0x10=ptr field:+0x14=ptr
+# 0x08B1AF14 reads the text at a1 (a zero-filled struct gives an empty text):
+0x08B1AF14 reg:a1=struct:16
+# 08B3EA3C (fields at +0x640/+0x644 and a store at a0+0x640 are past the 1024-byte struct limit), 08AD87B4 and 08B1A174
+# (no direct dereference of an argument: the callee reads it).
+# 0x08B2082C: a0 = struct; +0x0 the first value (2..8), +0x4 the limit (0..8), +0xC a byte the test reads.
+0x08B2082C reg:a0=struct:16 field:+0x0=int:2..8 field:+0x4=int:0..8
+# 0x088AA6F4: a0 = struct whose +0x0 is a pointer to the holder (its +0x10 is passed to the lookup).
+0x088AA6F4 reg:a0=struct:32 field:+0x0=ptr
+# 0x088FE03C: a0 = struct written at +0x0 (the store of a1).
+0x088FE03C reg:a0=struct:16
+# 0x08917B08: a0 = struct whose +0xC is a pointer to the owner (the byte store lands at owner+0x2107, past the struct limit).
+0x08917B08 reg:a0=struct:16 field:+0xC=ptr
+# 0x0891A568 / 0x0891A6D4: a0 = object with its vtable word at +0 and a child pointer at +0x1F8.
+0x0891A568 reg:a0=struct:512 field:+0x1F8=ptr
+0x0891A6D4 reg:a0=struct:512 field:+0x1F8=ptr
+# 0x08AC26E4: a1 = a pointer to a struct whose +0x0 is a pointer (the bytes at its +2 are read by the cursor walk).
+0x08AC26E4 reg:a1=struct:16 field:+0x0=ptr
+# Main-session batch 1577 (src/game/unsorted/new_batch_main_1577.cpp): one line per drafted function (all 30 read the record at +0 of a1).
+# Each body: word(a1) must be a pointer for the probe and 0x08A76F20 to be reached; a0 is passed through, not dereferenced here.
+0x08A3DAA0 reg:a1=struct:16 field:+0x0=ptr
+0x08A3F028 reg:a1=struct:16 field:+0x0=ptr
+0x08A3F140 reg:a1=struct:16 field:+0x0=ptr
+0x08A3F2B4 reg:a1=struct:16 field:+0x0=ptr
+0x08A40D78 reg:a1=struct:16 field:+0x0=ptr
+0x08A40F10 reg:a1=struct:16 field:+0x0=ptr
+0x08A44734 reg:a1=struct:16 field:+0x0=ptr
+0x08A52900 reg:a1=struct:16 field:+0x0=ptr
+0x08A5A5AC reg:a1=struct:16 field:+0x0=ptr
+0x08A61AA0 reg:a1=struct:16 field:+0x0=ptr
+0x08A68E3C reg:a1=struct:16 field:+0x0=ptr
+0x08A6ADD0 reg:a1=struct:16 field:+0x0=ptr
+0x08A6C490 reg:a1=struct:16 field:+0x0=ptr
+0x08A703B8 reg:a1=struct:16 field:+0x0=ptr
+0x08A81174 reg:a1=struct:16 field:+0x0=ptr
+0x08A85A50 reg:a1=struct:16 field:+0x0=ptr
+0x08A87D58 reg:a1=struct:16 field:+0x0=ptr
+0x08A88FC4 reg:a1=struct:16 field:+0x0=ptr
+0x08A8C318 reg:a1=struct:16 field:+0x0=ptr
