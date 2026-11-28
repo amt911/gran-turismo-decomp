@@ -66,72 +66,6 @@ u32 atomic_add(Runtime &rt, u32 address, u32 delta) {
 // Finally it runs the vtable methods of the two tables with the object pointers and clears the 0x1D0 block.
 // Returns self + 0x1D0 in v0. Frame 0x40. a2 and a3 (saved to the stack by the original) are read back by its
 // stores.
-void func_089248A8(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x40u);
-    const u32 self = ctx.gpr[4];
-    const u32 arg_a2 = ctx.gpr[6];
-    const u32 arg_a3 = ctx.gpr[7];
-    call(rt, ctx, 0x08925FE4u, {self});
-    put(rt, self, 0x08CC5FC0u);
-
-    const u32 vt_b = 0x08CC61C0u;
-    call(rt, ctx, 0x089263ECu, {self + 0x10u});
-    put(rt, self + 0x10u, vt_b);
-    call(rt, ctx, 0x089263ECu, {self + 0x3Cu});
-    put(rt, self + 0x3Cu, vt_b);
-    call(rt, ctx, 0x089263ECu, {self + 0x68u});
-    put(rt, self + 0x68u, vt_b);
-    call(rt, ctx, 0x089263ECu, {self + 0x94u});
-    put(rt, self + 0x94u, vt_b);
-    call(rt, ctx, 0x089263ECu, {self + 0xC0u});
-    put(rt, self + 0xC0u, vt_b);
-    call(rt, ctx, 0x089263ECu, {self + 0xECu});
-    put(rt, self + 0xECu, vt_b);
-
-    const u32 vt_c = 0x08CC6198u;
-    call(rt, ctx, 0x089263ECu, {self + 0x118u});
-    put(rt, self + 0x118u, vt_c);
-    const u32 vt_d = 0x08CC6150u;
-    call(rt, ctx, 0x089263ECu, {self + 0x144u});
-    put(rt, self + 0x144u, vt_d);
-    call(rt, ctx, 0x089263ECu, {self + 0x174u});
-    put(rt, self + 0x174u, vt_c);
-    call(rt, ctx, 0x089263ECu, {self + 0x1A0u});
-    put(rt, self + 0x1A0u, vt_d);
-
-    for (u32 i = 0u; i < 3u; ++i) call(rt, ctx, 0x08926398u, {self + 0x1E0u + 0x2Cu * i});
-    for (u32 i = 0u; i < 3u; ++i) call(rt, ctx, 0x08926398u, {self + 0x264u + 0x2Cu * i});
-
-    const u32 mt = 0x08CDDC60u;
-    put(rt, self + 0x08u, arg_a2);
-    put(rt, self + 0x0Cu, arg_a3);
-    call(rt, ctx, 0x08926488u, {self + 0x10u, mt, 1u});
-    call(rt, ctx, 0x08926488u, {self + 0x3Cu, mt, 1u});
-    call(rt, ctx, 0x08926488u, {self + 0xC0u, mt, 1u});
-    call(rt, ctx, 0x08926488u, {self + 0xECu, mt, 1u});
-
-    if (arg_a3 == 2u) {
-        call(rt, ctx, 0x08926514u, {self + 0x118u, 0x08CDDC18u, 1u});
-        call(rt, ctx, 0x08926514u, {self + 0x174u, 0x08CDDC18u, 1u});
-    } else {
-        call(rt, ctx, 0x08926514u, {self + 0x118u, 0x08CDDC30u, 1u});
-        call(rt, ctx, 0x08926514u, {self + 0x174u, 0x08CDDC30u, 1u});
-    }
-
-    for (u32 i = 0u; i < 3u; ++i) {
-        const u32 first = self + 0x1E0u + 0x2Cu * i;
-        const u32 second = self + 0x264u + 0x2Cu * i;
-        call_indirect(rt, ctx, word(rt, word(rt, first) + 0x08u), {first, 0x08CDDC00u, 1u});
-        call_indirect(rt, ctx, word(rt, word(rt, second) + 0x08u), {second, 0x08CDDBE8u, 1u});
-    }
-
-    const u32 block = self + 0x1D0u;
-    put(rt, self + 0x1D0u, 0u);
-    put(rt, block + 0x0Cu, 0u);
-    put(rt, block + 0x04u, 0u);
-    put(rt, block + 0x08u, 0u);
-    ctx.gpr[2] = block;
-}
 
 // ---------------------------------------------------------------------------------------------------------------------
 // 0x08AFF7E0 (164 insns): transforms a 4x4 block of the source at a2 << 9 into the object's list. The four floats of
@@ -310,6 +244,5 @@ void func_08AB7988(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW2095(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_2095::name, gt::ReturnKind::kind)
-NEW2095(0x089248A8u, func_089248A8, Word);
 NEW2095(0x08AFF7E0u, func_08AFF7E0, Word);
 NEW2095(0x08AB7988u, func_08AB7988, Word);
