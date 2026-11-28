@@ -218,35 +218,6 @@ void func_08A8C828(Runtime &rt, AllegrexContext &ctx) { walk_list(rt, ctx, 0x3Cu
 // words 4 and 8, words 0xC..0x1C, the vtable 0x08CCFF88 at 0 — and each half (destination + 0x20 and + 0x40) is copied with
 // 0x0896418C, the halves' word 0x10 taken from the source's 0x30 and 0x50. v0 ends as the source's 0x50 word of the last
 // element copied; with no element copied it is the `lui` value 0x08CD4000 (or unchanged when the count is 0).
-void func_08BE78E8(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x30u);
-    Saved saved(rt, ctx, frame,
-                {{23u, 0x1Cu}, {17u, 0x4u}, {31u, 0x24u}, {30u, 0x20u}, {22u, 0x18u}, {21u, 0x14u}, {20u, 0x10u}, {19u, 0xCu},
-                 {18u, 0x8u}, {16u, 0x0u}});
-    const u32 dest = ctx.gpr[4];
-    const u32 count = ctx.gpr[5];
-    const u32 source = ctx.gpr[6];
-    if (count != 0u) {
-        ctx.gpr[2] = 0x08CD4000u;
-        for (u32 i = 0; i < count; ++i) {
-            const u32 element = dest + i * 0x60u;
-            if (element == 0u) continue;
-            put(rt, element + 4u, word(rt, source + 4u));
-            put(rt, element + 8u, word(rt, source + 8u));
-            for (u32 offset = 0xCu; offset <= 0x1Cu; offset += 4u) put(rt, element + offset, word(rt, source + offset));
-            const u32 first = element + 0x20u;
-            const u32 second = element + 0x40u;
-            const u32 source_first = source + 0x20u;
-            const u32 source_second = source + 0x40u;
-            put(rt, element, 0x08CCFF88u);
-            call(rt, ctx, 0x0896418Cu, {first, source_first});
-            put(rt, first + 0x10u, word(rt, source_first + 0x10u));
-            call(rt, ctx, 0x0896418Cu, {second, source_second});
-            ctx.gpr[2] = word(rt, source_second + 0x10u);
-            put(rt, second + 0x10u, ctx.gpr[2]);
-        }
-    }
-}
 
 // 0x0881CAEC (a0 = this): the object at this+0 gets its vtable; a 0x448-byte block is allocated and cleared (30 calls to
 // 0x088A79AC on its table at +0x354), stored at this+0x14, and the one-time table entry at 0x08D75130 goes to this+0x18.
@@ -254,36 +225,6 @@ void func_08BE78E8(Runtime &rt, AllegrexContext &ctx) {
 // 0x08998560 (a0 = this): sets the vtables at +0 and +0x38, the float fields 0.3 and 10.0 at +0x124 / +0x128, the flags word at
 // +0x12C (bits 0..4 become 0x10), clears 0x120..0x154 and the 2 records of 3 words at +0x158, copies two words from 0x08C8C260,
 // then calls 0x08A76AA0(this + 0x180) and 0x089D8A54(this + 0x184) (v0 = the last one's result).
-void func_08998560(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x10u);
-    Saved saved(rt, ctx, frame, {{16u, 0x0u}, {31u, 0x4u}});
-    const u32 self = ctx.gpr[4];
-    call(rt, ctx, 0x089946BCu, {self});
-    put(rt, self, 0x08CCBE20u);
-    const u32 flags = word(rt, self + 0x12Cu);
-    put(rt, self + 0x38u, 0x08CCC078u);
-    put(rt, self + 0x124u, 0x3E99999Au);
-    put(rt, self + 0x128u, 0x41200000u);
-    put(rt, self + 0x12Cu, (flags & ~(0x7u | 0x18u)) | 0x10u);
-    put(rt, self + 0x120u, 0u);
-    for (u32 offset = 0x130u; offset <= 0x154u; offset += 4u) put(rt, self + offset, 0u);
-    u32 record = self + 0x158u;
-    for (u32 k = 0; k < 2u; ++k) {
-        put(rt, record, 0u);
-        put(rt, record + 4u, 0u);
-        put(rt, record + 8u, 0u);
-        record += 0xCu;
-    }
-    const u32 word_a = word(rt, 0x08C8C260u + 0x4u);
-    const u32 word_b = word(rt, 0x08C8C260u);
-    put(rt, self + 0x174u, word_a);
-    put(rt, self + 0x170u, word_b);
-    put(rt, self + 0x178u, 0x3F800000u);
-    put(rt, self + 0x17Cu, 0u);
-    call(rt, ctx, 0x08A76AA0u, {self + 0x180u});
-    call(rt, ctx, 0x089D8A54u, {self + 0x184u});
-    put(rt, self + 0x188u, 0u);
-}
 
 // 0x0892BD4C (a0 = this): the object at this+0x260 (0x9C bytes, vtable 0x08CC6740) is set up; the one-time entry 0x08D76A20
 // gets its vtable on the first init; the record's word 0x98 becomes -1 and v0 = -1.
@@ -376,39 +317,12 @@ void func_088FF120(Runtime &rt, AllegrexContext &ctx) {
 // 0x08AA2E28 (a0 = this, a1 = count): a local word at sp+4 is set by 0x08AAB5DC; for each of the count entries 0x08AABA8C(local, .)
 // (the second and later also repeat the first with 0x08CB2B58) and 0x08AAB8A0(result, index); then 0x08AAB540(local) feeds 0x08B88F44
 // (this, result); a 0x08B60804 check on the local, and v0 = this.
-void func_08AA2E28(Runtime &rt, AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x30u);
-    Saved saved(rt, ctx, frame,
-                {{17u, 0x14u}, {21u, 0x24u}, {18u, 0x18u}, {31u, 0x28u}, {20u, 0x20u}, {19u, 0x1Cu}, {16u, 0x10u}});
-    const u32 self = ctx.gpr[4];
-    const s32 count = static_cast<s32>(ctx.gpr[5]);
-    const u32 local = ctx.gpr[29] + 4u;
-    call(rt, ctx, 0x08AAB5DCu, {local});
-    if (count > 0) {
-        const u32 limit = static_cast<u32>(count);
-        for (u32 k = 0; k != limit; ++k) {
-            if (k != 0u) call(rt, ctx, 0x08AABA8Cu, {local, 0x08CB2B58u});
-            const u32 r = call(rt, ctx, 0x08AABA8Cu, {local, 0x08CB2B5Cu});
-            call(rt, ctx, 0x08AAB8A0u, {r, k});
-        }
-    }
-    const u32 r2 = call(rt, ctx, 0x08AAB540u, {local});
-    call(rt, ctx, 0x08B88F44u, {self, r2});
-    const u32 w = word(rt, local);
-    const u32 s0 = w - 0xCu;
-    if (s0 != 0x08D74FD0u) {
-        const s32 result = static_cast<s32>(call(rt, ctx, 0x08B60804u, {w - 4u, 0xFFFFFFFFu}));
-        if (result <= 0) call(rt, ctx, 0x08B8542Cu, {s0, ctx.gpr[29]});
-    }
-    ctx.gpr[2] = self;
-}
 
 } // namespace
 } // namespace new_batch_main_2084
 } // namespace gt::game
 
 #define NEW2084(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_2084::name, gt::ReturnKind::kind)
-NEW2084(0x08AA2E28u, func_08AA2E28, Word);
 NEW2084(0x08BA4064u, func_08BA4064, Word);
 NEW2084(0x08B980D0u, func_08B980D0, Word);
 NEW2084(0x08BA6A68u, func_08BA6A68, Word);
@@ -417,8 +331,6 @@ NEW2084(0x08B96C44u, func_08B96C44, Word);
 NEW2084(0x08B95D48u, func_08B95D48, Word);
 NEW2084(0x08B9363Cu, func_08B9363C, Word);
 NEW2084(0x08A8C828u, func_08A8C828, Word);
-NEW2084(0x08BE78E8u, func_08BE78E8, Void);
-NEW2084(0x08998560u, func_08998560, Word);
 NEW2084(0x0892BD4Cu, func_0892BD4C, Word);
 NEW2084(0x0887F600u, func_0887F600, Word);
 NEW2084(0x088FF120u, func_088FF120, Word);

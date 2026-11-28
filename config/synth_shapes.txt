@@ -2577,7 +2577,6 @@
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
 
 0x08A8C828 reg:a0=struct:128 field:+0x40=ptr
-0x08BE78E8 reg:a2=struct:96
 0x08998560 reg:a0=struct:400
 0x0892BD4C reg:a0=struct:640
 0x0887F600 reg:a0=struct:128
@@ -2712,7 +2711,6 @@
 #   +0x60 is the flag 0x089A8C70 tests (byte) and +0x5C must be non-negative for it to answer 1. a1 receives the 16-byte
 #   result (a1 is one register only, so it stays the generator's slot pointer).
 0x089AA038 reg:a0=struct:1024 field:+0x58=ptr field:+0xB0=ptr field:+0x5C=int:0..3 field:+0xB4=int:0..3 field:+0x60=int:1..1
-0x08998560 reg:a0=struct:400
 # 0x08ADCDE8: a0 is the object handed to the 0x08ADB278 lookup (its +0x28 / +0x14 are followed); a3 is the optional
 # three-word out (the asm only guards it against zero). The object gets the slot, since the lookup runs first.
 0x08ADCDE8 reg:a0=struct:64 field:+0x0=ptr
