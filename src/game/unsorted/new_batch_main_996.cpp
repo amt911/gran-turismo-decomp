@@ -339,79 +339,6 @@ void func_08882030(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
 // a0+0x148 is asked through its slot 0x60 (a2 = (word(record for byte at +0x54)+0x1C) == 0, t1 = that record's
 // +0x2C), the second 0x088F8D58 answer gets its slots 0x10 / 0x1C called and byte +0xC set / +0xB cleared, and the
 // +0x134 object is called through slot 0x18. v0 = 0 after the walk.
-void func_088E06E8(psprecomp::Runtime &rt, psprecomp::AllegrexContext &ctx) {
-    GuestFrame frame(ctx, 0x40u);
-    const u32 self = ctx.gpr[4];
-    if (call(rt, ctx, 0x088DAA84u, {self}) == 0u) {
-        ctx.gpr[2] = 0u;
-        return;
-    }
-    const u32 holder = word(rt, self + 0x130u);
-    if ((word(rt, holder + 0x40u) | word(rt, holder + 0x44u)) != 0u) {
-        ctx.gpr[2] = holder;
-        return;
-    }
-    const u32 span = static_cast<u32>(
-        sar(static_cast<s32>(word(rt, self + 0x660u) - word(rt, self + 0x65Cu)), 4));
-    const u32 limit = call(rt, ctx, 0x088DAA8Cu, {self});
-    if (static_cast<s32>(span) < static_cast<s32>(limit)) {
-        ctx.gpr[2] = limit;
-        return;
-    }
-    const u32 gate = word(rt, self + 0x640u);
-    bool walk = true;
-    if (gate != 0u && call(rt, ctx, 0x088E5218u, {gate}) == 0u) walk = false;
-    if (walk) {
-        u32 index = 0u;
-        u32 offset = 0u;
-        while (static_cast<s32>(index) < static_cast<s32>(call(rt, ctx, 0x088D9F80u, {self}))) {
-            if (call(rt, ctx, 0x088E86D0u, {word(rt, self + 0xC0u) + offset}) != 0u) {
-                call(rt, ctx, 0x088DC180u,
-                     {word(rt, self + 0x130u), index, word(rt, frame.at(0x0u)), word(rt, frame.at(0x4u))});
-            }
-            ++index;
-            offset += 0x2F8u;
-        }
-    }
-    for (u32 index = 0u, offset = 0u; static_cast<s32>(index) < static_cast<s32>(call(rt, ctx, 0x088D9F80u, {self}));
-         ++index, offset += 0x2F8u) {
-        const u32 record = word(rt, self + 0xC0u) + offset;
-        const u32 flags = word(rt, self + 0x130u) + index;
-        const u32 second = static_cast<u32>(static_cast<std::int8_t>(rt.memory().load8(flags + 0x58u)));
-        const u32 first = static_cast<u32>(static_cast<std::int8_t>(rt.memory().load8(flags + 0x54u)));
-        if (word(rt, record + 0x4u) == 1u && call(rt, ctx, 0x088E85E8u, {record}) != 0u &&
-            call(rt, ctx, 0x088E8778u, {record, second, first}) != 0u) {
-            call(rt, ctx, 0x088F8D58u, {word(rt, self + 0x14Cu), index});
-            const u32 owner = ctx.gpr[2];  // fp: the first query's answer
-            call(rt, ctx, 0x088F8A84u, {word(rt, self + 0x14Cu), index, second});
-            const u32 accessory = call(rt, ctx, 0x088F8D58u, {word(rt, self + 0x14Cu), index});
-            const u32 own_record = word(rt, self + 0xC0u) + 0x2F8u * first;
-            const u32 carrier = word(rt, self + 0x148u);
-            const u32 flag = (word(rt, own_record + 0x1Cu) ^ 1u) < 1u ? 1u : 0u;
-            call_indirect(rt, ctx, word(rt, word(rt, carrier) + 0x60u),
-                          {carrier, index, flag, accessory, first, word(rt, own_record + 0x2Cu)});
-            if (accessory != 0u) {
-                const u32 kind = call(rt, ctx, 0x088E85C4u, {record});
-                if (kind - 4u < 2u) {
-                    call_indirect(rt, ctx, word(rt, word(rt, accessory) + 0x10u), {accessory, 1u});
-                    call_indirect(rt, ctx, word(rt, word(rt, accessory) + 0x1Cu), {accessory, 1u});
-                } else {
-                    call_indirect(rt, ctx, word(rt, word(rt, accessory) + 0x10u),
-                                  {accessory, static_cast<u32>(rt.memory().load8(owner + 0x9u))});
-                    call_indirect(rt, ctx, word(rt, word(rt, accessory) + 0x1Cu), {accessory, 0u});
-                }
-                put8(rt, accessory + 0xCu, 1u);
-                put8(rt, accessory + 0xBu, 0u);
-            }
-            const u32 sink = word(rt, self + 0x134u);
-            if (sink != 0u) {
-                const u32 sink_vtable = word(rt, sink);
-                call_via(rt, ctx, sink_vtable, word(rt, sink_vtable + 0x18u), {sink, index, second, first});
-            }
-        }
-    }
-    ctx.gpr[2] = 0u;
-}
 
 // --- 0x088FC794 / 0x088FCA30 (the same body, two entry points) ---
 // a0 = the object, a1 = a pair of reference-counted holders, a2 = an object, a3 = a flag byte. The vtable 0x08CC4310
@@ -485,7 +412,6 @@ void construct_088FC794(Runtime &rt, AllegrexContext &ctx, const GuestFrame &fra
 NEW996(0x08AE5D60u, func_08AE5D60, Word);
 NEW996(0x088627F4u, func_088627F4, Word);
 NEW996(0x08882030u, func_08882030, Word);
-NEW996(0x088E06E8u, func_088E06E8, Word);
 
 } // namespace new_batch_main_996
 } // namespace gt::game
