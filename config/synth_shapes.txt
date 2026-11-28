@@ -2576,6 +2576,16 @@
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
 
+# 0x088B1254: the object at a0 is written; a1 and a2 are records whose +0 and +4 are read, +4 is a counted pointer.
+# 0x0886AC1C: a0 is the object (written up to +0x9C-ish); a1 is a name string whose first byte is read (zero takes the second path).
+# 0x0888A6AC: a0 receives the block pointer (stored at +0).
+0x0888A6AC reg:a0=struct:16
+# 0x0888A78C: same as 0x0888A6AC.
+0x0888A78C reg:a0=struct:16
+# 0x08895C9C: a0 is the record (+0x1C, +0x14..+0x28 written, +0x28 read back).
+# 0x08ACF920: a0 is the big record (tables at +0x8C..+0xB4, sub-objects at +0xB8, +0xFC, +0x528, +0x5F8).
+# 0x0886E888: a0 is the owner; its +0x70 slot receives the object.
+0x0886E888 reg:a0=struct:128
 # 0x08AA98E4: a0 = self, vtable +0 and the three list heads written through +0x38..+0x40; highest fixed word 0x40.
 0x08AA98E4 reg:a0=struct:64
 # 0x08A19D58: a0 = self, +4 is the block released (word(+4) - 0xC, its +0xC adjustment word read by the frees).
@@ -2772,14 +2782,11 @@
 # three-word out (the asm only guards it against zero). The object gets the slot, since the lookup runs first.
 0x08ADCDE8 reg:a0=struct:64 field:+0x0=ptr
 # 0x0886E888: a0 = self: the vtable at +0 and the block at +0x70 / +0x74, whose first word the tail call reads.
-0x0886E888 reg:a0=struct:128
 # 0x0886F51C: a0 = self: `lw v0,0x70(a0)` is the member whose +0x90 / +0x130..+0x13C are used; a2 is a text pointer only
 # read at its first byte; a3 is the tag or zero.
 0x0886F51C reg:a0=struct:128 field:+0x70=ptr
 # 0x0888A6AC: a0 = out, the two-word answer block (*out = the new object, out+4 = the shared vtable).
-0x0888A6AC reg:a0=struct:16
 # 0x0888A78C: byte-identical body to 0x0888A6AC.
-0x0888A78C reg:a0=struct:16
 # 0x08AE11A0: a0 is the object 0x08AEB808 enters and 0x08ADE328 collects into a stack scratch.
 # 0x08AE1338: the same shape, collected by 0x08ADE3A8.
 # 0x08AE160C: the same shape, collected by 0x08ADE4AC.
