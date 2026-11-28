@@ -113,71 +113,6 @@ void set_state_pairs(Runtime &rt, AllegrexContext &ctx, const u32 (&pairs)[4][2]
         call_set(rt, ctx, 0x089161A0u, {table, 0u, pair[0], pair[1]});
     }
 }
-void func_089283AC(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 other = ctx.gpr[5];  // s4
-    GuestFrame frame(ctx, 0x20u);
-    SavedRegisters saved(rt, ctx, frame, {{16u, 0x0u}, {17u, 0x4u}, {18u, 0x8u}, {19u, 0xCu}, {20u, 0x10u}, {31u, 0x14u}});
-    ctx.gpr[2] = 0xAu;
-    if (word(rt, self + 0x1FB8u) == 0xAu) {
-        const u32 state = word(rt, self + 0x1D1Cu);
-        if (state == 1u || state == 2u) {
-            set_state_pairs(rt, ctx, {{1u, 1u}, {0u, 0u}, {2u, 0u}, {3u, 0u}});
-        } else if (state == 3u) {
-            set_state_pairs(rt, ctx, {{1u, 0u}, {0u, 0u}, {2u, 1u}, {3u, 0u}});
-        } else if (state == 4u) {
-            set_state_pairs(rt, ctx, {{1u, 0u}, {0u, 0u}, {2u, 0u}, {3u, 1u}});
-        } else {
-            set_state_pairs(rt, ctx, {{1u, 0u}, {0u, 1u}, {2u, 0u}, {3u, 0u}});
-        }
-    } else {
-        set_state_pairs(rt, ctx, {{0u, 0u}, {1u, 0u}, {2u, 0u}, {3u, 0u}});
-    }
-    const u32 phase = word(rt, self + 0x1FB8u);
-    if (phase == 0xBu) {
-        if (call_set(rt, ctx, 0x089273B4u, {self}).v0 != 0u) return;  // v0 = busy
-        const u32 object = call_set(rt, ctx, 0x089273D8u, {self}).v0;
-        if (call_virtual_at(rt, ctx, object, 0xCu, {object, 0x20u}).v0 == 0u) return;  // v0 = 0
-        tail_call(ctx, 0x089281E4u, {self, 3u});
-        return;
-    }
-    if (phase != 0u && phase != 3u) {
-        ctx.gpr[2] = 0xBu;
-        return;
-    }
-    if (call_set(rt, ctx, 0x089273B4u, {self}).v0 != 0u) {
-        if (phase != 0u && word(rt, self + 0x1FCu) == 0x22u) {
-            ctx.gpr[2] = 0x22u;
-            return;
-        }
-        tail_call(ctx, 0x08927D14u, {self, self + 0x2184u});
-        return;
-    }
-    const u32 previous = call_set(rt, ctx, 0x089275B0u, {self, other}).v0;  // s3
-    const u32 step = call_set(rt, ctx, 0x08927EACu, {self, other}).v0;      // s0
-    u32 mode = 1u;  // s2
-    u32 answer = 0u;  // v1
-    if (step != 1u) {
-        answer = call_set(rt, ctx, 0x08927E4Cu, {self}).v0;
-        mode = word(rt, self + 0x2050u);
-    }
-    const bool same = previous == 1u;  // s3
-    if (same || answer == 1u || rt.memory().load8(self + 0x2054u) != step) {
-        if (mode == 0u) call_set(rt, ctx, 0x089281E4u, {self, 3u});
-        else call_set(rt, ctx, 0x089274C8u, {self, self + 0x2194u});
-    }
-    ctx.gpr[2] = 1u;
-    rt.memory().store8(self + 0x2054u, static_cast<std::uint8_t>(step));
-    if (mode != 1u) return;
-    const u32 slot = self + 0x2194u;  // s0
-    call_set(rt, ctx, 0x08927D14u, {self, slot});
-    if (same) {
-        put(rt, slot + 8u, word(rt, slot + 0xCu));
-        call_set(rt, ctx, 0x089274C8u, {self, slot});
-        call_set(rt, ctx, 0x089200CCu, {self, other, word(rt, self + 0x1FB0u)});
-    }
-    tail_call(ctx, 0x08927BE4u, {self, slot, 0u, 0u});
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // 0x089344D8 (a0 = the struct to check): 0x089363FC gives a context, 0x08936584 fills a block of canonical values
@@ -333,5 +268,4 @@ void func_088F20E4(Runtime &rt, AllegrexContext &ctx) {
 } // namespace gt::game
 
 #define NEW2104(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_2104::name, gt::ReturnKind::kind)
-NEW2104(0x089283ACu, func_089283AC, Word);
 NEW2104(0x088F20E4u, func_088F20E4, Word);

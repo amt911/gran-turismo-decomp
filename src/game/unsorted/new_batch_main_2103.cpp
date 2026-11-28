@@ -98,28 +98,9 @@ bool node_part(Runtime &rt, AllegrexContext &ctx, u32 self) {
     return true;
 }
 
-void func_08873ADC(Runtime &rt, AllegrexContext &ctx) {
-    const u32 self = ctx.gpr[4];
-    const u32 s2 = ctx.gpr[5];
-    bool tail = false;
-    {
-        GuestFrame frame(ctx, 0x10u);
-        owner_part(rt, ctx, self, s2);
-        tail = node_part(rt, ctx, self);
-        if (tail) {
-            const u32 node = word(rt, self + 0x14u);
-            clear_bit16(rt, node);
-            ctx.gpr[2] = word(rt, node + 0x24u);
-        } else {
-            ctx.gpr[2] = 0u;
-        }
-    }
-    if (tail) tail_call(ctx, 0x0886BAF8u, {s2});
-}
 
 }  // namespace
 }  // namespace new_batch_main_2103
 }  // namespace gt::game
 
 #define NEWM(address, name, kind) GT_DECOMP(address, gt::game::new_batch_main_2103::name, gt::ReturnKind::kind)
-NEWM(0x08873ADCu, func_08873ADC, Word);
