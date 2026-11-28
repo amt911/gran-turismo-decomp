@@ -2771,3 +2771,22 @@
 0x088F1358 reg:a0=struct:32 field:+0x18=ptr
 0x08A58518 reg:a0=struct:32 field:+0x14=ptr
 0x08873ADC reg:a0=struct:64 field:+0xC=ptr field:+0x14=ptr
+# 0x0890B7AC: a0 is the owner: +0x100 is the held object (vtable at +0, counts at +4 and +8), +0x28..+0x0 are (value, object) pairs.
+# main session 2088 (draft-only batch): input shapes for the functions that dereference an argument.
+# 0x089DE688: a0 is the object the constructor fills (stores only).
+0x089DE688 reg:a0=struct:512
+# 0x089D0900: a0 is the object; its word at +0x14C (flags) and +0xE0 are read before they are rewritten.
+# 0x08ACEBC4: constructs the object in a0, writing fields up to +0x518.
+# 0x08AB8FD8: a0 is an array of row pointers, t0/t1/t2 are the float outs.
+# 0x08B49014: the mode word at +0x10 of a0 (0..8 covers the 1/2 and 3/4 cases).
+0x08B49014 reg:a0=struct:0x14 field:+0x10=int:0..8
+# 0x08939484: the object pointer at +0x1C of a0 is null-checked.
+0x08939484 reg:a0=struct:0x24 field:+0x1C=ptr
+# 0x08B19948: the probe word at +0 and the flag at +4 of a0.
+0x08B19948 reg:a0=struct:8 field:+0x0=int:0..0x100 field:+0x4=int:0..2
+# 0x08A768F4: a1 is the string walked byte by byte.
+# 0x08B970A4: the four guard words and the records they wire together.
+# 0x0885C704: a0 is the constructed object; its word at +0 heads the allocated block.
+0x0885C704 reg:a0=struct:0x90 field:+0x0=ptr
+# 0x08A643B8: the object at +0x28 of a0 points to a record whose -4 is dereferenced.
+0x08A643B8 reg:a0=struct:0x3C field:+0x28=ptr
