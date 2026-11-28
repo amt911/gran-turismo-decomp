@@ -2577,7 +2577,6 @@
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
 
 # Synthetic-case input shapes for new_batch_main_2094 (config/synth_shapes format).
-0x088865C8 reg:a0=struct:1024 field:+0x64=int:0..1023
 0x0897B364 reg:a0=struct:1024
 0x088979C8 reg:a1=struct:16 field:+0x0=ptr
 0x08B0AE94 reg:a0=struct:16
@@ -2677,7 +2676,6 @@
 # state) are read; a0 is the state the results land in (+8/+0xC/+0x10..+0x40).
 0x0887C0A8 reg:a1=struct:256 field:+0x60=ptr
 # 0x0897B364: a0 is the object the constructor fills from +0 up to +0x204 (vtables, tables at +0x94/+0xEC, fields).
-0x0897B364 reg:a0=struct:1024
 # 0x08929104: a0 is the object ("fp") every sub-initialiser is given a member of; the body writes +0x1F70..+0x21A0 and
 # the block at +0x2058 (+0x6C..+0x88, floats at +0x7C / +0x80, the word 3 at +0x84), so it must be a writable block.
 # Real size 0x21A8, capped at 1024 like the other big constructors.
