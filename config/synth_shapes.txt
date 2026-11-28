@@ -2576,6 +2576,34 @@
 # 0x08A8E20C: reads the list heads at +0x2C and +0x30 of a0 and the vector words at +0x48/+0x4C; dereferences both heads.
 0x08A8E20C reg:a0=struct:256 field:+0x2C=ptr field:+0x30=ptr field:+0x48=ptr field:+0x4C=ptr
 
+# 0x08AA98E4: a0 = self, vtable +0 and the three list heads written through +0x38..+0x40; highest fixed word 0x40.
+0x08AA98E4 reg:a0=struct:64
+# 0x08A19D58: a0 = self, +4 is the block released (word(+4) - 0xC, its +0xC adjustment word read by the frees).
+0x08A19D58 reg:a0=struct:40 field:+0x4=ptr
+# 0x089F1120: a0 = self; +0x20 / +0x24 / +0x28 are the vector handed to 0x08B856B0; 0 keeps the free path skipped.
+0x089F1120 reg:a0=struct:48 field:+0x20=int:0..0 field:+0x24=int:0..0
+# 0x08ABFC8C: a0 = self, the two ABI members at +0x30 / +0x44 and the bytes at +0x58 / +0x5C / +0x5D written.
+0x08ABFC8C reg:a0=struct:96
+# 0x089EFC90: a0 = self, the float / word fields down to +0xE6C (past the 1024-byte cap, so capped).
+0x089EFC90 reg:a0=struct:1024
+# 0x08BE0DD8: a0 = self, +0x24 and +0x2C are reference-counted objects released through their vtables.
+0x08BE0DD8 reg:a0=struct:64 field:+0x24=ptr field:+0x2C=ptr
+# 0x08AA6824: a0 = self, +8..+0x28 written (the block from 0x08A5BC20 is stored at +0x1C..+0x24).
+0x08AA6824 reg:a0=struct:64
+# 0x089DE0D8: a0 = self, the two vectors at +0xEC and +0xF8 (bit 7 of +0x140 picks one; +0xEC + 12 = +0xF8), each
+# {begin, end}; the flag word at +0x140 is read too. Both begins are pointers; the ends are freed / grown against.
+0x089DE0D8 reg:a0=struct:512 field:+0xEC=ptr field:+0xF0=ptr field:+0xF8=ptr field:+0xFC=ptr
+# 0x089DE240: the same two vectors at +0x104 and +0x110 (bit 8 of +0x140). 0x140 + 4 = 0x144 within 512.
+0x089DE240 reg:a0=struct:512 field:+0x104=ptr field:+0x108=ptr field:+0x110=ptr field:+0x114=ptr
+# 0x088F9888: a0 = self, +8 / +0xC written and the block at +8 filled.
+0x088F9888 reg:a0=struct:32
+# 0x08B2A9D0: a1 = source vector {allocator +0, begin +4, end +8}; an empty vector (0, 0) takes the grow path with
+# count 0 and keeps the copy loop from running.
+0x08B2A9D0 reg:a1=struct:16 field:+0x4=int:0..0 field:+0x8=int:0..0
+# 0x08B2AEC4: the same copy constructor, same source shape.
+0x08B2AEC4 reg:a1=struct:16 field:+0x4=int:0..0 field:+0x8=int:0..0
+# 0x08AF1E98: a0 = self, +0 / +4 / +8 written (the 0x330 block is a separate allocation).
+0x08AF1E98 reg:a0=struct:16
 # 0x08B03408: lwc1 at 0x0 / 0x4 / 0x8(a2) copies the float3 into the frame's float4 (the fourth word is the constant
 #   1.0f); a0/a1 are only passed on.
 # 0x08A5D888: lw a0,0x18(a1) / lw a1,0x1C(a1) are copied into a0 (skipped when a0 == a1); a0 is only written, and a
