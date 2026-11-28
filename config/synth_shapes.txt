@@ -2864,6 +2864,10 @@
 # 0x08A643B8: the object at +0x28 of a0 points to a record whose -4 is dereferenced.
 0x08A643B8 reg:a0=struct:0x3C field:+0x28=ptr
 
+# 0x0881CAEC (a0 = this): writes the vtable at +0, the allocated record at +0x14 and the table entry at +0x18;
+# 0x20 covers the last write. It also reads/writes the globals 0x08D75128 (guard byte) and 0x08D75130 (entry), which
+# the arena keeps empty, so the guard's build path is the case.
+0x0881CAEC reg:a0=struct:32
 # 0x0886A7B0 writes up to +0x4240 of a0.
 # 0x08C247E4: a1 is the address of a pointer to an object; the object's vtable slot +0x44 is called.
 # 0x089333A0 reads +0xB0 and +0xB4 of a0.
