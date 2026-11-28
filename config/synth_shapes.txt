@@ -2211,6 +2211,9 @@
 # 0x08B1A4F4: *a0 and *(a0+4) receive the two allocated blocks.
 0x08B1A4F4 reg:a0=struct:16
 
+# 0x0887EA84 and 0x088844E0: a0 is the object that receives the sub-object word at +0x70 / +0xC and the stores at +0x74 / +0x10.
+0x0887EA84 reg:a0=struct:128
+0x088844E0 reg:a0=struct:32
 # Synthetic-case input shapes for main session 1598 (batch 1598): one line per function that dereferences an argument
 # register, with the asm evidence above each.
 # 0x08B56674: sixteen lv.s of a1's 0x40 bytes (S000..S033, a1 as the source).
